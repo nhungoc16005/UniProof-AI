@@ -1,0 +1,25 @@
+# ==============================================================================
+# EduPoint — Master Python Requirements (Python 3.11)
+# ==============================================================================
+# Bạn có thể cài đặt từng phần theo nhu cầu hoặc cài toàn bộ:
+#
+# Cách 1: Tạo môi trường ảo với Python 3.11:
+#   python3.11 -m venv venv
+#   source venv/bin/activate       # (macOS/Linux)
+#   venv\Scripts\activate          # (Windows)
+#
+# Cách 2: Cài riêng cho AI Service (Inference):
+#   pip install -r apps/ai-service/requirements.txt
+#
+# Cách 3: Cài riêng cho Research (Training & Notebooks):
+#   pip install -r research/activity-classification/requirements.txt
+#
+# Cách 4: Cài toàn bộ tài nguyên Python cho dự án:
+#   pip install -r requirements.txt
+# ==============================================================================
+
+# --- AI Service (FastAPI & PhoBERT Inference) ---
+-r apps/ai-service/requirements.txt
+
+# --- Research & Model Training (Scikit-learn, Accelerate, Jupyter, Matplotlib) ---
+-r research/activity-classification/requirements.txt

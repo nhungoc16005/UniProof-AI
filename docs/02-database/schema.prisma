@@ -1,0 +1,471 @@
+// =========================================================================
+// EDUPOINT — DATABASE SCHEMA (Prisma + PostgreSQL / Supabase)
+// Phiên bản chuẩn hóa theo Feature Specs & API Contract
+// =========================================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector] // pgvector cho RAG tra cứu điều khoản quy chế
+}
+
+// =========================================================================
+// 1. NGƯỜI DÙNG & CƠ CẤU TRƯỜNG ĐẠI HỌC (TÀI KHOẢN TRƯỜNG CẤP SẴN)
+// =========================================================================
+
+enum Role {
+  STUDENT // Sinh viên (thuộc Lớp & Khoa)
+  STAFF   // Cán bộ quản lý (thuộc Khoa phụ trách)
+  ADMIN   // Quản trị viên hệ thống / Phòng CTSV cấp Trường
+}
+
+model Faculty {
+  id        String   @id @default(uuid())
+  code      String   @unique // vd: "CNTT", "KT"
+  name      String   // Khoa Công nghệ Thông tin
+  classes   Class[]
+  staffs    User[]   @relation("FacultyStaffs")
+  createdAt DateTime @default(now())
+}
+
+model Class {
+  id        String   @id @default(uuid())
+  code      String   @unique // vd: "21TCLC_DT1"
+  name      String   
+  cohort    String   // Khóa: "K21"
+  facultyId String
+  faculty   Faculty  @relation(fields: [facultyId], references: [id])
+  students  User[]   @relation("ClassStudents")
+  createdAt DateTime @default(now())
+}
+
+model User {
+  id           String   @id @default(uuid()) // Map 1-1 với Supabase auth.users.id
+  email        String   @unique              // Email trường cấp (@dut.udn.vn)
+  fullName     String
+  role         Role
+  studentCode  String?  @unique              // Mã sinh viên (chỉ có khi role = STUDENT)
+  
+  classId      String?                       // Dành cho Sinh viên
+  class        Class?   @relation("ClassStudents", fields: [classId], references: [id])
+  facultyId    String?                       // Dành cho Cán bộ (STAFF)
+  faculty      Faculty? @relation("FacultyStaffs", fields: [facultyId], references: [id])
+  
+  isFirstLogin Boolean  @default(true)       // Bắt buộc đổi mật khẩu lần đầu khi nhận tài khoản trường cấp
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  evidences        Evidence[]            @relation("StudentEvidences")
+  lockedEvidences  Evidence[]            @relation("OfficerLocks")
+  reviews          Review[]              @relation("ReviewerReviews")
+  appeals          Appeal[]              @relation("StudentAppeals")
+  resolvedAppeals  Appeal[]              @relation("OfficerResolvedAppeals")
+  notifications    Notification[]
+  auditLogs        AuditLog[]
+  conductScores    ConductScore[]
+  uploadedDocs     RegulationDocument[]
+  participations   ActivityParticipant[]
+}
+
+// =========================================================================
+// 2. KỲ ĐÁNH GIÁ & HOẠT ĐỘNG
+// =========================================================================
+
+enum TermStatus {
+  UPCOMING
+  ACTIVE      // Mở nhận minh chứng
+  REVIEWING   // Khóa nộp, đang chấm & giải quyết khiếu nại
+  CLOSED      // Đã chốt sổ điểm chính thức
+}
+
+model Term {
+  id                 String     @id @default(uuid())
+  name               String     // "Học kỳ 1 (2026-2027)"
+  code               String     @unique // "2026_1"
+  startDate          DateTime
+  endDate            DateTime
+  submissionDeadline DateTime   // Hạn chót nộp bài của sinh viên
+  reviewDeadline     DateTime   // Hạn chót cán bộ duyệt
+  appealDeadline     DateTime   // Hạn chót khiếu nại
+  status             TermStatus @default(UPCOMING)
+  createdAt          DateTime   @default(now())
+
+  evidences     Evidence[]
+  conductScores ConductScore[]
+}
+
+enum ActivityType {
+  INTERNAL // Hoạt động nội bộ
+  EXTERNAL // Hoạt động bên ngoài
+}
+
+model Activity {
+  id          String        @id @default(uuid())
+  name        String
+  type        ActivityType
+  organizer   String        // Đơn vị tổ chức
+  startDate   DateTime?
+  endDate     DateTime?
+  location    String?
+  description String?
+  createdAt   DateTime      @default(now())
+
+  participants ActivityParticipant[]
+  evidences    Evidence[]
+}
+
+model ActivityParticipant {
+  id         String   @id @default(uuid())
+  activityId String
+  activity   Activity @relation(fields: [activityId], references: [id])
+  studentId  String
+  student    User     @relation(fields: [studentId], references: [id])
+  formRole   String?  // BAN_TO_CHUC, THAM_GIA_CHINH, CO_VU
+  source     String?  // "Import_NgayHoi_2026.xlsx"
+  createdAt  DateTime @default(now())
+
+  @@unique([activityId, studentId])
+}
+
+// =========================================================================
+// 3. TÀI LIỆU QUY ĐỊNH (RAG), TIÊU CHÍ & RULE ENGINE
+// =========================================================================
+
+enum DocumentStatus {
+  ACTIVE
+  EXPIRED
+}
+
+model RegulationDocument {
+  id            String         @id @default(uuid())
+  title         String         
+  version       String         
+  effectiveDate DateTime
+  expiryDate    DateTime?
+  fileUrl       String         
+  status        DocumentStatus @default(ACTIVE)
+  uploadedById  String
+  uploadedBy    User           @relation(fields: [uploadedById], references: [id])
+  createdAt     DateTime       @default(now())
+
+  criteria Criterion[]
+  chunks   RegulationChunk[]
+}
+
+model RegulationChunk {
+  id                   String              @id @default(uuid())
+  regulationDocumentId String
+  regulationDocument   RegulationDocument  @relation(fields: [regulationDocumentId], references: [id])
+  content              String
+  chunkIndex           Int
+  embedding            Unsupported("vector(1536)")
+
+  @@index([regulationDocumentId])
+}
+
+model Criterion {
+  id                   String              @id @default(uuid())
+  code                 String              @unique // "3.1", "4.1"
+  name                 String              
+  description          String              
+  minScore             Float               @default(0.0)
+  maxScore             Float               // Điểm trần kiểu Float
+  category             String?             // "KHUNG_I" -> "KHUNG_V"
+  rolesScore           Json?               // {"ORGANIZER": 4.0, "PARTICIPANT": 2.0}
+  regulationDocumentId String?
+  regulationDocument   RegulationDocument? @relation(fields: [regulationDocumentId], references: [id])
+  createdAt            DateTime            @default(now())
+
+  rules         Rule[]
+  aiSuggestions AiSuggestion[]
+  reviews       Review[]
+}
+
+enum RuleStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model Rule {
+  id          String     @id @default(uuid())
+  name        String     // "RULE_CAP_CHEERLEADER"
+  criterionId String
+  criterion   Criterion  @relation(fields: [criterionId], references: [id])
+  ruleType    String     // CAP_RESTRICTION, PREREQUISITE, EXCLUSION
+  logicJson   Json       // Cấu trúc JSON Logic linh hoạt
+  status      RuleStatus @default(PUBLISHED)
+  version     Int        @default(1)
+  createdAt   DateTime   @default(now())
+}
+
+// =========================================================================
+// 4. HỒ SƠ MINH CHỨNG
+// =========================================================================
+
+enum EvidenceStatus {
+  DRAFT             // Bản nháp sinh viên chưa bấm nộp
+  PROCESSING        // Đang chạy OCR/AI
+  VERIFIED          // Đã xác minh có căn cứ độc lập
+  PLAUSIBLE         // Khả tín nhưng chưa đủ đối chứng
+  NEEDS_SUPPLEMENT  // Cần bổ sung giấy tờ
+  NEEDS_HUMAN_REVIEW// Chuyển cán bộ xem xét (Certificate-only)
+  INVALID           // Phát hiện mâu thuẫn rõ ràng
+  APPROVED          // Đã được duyệt chính thức
+  REJECTED          // Bị từ chối
+  APPEALING         // Đang trong tiến trình khiếu nại
+  WITHDRAWN         // Sinh viên đã rút hồ sơ
+}
+
+model Evidence {
+  id                   String         @id @default(uuid())
+  studentId            String
+  student              User           @relation("StudentEvidences", fields: [studentId], references: [id])
+  termId               String
+  term                 Term           @relation(fields: [termId], references: [id])
+  activityId           String?        
+  activity             Activity?      @relation(fields: [activityId], references: [id])
+  declaredActivityName String?        
+  declaredRole         String?        // "PARTICIPANT", "ORGANIZER", "CHEERLEADER"
+  evidenceType         String         // GIAY_KHEN, GIAY_XAC_NHAN, VE_CHECKIN
+  status               EvidenceStatus @default(PROCESSING)
+  participationDate    DateTime?      
+  submittedAt          DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  // Khóa đồng thời (Soft-lock) chống 2 cán bộ duyệt trùng
+  lockedById           String?
+  lockedBy             User?          @relation("OfficerLocks", fields: [lockedById], references: [id])
+  lockedAt             DateTime?
+  version              Int            @default(1) // Optimistic Locking chống xung đột ghi đè
+
+  files               EvidenceFile[]
+  ocrResults          OcrResult[]
+  verificationResults VerificationResult[]
+  anomalyFlags        AnomalyFlag[]
+  aiSuggestions       AiSuggestion[]
+  reviews             Review[]
+  supplementRequests  SupplementRequest[]
+  appeals             Appeal[]
+  notifications       Notification[]
+
+  @@index([studentId, termId, status])
+}
+
+model EvidenceFile {
+  id         String     @id @default(uuid())
+  evidenceId String
+  evidence   Evidence   @relation(fields: [evidenceId], references: [id])
+  fileUrl    String     
+  fileType   String     
+  uploadedAt DateTime   @default(now())
+
+  ocrResults OcrResult[]
+}
+
+// =========================================================================
+// 5. KẾT QUẢ AI & XÁC MINH
+// =========================================================================
+
+model OcrResult {
+  id                     String        @id @default(uuid())
+  evidenceFileId         String
+  evidenceFile           EvidenceFile  @relation(fields: [evidenceFileId], references: [id])
+  evidenceId             String
+  evidence               Evidence      @relation(fields: [evidenceId], references: [id])
+  extractedText          String        
+  studentNameExtracted   String?
+  studentCodeExtracted   String?
+  activityNameExtracted  String?
+  organizerExtracted     String?       
+  dateExtracted          String?
+  locationExtracted      String?
+  certificateCode        String?       
+  extractedFieldsJson    Json?         
+  confidenceScore        Float?
+  reviewedByHuman        Boolean       @default(false)
+  createdAt              DateTime      @default(now())
+
+  @@index([evidenceId])
+}
+
+enum VerificationStatus {
+  VERIFIED            
+  PLAUSIBLE           
+  SUSPICIOUS          
+  INVALID             
+  NEEDS_HUMAN_REVIEW  
+}
+
+model VerificationResult {
+  id                          String              @id @default(uuid())
+  evidenceId                  String
+  evidence                    Evidence            @relation(fields: [evidenceId], references: [id])
+  verificationLevel           Int                 // Cấp độ 1 đến 5 (L1 - L5)
+  status                      VerificationStatus
+  activityExistsVerified      Boolean             @default(false) // Câu hỏi 1: Hoạt động có tồn tại?
+  studentParticipationVerified Boolean            @default(false) // Câu hỏi 2: Sinh viên có tham gia?
+  sourceDescription           String              
+  evidenceGap                 Json?               // Danh sách bằng chứng còn thiếu
+  createdAt                   DateTime            @default(now())
+
+  @@index([evidenceId])
+}
+
+enum AnomalyFlagType {
+  DUPLICATE          
+  INCONSISTENT_INFO  
+  IMAGE_WEB_MATCH    
+  MISSING_INFO       
+  OTHER
+}
+
+model AnomalyFlag {
+  id               String          @id @default(uuid())
+  evidenceId       String
+  evidence         Evidence        @relation(fields: [evidenceId], references: [id])
+  flagType         AnomalyFlagType
+  description      String
+  severity         String          // LOW | MEDIUM | HIGH
+  resolvedByHuman  Boolean         @default(false)
+  createdAt        DateTime        @default(now())
+
+  @@index([evidenceId])
+}
+
+model AiSuggestion {
+  id              String     @id @default(uuid())
+  evidenceId      String
+  evidence        Evidence   @relation(fields: [evidenceId], references: [id])
+  criterionId     String?
+  criterion       Criterion? @relation(fields: [criterionId], references: [id])
+  suggestedScore  Float?     // Điểm gợi ý kiểu Float
+  suggestedRole   String?    
+  reasoning       String     
+  confidenceScore Float?
+  createdAt       DateTime   @default(now())
+
+  @@index([evidenceId])
+}
+
+// =========================================================================
+// 6. PHÊ DUYỆT (OFFICER), KHIẾU NẠI & ĐIỂM CHÍNH THỨC
+// =========================================================================
+
+enum ReviewDecision {
+  APPROVED
+  REJECTED
+  SCORE_ADJUSTED
+  SUPPLEMENT_REQUESTED
+}
+
+model Review {
+  id          String         @id @default(uuid())
+  evidenceId  String
+  evidence    Evidence       @relation(fields: [evidenceId], references: [id])
+  reviewerId  String
+  reviewer    User           @relation("ReviewerReviews", fields: [reviewerId], references: [id])
+  decision    ReviewDecision
+  criterionId String?
+  criterion   Criterion?     @relation(fields: [criterionId], references: [id])
+  finalScore  Float?         // Điểm cán bộ chốt kiểu Float
+  rejectBasis String?        // Căn cứ từ chối (bắt buộc nếu REJECT)
+  reason      String         // Bắt buộc cán bộ nhập lý do
+  createdAt   DateTime       @default(now())
+
+  supplementRequests SupplementRequest[]
+
+  @@index([evidenceId])
+}
+
+model SupplementRequest {
+  id           String    @id @default(uuid())
+  evidenceId   String
+  evidence     Evidence  @relation(fields: [evidenceId], references: [id])
+  reviewId     String
+  review       Review    @relation(fields: [reviewId], references: [id])
+  missingItem  String    
+  deadline     DateTime? // Hạn chót sinh viên phải bổ sung
+  resolvedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([evidenceId])
+}
+
+enum AppealStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+model Appeal {
+  id             String       @id @default(uuid())
+  evidenceId     String
+  evidence       Evidence     @relation(fields: [evidenceId], references: [id])
+  studentId      String
+  student        User         @relation("StudentAppeals", fields: [studentId], references: [id])
+  content        String       // Giải trình của sinh viên
+  requestedScore Float?       // Điểm sinh viên mong muốn
+  status         AppealStatus @default(PENDING)
+  
+  // Dữ liệu giải quyết của Cán bộ
+  resolverId     String?
+  resolver       User?        @relation("OfficerResolvedAppeals", fields: [resolverId], references: [id])
+  resolutionNote String?      // Lý do chấp nhận hoặc bác bỏ
+  adjustedScore  Float?       // Điểm sau khi giải quyết khiếu nại
+  resolvedAt     DateTime?
+  createdAt      DateTime     @default(now())
+}
+
+model ConductScore {
+  id             String   @id @default(uuid())
+  studentId      String
+  student        User     @relation(fields: [studentId], references: [id])
+  termId         String
+  term           Term     @relation(fields: [termId], references: [id])
+  totalScore     Float    // Tổng điểm kiểu Float
+  classification String?  // XUẤT SẮC | TỐT | KHÁ | TRUNG BÌNH | YẾU
+  finalizedAt    DateTime @default(now())
+
+  @@unique([studentId, termId])
+}
+
+// =========================================================================
+// 7. AUDIT LOG & THÔNG BÁO
+// =========================================================================
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  action     String   // APPROVE | REJECT | OVERRIDE_SCORE | EDIT_RULE | LOGIN
+  entityType String   // "Evidence", "Review", "Criterion", "Term"
+  entityId   String   
+  oldValue   Json?
+  newValue   Json?
+  ipAddress  String?  // Ghi nhận IP kiểm toán
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+}
+
+model Notification {
+  id                String    @id @default(uuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id])
+  title             String
+  content           String
+  type              String    // EVIDENCE_REVIEWED | SUPPLEMENT_REQUIRED | APPEAL_RESOLVED
+  isRead            Boolean   @default(false)
+  relatedEvidenceId String?
+  relatedEvidence   Evidence? @relation(fields: [relatedEvidenceId], references: [id])
+  createdAt         DateTime  @default(now())
+
+  @@index([userId, isRead])
+}
