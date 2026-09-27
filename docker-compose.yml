@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  # 1. PostgreSQL Database with pgvector extension (for RAG embedding & EduPoint data)
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: edupoint-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: edupoint_db
+    ports:
+      - '5432:5432'
+    volumes:
+      - edupoint_postgres_data:/var/lib/postgresql/data
+
+  # 2. Redis Cache & Job Queue (for BullMQ async OCR/AI pipeline)
+  redis:
+    image: redis:7-alpine
+    container_name: edupoint-redis
+    restart: always
+    ports:
+      - '6379:6379'
+    volumes:
+      - edupoint_redis_data:/data
+
+volumes:
+  edupoint_postgres_data:
+  edupoint_redis_data:
