@@ -27,7 +27,7 @@ export const StudentDashboard: React.FC = () => {
       .reduce((sum, e) => {
         const revScore = e.reviews?.[0]?.finalScore || 0;
         return sum + revScore;
-      }, 65); // baseline
+      }, 87); // baseline từ phiếu tự đánh giá mẫu (17 + 25 + 20 + 25 + 0 = 87)
   }, [evidences]);
 
   const pendingScore = useMemo(() => {
@@ -284,11 +284,11 @@ export const StudentDashboard: React.FC = () => {
 
           <div className="space-y-4">
             {[
-              { id: 'C01', name: 'Ý thức và kết quả học tập', current: 18, max: 20, pct: 90 },
-              { id: 'C02', name: 'Ý thức chấp hành nội quy, quy chế', current: 22, max: 25, pct: 88 },
-              { id: 'C03', name: 'Ý thức tham gia hoạt động chính trị - xã hội', current: 15, max: 20, pct: 75 },
-              { id: 'C04', name: 'Phẩm chất công dân và quan hệ cộng đồng', current: 20, max: 25, pct: 80 },
-              { id: 'C05', name: 'Ý thức tham gia phụ trách lớp, đoàn thể', current: 8, max: 10, pct: 80 },
+              { id: 'Khung I', name: 'Ý thức tham gia học tập', current: 17, max: 20, pct: 85 },
+              { id: 'Khung II', name: 'Ý thức chấp hành nội quy, quy chế, quy định', current: 25, max: 25, pct: 100 },
+              { id: 'Khung III', name: 'Ý thức tham gia các hoạt động chính trị, xã hội, phong trào', current: 20, max: 20, pct: 100 },
+              { id: 'Khung IV', name: 'Ý thức công dân trong quan hệ cộng đồng', current: 25, max: 25, pct: 100 },
+              { id: 'Khung V', name: 'Ý thức và kết quả khi tham gia công tác cán bộ lớp, đoàn thể', current: 0, max: 10, pct: 0 },
             ].map((c) => (
               <div key={c.id} className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs">

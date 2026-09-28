@@ -121,12 +121,16 @@ export interface ActivityParticipant {
 
 export interface Criterion {
   id: string;
-  code: string; // "1.1", "3.2"
+  code: string; // "1", "2", ... "16"
   name: string;
   description: string;
   minScore: number;
   maxScore: number;
   category?: string; // "KHUNG_I", "KHUNG_II", "KHUNG_III", "KHUNG_IV", "KHUNG_V"
+  subRules?: string[]; // Các dòng quy định chi tiết/trừ điểm/cộng điểm
+  selfScore?: number; // Điểm sinh viên tự đánh giá
+  classScore?: number; // Điểm tập thể lớp đánh giá
+  notes?: string;
   rolesScore?: Record<string, number>;
   regulationDocumentId?: string;
   createdAt?: string;
