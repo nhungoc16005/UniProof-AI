@@ -538,9 +538,37 @@ export const ReviewDetail: React.FC = () => {
 
           {/* Section 4: Decision Actions (Clean Typography Buttons) */}
           <div className="bg-white border-2 border-slate-300 rounded-2xl p-5 shadow-sm space-y-4">
+            
+            {/* 1-Click Fast Track AI Approve */}
+            {ai?.suggestedScore !== undefined && (
+              <div className="p-3.5 bg-gradient-to-r from-blue-50/80 to-emerald-50/80 border border-blue-200/90 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+                <div className="space-y-0.5">
+                  <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    Đề xuất duyệt tự động (Khớp 100% đối soát)
+                  </span>
+                  <p className="text-[11px] text-slate-600">
+                    AI đề xuất <strong className="text-[#1d6fc2] font-bold">+{ai.suggestedScore} điểm</strong> theo tiêu chí phù hợp.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => {
+                    setFinalScoreInput(ai.suggestedScore ?? 5.0);
+                    handleDecisionSubmit('APPROVED');
+                  }}
+                  className="px-4 py-2 bg-[#1d6fc2] hover:bg-[#175ea5] active:scale-[0.99] text-white font-bold text-xs rounded-xl shadow-md shadow-blue-600/20 transition cursor-pointer shrink-0"
+                >
+                  Duyệt nhanh 1-Click ({ai.suggestedScore} đ)
+                </button>
+              </div>
+            )}
+
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                Quyết định duyệt của Cán bộ
+                Quyết định thẩm định thủ công
               </span>
               <span className="text-[11px] text-slate-400">Phím tắt: [A] [S] [B] [R] · [Esc] Hủy</span>
             </div>
