@@ -2,18 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiClient } from '../../lib/apiClient';
-import { Evidence, EvidenceStatus } from '../../types';
+import { Evidence } from '../../types';
 import { StatusBadge } from '../../components/ui/StatusBadge';
-import { 
-  ListFilter, 
-  Search, 
-  UploadCloud, 
-  Calendar, 
-  ChevronRight, 
-  FileText,
-  Undo2,
-  AlertCircle
-} from 'lucide-react';
 
 export const EvidenceList: React.FC = () => {
   const { user, activeTerm } = useAuth();
@@ -57,7 +47,7 @@ export const EvidenceList: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Minh chứng của tôi (S04)</h1>
+          <h1 className="text-xl font-bold text-slate-900">Minh chứng của tôi</h1>
           <p className="text-xs text-slate-500 mt-0.5">
             Quản lý và theo dõi tiến trình xét duyệt các hồ sơ minh chứng trong {activeTerm.name}.
           </p>
@@ -66,10 +56,9 @@ export const EvidenceList: React.FC = () => {
         {activeTerm.status === 'ACTIVE' && (
           <Link
             to="/student/evidence/new"
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs rounded-lg shadow-sm transition"
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm shadow-blue-500/20 transition"
           >
-            <UploadCloud className="w-4 h-4" />
-            <span>Nộp minh chứng mới</span>
+            Nộp minh chứng mới
           </Link>
         )}
       </div>
@@ -78,24 +67,22 @@ export const EvidenceList: React.FC = () => {
       <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
         
         {/* Search */}
-        <div className="relative w-full sm:w-72">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+        <div className="w-full sm:w-80">
           <input
             type="text"
-            placeholder="Tìm theo tên hoạt động..."
+            placeholder="Tìm theo tên hoạt động hoặc mã hồ sơ..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:outline-none"
+            className="w-full px-3.5 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition"
           />
         </div>
 
         {/* Filter Status */}
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <ListFilter className="w-4 h-4 text-slate-500 shrink-0" />
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="text-xs border border-slate-300 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+            className="text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700"
           >
             <option value="ALL">Tất cả trạng thái ({evidences.length})</option>
             <option value="APPROVED">Đã duyệt chính thức</option>
@@ -112,22 +99,21 @@ export const EvidenceList: React.FC = () => {
       {/* Evidences Table */}
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
         {filtered.length === 0 ? (
-          <div className="p-8 text-center text-slate-500">
-            <FileText className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+          <div className="p-12 text-center text-slate-500">
             <p className="text-xs font-semibold text-slate-700">Không tìm thấy hồ sơ minh chứng nào</p>
             <p className="text-[11px] text-slate-400 mt-1">Hãy nộp minh chứng mới để tích lũy điểm rèn luyện.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-left text-xs min-w-[820px]">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider text-[11px]">
                 <tr>
-                  <th className="py-3 px-4">Tên hoạt động</th>
-                  <th className="py-3 px-4">Loại minh chứng</th>
-                  <th className="py-3 px-4">Ngày nộp</th>
-                  <th className="py-3 px-4">Trạng thái</th>
-                  <th className="py-3 px-4">Điểm số</th>
-                  <th className="py-3 px-4 text-right">Thao tác</th>
+                  <th className="py-3 px-4 min-w-[220px]">Tên hoạt động</th>
+                  <th className="py-3 px-4 whitespace-nowrap min-w-[140px]">Loại minh chứng</th>
+                  <th className="py-3 px-4 whitespace-nowrap min-w-[100px]">Ngày nộp</th>
+                  <th className="py-3 px-4 whitespace-nowrap min-w-[140px]">Trạng thái</th>
+                  <th className="py-3 px-4 whitespace-nowrap min-w-[140px]">Điểm số</th>
+                  <th className="py-3 px-4 text-right whitespace-nowrap min-w-[180px]">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -136,63 +122,71 @@ export const EvidenceList: React.FC = () => {
                   const aiScore = item.aiSuggestions?.[0]?.suggestedScore;
 
                   return (
-                    <tr key={item.id} className="hover:bg-slate-50/60 transition">
+                    <tr key={item.id} className="hover:bg-blue-50/20 transition">
                       <td className="py-3.5 px-4">
                         <Link
                           to={`/student/evidence/${item.id}`}
-                          className="font-bold text-slate-900 hover:text-sky-600 block"
+                          className="font-bold text-slate-900 hover:text-blue-600 block transition leading-snug"
                         >
                           {item.declaredActivityName}
                         </Link>
-                        <span className="text-[10px] text-slate-400">ID: {item.id}</span>
+                        <span className="text-[10px] text-slate-400 font-mono mt-0.5 block">ID: {item.id}</span>
                       </td>
 
-                      <td className="py-3.5 px-4 text-slate-600 font-medium">
+                      <td className="py-3.5 px-4 text-slate-600 font-medium whitespace-nowrap">
                         {item.evidenceType}
                       </td>
 
-                      <td className="py-3.5 px-4 text-slate-500">
+                      <td className="py-3.5 px-4 text-slate-500 whitespace-nowrap">
                         {new Date(item.submittedAt).toLocaleDateString('vi-VN')}
                       </td>
 
-                      <td className="py-3.5 px-4">
+                      <td className="py-3.5 px-4 whitespace-nowrap">
                         <StatusBadge status={item.status} />
                       </td>
 
-                      <td className="py-3.5 px-4">
+                      <td className="py-3.5 px-4 whitespace-nowrap">
                         {officialScore !== undefined ? (
-                          <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                          <span className="font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200 whitespace-nowrap inline-block">
                             {officialScore} điểm (Chính thức)
                           </span>
                         ) : aiScore !== undefined ? (
-                          <span className="font-semibold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-dashed border-sky-300">
-                            ✦ {aiScore} đ (Đề xuất)
+                          <span className="font-semibold text-blue-600 bg-blue-50/70 px-2.5 py-1 rounded-md border border-dashed border-blue-200 whitespace-nowrap inline-block">
+                            +{aiScore} đ (Đề xuất)
                           </span>
                         ) : (
                           <span className="text-slate-400">—</span>
                         )}
                       </td>
 
-                      <td className="py-3.5 px-4 text-right space-x-2">
-                        <Link
-                          to={`/student/evidence/${item.id}`}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-sky-700 hover:bg-sky-50 rounded border border-sky-200 transition"
-                        >
-                          <span>Xem</span>
-                          <ChevronRight className="w-3.5 h-3.5" />
-                        </Link>
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center justify-end gap-2">
+                          {item.status === 'NEEDS_SUPPLEMENT' && (
+                            <Link
+                              to={`/student/evidence/${item.id}/supplement`}
+                              className="px-2.5 py-1 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg shadow-sm transition whitespace-nowrap shrink-0"
+                            >
+                              Bổ sung
+                            </Link>
+                          )}
 
-                        {/* Cho phép rút hồ sơ nếu chưa được duyệt */}
-                        {item.status !== 'APPROVED' && item.status !== 'WITHDRAWN' && (
-                          <button
-                            onClick={() => handleWithdraw(item.id)}
-                            className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded transition"
-                            title="Rút hồ sơ"
+                          <Link
+                            to={`/student/evidence/${item.id}`}
+                            className="px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50 rounded-lg border border-blue-200 transition whitespace-nowrap shrink-0"
                           >
-                            <Undo2 className="w-3 h-3" />
-                            <span>Rút</span>
-                          </button>
-                        )}
+                            Xem chi tiết
+                          </Link>
+
+                          {/* Cho phép rút hồ sơ nếu chưa được duyệt */}
+                          {item.status !== 'APPROVED' && item.status !== 'WITHDRAWN' && (
+                            <button
+                              onClick={() => handleWithdraw(item.id)}
+                              className="px-2.5 py-1 text-xs font-medium text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition whitespace-nowrap shrink-0"
+                            >
+                              Rút
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

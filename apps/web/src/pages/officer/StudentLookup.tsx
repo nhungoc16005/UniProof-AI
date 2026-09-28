@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Search, UserCheck, Award, Eye, FileText, ChevronRight } from 'lucide-react';
 import { mockEvidences } from '../../lib/mockData';
 
@@ -104,14 +105,28 @@ export const StudentLookup: React.FC = () => {
             </h3>
             <div className="divide-y divide-slate-100 text-xs">
               {mockEvidences.map((e) => (
-                <div key={e.id} className="py-2.5 flex items-center justify-between">
-                  <div>
-                    <span className="font-semibold text-slate-900 block">{e.declaredActivityName}</span>
+                <div key={e.id} className="py-2.5 flex items-center justify-between hover:bg-slate-50 px-2 rounded-lg transition">
+                  <div className="space-y-0.5">
+                    <Link 
+                      to={`/officer/review/${e.id}`}
+                      className="font-semibold text-slate-900 hover:text-sky-600 block transition"
+                    >
+                      {e.declaredActivityName}
+                    </Link>
                     <span className="text-[11px] text-slate-500">{e.evidenceType} · {new Date(e.submittedAt).toLocaleDateString('vi-VN')}</span>
                   </div>
-                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
-                    {e.reviews?.[0]?.finalScore || e.aiSuggestions?.[0]?.suggestedScore || 0} đ
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      {e.reviews?.[0]?.finalScore || e.aiSuggestions?.[0]?.suggestedScore || 0} đ
+                    </span>
+                    <Link
+                      to={`/officer/review/${e.id}`}
+                      className="p-1 text-slate-400 hover:text-sky-600 transition"
+                      title="Mở hồ sơ đối chiếu"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </Link>
+                  </div>
                 </div>
               ))}
             </div>

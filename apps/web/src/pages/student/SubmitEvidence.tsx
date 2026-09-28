@@ -2,24 +2,6 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiClient } from '../../lib/apiClient';
-import { ActivityType } from '../../types';
-import { 
-  UploadCloud, 
-  Check, 
-  ArrowRight, 
-  ArrowLeft, 
-  HelpCircle, 
-  Building2, 
-  School, 
-  FileCheck,
-  FileImage,
-  AlertCircle,
-  Sparkles,
-  Zap,
-  Award,
-  ScanLine,
-  CheckCircle2
-} from 'lucide-react';
 
 export const SubmitEvidence: React.FC = () => {
   const { user, activeTerm } = useAuth();
@@ -37,7 +19,6 @@ export const SubmitEvidence: React.FC = () => {
   const [date, setDate] = useState('2026-10-12');
   const [fileUrl, setFileUrl] = useState('https://images.unsplash.com/photo-1557804506-669a67965ba0?auto=format&fit=crop&q=80&w=1000');
   const [fileName, setFileName] = useState('giay_chung_nhan_hoat_dong.jpg');
-  const [isScanning, setIsScanning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Mẫu các hoạt động nội bộ có sẵn
@@ -61,12 +42,6 @@ export const SubmitEvidence: React.FC = () => {
       setFileName(f.name);
       const url = URL.createObjectURL(f);
       setFileUrl(url);
-
-      // Trigger simulated instant OCR scanning
-      setIsScanning(true);
-      setTimeout(() => {
-        setIsScanning(false);
-      }, 1200);
     }
   };
 
@@ -89,7 +64,6 @@ export const SubmitEvidence: React.FC = () => {
         ],
       });
 
-      // Chuyển ngay đến màn hình Chi tiết minh chứng (S05) để xem tiến trình 7 bước
       navigate(`/student/evidence/${newEvd.id}`);
     } catch (err) {
       alert('Nộp hồ sơ thất bại, vui lòng thử lại');
@@ -99,38 +73,33 @@ export const SubmitEvidence: React.FC = () => {
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 pb-12">
+    <div className="max-w-3xl mx-auto space-y-6 pb-16">
       
-      {/* 1. Header Banner */}
-      <div className="bg-gradient-to-r from-sky-600 via-indigo-600 to-blue-700 text-white rounded-2xl p-6 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      {/* 1. Clean Header */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 text-white text-xs font-bold mb-2">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Nộp minh chứng thông minh · S03</span>
+          <div className="inline-block px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold mb-2">
+            Khai báo minh chứng
           </div>
-          <h1 className="text-xl font-extrabold tracking-tight">Khai báo & Quét OCR Minh chứng</h1>
-          <p className="text-xs text-sky-100 mt-1">
-            Kỳ đánh giá: <strong>{activeTerm.name}</strong> · AI sẽ tự động đọc con dấu và trích xuất điểm rèn luyện.
+          <h1 className="text-xl font-extrabold text-slate-950 tracking-tight">Nộp hồ sơ minh chứng hoạt động</h1>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Áp dụng cho học kỳ: <strong className="text-slate-800">{activeTerm.name}</strong> · Hệ thống tự động trích xuất OCR và đối chiếu
           </p>
         </div>
 
-        {/* Gamified Reward Teaser */}
-        <div className="bg-white/10 backdrop-blur-md border border-white/20 px-4 py-2.5 rounded-xl text-center shrink-0">
-          <span className="text-[10px] text-sky-200 block uppercase font-bold">Điểm dự kiến</span>
-          <span className="text-lg font-black text-amber-300 flex items-center justify-center gap-1">
-            <Award className="w-4 h-4 text-amber-300" />
-            <span>+3.0 ~ 5.0 đ</span>
-          </span>
+        <div className="text-right hidden sm:block">
+          <span className="text-[11px] text-slate-400 block font-medium">Dự kiến tích lũy</span>
+          <span className="text-sm font-bold text-slate-900">+3.0 ~ 5.0 điểm</span>
         </div>
       </div>
 
-      {/* 2. Stepper Wizard Indicator */}
+      {/* 2. Stepper Wizard Indicator (Clean Numbers) */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
         <div className="flex items-center justify-between">
           {[
-            { num: 1, label: 'Khai báo hoạt động' },
-            { num: 2, label: 'Tải minh chứng' },
-            { num: 3, label: 'Xem lại và gửi' },
+            { num: 1, label: 'Thông tin hoạt động' },
+            { num: 2, label: 'Tệp minh chứng' },
+            { num: 3, label: 'Xác nhận & gửi' },
           ].map((item, idx) => {
             const isCurrent = step === item.num;
             const isPassed = step > item.num;
@@ -138,21 +107,21 @@ export const SubmitEvidence: React.FC = () => {
               <React.Fragment key={item.num}>
                 <div className="flex items-center gap-2.5">
                   <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs transition ${
+                    className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs transition ${
                       isPassed
-                        ? 'bg-emerald-600 text-white shadow'
+                        ? 'bg-emerald-600 text-white'
                         : isCurrent
-                        ? 'bg-sky-600 text-white ring-4 ring-sky-100 shadow-md'
+                        ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
                         : 'bg-slate-100 text-slate-400'
                     }`}
                   >
-                    {isPassed ? <Check className="w-4 h-4" /> : item.num}
+                    {item.num}
                   </div>
-                  <span className={`text-xs font-bold ${isCurrent ? 'text-sky-700' : 'text-slate-600'}`}>
+                  <span className={`text-xs font-semibold ${isCurrent ? 'text-blue-700' : 'text-slate-500'}`}>
                     {item.label}
                   </span>
                 </div>
-                {idx < 2 && <div className="flex-1 h-0.5 bg-slate-200 mx-4" />}
+                {idx < 2 && <div className="flex-1 h-px bg-slate-200 mx-4" />}
               </React.Fragment>
             );
           })}
@@ -163,23 +132,22 @@ export const SubmitEvidence: React.FC = () => {
       {step === 1 && (
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+            <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
               Bước 1: Thông tin hoạt động tham gia
             </h2>
-            <span className="text-xs text-slate-400">Bước 1 trên 3</span>
+            <span className="text-xs text-slate-400">1 / 3</span>
           </div>
 
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-2">
-              Bạn tham gia hoạt động của đơn vị nào?
+              Hoạt động thuộc đơn vị nào tổ chức?
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {[
-                { type: 'INTERNAL' as const, label: 'Trường / Khoa / CLB', icon: School, desc: 'Tự động tra cứu điểm danh' },
-                { type: 'EXTERNAL' as const, label: 'Đơn vị bên ngoài', icon: Building2, desc: 'Có thể kèm link đối chiếu' },
-                { type: 'UNKNOWN' as const, label: 'Tôi không chắc chắn', icon: HelpCircle, desc: 'AI sẽ phân tích tự động' },
+                { type: 'INTERNAL' as const, label: 'Trường / Khoa / CLB', desc: 'Có sẵn danh sách điểm danh' },
+                { type: 'EXTERNAL' as const, label: 'Đơn vị bên ngoài', desc: 'Kèm link hoặc chứng nhận' },
+                { type: 'UNKNOWN' as const, label: 'Chưa chắc chắn', desc: 'Hệ thống tự động phân loại' },
               ].map((opt) => {
-                const Icon = opt.icon;
                 return (
                   <button
                     key={opt.type}
@@ -194,28 +162,25 @@ export const SubmitEvidence: React.FC = () => {
                         setOrganizer('');
                       }
                     }}
-                    className={`p-3.5 rounded-xl border text-left flex items-start gap-3 transition ${
+                    className={`p-3.5 rounded-xl border text-left transition ${
                       activityOrigin === opt.type
-                        ? 'bg-sky-50 border-sky-600 text-sky-900 ring-2 ring-sky-200 shadow-sm'
+                        ? 'bg-blue-50/70 border-blue-600 ring-1 ring-blue-600 text-blue-950 font-bold'
                         : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                     }`}
                   >
-                    <Icon className="w-5 h-5 text-sky-600 shrink-0 mt-0.5" />
-                    <div>
-                      <div className="text-xs font-bold">{opt.label}</div>
-                      <div className="text-[10px] text-slate-500 mt-0.5">{opt.desc}</div>
-                    </div>
+                    <div className="text-xs font-bold">{opt.label}</div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">{opt.desc}</div>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Nếu chọn nội bộ: Chọn nhanh */}
+          {/* Chọn hoạt động nội bộ nếu có */}
           {activityOrigin === 'INTERNAL' && (
             <div className="space-y-2 p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
               <label className="block text-xs font-bold text-slate-700">
-                Chọn hoạt động nội bộ có sẵn trong kỳ (Fast-Track tự động):
+                Chọn hoạt động trong kỳ (Tự động đối chiếu điểm danh):
               </label>
               <select
                 value={activityName}
@@ -246,7 +211,7 @@ export const SubmitEvidence: React.FC = () => {
                 value={activityName}
                 onChange={(e) => setActivityName(e.target.value)}
                 placeholder="VD: Hội thảo Công nghệ Sinh viên Danang 2026"
-                className="w-full px-3.5 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500"
+                className="w-full px-3.5 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-900"
                 required
               />
             </div>
@@ -259,7 +224,7 @@ export const SubmitEvidence: React.FC = () => {
                 value={organizer}
                 onChange={(e) => setOrganizer(e.target.value)}
                 placeholder="VD: Thành đoàn Đà Nẵng / Hội SV"
-                className="w-full px-3.5 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500"
+                className="w-full px-3.5 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-900"
               />
             </div>
           </div>
@@ -271,7 +236,7 @@ export const SubmitEvidence: React.FC = () => {
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl bg-white font-medium"
+                className="w-full px-3.5 py-2 text-xs border border-slate-300 rounded-xl bg-white font-medium"
               >
                 <option value="PARTICIPANT">Thí sinh / Người tham gia</option>
                 <option value="ORGANIZER">Ban tổ chức / Tình nguyện viên</option>
@@ -283,7 +248,7 @@ export const SubmitEvidence: React.FC = () => {
               <select
                 value={evidenceType}
                 onChange={(e) => setEvidenceType(e.target.value)}
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl bg-white font-medium"
+                className="w-full px-3.5 py-2 text-xs border border-slate-300 rounded-xl bg-white font-medium"
               >
                 <option value="GIAY_CHUNG_NHAN">Giấy chứng nhận / Bằng khen</option>
                 <option value="GIAY_XAC_NHAN">Giấy xác nhận có đóng dấu</option>
@@ -297,26 +262,26 @@ export const SubmitEvidence: React.FC = () => {
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl font-medium"
+                className="w-full px-3.5 py-2 text-xs border border-slate-300 rounded-xl font-medium"
               />
             </div>
           </div>
 
-          {/* Đường dẫn xác minh bổ trợ nếu là hoạt động ngoài trường */}
+          {/* Đường dẫn xác minh nếu là ngoài trường */}
           {activityOrigin === 'EXTERNAL' && (
-            <div className="p-3.5 bg-sky-50 border border-sky-200 rounded-xl space-y-1">
-              <label className="block text-xs font-bold text-sky-900">
-                Đường dẫn tra cứu / Mã xác nhận (nếu có)
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+              <label className="block text-xs font-bold text-slate-800">
+                Đường dẫn tra cứu / Mã xác nhận điện tử (nếu có)
               </label>
               <input
                 type="url"
                 value={verificationUrl}
                 onChange={(e) => setVerificationUrl(e.target.value)}
                 placeholder="https://event.danang.gov.vn/verify?code=ABC123XYZ"
-                className="w-full px-3 py-2 text-xs border border-sky-300 rounded-lg bg-white"
+                className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white"
               />
-              <span className="text-[10px] text-sky-700 block">
-                * Cung cấp link hoặc QR giúp hồ sơ đạt cấp xác minh cao hơn (L1/L2), rút ngắn thời gian xét duyệt.
+              <span className="text-[10px] text-slate-500 block">
+                Cung cấp liên kết tra cứu giúp tăng mức xác minh và rút ngắn thời gian xét duyệt.
               </span>
             </div>
           )}
@@ -325,38 +290,34 @@ export const SubmitEvidence: React.FC = () => {
             <button
               type="button"
               onClick={handleNext}
-              className="inline-flex items-center gap-2 px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl shadow-md transition"
+              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm shadow-blue-500/20 transition"
             >
-              <span>Tiếp tục: Tải minh chứng</span>
-              <ArrowRight className="w-4 h-4" />
+              Tiếp tục: Tải minh chứng
             </button>
           </div>
         </div>
       )}
 
-      {/* STEP 2: TẢI MINH CHỨNG & AI OCR SCANNER */}
+      {/* STEP 2: TẢI MINH CHỨNG */}
       {step === 2 && (
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+            <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
               Bước 2: Tải lên tài liệu minh chứng
             </h2>
-            <span className="text-xs text-slate-400">Bước 2 trên 3</span>
+            <span className="text-xs text-slate-400">2 / 3</span>
           </div>
 
-          {/* Interactive Modern Dropzone */}
-          <div className="border-2 border-dashed border-sky-300 bg-sky-50/40 hover:bg-sky-50/70 rounded-2xl p-8 text-center flex flex-col items-center justify-center transition">
-            <div className="w-14 h-14 rounded-2xl bg-sky-100 text-sky-600 flex items-center justify-center mb-3 shadow-sm">
-              <UploadCloud className="w-7 h-7" />
-            </div>
-            <p className="text-sm font-bold text-slate-800 mb-1">
+          {/* Professional Clean Dropzone */}
+          <div className="border border-dashed border-slate-300 bg-slate-50 hover:bg-blue-50/30 rounded-2xl p-8 text-center flex flex-col items-center justify-center transition">
+            <p className="text-sm font-bold text-slate-900 mb-1">
               Kéo thả file ảnh hoặc PDF minh chứng vào đây
             </p>
             <p className="text-xs text-slate-500 mb-4 max-w-sm">
-              Hỗ trợ JPG, PNG, PDF (tối đa 10MB). Ảnh chụp rõ nét, thấy rõ họ tên, ngày tháng và con dấu đỏ sẽ được duyệt nhanh nhất.
+              Định dạng hỗ trợ: JPG, PNG, PDF (tối đa 10MB). Hãy chụp đủ 4 góc, rõ chữ và thấy con dấu đỏ.
             </p>
 
-            <label className="cursor-pointer px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow-md transition">
+            <label className="cursor-pointer px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm shadow-blue-500/20 transition">
               <span>Chọn file từ thiết bị</span>
               <input
                 type="file"
@@ -367,56 +328,16 @@ export const SubmitEvidence: React.FC = () => {
             </label>
           </div>
 
-          {/* File Preview with OCR Scan Simulation */}
+          {/* File Preview */}
           {fileUrl && (
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-14 h-14 rounded-xl bg-slate-200 overflow-hidden flex items-center justify-center relative">
-                    <img src={fileUrl} alt="Minh chứng" className="w-full h-full object-cover" />
-                    {isScanning && (
-                      <div className="absolute inset-0 bg-sky-500/30 flex items-center justify-center">
-                        <ScanLine className="w-6 h-6 text-white animate-bounce" />
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-slate-900">{fileName}</div>
-                    <div className="text-[11px] text-slate-500">1.2 MB · Sẵn sàng đối chiếu</div>
-                  </div>
-                </div>
-
-                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[11px]">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>OCR Đã sẵn sàng</span>
-                </span>
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
+              <div>
+                <div className="text-xs font-bold text-slate-900">{fileName}</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">Tệp đã sẵn sàng phân tích</div>
               </div>
-
-              {/* Instant OCR Pre-Check Checklist */}
-              <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2 text-xs">
-                <div className="font-bold text-slate-800 flex items-center gap-1.5 pb-1 border-b border-slate-100">
-                  <Sparkles className="w-3.5 h-3.5 text-sky-600" />
-                  <span>Kiểm tra sơ bộ tự động bởi AI:</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                  <div className="flex items-center gap-2 text-emerald-700">
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Họ tên trên ảnh: <strong>Khớp tài khoản ({user.fullName})</strong></span>
-                  </div>
-                  <div className="flex items-center gap-2 text-emerald-700">
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Con dấu tròn pháp lý: <strong>Phát hiện rõ nét (98%)</strong></span>
-                  </div>
-                  <div className="flex items-center gap-2 text-emerald-700">
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Thời gian diễn ra: <strong>Nằm trong học kỳ hiện tại</strong></span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sky-700">
-                    <Zap className="w-3.5 h-3.5" />
-                    <span>Cấp độ dự kiến: <strong>L2 Fast-track (Duyệt nhanh)</strong></span>
-                  </div>
-                </div>
-              </div>
+              <span className="px-2.5 py-1 rounded-full bg-blue-100 text-blue-800 font-semibold text-[11px]">
+                Đã sẵn sàng
+              </span>
             </div>
           )}
 
@@ -424,18 +345,16 @@ export const SubmitEvidence: React.FC = () => {
             <button
               type="button"
               onClick={() => setStep(1)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-slate-600 hover:bg-slate-100 text-xs font-semibold rounded-xl transition"
+              className="px-4 py-2 text-slate-600 hover:bg-slate-100 text-xs font-semibold rounded-xl transition"
             >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Quay lại</span>
+              Quay lại
             </button>
             <button
               type="button"
               onClick={handleNext}
-              className="inline-flex items-center gap-2 px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl shadow-md transition"
+              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm shadow-blue-500/20 transition"
             >
-              <span>Xem lại và xác nhận</span>
-              <ArrowRight className="w-4 h-4" />
+              Xem lại và xác nhận
             </button>
           </div>
         </div>
@@ -445,10 +364,10 @@ export const SubmitEvidence: React.FC = () => {
       {step === 3 && (
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+            <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
               Bước 3: Xem lại thông tin hồ sơ
             </h2>
-            <span className="text-xs text-slate-400">Bước 3 trên 3</span>
+            <span className="text-xs text-slate-400">3 / 3</span>
           </div>
 
           <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-4 text-xs">
@@ -459,7 +378,7 @@ export const SubmitEvidence: React.FC = () => {
               </div>
               <div>
                 <span className="text-slate-400 block font-medium">Đơn vị tổ chức</span>
-                <span className="text-slate-900 font-semibold">{organizer || 'Không có'}</span>
+                <span className="text-slate-900 font-semibold">{organizer || 'Chưa cung cấp'}</span>
               </div>
               <div>
                 <span className="text-slate-400 block font-medium">Vai trò khai báo</span>
@@ -474,59 +393,36 @@ export const SubmitEvidence: React.FC = () => {
                 <span className="text-slate-900 font-semibold">{date}</span>
               </div>
               <div>
-                <span className="text-slate-400 block font-medium">Kỳ áp dụng</span>
+                <span className="text-slate-400 block font-medium">Kỳ đánh giá</span>
                 <span className="text-slate-900 font-semibold">{activeTerm.name}</span>
               </div>
             </div>
 
             <div className="pt-3 border-t border-slate-200">
-              <span className="text-slate-400 block font-medium mb-1.5">Tệp đính kèm</span>
-              <div className="flex items-center gap-2 p-2 bg-white rounded-lg border border-slate-200 max-w-sm">
-                <FileImage className="w-4 h-4 text-sky-600 shrink-0" />
-                <span className="text-slate-800 font-semibold truncate">{fileName}</span>
-              </div>
+              <span className="text-slate-400 block font-medium mb-1">Tệp đính kèm:</span>
+              <span className="text-slate-900 font-semibold">{fileName}</span>
             </div>
           </div>
 
-          {/* Gamified Motivation Card */}
-          <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
-                <Award className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="text-xs font-bold text-amber-950">Mục tiêu rèn luyện kỳ này</h4>
-                <p className="text-[11px] text-amber-800 mt-0.5">
-                  Sau khi hồ sơ này được duyệt, bạn sẽ được cộng thêm khoảng <strong>+5.0 điểm</strong>, tiến gần hơn đến danh hiệu Sinh viên Xuất sắc!
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-start gap-2 text-xs text-slate-600">
-            <AlertCircle className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
-            <span>
-              Tôi xin cam đoan minh chứng và thông tin khai báo trên là hoàn toàn chính xác. Mọi hành vi gian lận điểm rèn luyện sẽ bị xử lý kỷ luật theo quy định của nhà trường.
-            </span>
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600">
+            Tôi xin cam đoan minh chứng và thông tin khai báo trên là chính xác. Mọi hành vi làm giả tài liệu sẽ bị xử lý kỷ luật theo quy định của nhà trường.
           </div>
 
           <div className="flex justify-between pt-4 border-t border-slate-100">
             <button
               type="button"
               onClick={() => setStep(2)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-slate-600 hover:bg-slate-100 text-xs font-semibold rounded-xl transition"
+              className="px-4 py-2 text-slate-600 hover:bg-slate-100 text-xs font-semibold rounded-xl transition"
             >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Quay lại</span>
+              Quay lại
             </button>
             <button
               type="button"
               disabled={isSubmitting}
               onClick={handleSubmit}
-              className="inline-flex items-center gap-2 px-7 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-lg transition disabled:opacity-50"
+              className="px-7 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md shadow-blue-500/20 transition disabled:opacity-50"
             >
-              <FileCheck className="w-4 h-4" />
-              <span>{isSubmitting ? 'Đang phân tích & Gửi...' : 'Xác nhận và Gửi minh chứng'}</span>
+              {isSubmitting ? 'Đang gửi hồ sơ...' : 'Xác nhận và Gửi hồ sơ'}
             </button>
           </div>
         </div>

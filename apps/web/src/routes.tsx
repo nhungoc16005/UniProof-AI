@@ -19,6 +19,7 @@ import { StudentDashboard } from './pages/student/Dashboard';
 import { SubmitEvidence } from './pages/student/SubmitEvidence';
 import { EvidenceList } from './pages/student/EvidenceList';
 import { EvidenceDetail } from './pages/student/EvidenceDetail';
+import { SupplementEvidence } from './pages/student/SupplementEvidence';
 import { CriteriaView } from './pages/student/CriteriaView';
 import { Appeals } from './pages/student/Appeals';
 import { WhatCanIClaim } from './pages/student/WhatCanIClaim';
@@ -94,6 +95,7 @@ export const AppRoutes: React.FC = () => {
           <Route path="evidence" element={<EvidenceList />} />
           <Route path="evidence/new" element={<SubmitEvidence />} />
           <Route path="evidence/:id" element={<EvidenceDetail />} />
+          <Route path="evidence/:id/supplement" element={<SupplementEvidence />} />
           <Route path="criteria" element={<CriteriaView />} />
           <Route path="appeals" element={<Appeals />} />
           <Route path="what-can-i-claim" element={<WhatCanIClaim />} />

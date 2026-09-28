@@ -1,21 +1,4 @@
 import React, { useState } from 'react';
-import { 
-  HelpCircle, 
-  Send, 
-  BookOpen, 
-  ExternalLink, 
-  ThumbsUp, 
-  ThumbsDown, 
-  Sparkles, 
-  AlertCircle,
-  Copy,
-  Check,
-  Compass,
-  FileText,
-  Bookmark,
-  Share2,
-  Search
-} from 'lucide-react';
 
 interface Citation {
   title: string;
@@ -84,10 +67,10 @@ export const RegulationRAG: React.FC = () => {
   const [copied, setCopied] = useState(false);
 
   const promptSuggestions = [
-    { label: '🩸 Quy chế cộng điểm hiến máu nhân đạo?', prompt: 'Hiến máu nhân đạo được cộng mấy điểm và nộp giấy tờ gì?' },
-    { label: '🏆 Giải Nhất Hackathon được tối đa mấy điểm?', prompt: 'Cuộc thi Hackathon cấp thành phố thuộc tiêu chí nào và tối đa được mấy điểm?' },
-    { label: '⭐ Điều kiện đạt mức điểm Rèn luyện Xuất sắc?', prompt: 'Cần bao nhiêu điểm để đạt mức rèn luyện Xuất sắc và có giới hạn điểm từng tiêu chí không?' },
-    { label: '❌ Nộp trùng 1 minh chứng có bị phạt không?', prompt: 'Một giấy khen có được dùng để tính điểm 2 lần ở 2 tiêu chí khác nhau không?' },
+    { label: 'Quy chế cộng điểm hiến máu nhân đạo?', prompt: 'Hiến máu nhân đạo được cộng mấy điểm và nộp giấy tờ gì?' },
+    { label: 'Giải thưởng Hackathon được tối đa mấy điểm?', prompt: 'Cuộc thi Hackathon cấp thành phố thuộc tiêu chí nào và tối đa được mấy điểm?' },
+    { label: 'Điều kiện đạt mức điểm Rèn luyện Xuất sắc?', prompt: 'Cần bao nhiêu điểm để đạt mức rèn luyện Xuất sắc và có giới hạn điểm từng tiêu chí không?' },
+    { label: 'Nộp trùng 1 minh chứng có bị phạt không?', prompt: 'Một giấy khen có được dùng để tính điểm 2 lần ở 2 tiêu chí khác nhau không?' },
   ];
 
   const handleSend = (textToSend?: string) => {
@@ -190,25 +173,23 @@ export const RegulationRAG: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-16">
       
       {/* 1. Header Banner */}
-      <div className="bg-gradient-to-r from-sky-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-6 shadow-xl relative overflow-hidden">
-        <div className="relative z-10 max-w-2xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/20 text-sky-300 border border-sky-400/30 text-xs font-semibold mb-3">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>EduPoint RAG Intelligence v2.4</span>
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="space-y-1.5 max-w-2xl">
+          <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700">
+            <span>RAG Intelligence</span>
+            <span className="text-slate-300">·</span>
+            <span>Quy chế 2025/QĐ-ĐHBK</span>
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-white mb-2">
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-950">
             Trợ lý Pháp lý & Quy chế Điểm rèn luyện
           </h1>
-          <p className="text-xs text-slate-300 leading-relaxed">
-            Tra cứu mọi câu hỏi về điều kiện cộng điểm, quy chuẩn minh chứng và quy tắc trần điểm. Mọi câu trả lời của AI đều được bảo chứng bởi trích dẫn nguyên văn từ Quy chế số 2025/QĐ-ĐHBK.
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Tra cứu mọi câu hỏi về điều kiện cộng điểm, quy chuẩn minh chứng và quy tắc trần điểm. Mọi câu trả lời của AI đều được trích dẫn nguyên văn từ Quy chế ban hành.
           </p>
         </div>
-
-        {/* Decorative element */}
-        <div className="absolute right-0 top-0 bottom-0 w-80 bg-gradient-to-l from-sky-500/10 to-transparent pointer-events-none" />
       </div>
 
       {/* 2. Prompt Suggestion Pills */}
@@ -222,9 +203,9 @@ export const RegulationRAG: React.FC = () => {
               key={idx}
               type="button"
               onClick={() => handleSend(item.prompt)}
-              className="text-xs bg-white hover:bg-sky-50 text-slate-700 hover:text-sky-700 border border-slate-200 hover:border-sky-300 px-3 py-2 rounded-xl shadow-sm transition font-medium flex items-center gap-1.5"
+              className="text-xs bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 hover:border-blue-300 px-3 py-2 rounded-xl shadow-sm transition font-medium"
             >
-              <span>{item.label}</span>
+              {item.label}
             </button>
           ))}
         </div>
@@ -245,18 +226,15 @@ export const RegulationRAG: React.FC = () => {
                 <div
                   className={`max-w-[90%] p-4 rounded-2xl text-xs leading-relaxed space-y-2.5 transition ${
                     m.sender === 'USER'
-                      ? 'bg-sky-600 text-white rounded-br-none shadow-md'
+                      ? 'bg-blue-600 text-white rounded-br-none shadow-sm'
                       : m.isNoEvidence
                       ? 'bg-amber-50 text-amber-900 border border-amber-300 rounded-bl-none shadow-sm'
-                      : 'bg-slate-50 text-slate-800 border border-slate-200 rounded-bl-none shadow-sm hover:border-sky-300'
+                      : 'bg-slate-50 text-slate-800 border border-slate-200 rounded-bl-none shadow-sm hover:border-blue-200'
                   }`}
                 >
                   {m.sender === 'AI' && (
-                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-200/60 text-[11px] font-bold text-sky-700">
-                      <span className="flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-sky-600" />
-                        <span>Trợ lý Quy chế EduPoint</span>
-                      </span>
+                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-200/60 text-[11px] font-bold text-blue-700">
+                      <span>Trợ lý Quy chế EduPoint</span>
                       <span className="text-[10px] text-slate-400 font-mono">Bảo chứng trích dẫn</span>
                     </div>
                   )}
@@ -272,14 +250,13 @@ export const RegulationRAG: React.FC = () => {
                           key={i}
                           type="button"
                           onClick={() => setActiveCitation(c)}
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-bold text-[10px] transition border ${
+                          className={`px-2.5 py-1 rounded-lg font-bold text-[10px] transition border ${
                             activeCitation?.section === c.section
-                              ? 'bg-sky-600 text-white border-sky-600 shadow-sm'
-                              : 'bg-white hover:bg-sky-50 text-sky-800 border-sky-200'
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                              : 'bg-white hover:bg-blue-50 text-blue-800 border-blue-200'
                           }`}
                         >
-                          <BookOpen className="w-3 h-3" />
-                          <span>[{c.section}]</span>
+                          [{c.section}]
                         </button>
                       ))}
                     </div>
@@ -293,22 +270,20 @@ export const RegulationRAG: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => toggleFeedback(m.id, true)}
-                          className={`p-1 rounded hover:bg-slate-200 transition ${
-                            m.liked === true ? 'text-emerald-600 font-bold' : 'text-slate-400'
+                          className={`px-2 py-0.5 rounded text-[11px] hover:bg-slate-200 transition ${
+                            m.liked === true ? 'text-blue-700 font-bold bg-blue-50' : 'text-slate-400'
                           }`}
-                          title="Hữu ích"
                         >
-                          <ThumbsUp className="w-3.5 h-3.5" />
+                          Hữu ích
                         </button>
                         <button
                           type="button"
                           onClick={() => toggleFeedback(m.id, false)}
-                          className={`p-1 rounded hover:bg-slate-200 transition ${
-                            m.liked === false ? 'text-rose-600 font-bold' : 'text-slate-400'
+                          className={`px-2 py-0.5 rounded text-[11px] hover:bg-slate-200 transition ${
+                            m.liked === false ? 'text-rose-600 font-bold bg-rose-50' : 'text-slate-400'
                           }`}
-                          title="Chưa chính xác"
                         >
-                          <ThumbsDown className="w-3.5 h-3.5" />
+                          Chưa đúng
                         </button>
                       </div>
                     </div>
@@ -322,8 +297,7 @@ export const RegulationRAG: React.FC = () => {
             ))}
 
             {isTyping && (
-              <div className="flex items-center gap-2 p-3 bg-sky-50 border border-sky-200 rounded-xl max-w-xs text-xs text-sky-800 animate-pulse">
-                <Sparkles className="w-4 h-4 text-sky-600 animate-spin" />
+              <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-xl max-w-xs text-xs text-blue-800 animate-pulse">
                 <span>AI đang tra cứu văn bản quy chế v2025.1...</span>
               </div>
             )}
@@ -342,27 +316,25 @@ export const RegulationRAG: React.FC = () => {
               value={inputQuestion}
               onChange={(e) => setInputQuestion(e.target.value)}
               placeholder="Nhập câu hỏi về tiêu chí, điểm tối đa hoặc loại minh chứng cần nộp..."
-              className="flex-1 px-4 py-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none"
+              className="flex-1 px-4 py-2.5 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition"
             />
             <button
               type="submit"
               disabled={isTyping || !inputQuestion.trim()}
-              className="px-5 py-2.5 bg-sky-600 hover:bg-sky-700 disabled:opacity-40 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center gap-1.5"
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-bold text-xs rounded-xl shadow-sm shadow-blue-500/20 transition"
             >
-              <span>Gửi</span>
-              <Send className="w-3.5 h-3.5" />
+              Gửi câu hỏi
             </button>
           </form>
         </div>
 
-        {/* Right Column: High-Tech Legal Inspector Panel (Col 5) */}
+        {/* Right Column: Legal Inspector Panel (Col 5) */}
         <div className="lg:col-span-5 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <div className="flex items-center gap-2 font-bold text-xs text-slate-800 uppercase tracking-wider">
-              <Bookmark className="w-4 h-4 text-sky-600" />
-              <span>Bảo chứng Pháp lý (Legal Inspector)</span>
-            </div>
-            <span className="text-[10px] font-mono bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">
+            <span className="font-bold text-xs text-slate-800 uppercase tracking-wider">
+              Bảo chứng Pháp lý
+            </span>
+            <span className="text-[10px] font-mono bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-bold">
               ĐANG HIỆU LỰC
             </span>
           </div>
@@ -382,12 +354,12 @@ export const RegulationRAG: React.FC = () => {
               </div>
 
               {/* Exact Section & Page */}
-              <div className="flex items-center justify-between p-3 bg-sky-50/70 border border-sky-200 rounded-xl">
+              <div className="flex items-center justify-between p-3 bg-blue-50/70 border border-blue-200 rounded-xl">
                 <div>
-                  <span className="text-sky-900 font-bold block">{activeCitation.section}</span>
-                  <span className="text-sky-700 text-[11px]">Trang số: {activeCitation.page} / 32</span>
+                  <span className="text-blue-900 font-bold block">{activeCitation.section}</span>
+                  <span className="text-blue-700 text-[11px]">Trang số: {activeCitation.page} / 32</span>
                 </div>
-                <span className="px-2 py-1 rounded bg-sky-600 text-white font-bold text-[10px]">
+                <span className="px-2 py-1 rounded bg-blue-600 text-white font-bold text-[10px]">
                   {activeCitation.article}
                 </span>
               </div>
@@ -399,19 +371,9 @@ export const RegulationRAG: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleCopyExcerpt}
-                    className="inline-flex items-center gap-1 text-[10px] text-sky-600 hover:text-sky-800 font-semibold"
+                    className="text-[10px] text-blue-600 hover:text-blue-800 font-semibold"
                   >
-                    {copied ? (
-                      <>
-                        <Check className="w-3 h-3 text-emerald-600" />
-                        <span className="text-emerald-600">Đã chép</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3 h-3" />
-                        <span>Chép trích lục</span>
-                      </>
-                    )}
+                    {copied ? 'Đã chép vào bộ nhớ' : 'Chép trích lục'}
                   </button>
                 </div>
                 <div className="p-3.5 bg-amber-50/70 border-l-4 border-amber-400 rounded-r-xl text-slate-800 italic leading-relaxed text-xs shadow-inner">
@@ -427,27 +389,23 @@ export const RegulationRAG: React.FC = () => {
                     e.preventDefault();
                     alert(`Đang mở toàn văn Quy chế (Trang ${activeCitation.page})...`);
                   }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-sky-600 text-white font-semibold text-xs rounded-lg transition"
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-lg transition"
                 >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>Mở toàn văn quy chế (PDF)</span>
-                  <ExternalLink className="w-3 h-3 ml-0.5" />
+                  Mở toàn văn quy chế (PDF)
                 </a>
 
                 <button
                   type="button"
                   onClick={() => alert('Đã sao chép liên kết chia sẻ câu trả lời!')}
-                  className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition"
-                  title="Chia sẻ trích dẫn"
+                  className="px-2.5 py-1 text-xs text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-100 transition font-medium"
                 >
-                  <Share2 className="w-4 h-4" />
+                  Chia sẻ
                 </button>
               </div>
 
             </div>
           ) : (
             <div className="text-xs text-slate-400 text-center py-16 space-y-2">
-              <BookOpen className="w-8 h-8 text-slate-300 mx-auto" />
               <p>Nhấp vào một trích dẫn trong câu trả lời để xem toàn văn đoạn quy chế.</p>
             </div>
           )}

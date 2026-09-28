@@ -96,6 +96,16 @@ export const EvidenceDetail: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          {evidence.status === 'NEEDS_SUPPLEMENT' && (
+            <Link
+              to={`/student/evidence/${evidence.id}/supplement`}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg shadow-sm transition"
+            >
+              <AlertCircle className="w-3.5 h-3.5" />
+              <span>Bổ sung minh chứng</span>
+            </Link>
+          )}
+
           {evidence.status === 'APPROVED' && (
             <button
               onClick={() => setShowAppealModal(true)}
@@ -194,7 +204,7 @@ export const EvidenceDetail: React.FC = () => {
           {verif?.evidenceGap && (
             <EvidenceGapBox
               gap={verif.evidenceGap}
-              onSupplementClick={() => alert('Vui lòng tải thêm file bổ sung ở mục Bổ sung minh chứng.')}
+              onSupplementClick={() => navigate(`/student/evidence/${evidence.id}/supplement`)}
             />
           )}
 

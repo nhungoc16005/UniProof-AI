@@ -1,6 +1,4 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Scale, Check, X, Eye, Clock, MessageSquare, AlertCircle } from 'lucide-react';
 
 export const AppealsResolution: React.FC = () => {
   const [appeals, setAppeals] = useState([
@@ -43,7 +41,7 @@ export const AppealsResolution: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-slate-900">Xử lý khiếu nại điểm sinh viên (O07)</h1>
+        <h1 className="text-xl font-bold text-slate-900">Xử lý khiếu nại điểm sinh viên</h1>
         <p className="text-xs text-slate-500 mt-0.5">
           Xem xét giải trình của sinh viên và quyết định cập nhật điểm hoặc bảo lưu kết quả.
         </p>
@@ -64,10 +62,10 @@ export const AppealsResolution: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {appeals.map((apl) => (
-                <tr key={apl.id} className="hover:bg-slate-50/60 transition">
+                <tr key={apl.id} className="hover:bg-blue-50/20 transition">
                   <td className="py-3.5 px-4">
                     <span className="font-bold text-slate-900 block">{apl.studentName}</span>
-                    <span className="text-[11px] text-slate-500">{apl.studentCode} · {apl.class}</span>
+                    <span className="text-[11px] text-slate-500 font-mono">{apl.studentCode} · {apl.class}</span>
                   </td>
                   <td className="py-3.5 px-4 font-semibold text-slate-800">
                     {apl.activityName}
@@ -75,24 +73,21 @@ export const AppealsResolution: React.FC = () => {
                   <td className="py-3.5 px-4 text-slate-600 max-w-sm truncate" title={apl.content}>
                     {apl.content}
                   </td>
-                  <td className="py-3.5 px-4 font-bold text-purple-700">
+                  <td className="py-3.5 px-4 font-bold text-blue-700">
                     +{apl.requestedScore} đ
                   </td>
                   <td className="py-3.5 px-4">
                     {apl.status === 'PENDING' ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-                        <Clock className="w-3.5 h-3.5" />
-                        <span>Chờ xử lý</span>
+                      <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                        Chờ xử lý
                       </span>
                     ) : apl.status === 'ACCEPTED' ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Đã chấp thuận</span>
+                      <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        Đã chấp thuận
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-800 border border-rose-200">
-                        <X className="w-3.5 h-3.5" />
-                        <span>Đã bác bỏ</span>
+                      <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-800 border border-rose-200">
+                        Đã bác bỏ
                       </span>
                     )}
                   </td>
@@ -100,7 +95,7 @@ export const AppealsResolution: React.FC = () => {
                     {apl.status === 'PENDING' && (
                       <button
                         onClick={() => setSelectedAppeal(apl)}
-                        className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-md shadow-sm transition"
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-sm shadow-blue-500/20 transition text-xs"
                       >
                         Giải quyết
                       </button>

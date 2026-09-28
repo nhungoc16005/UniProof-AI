@@ -1,30 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { apiClient } from '../../lib/apiClient';
 import { Evidence } from '../../types';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { VerificationBadge } from '../../components/ui/VerificationBadge';
-import { 
-  Inbox, 
-  ListFilter, 
-  Search, 
-  CheckCircle, 
-  Sparkles, 
-  Lock, 
-  ChevronRight, 
-  AlertTriangle,
-  ArrowUpDown,
-  Zap,
-  Clock,
-  ShieldCheck,
-  CheckCheck,
-  Filter,
-  Layers,
-  ArrowRight
-} from 'lucide-react';
 
 export const ReviewQueue: React.FC = () => {
-  const navigate = useNavigate();
   const [evidences, setEvidences] = useState<Evidence[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [filterTab, setFilterTab] = useState<'ALL' | 'FAST_TRACK' | 'MANUAL' | 'SUPPLEMENT' | 'APPROVED'>('ALL');
@@ -101,17 +82,12 @@ export const ReviewQueue: React.FC = () => {
   return (
     <div className="space-y-6 pb-20 relative">
       
-      {/* 1. Header & Cockpit Stats Banner */}
+      {/* 1. Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-mono px-2 py-0.5 rounded bg-sky-100 text-sky-800 font-bold border border-sky-300">
-              COCKPIT QUEUE · O02
-            </span>
-            <h1 className="text-xl font-bold text-slate-900">Hàng đợi xét duyệt hồ sơ</h1>
-          </div>
+          <h1 className="text-xl font-bold text-slate-900">Hàng đợi xét duyệt hồ sơ</h1>
           <p className="text-xs text-slate-500 mt-1">
-            Hồ sơ được tự động phân luồng theo cấp độ xác thực (L1–L5) và rủi ro OCR.
+            Hồ sơ được tự động phân luồng theo cấp độ xác thực (L1–L5) và mức độ rủi ro quy chế.
           </p>
         </div>
       </div>
@@ -120,65 +96,55 @@ export const ReviewQueue: React.FC = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div 
           onClick={() => setFilterTab('ALL')}
-          className={`p-3.5 rounded-xl border cursor-pointer transition ${
-            filterTab === 'ALL' ? 'bg-sky-50 border-sky-400 ring-2 ring-sky-200' : 'bg-white border-slate-200 hover:border-slate-300'
+          className={`p-4 rounded-xl border cursor-pointer transition ${
+            filterTab === 'ALL' ? 'bg-blue-50/70 border-blue-500 ring-2 ring-blue-200' : 'bg-white border-slate-200 hover:border-slate-300'
           }`}
         >
           <div className="flex items-center justify-between text-slate-400 mb-1">
-            <span className="text-[11px] font-semibold uppercase">Tổng hồ sơ</span>
-            <Inbox className="w-4 h-4 text-slate-500" />
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Tổng hồ sơ</span>
           </div>
-          <div className="text-xl font-extrabold text-slate-900">{evidences.length}</div>
-          <span className="text-[10px] text-slate-500">Trong kỳ hiện tại</span>
+          <div className="text-2xl font-black text-slate-900">{evidences.length}</div>
+          <span className="text-[10px] text-slate-500 font-medium">Trong kỳ hiện tại</span>
         </div>
 
         <div 
           onClick={() => setFilterTab('FAST_TRACK')}
-          className={`p-3.5 rounded-xl border cursor-pointer transition ${
+          className={`p-4 rounded-xl border cursor-pointer transition ${
             filterTab === 'FAST_TRACK' ? 'bg-emerald-50 border-emerald-400 ring-2 ring-emerald-200' : 'bg-white border-slate-200 hover:border-slate-300'
           }`}
         >
-          <div className="flex items-center justify-between text-emerald-600 mb-1">
-            <span className="text-[11px] font-bold uppercase flex items-center gap-1">
-              <Zap className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Fast-track (L1-L2)</span>
-            </span>
+          <div className="flex items-center justify-between text-emerald-700 mb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider">Fast-track (L1–L2)</span>
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
           </div>
-          <div className="text-xl font-extrabold text-emerald-700">{fastTrackCount}</div>
-          <span className="text-[10px] text-emerald-600">Đủ điều kiện duyệt 1-click</span>
+          <div className="text-2xl font-black text-emerald-700">{fastTrackCount}</div>
+          <span className="text-[10px] text-emerald-600 font-medium">Đủ điều kiện duyệt 1-click</span>
         </div>
 
         <div 
           onClick={() => setFilterTab('MANUAL')}
-          className={`p-3.5 rounded-xl border cursor-pointer transition ${
+          className={`p-4 rounded-xl border cursor-pointer transition ${
             filterTab === 'MANUAL' ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-200' : 'bg-white border-slate-200 hover:border-slate-300'
           }`}
         >
-          <div className="flex items-center justify-between text-amber-600 mb-1">
-            <span className="text-[11px] font-bold uppercase flex items-center gap-1">
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-              <span>Cần thẩm định (L3-L5)</span>
-            </span>
+          <div className="flex items-center justify-between text-amber-700 mb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider">Cần thẩm định (L3–L5)</span>
           </div>
-          <div className="text-xl font-extrabold text-amber-700">{manualCount}</div>
-          <span className="text-[10px] text-amber-600">Chỉ có chứng nhận ảnh</span>
+          <div className="text-2xl font-black text-amber-700">{manualCount}</div>
+          <span className="text-[10px] text-amber-600 font-medium">Chỉ có chứng nhận ảnh</span>
         </div>
 
         <div 
           onClick={() => setFilterTab('APPROVED')}
-          className={`p-3.5 rounded-xl border cursor-pointer transition ${
+          className={`p-4 rounded-xl border cursor-pointer transition ${
             filterTab === 'APPROVED' ? 'bg-slate-100 border-slate-400 ring-2 ring-slate-200' : 'bg-white border-slate-200 hover:border-slate-300'
           }`}
         >
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-semibold uppercase flex items-center gap-1">
-              <CheckCheck className="w-3.5 h-3.5 text-slate-600" />
-              <span>Đã hoàn tất</span>
-            </span>
+          <div className="flex items-center justify-between text-slate-600 mb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider">Đã hoàn tất</span>
           </div>
-          <div className="text-xl font-extrabold text-slate-800">{approvedCount}</div>
-          <span className="text-[10px] text-slate-500">Đã chốt điểm</span>
+          <div className="text-2xl font-black text-slate-800">{approvedCount}</div>
+          <span className="text-[10px] text-slate-500 font-medium">Đã chốt điểm</span>
         </div>
       </div>
 
@@ -189,9 +155,9 @@ export const ReviewQueue: React.FC = () => {
           <button
             type="button"
             onClick={() => setFilterTab('ALL')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap ${
               filterTab === 'ALL'
-                ? 'bg-slate-900 text-white shadow'
+                ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
@@ -200,34 +166,32 @@ export const ReviewQueue: React.FC = () => {
           <button
             type="button"
             onClick={() => setFilterTab('FAST_TRACK')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap ${
               filterTab === 'FAST_TRACK'
-                ? 'bg-emerald-600 text-white shadow'
+                ? 'bg-emerald-600 text-white shadow-sm'
                 : 'text-emerald-700 hover:bg-emerald-50'
             }`}
           >
-            <Zap className="w-3.5 h-3.5" />
-            <span>Fast-track ({fastTrackCount})</span>
+            Fast-track ({fastTrackCount})
           </button>
           <button
             type="button"
             onClick={() => setFilterTab('MANUAL')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap ${
               filterTab === 'MANUAL'
-                ? 'bg-amber-600 text-white shadow'
+                ? 'bg-amber-600 text-white shadow-sm'
                 : 'text-amber-700 hover:bg-amber-50'
             }`}
           >
-            <AlertTriangle className="w-3.5 h-3.5" />
-            <span>Cần thẩm định ({manualCount})</span>
+            Cần thẩm định ({manualCount})
           </button>
           <button
             type="button"
             onClick={() => setFilterTab('SUPPLEMENT')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap ${
               filterTab === 'SUPPLEMENT'
-                ? 'bg-orange-600 text-white shadow'
-                : 'text-orange-700 hover:bg-orange-50'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-indigo-700 hover:bg-indigo-50'
             }`}
           >
             Chờ bổ sung ({supplementCount})
@@ -235,9 +199,9 @@ export const ReviewQueue: React.FC = () => {
           <button
             type="button"
             onClick={() => setFilterTab('APPROVED')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap ${
               filterTab === 'APPROVED'
-                ? 'bg-slate-700 text-white shadow'
+                ? 'bg-slate-800 text-white shadow-sm'
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
@@ -246,38 +210,37 @@ export const ReviewQueue: React.FC = () => {
         </div>
 
         {/* Search */}
-        <div className="relative w-full sm:w-72">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+        <div className="w-full sm:w-80">
           <input
             type="text"
             placeholder="MSSV, tên sinh viên hoặc hoạt động..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:outline-none"
+            className="w-full px-3.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition"
           />
         </div>
       </div>
 
       {/* 3. Main Queue Table */}
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-900 text-slate-300 font-semibold uppercase tracking-wider text-[11px]">
+        <div className="overflow-x-auto w-full">
+          <table className="w-full text-left text-xs min-w-[880px]">
+            <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider text-[11px]">
               <tr>
                 <th className="py-3 px-4 w-10">
                   <input
                     type="checkbox"
                     checked={selectedIds.length === filtered.length && filtered.length > 0}
                     onChange={handleSelectAll}
-                    className="rounded text-sky-600 focus:ring-sky-500"
+                    className="rounded text-blue-600 focus:ring-blue-500"
                   />
                 </th>
-                <th className="py-3 px-4">Sinh viên</th>
-                <th className="py-3 px-4">Hoạt động khai báo</th>
-                <th className="py-3 px-4">Xác minh nguồn</th>
-                <th className="py-3 px-4">AI Đề xuất</th>
-                <th className="py-3 px-4">Trạng thái</th>
-                <th className="py-3 px-4 text-right">Thao tác</th>
+                <th className="py-3 px-4 min-w-[160px]">Sinh viên</th>
+                <th className="py-3 px-4 min-w-[220px]">Hoạt động khai báo</th>
+                <th className="py-3 px-4 whitespace-nowrap min-w-[140px]">Xác minh nguồn</th>
+                <th className="py-3 px-4 whitespace-nowrap min-w-[120px]">AI Đề xuất</th>
+                <th className="py-3 px-4 whitespace-nowrap min-w-[130px]">Trạng thái</th>
+                <th className="py-3 px-4 text-right whitespace-nowrap min-w-[120px]">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -297,14 +260,14 @@ export const ReviewQueue: React.FC = () => {
                   return (
                     <tr 
                       key={item.id} 
-                      className={`hover:bg-slate-50 transition ${isSelected ? 'bg-sky-50/50' : ''}`}
+                      className={`hover:bg-blue-50/20 transition ${isSelected ? 'bg-blue-50/50' : ''}`}
                     >
                       <td className="py-3.5 px-4">
                         <input
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => handleToggleSelect(item.id)}
-                          className="rounded text-sky-600 focus:ring-sky-500"
+                          className="rounded text-blue-600 focus:ring-blue-500"
                         />
                       </td>
 
@@ -320,13 +283,13 @@ export const ReviewQueue: React.FC = () => {
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-1.5">
                           {isFastTrack && (
-                            <span className="p-1 rounded bg-emerald-100 text-emerald-700" title="Đủ chuẩn Fast-track">
-                              <Zap className="w-3 h-3" />
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                              Fast-track
                             </span>
                           )}
                           <Link
                             to={`/officer/review/${item.id}`}
-                            className="font-bold text-slate-800 hover:text-sky-600 block max-w-xs truncate"
+                            className="font-bold text-slate-800 hover:text-blue-600 block max-w-xs truncate transition"
                             title={item.declaredActivityName}
                           >
                             {item.declaredActivityName}
@@ -343,8 +306,8 @@ export const ReviewQueue: React.FC = () => {
 
                       <td className="py-3.5 px-4">
                         {aiScore !== undefined ? (
-                          <span className="font-bold text-sky-700 bg-sky-50 px-2 py-1 rounded border border-dashed border-sky-300">
-                            ✦ {aiScore.toFixed(1)} đ
+                          <span className="font-bold text-blue-700 bg-blue-50 px-2 py-1 rounded border border-dashed border-blue-200">
+                            +{aiScore.toFixed(1)} đ
                           </span>
                         ) : (
                           <span className="text-slate-400">—</span>
@@ -358,10 +321,9 @@ export const ReviewQueue: React.FC = () => {
                       <td className="py-3.5 px-4 text-right">
                         <Link
                           to={`/officer/review/${item.id}`}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-900 hover:bg-sky-600 text-white font-semibold rounded-lg shadow-sm transition text-xs"
+                          className="inline-block px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-sm shadow-blue-500/20 transition text-xs"
                         >
-                          <span>Mở Cockpit</span>
-                          <ChevronRight className="w-3.5 h-3.5" />
+                          Mở xét duyệt
                         </Link>
                       </td>
                     </tr>
@@ -387,10 +349,9 @@ export const ReviewQueue: React.FC = () => {
 
           <button
             onClick={handleBatchApprove}
-            className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-full shadow transition flex items-center gap-1.5"
+            className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-full shadow transition"
           >
-            <Zap className="w-3.5 h-3.5" />
-            <span>Duyệt nhanh Fast-Track ({selectedIds.length})</span>
+            Duyệt nhanh Fast-Track ({selectedIds.length})
           </button>
 
           <button

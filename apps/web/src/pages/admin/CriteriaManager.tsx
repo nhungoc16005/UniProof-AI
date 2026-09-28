@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '../../lib/apiClient';
 import { Criterion } from '../../types';
-import { Layers, Plus, Edit2, Trash2, CheckCircle2 } from 'lucide-react';
 
 export const CriteriaManager: React.FC = () => {
   const [criteria, setCriteria] = useState<Criterion[]>([]);
@@ -40,7 +39,7 @@ export const CriteriaManager: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Quản trị Cấu trúc Tiêu chí Khung I–V (A04)</h1>
+          <h1 className="text-xl font-bold text-slate-900">Quản trị Khung Tiêu chí Rèn luyện</h1>
           <p className="text-xs text-slate-500 mt-0.5">
             Cấu hình danh mục tiêu chí, trần điểm tối đa và điều kiện áp dụng điểm rèn luyện.
           </p>
@@ -48,10 +47,9 @@ export const CriteriaManager: React.FC = () => {
 
         <button
           onClick={() => setShowAddModal(true)}
-          className="inline-flex items-center gap-1.5 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs rounded-lg shadow-sm transition"
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm shadow-blue-500/20 transition"
         >
-          <Plus className="w-4 h-4" />
-          <span>Thêm tiêu chí mới</span>
+          Thêm tiêu chí mới
         </button>
       </div>
 
@@ -70,26 +68,26 @@ export const CriteriaManager: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {criteria.map((c) => (
-                <tr key={c.id} className="hover:bg-slate-50/60 transition">
-                  <td className="py-3.5 px-4 font-mono font-bold text-sky-700">{c.code}</td>
+                <tr key={c.id} className="hover:bg-blue-50/20 transition">
+                  <td className="py-3.5 px-4 font-mono font-bold text-blue-700">{c.code}</td>
                   <td className="py-3.5 px-4 font-bold text-slate-900">{c.name}</td>
                   <td className="py-3.5 px-4">
                     <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700">
                       {c.category}
                     </span>
                   </td>
-                  <td className="py-3.5 px-4 font-bold text-emerald-700">
+                  <td className="py-3.5 px-4 font-bold text-blue-700">
                     +{c.maxScore} đ
                   </td>
                   <td className="py-3.5 px-4 text-slate-600 max-w-xs truncate" title={c.description}>
                     {c.description}
                   </td>
                   <td className="py-3.5 px-4 text-right space-x-2">
-                    <button className="p-1 text-slate-500 hover:text-sky-600">
-                      <Edit2 className="w-3.5 h-3.5" />
+                    <button className="text-xs font-semibold text-blue-600 hover:underline">
+                      Sửa
                     </button>
-                    <button className="p-1 text-slate-500 hover:text-rose-600">
-                      <Trash2 className="w-3.5 h-3.5" />
+                    <button className="text-xs font-semibold text-rose-600 hover:underline">
+                      Xóa
                     </button>
                   </td>
                 </tr>
@@ -182,7 +180,7 @@ export const CriteriaManager: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded"
+                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm transition"
                 >
                   Tạo tiêu chí
                 </button>

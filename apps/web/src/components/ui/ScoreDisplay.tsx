@@ -1,5 +1,4 @@
 import React from 'react';
-import { Sparkles, Check, HelpCircle } from 'lucide-react';
 
 interface ScoreDisplayProps {
   score?: number | null;
@@ -23,50 +22,60 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
   className = '',
 }) => {
   return (
-    <div className={`flex flex-col gap-2 ${className}`}>
+    <div className={`space-y-3 ${className}`}>
       {/* Official Score Display */}
       {isOfficial && score !== undefined && score !== null ? (
-        <div className="flex items-center gap-3 p-3 bg-white border-2 border-emerald-500 rounded-lg shadow-sm">
-          <div className="flex items-center justify-center w-10 h-10 rounded-full bg-emerald-100 text-emerald-700">
-            <Check className="w-5 h-5 stroke-[2.5]" />
-          </div>
+        <div className="p-4 bg-white border border-emerald-300 rounded-xl shadow-sm flex items-center justify-between">
           <div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl font-bold text-slate-900">{score.toLocaleString('vi-VN')}</span>
-              {maxScore && <span className="text-xs text-slate-500">/ tối đa {maxScore} điểm</span>}
+            <div className="flex items-center gap-2 mb-1">
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800">
+                Điểm chính thức
+              </span>
+              <span className="text-xs text-slate-500">
+                {approvedBy ? `Duyệt bởi ${approvedBy}` : ''} {approvedDate ? `(${approvedDate})` : ''}
+              </span>
             </div>
-            <div className="text-xs text-emerald-700 font-medium">
-              Điểm chính thức {approvedBy ? `· Duyệt bởi ${approvedBy}` : ''} {approvedDate ? `(${approvedDate})` : ''}
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-3xl font-extrabold text-slate-900 tracking-tight">
+                {score.toLocaleString('vi-VN')}
+              </span>
+              <span className="text-xs text-slate-500 font-medium">điểm</span>
+              {maxScore && (
+                <span className="text-xs text-slate-400">/ tối đa {maxScore}</span>
+              )}
             </div>
           </div>
         </div>
       ) : null}
 
-      {/* Proposed AI Score Display (Dotted line + sparkle icon) */}
+      {/* Proposed AI Score Display */}
       {!isOfficial && proposedScore !== undefined && proposedScore !== null ? (
-        <div className="flex items-center justify-between p-3 border-2 border-dashed border-sky-400 bg-sky-50/70 rounded-lg">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-sky-100 text-sky-600">
-              <Sparkles className="w-5 h-5" />
+        <div className="p-4 bg-sky-50/60 border border-sky-200 rounded-xl flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-sky-100 text-sky-800">
+                Đề xuất AI & Rule Engine
+              </span>
+              <span className="text-[11px] text-sky-700">Chưa phải điểm chính thức</span>
             </div>
-            <div>
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-2xl font-bold text-sky-900">{proposedScore.toLocaleString('vi-VN')}</span>
-                {maxScore && <span className="text-xs text-sky-700">/ tối đa {maxScore} điểm</span>}
-              </div>
-              <div className="text-xs text-sky-700 font-medium">
-                ✦ Điểm AI đề xuất — Chưa phải điểm chính thức
-              </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-3xl font-extrabold text-sky-950 tracking-tight">
+                {proposedScore.toLocaleString('vi-VN')}
+              </span>
+              <span className="text-xs text-sky-700 font-medium">điểm</span>
+              {maxScore && (
+                <span className="text-xs text-sky-600">/ tối đa {maxScore}</span>
+              )}
             </div>
           </div>
+
           {onExplainClick && (
             <button
+              type="button"
               onClick={onExplainClick}
-              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-sky-700 hover:text-sky-900 hover:bg-sky-100 rounded-md transition"
-              title="Xem giải thích và trích dẫn điều khoản"
+              className="px-3 py-1.5 text-xs font-semibold text-sky-700 bg-white hover:bg-sky-50 border border-sky-200 rounded-lg shadow-sm transition"
             >
-              <HelpCircle className="w-3.5 h-3.5" />
-              <span>Vì sao?</span>
+              Xem giải trình quy chế
             </button>
           )}
         </div>
