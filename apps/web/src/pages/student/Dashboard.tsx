@@ -6,6 +6,8 @@ import { Evidence } from '../../types';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { ScoreGauge } from '../../components/ui/ScoreGauge';
 
+import { calculateStudentConductScore } from '../../lib/ruleEngine';
+
 export const StudentDashboard: React.FC = () => {
   const { user, activeTerm } = useAuth();
   const [evidences, setEvidences] = useState<Evidence[]>([]);
@@ -20,24 +22,13 @@ export const StudentDashboard: React.FC = () => {
     }
   }, [user?.id, activeTerm.id]);
 
-  // Calculations
-  const officialScore = useMemo(() => {
-    return evidences
-      .filter((e) => e.status === 'APPROVED')
-      .reduce((sum, e) => {
-        const revScore = e.reviews?.[0]?.finalScore || 0;
-        return sum + revScore;
-      }, 87); // baseline từ phiếu tự đánh giá mẫu (17 + 25 + 20 + 25 + 0 = 87)
+  // Rule Engine Calculations (Bậc thang & khống chế trần từng khung)
+  const { categorySummaries, totalAiScore, totalOfficialScore } = useMemo(() => {
+    return calculateStudentConductScore(evidences);
   }, [evidences]);
 
-  const pendingScore = useMemo(() => {
-    return evidences
-      .filter((e) => e.status !== 'APPROVED' && e.status !== 'REJECTED' && e.status !== 'WITHDRAWN')
-      .reduce((sum, e) => {
-        const aiScore = e.aiSuggestions?.[0]?.suggestedScore || 0;
-        return sum + aiScore;
-      }, 0);
-  }, [evidences]);
+  const officialScore = totalOfficialScore;
+  const pendingScore = Math.max(0, +(totalAiScore - totalOfficialScore).toFixed(1));
 
   const needsActionEvidences = useMemo(() => {
     return evidences.filter((e) => e.status === 'NEEDS_SUPPLEMENT');
@@ -283,30 +274,32 @@ export const StudentDashboard: React.FC = () => {
           </div>
 
           <div className="space-y-4">
-            {[
-              { id: 'Khung I', name: 'Ý thức tham gia học tập', current: 17, max: 20, pct: 85 },
-              { id: 'Khung II', name: 'Ý thức chấp hành nội quy, quy chế, quy định', current: 25, max: 25, pct: 100 },
-              { id: 'Khung III', name: 'Ý thức tham gia các hoạt động chính trị, xã hội, phong trào', current: 20, max: 20, pct: 100 },
-              { id: 'Khung IV', name: 'Ý thức công dân trong quan hệ cộng đồng', current: 25, max: 25, pct: 100 },
-              { id: 'Khung V', name: 'Ý thức và kết quả khi tham gia công tác cán bộ lớp, đoàn thể', current: 0, max: 10, pct: 0 },
-            ].map((c) => (
-              <div key={c.id} className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold text-slate-800">
-                    {c.id} · {c.name}
-                  </span>
-                  <span className="font-mono text-slate-500">
-                    <strong className="text-slate-900 font-bold">{c.current}</strong> / {c.max} đ
-                  </span>
+            {categorySummaries.map((c) => {
+              const pct = Math.round((c.officialScore / c.maxScore) * 100);
+              return (
+                <div key={c.category} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-slate-800">
+                      {c.name}
+                    </span>
+                    <span className="font-mono text-slate-500">
+                      <strong className="text-slate-900 font-bold">{c.officialScore}</strong> / {c.maxScore} đ
+                      {c.aiScore > c.officialScore && (
+                        <span className="text-[#1d6fc2] ml-1.5 text-[11px] font-semibold">
+                          (Dự kiến AI: {c.aiScore}đ)
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-[#1d6fc2] rounded-full transition-all duration-300"
+                      style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-[#1d6fc2] rounded-full transition-all duration-300"
-                    style={{ width: `${c.pct}%` }}
-                  />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
