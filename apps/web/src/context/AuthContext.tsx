@@ -27,9 +27,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (saved && isAuth) {
         return JSON.parse(saved);
       }
-      return mockUsers.student; // Khởi tạo mặc định
+      return null;
     } catch {
-      return mockUsers.student;
+      return null;
     }
   });
 
@@ -52,18 +52,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const init = async () => {
       try {
+        const token = localStorage.getItem('edupoint_auth_token');
+        if (token) {
+          try {
+            const currentUser = await apiClient.getCurrentUser();
+            setUser(currentUser);
+            setIsAuthenticated(true);
+          } catch (e) {
+            console.error('Token expired or invalid', e);
+            localStorage.removeItem('edupoint_auth_token');
+            localStorage.removeItem('edupoint_current_user');
+            setUser(null);
+            setIsAuthenticated(false);
+          }
+        }
+
         const [tList, tActive] = await Promise.all([
           apiClient.getTerms(),
           apiClient.getActiveTerm(),
         ]);
         setTerms(tList);
         setActiveTerm(tActive);
-
-        // Khởi tạo token mẫu nếu chưa có
-        if (!localStorage.getItem('edupoint_auth_token')) {
-          localStorage.setItem('edupoint_auth_token', 'mock_jwt_access_token_v1');
-          setIsAuthenticated(true);
-        }
       } catch (err) {
         console.error('Failed to load initial auth data', err);
       } finally {
@@ -73,49 +82,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     init();
   }, []);
 
-  const login = async (email: string, password: string, requestedRole?: Role): Promise<{ success: boolean; error?: string }> => {
-    // Giả lập kiểm tra xác thực (AUTH-01)
-    if (password.length < 4) {
-      return { success: false, error: 'Mật khẩu phải có ít nhất 4 ký tự.' };
+  const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const { user: loggedInUser } = await apiClient.login(email, password);
+      setUser(loggedInUser);
+      setIsAuthenticated(true);
+      return { success: true };
+    } catch (err: any) {
+      const errorMsg =
+        err.response?.data?.error?.message ||
+        err.message ||
+        'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.';
+      return { success: false, error: errorMsg };
     }
-
-    let targetUser = mockUsers.student;
-    const lowerEmail = email.toLowerCase();
-
-    if (requestedRole === 'ADMIN' || lowerEmail.includes('admin') || lowerEmail.includes('nam.le')) {
-      targetUser = mockUsers.admin;
-    } else if (requestedRole === 'STAFF' || lowerEmail.includes('officer') || lowerEmail.includes('mai.tran') || lowerEmail.includes('canbo')) {
-      targetUser = mockUsers.officer;
-    } else {
-      targetUser = {
-        ...mockUsers.student,
-        email: email || mockUsers.student.email,
-      };
-    }
-
-    // Lưu phiên đăng nhập
-    localStorage.setItem('edupoint_auth_token', `mock_token_${Date.now()}`);
-    localStorage.setItem('edupoint_current_user', JSON.stringify(targetUser));
-    setUser(targetUser);
-    setIsAuthenticated(true);
-
-    return { success: true };
   };
 
-  const logout = () => {
-    // Xóa toàn bộ token và phiên của người dùng cũ theo Definition of Done
-    localStorage.removeItem('edupoint_auth_token');
-    localStorage.removeItem('edupoint_current_user');
+  const logout = async () => {
+    await apiClient.logout();
     setUser(null);
     setIsAuthenticated(false);
   };
 
   const switchRole = async (role: Role) => {
-    const newUser = await apiClient.switchUserRole(role);
-    setUser(newUser);
-    setIsAuthenticated(true);
-    localStorage.setItem('edupoint_auth_token', `mock_token_${Date.now()}`);
-    localStorage.setItem('edupoint_current_user', JSON.stringify(newUser));
+    // Không cho phép tự đổi role client-side
+    console.warn('Hệ thống không hỗ trợ đổi role tự do. Role được gán cố định theo tài khoản trường cấp.');
   };
 
   const switchTerm = async (term: Term) => {
@@ -124,15 +114,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const forgotPassword = async (email: string): Promise<{ success: boolean; message: string }> => {
-    // Giả lập AUTH-06: Luôn thông báo thành công dù email có tồn tại hay không (chống User Enumeration)
-    return {
-      success: true,
-      message: 'Nếu email tồn tại trong hệ thống, chúng tôi đã gửi hướng dẫn đặt lại mật khẩu đến hòm thư của bạn.',
-    };
+    try {
+      const res = await apiClient.forgotPassword(email);
+      return {
+        success: true,
+        message: res.message || 'Yêu cầu đặt lại mật khẩu đã được xử lý.',
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: err.response?.data?.error?.message || 'Có lỗi xảy ra khi gửi yêu cầu.',
+      };
+    }
   };
 
   const resetPassword = async (token: string, newPassword: string): Promise<{ success: boolean; message: string }> => {
-    // Giả lập AUTH-07
     if (!token || token === 'expired') {
       return {
         success: false,

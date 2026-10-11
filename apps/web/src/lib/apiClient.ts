@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { 
   Evidence, 
   User, 
@@ -6,7 +7,6 @@ import {
   Notification, 
   ReviewDecision, 
   Appeal,
-  EvidenceStatus 
 } from '../types';
 import { 
   mockUsers, 
@@ -17,7 +17,42 @@ import {
   mockActivities 
 } from './mockData';
 
-// Lưu trữ trạng thái trong LocalStorage để có thể thử nghiệm tương tác thật trên UI
+const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3001/api';
+
+export const http = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Interceptor đính kèm Token
+http.interceptors.request.use((config) => {
+  const token = localStorage.getItem('edupoint_auth_token');
+  if (token && !token.startsWith('mock_')) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Interceptor xử lý lỗi 401
+http.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      console.warn('Phiên đăng nhập đã hết hạn hoặc không hợp lệ');
+      localStorage.removeItem('edupoint_auth_token');
+      localStorage.removeItem('edupoint_current_user');
+      // Nếu đang ở trang không phải login thì redirect
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
+// Fallback Local Storage cho các module chưa có API ở Sprint 1
 class EduPointStorage {
   private evidencesKey = 'edupoint_evidences';
   private currentTermKey = 'edupoint_active_term';
@@ -30,9 +65,6 @@ class EduPointStorage {
     }
     if (!localStorage.getItem(this.currentTermKey)) {
       localStorage.setItem(this.currentTermKey, JSON.stringify(mockTerms[0]));
-    }
-    if (!localStorage.getItem(this.currentUserKey)) {
-      localStorage.setItem(this.currentUserKey, JSON.stringify(mockUsers.student));
     }
     if (!localStorage.getItem(this.notificationsKey)) {
       localStorage.setItem(this.notificationsKey, JSON.stringify(mockNotifications));
@@ -78,22 +110,58 @@ class EduPointStorage {
 
 const storage = new EduPointStorage();
 
-// API Client Wrapper tuân thủ contract EduPoint_API_BE.md
+// API Client Wrapper tuân thủ contract
 export const apiClient = {
-  // Auth endpoints
+  // ==========================================
+  // AUTH ENDPOINTS (GỌI BACKEND THẬT NESTJS)
+  // ==========================================
+  async login(email: string, password: string): Promise<{ accessToken: string; user: User }> {
+    const response = await http.post('/auth/login', { email, password });
+    const { accessToken, user } = response.data.data;
+    localStorage.setItem('edupoint_auth_token', accessToken);
+    localStorage.setItem('edupoint_current_user', JSON.stringify(user));
+    return { accessToken, user };
+  },
+
   async getCurrentUser(): Promise<User> {
-    return storage.getCurrentUser();
+    const token = localStorage.getItem('edupoint_auth_token');
+    if (!token || token.startsWith('mock_')) {
+      return storage.getCurrentUser();
+    }
+    try {
+      const response = await http.get('/auth/me');
+      const user = response.data.data;
+      storage.setCurrentUser(user);
+      return user;
+    } catch {
+      return storage.getCurrentUser();
+    }
   },
 
-  async switchUserRole(role: 'STUDENT' | 'STAFF' | 'ADMIN'): Promise<User> {
-    let target = mockUsers.student;
-    if (role === 'STAFF') target = mockUsers.officer;
-    if (role === 'ADMIN') target = mockUsers.admin;
-    storage.setCurrentUser(target);
-    return target;
+  async changePassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
+    const response = await http.post('/auth/change-password', { currentPassword, newPassword });
+    return response.data.data;
   },
 
-  // Term endpoints
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    const response = await http.post('/auth/forgot-password', { email });
+    return response.data.data;
+  },
+
+  async logout(): Promise<void> {
+    try {
+      await http.post('/auth/logout');
+    } catch {
+      // bỏ qua lỗi nếu mạng rớt
+    } finally {
+      localStorage.removeItem('edupoint_auth_token');
+      localStorage.removeItem('edupoint_current_user');
+    }
+  },
+
+  // ==========================================
+  // TERM ENDPOINTS
+  // ==========================================
   async getTerms(): Promise<Term[]> {
     return mockTerms;
   },
@@ -107,17 +175,23 @@ export const apiClient = {
     return term;
   },
 
-  // Criteria endpoints (CRI-01)
+  // ==========================================
+  // CRITERIA ENDPOINTS (CRI-01)
+  // ==========================================
   async getCriteria(): Promise<Criterion[]> {
     return mockCriteria;
   },
 
-  // Activities
+  // ==========================================
+  // ACTIVITIES
+  // ==========================================
   async getActivities() {
     return mockActivities;
   },
 
-  // Evidences (EVD-05, EVD-06, EVD-01, EVD-09)
+  // ==========================================
+  // EVIDENCES (EVD-05, EVD-06, EVD-01, EVD-09)
+  // ==========================================
   async getEvidences(params?: { studentId?: string; status?: string; termId?: string }): Promise<Evidence[]> {
     let list = storage.getEvidences();
     if (params?.studentId) {
@@ -151,143 +225,146 @@ export const apiClient = {
       declaredActivityName: data.declaredActivityName || 'Hoạt động mới nộp',
       declaredRole: data.declaredRole || 'PARTICIPANT',
       evidenceType: data.evidenceType || 'GIAY_CHUNG_NHAN',
-      status: 'PROCESSING', // Bắt đầu ở trạng thái chạy OCR/AI
+      status: 'PROCESSING',
       participationDate: data.participationDate || new Date().toISOString(),
       submittedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       version: 1,
       files: data.files || [
         {
-          id: `file-${Date.now()}`,
+          id: `f-${Date.now()}`,
           evidenceId: `evd-${Date.now()}`,
-          fileUrl: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?auto=format&fit=crop&q=80&w=1000',
-          fileType: 'image/jpeg',
+          fileUrl: 'https://placehold.co/600x400/png?text=Minh+Chung+Mau',
+          fileType: 'image/png',
           uploadedAt: new Date().toISOString(),
         },
       ],
-      ocrResults: [
-        {
-          id: `ocr-${Date.now()}`,
-          evidenceFileId: `file-${Date.now()}`,
-          evidenceId: `evd-${Date.now()}`,
-          extractedText: `TRÍCH XUẤT MINH CHỨNG: ${data.declaredActivityName} - MSSV: ${currentUser.studentCode}`,
-          studentNameExtracted: currentUser.fullName,
-          studentCodeExtracted: currentUser.studentCode,
-          activityNameExtracted: data.declaredActivityName,
-          confidenceScore: 0.88,
-          reviewedByHuman: false,
-        },
-      ],
-      verificationResults: [
-        {
-          id: `vr-${Date.now()}`,
-          evidenceId: `evd-${Date.now()}`,
-          verificationLevel: 3,
-          status: 'PLAUSIBLE',
-          activityExistsVerified: true,
-          studentParticipationVerified: true,
-          sourceDescription: 'Đối chiếu ban đầu theo ảnh minh chứng tải lên',
-        },
-      ],
-      aiSuggestions: [
-        {
-          id: `ai-${Date.now()}`,
-          evidenceId: `evd-${Date.now()}`,
-          criterionId: 'crit-3.2',
-          suggestedScore: 3.0,
-          reasoning: 'AI tự động trích xuất thông tin khớp tiêu chí hoạt động ngoại khóa.',
-          confidenceScore: 0.85,
-        },
-      ],
+      ocrResults: [],
+      verificationResults: [],
+      anomalyFlags: [],
+      aiSuggestions: [],
     };
 
     list.unshift(newEvidence);
     storage.saveEvidences(list);
-
-    // Giả lập sau 2 giây chuyển từ PROCESSING -> NEEDS_HUMAN_REVIEW / VERIFIED
-    setTimeout(() => {
-      const currentList = storage.getEvidences();
-      const idx = currentList.findIndex((e) => e.id === newEvidence.id);
-      if (idx !== -1) {
-        currentList[idx].status = 'NEEDS_HUMAN_REVIEW';
-        storage.saveEvidences(currentList);
-      }
-    }, 2500);
-
     return newEvidence;
   },
 
-  async withdrawEvidence(id: string): Promise<boolean> {
+  async withdrawEvidence(id: string): Promise<Evidence> {
     const list = storage.getEvidences();
     const item = list.find((e) => e.id === id);
-    if (item && item.status !== 'APPROVED') {
-      item.status = 'WITHDRAWN';
-      item.updatedAt = new Date().toISOString();
-      storage.saveEvidences(list);
-      return true;
-    }
-    return false;
-  },
-
-  // Officer Review Actions (REV-02)
-  async reviewEvidence(
-    id: string,
-    payload: {
-      decision: ReviewDecision;
-      finalScore?: number;
-      criterionId?: string;
-      reason: string;
-      rejectBasis?: string;
-      supplementDeadline?: string;
-      missingItem?: string;
-    }
-  ): Promise<Evidence> {
-    const list = storage.getEvidences();
-    const item = list.find((e) => e.id === id);
-    if (!item) throw new Error('Hồ sơ không tồn tại');
-
-    const currentUser = storage.getCurrentUser();
-    let newStatus: EvidenceStatus = 'APPROVED';
-
-    if (payload.decision === 'REJECTED') {
-      newStatus = 'REJECTED';
-    } else if (payload.decision === 'SUPPLEMENT_REQUESTED') {
-      newStatus = 'NEEDS_SUPPLEMENT';
-      item.supplementRequests = item.supplementRequests || [];
-      item.supplementRequests.push({
-        id: `sup-${Date.now()}`,
-        evidenceId: item.id,
-        reviewId: `rev-${Date.now()}`,
-        missingItem: payload.missingItem || 'Cần bổ sung giấy tờ xác minh theo yêu cầu cán bộ',
-        deadline: payload.supplementDeadline,
-      });
-    } else {
-      newStatus = 'APPROVED';
-    }
-
-    item.status = newStatus;
+    if (!item) throw new Error('Không tìm thấy minh chứng');
+    item.status = 'WITHDRAWN';
     item.updatedAt = new Date().toISOString();
-    item.version += 1;
-
-    item.reviews = item.reviews || [];
-    item.reviews.unshift({
-      id: `rev-${Date.now()}`,
-      evidenceId: item.id,
-      reviewerId: currentUser.id,
-      reviewer: currentUser,
-      decision: payload.decision,
-      criterionId: payload.criterionId,
-      finalScore: payload.finalScore,
-      rejectBasis: payload.rejectBasis,
-      reason: payload.reason,
-      createdAt: new Date().toISOString(),
-    });
-
     storage.saveEvidences(list);
     return item;
   },
 
-  // Notifications
+  async supplementEvidence(id: string, files: any[]): Promise<Evidence> {
+    const list = storage.getEvidences();
+    const item = list.find((e) => e.id === id);
+    if (!item) throw new Error('Không tìm thấy minh chứng');
+    item.status = 'PROCESSING';
+    item.files = [...(item.files || []), ...files];
+    item.updatedAt = new Date().toISOString();
+    storage.saveEvidences(list);
+    return item;
+  },
+
+  // ==========================================
+  // REVIEW & QUEUE (REV-01, REV-03, REV-04)
+  // ==========================================
+  async getReviewQueue(): Promise<Evidence[]> {
+    const list = storage.getEvidences();
+    return list.filter((e) => 
+      e.status === 'PROCESSING' || 
+      e.status === 'NEEDS_HUMAN_REVIEW' || 
+      e.status === 'PLAUSIBLE' || 
+      e.status === 'VERIFIED'
+    );
+  },
+
+  async claimEvidence(id: string, officerId: string): Promise<Evidence> {
+    const list = storage.getEvidences();
+    const item = list.find((e) => e.id === id);
+    if (!item) throw new Error('Không tìm thấy minh chứng');
+    item.lockedById = officerId;
+    item.lockedAt = new Date().toISOString();
+    storage.saveEvidences(list);
+    return item;
+  },
+
+  async releaseEvidence(id: string): Promise<Evidence> {
+    const list = storage.getEvidences();
+    const item = list.find((e) => e.id === id);
+    if (!item) throw new Error('Không tìm thấy minh chứng');
+    item.lockedById = undefined;
+    item.lockedAt = undefined;
+    storage.saveEvidences(list);
+    return item;
+  },
+
+  async reviewEvidence(evidenceId: string, payload: any): Promise<Evidence> {
+    return this.submitReviewDecision(
+      evidenceId,
+      payload.decision,
+      payload.reason,
+      payload.finalScore,
+      payload.criterionId
+    );
+  },
+
+  async submitReviewDecision(
+    evidenceId: string, 
+    decision: ReviewDecision, 
+    reason: string, 
+    finalScore?: number,
+    criterionId?: string
+  ): Promise<Evidence> {
+    const list = storage.getEvidences();
+    const item = list.find((e) => e.id === evidenceId);
+    if (!item) throw new Error('Không tìm thấy minh chứng');
+
+    if (decision === 'APPROVED') {
+      item.status = 'APPROVED';
+    } else if (decision === 'REJECTED') {
+      item.status = 'REJECTED';
+    } else if (decision === 'SCORE_ADJUSTED') {
+      item.status = 'APPROVED';
+    } else if (decision === 'SUPPLEMENT_REQUESTED') {
+      item.status = 'NEEDS_SUPPLEMENT';
+    }
+
+    item.lockedById = undefined;
+    item.lockedAt = undefined;
+    item.updatedAt = new Date().toISOString();
+    storage.saveEvidences(list);
+    return item;
+  },
+
+  // ==========================================
+  // APPEALS (APL-01, APL-04)
+  // ==========================================
+  async getAppeals(): Promise<Appeal[]> {
+    return [];
+  },
+
+  async createAppeal(data: Partial<Appeal>): Promise<Appeal> {
+    const newAppeal: Appeal = {
+      id: `apl-${Date.now()}`,
+      evidenceId: data.evidenceId || '',
+      studentId: data.studentId || '',
+      content: data.content || '',
+      requestedScore: data.requestedScore,
+      status: 'PENDING',
+      createdAt: new Date().toISOString(),
+    };
+    return newAppeal;
+  },
+
+  // ==========================================
+  // NOTIFICATIONS (NOTI-01, NOTI-02)
+  // ==========================================
   async getNotifications(): Promise<Notification[]> {
     return storage.getNotifications();
   },
@@ -302,7 +379,8 @@ export const apiClient = {
   },
 
   async markAllNotificationsAsRead(): Promise<void> {
-    const notifs = storage.getNotifications().map((n) => ({ ...n, isRead: true }));
+    const notifs = storage.getNotifications();
+    notifs.forEach((n) => (n.isRead = true));
     storage.saveNotifications(notifs);
   },
 };

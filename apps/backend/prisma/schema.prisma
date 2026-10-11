@@ -48,6 +48,7 @@ model Class {
 model User {
   id           String   @id @default(uuid()) // Map 1-1 với Supabase auth.users.id
   email        String   @unique              // Email trường cấp (@dut.udn.vn)
+  password     String?                       // Mật khẩu băm bcrypt cho xác thực hệ thống
   fullName     String
   role         Role
   studentCode  String?  @unique              // Mã sinh viên (chỉ có khi role = STUDENT)

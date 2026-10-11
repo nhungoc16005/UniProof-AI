@@ -230,47 +230,10 @@ export const AppLayout: React.FC = () => {
               </select>
             </div>
 
-            {/* Quick Role Switcher */}
-            <div className="flex items-center bg-slate-100/90 p-1 rounded-xl text-xs gap-0.5">
-              <button
-                onClick={() => {
-                  switchRole('STUDENT');
-                  navigate('/student');
-                }}
-                className={`px-3 py-1 rounded-lg transition text-xs font-semibold ${
-                  user?.role === 'STUDENT'
-                    ? 'bg-[#1d6fc2] text-white shadow-sm shadow-blue-500/20'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Sinh viên
-              </button>
-              <button
-                onClick={() => {
-                  switchRole('STAFF');
-                  navigate('/officer');
-                }}
-                className={`px-3 py-1 rounded-lg transition text-xs font-semibold ${
-                  user?.role === 'STAFF'
-                    ? 'bg-[#1d6fc2] text-white shadow-sm shadow-blue-500/20'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Cán bộ
-              </button>
-              <button
-                onClick={() => {
-                  switchRole('ADMIN');
-                  navigate('/admin');
-                }}
-                className={`px-3 py-1 rounded-lg transition text-xs font-semibold ${
-                  user?.role === 'ADMIN'
-                    ? 'bg-[#1d6fc2] text-white shadow-sm shadow-blue-500/20'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Admin
-              </button>
+            {/* User Official Role Badge */}
+            <div className="flex items-center px-3 py-1 rounded-xl text-xs font-semibold bg-blue-50 text-[#1d6fc2] border border-blue-200/60 shadow-sm">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#1d6fc2] mr-1.5 animate-pulse"></span>
+              {user?.role === 'STUDENT' ? 'Sinh viên' : user?.role === 'STAFF' ? 'Cán bộ Khoa' : 'Quản trị viên'}
             </div>
 
             {/* Notifications Button */}
