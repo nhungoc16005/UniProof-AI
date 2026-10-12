@@ -210,8 +210,18 @@ export const StudentDashboard: React.FC = () => {
           <div className="text-lg font-black text-slate-900 font-mono">
             {formattedDeadline}
           </div>
-          <p className="text-[11px] text-slate-500 truncate">
-            {isSubmissionOpen ? '🟢 Đợt nộp hồ sơ đang mở' : '🔒 Đã kết thúc nhận hồ sơ'}
+          <p className="text-[11px] text-slate-500 truncate flex items-center gap-1.5">
+            {isSubmissionOpen ? (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block shrink-0" />
+                <span>Đang trong thời hạn nộp</span>
+              </>
+            ) : (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block shrink-0" />
+                <span>Đã kết thúc nhận hồ sơ</span>
+              </>
+            )}
           </p>
         </div>
 
