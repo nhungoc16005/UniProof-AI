@@ -415,50 +415,58 @@ export const CriteriaView: React.FC = () => {
         </div>
 
         <div className="space-y-5">
-          {[
-            {
-              category: 'Khung III: Hoạt động Văn thể mỹ & Phong trào chính trị - xã hội',
-              gap: 'Còn có thể tích lũy thêm tối đa 8.0 điểm',
-              color: 'border-sky-200 bg-sky-50/40',
-              recommendedActivities: [
-                {
-                  name: 'Hội thao Sinh viên Bách Khoa DUT Games 2026',
-                  points: '+4.0 điểm',
-                  date: '25/10/2026',
-                  location: 'Nhà thi đấu Đa năng',
-                  type: 'Nội bộ trường (I3)',
-                },
-                {
-                  name: 'Cuộc thi Tiếng hát Sinh viên Khoa CNTT 2026',
-                  points: '+3.0 điểm',
-                  date: '02/11/2026',
-                  location: 'Hội trường F',
-                  type: 'Nội bộ trường (I3)',
-                },
-              ],
-            },
-            {
-              category: 'Khung IV: Phẩm chất công dân & Phục vụ cộng đồng (HĐPVCĐ)',
-              gap: 'Còn có thể tích lũy thêm tối đa 15.0 điểm',
-              color: 'border-emerald-200 bg-emerald-50/40',
-              recommendedActivities: [
-                {
-                  name: 'Ngày hội Chủ Nhật Đỏ — Hiến máu tình nguyện đợt 2',
-                  points: '+5.0 điểm',
-                  date: '15/11/2026',
-                  location: 'Khu E Bách Khoa',
-                  type: 'Nội bộ trường (I3)',
-                },
-                {
-                  name: 'Chiến dịch Mùa hè xanh / Tình nguyện hỗ trợ Tân sinh viên',
-                  points: '+5.0 điểm',
-                  date: '01/12/2026',
-                  location: 'Khuôn viên trường',
-                  type: 'Đoàn Thanh niên',
-                },
-              ],
-            },
-          ].map((item, idx) => (
+          {(() => {
+            const khung3Official = categorySummaries.find((c) => c.category === 'KHUNG_III')?.officialScore || 0;
+            const khung3Gap = Math.max(0, +(20 - khung3Official).toFixed(1));
+
+            const khung4Official = categorySummaries.find((c) => c.category === 'KHUNG_IV')?.officialScore || 0;
+            const khung4Gap = Math.max(0, +(25 - khung4Official).toFixed(1));
+
+            return [
+              {
+                category: 'Khung III: Hoạt động Văn thể mỹ & Phong trào chính trị - xã hội',
+                gap: `Đã đạt ${khung3Official}/20đ — Còn có thể tích lũy thêm ${khung3Gap} điểm`,
+                color: 'border-sky-200 bg-sky-50/40',
+                recommendedActivities: [
+                  {
+                    name: 'Hội thao Sinh viên Bách Khoa DUT Games 2026',
+                    points: '+4.0 điểm',
+                    date: '25/10/2026',
+                    location: 'Nhà thi đấu Đa năng',
+                    type: 'Nội bộ trường (I3)',
+                  },
+                  {
+                    name: 'Cuộc thi Tiếng hát Sinh viên Khoa CNTT 2026',
+                    points: '+3.0 điểm',
+                    date: '02/11/2026',
+                    location: 'Hội trường F',
+                    type: 'Nội bộ trường (I3)',
+                  },
+                ],
+              },
+              {
+                category: 'Khung IV: Phẩm chất công dân & Phục vụ cộng đồng (HĐPVCĐ)',
+                gap: `Đã đạt ${khung4Official}/25đ — Còn có thể tích lũy thêm ${khung4Gap} điểm`,
+                color: 'border-emerald-200 bg-emerald-50/40',
+                recommendedActivities: [
+                  {
+                    name: 'Ngày hội Chủ Nhật Đỏ — Hiến máu tình nguyện đợt 2',
+                    points: '+5.0 điểm',
+                    date: '15/11/2026',
+                    location: 'Khu E Bách Khoa',
+                    type: 'Nội bộ trường (I3)',
+                  },
+                  {
+                    name: 'Chiến dịch Mùa hè xanh / Tình nguyện hỗ trợ Tân sinh viên',
+                    points: '+5.0 điểm',
+                    date: '01/12/2026',
+                    location: 'Khuôn viên trường',
+                    type: 'Đoàn Thanh niên',
+                  },
+                ],
+              },
+            ];
+          })().map((item, idx) => (
             <div key={idx} className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm space-y-4">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
                 <span className="font-bold text-xs text-slate-900 uppercase tracking-wider">{item.category}</span>

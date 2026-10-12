@@ -1,70 +1,40 @@
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Award, Printer, CheckCircle, ChevronRight, HelpCircle, FileText } from 'lucide-react';
+import { apiClient } from '../../lib/apiClient';
+import { Evidence } from '../../types';
+import { calculateStudentConductScore } from '../../lib/ruleEngine';
+import { Printer, CheckCircle, Award, FileText, ChevronRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export const ScoreReport: React.FC = () => {
   const { user, activeTerm } = useAuth();
+  const [evidences, setEvidences] = useState<Evidence[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const scoreRows = [
-    {
-      code: 'KHUNG_I',
-      title: 'Khung I: Ý thức tham gia học tập',
-      score: 17.0,
-      max: 20.0,
-      evidences: [
-        { name: 'Tiêu chí 1: Đi học đầy đủ, đúng giờ, nghiêm túc trong giờ học', points: 6.0, ref: 'Mục 1' },
-        { name: 'Tiêu chí 2: Có ý thức, trách nhiệm khi tham gia nhóm làm việc chung', points: 3.0, ref: 'Mục 2' },
-        { name: 'Tiêu chí 3: Kết quả học tập đạt loại Giỏi và cao hơn kỳ trước', points: 5.0, ref: 'Mục 3' },
-        { name: 'Tiêu chí 4: Tham gia CLB Tin học học thuật và Khởi nghiệp đổi mới sáng tạo', points: 3.0, ref: 'Mục 4' },
-        { name: 'Tiêu chí 5: Tham gia NCKH hoặc thi Olympic môn học (Chưa có)', points: 0.0, ref: 'Mục 5' },
-      ],
-    },
-    {
-      code: 'KHUNG_II',
-      title: 'Khung II: Ý thức chấp hành nội quy, quy chế, quy định',
-      score: 25.0,
-      max: 25.0,
-      evidences: [
-        { name: 'Tiêu chí 6: Chấp hành chủ trương, phong trào hoạt động do Nhà trường và Đoàn thể phát động', points: 5.0, ref: 'Mục 6' },
-        { name: 'Tiêu chí 7: Không vi phạm quy chế, quy định, nội quy của Trường, Khoa, Lớp', points: 15.0, ref: 'Mục 7' },
-        { name: 'Tiêu chí 8: Tích cực tham gia hoạt động giáo dục chính trị, kỹ năng mềm', points: 5.0, ref: 'Mục 8' },
-      ],
-    },
-    {
-      code: 'KHUNG_III',
-      title: 'Khung III: Ý thức tham gia các hoạt động chính trị, xã hội, phong trào',
-      score: 20.0,
-      max: 20.0,
-      evidences: [
-        { name: 'Tiêu chí 9: Tham gia tích cực các hoạt động văn hóa, văn nghệ, thể thao (từ 3 lần trở lên)', points: 10.0, ref: 'Mục 9' },
-        { name: 'Tiêu chí 10: Tham gia hoạt động tuyên truyền, phòng chống tệ nạn, an toàn giao thông, an ninh mạng', points: 10.0, ref: 'Mục 10' },
-      ],
-    },
-    {
-      code: 'KHUNG_IV',
-      title: 'Khung IV: Ý thức công dân trong quan hệ cộng đồng',
-      score: 25.0,
-      max: 25.0,
-      evidences: [
-        { name: 'Tiêu chí 11: Tham gia BHYT, đăng ký tạm trú tạm vắng và chấp hành pháp luật', points: 10.0, ref: 'Mục 11' },
-        { name: 'Tiêu chí 12: Tham gia hoạt động phục vụ cộng đồng (HĐPVCĐ), công ích, tình nguyện (≥ 3 hoạt động)', points: 10.0, ref: 'Mục 12' },
-        { name: 'Tiêu chí 13: Thành viên Ban tổ chức / cộng tác viên các sự kiện của Trường, Khoa', points: 5.0, ref: 'Mục 13' },
-      ],
-    },
-    {
-      code: 'KHUNG_V',
-      title: 'Khung V: Ý thức và kết quả khi tham gia công tác cán bộ lớp, đoàn thể',
-      score: 0.0,
-      max: 10.0,
-      evidences: [
-        { name: 'Tiêu chí 14: Thành viên Ban Cán sự lớp, BCH Đoàn, Hội hoàn thành tốt nhiệm vụ', points: 0.0, ref: 'Mục 14' },
-        { name: 'Tiêu chí 15: Thành viên BCS, Đoàn, Hội hoàn thành xuất sắc nhiệm vụ và khen thưởng', points: 0.0, ref: 'Mục 15' },
-        { name: 'Tiêu chí 16: Khen thưởng từ cấp Trường trở lên về học tập, rèn luyện, phong trào', points: 0.0, ref: 'Mục 16' },
-      ],
-    },
-  ];
+  useEffect(() => {
+    if (user?.id) {
+      setIsLoading(true);
+      apiClient.getEvidences({ studentId: user.id, termId: activeTerm.id }).then((data) => {
+        setEvidences(data);
+        setIsLoading(false);
+      });
+    }
+  }, [user?.id, activeTerm.id]);
 
-  const totalScore = scoreRows.reduce((sum, r) => sum + r.score, 0);
+  // Rule Engine calculations from real DB data
+  const { allCriteria, categorySummaries, totalOfficialScore, totalAiScore } = useMemo(() => {
+    return calculateStudentConductScore(evidences);
+  }, [evidences]);
+
+  const totalScore = totalOfficialScore;
+
+  const rank = useMemo(() => {
+    if (totalScore >= 90) return { name: 'Loại Xuất sắc', color: 'text-purple-700 bg-purple-50 border-purple-200' };
+    if (totalScore >= 80) return { name: 'Loại Tốt', color: 'text-blue-700 bg-blue-50 border-blue-200' };
+    if (totalScore >= 65) return { name: 'Loại Khá', color: 'text-emerald-700 bg-emerald-50 border-emerald-200' };
+    if (totalScore >= 50) return { name: 'Loại Trung bình', color: 'text-amber-700 bg-amber-50 border-amber-200' };
+    return { name: 'Loại Yếu / Kém', color: 'text-rose-700 bg-rose-50 border-rose-200' };
+  }, [totalScore]);
 
   return (
     <div className="space-y-6">
@@ -74,7 +44,7 @@ export const ScoreReport: React.FC = () => {
         <div>
           <h1 className="text-xl font-bold text-slate-900">Bảng điểm rèn luyện & Truy vết (S09)</h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Bảng điểm chi tiết có truy vết căn cứ từng hoạt động trong {activeTerm.name}.
+            Bảng điểm chi tiết có truy vết căn cứ từng hoạt động và kết quả hậu kiểm trong {activeTerm.name}.
           </p>
         </div>
 
@@ -91,57 +61,99 @@ export const ScoreReport: React.FC = () => {
       <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm grid grid-cols-1 sm:grid-cols-4 gap-4 text-xs">
         <div>
           <span className="text-slate-400 block font-medium">Họ và tên sinh viên</span>
-          <span className="text-slate-900 font-bold text-sm">{user.fullName}</span>
+          <span className="text-slate-900 font-bold text-sm">{user?.fullName}</span>
         </div>
         <div>
           <span className="text-slate-400 block font-medium">Mã số sinh viên (MSSV)</span>
-          <span className="text-slate-900 font-semibold text-sm">{user.studentCode || '102210001'}</span>
+          <span className="text-slate-900 font-semibold text-sm">{user?.studentCode || '102210001'}</span>
         </div>
         <div>
           <span className="text-slate-400 block font-medium">Lớp sinh hoạt / Khoa</span>
           <span className="text-slate-900 font-semibold text-sm">21TCLC_DT1 · CNTT</span>
         </div>
         <div className="sm:text-right">
-          <span className="text-slate-400 block font-medium">Tổng điểm / Xếp loại</span>
+          <span className="text-slate-400 block font-medium">Tổng điểm chính thức / Xếp loại</span>
           <span className="text-emerald-700 font-extrabold text-base">
-            {totalScore} / 100 ({totalScore >= 80 ? 'Loại Tốt' : 'Loại Khá'})
+            {totalScore} / 100 ({rank.name})
           </span>
         </div>
       </div>
 
-      {/* Traceability Table: "Vì sao được X điểm?" */}
-      <div className="space-y-4">
-        {scoreRows.map((cat, idx) => (
-          <div key={idx} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-            <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 flex items-center justify-between">
-              <span className="font-bold text-xs text-slate-900 uppercase">{cat.title}</span>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-900">
-                  {cat.score} / {cat.max} điểm
-                </span>
-                {cat.score >= cat.max && (
-                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded">
-                    Đạt trần
-                  </span>
-                )}
-              </div>
-            </div>
+      {isLoading ? (
+        <div className="p-12 text-center text-slate-400 text-xs bg-white rounded-xl border border-slate-200">
+          Đang tính toán bảng điểm rèn luyện từ cơ sở dữ liệu...
+        </div>
+      ) : (
+        /* Traceability Table by 5 Categories */
+        <div className="space-y-4">
+          {categorySummaries.map((cat, idx) => {
+            const catCriteria = allCriteria.filter((c) => c.category === cat.category);
 
-            <div className="divide-y divide-slate-100">
-              {cat.evidences.map((item, i) => (
-                <div key={i} className="p-3.5 px-5 flex items-center justify-between text-xs hover:bg-slate-50/50 transition">
-                  <div className="space-y-0.5">
-                    <span className="font-semibold text-slate-800 block">{item.name}</span>
-                    <span className="text-[11px] text-sky-700">Trích dẫn: {item.ref}</span>
+            return (
+              <div key={idx} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+                  <div>
+                    <span className="font-bold text-xs text-slate-900 uppercase">{cat.name}</span>
+                    <span className="text-[11px] text-slate-400 ml-2">({cat.category})</span>
                   </div>
-                  <span className="font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded border border-emerald-200 shrink-0">
-                    +{item.points} đ
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-900">
+                      {cat.officialScore} / {cat.maxScore} điểm
+                    </span>
+                    {cat.officialScore >= cat.maxScore && (
+                      <span className="text-[10px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded">
+                        Đạt trần
+                      </span>
+                    )}
+                  </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        ))}
+
+                <div className="divide-y divide-slate-100">
+                  {catCriteria.map((item, i) => (
+                    <div key={i} className="p-3.5 px-5 flex items-start justify-between text-xs hover:bg-slate-50/50 transition gap-4">
+                      <div className="space-y-1 max-w-2xl">
+                        <span className="font-semibold text-slate-800 block">
+                          Tiêu chí {item.code}: {item.name}
+                        </span>
+                        <p className="text-[11px] text-slate-500">
+                          {item.tierDescription}
+                        </p>
+                        {item.nextTierAdvice && (
+                          <span className="text-[11px] text-[#1d6fc2] block font-medium">
+                            💡 Gợi ý: {item.nextTierAdvice}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className={`font-bold px-2.5 py-1 rounded border block text-xs ${
+                          item.officialScore > 0
+                            ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                            : 'text-slate-400 bg-slate-50 border-slate-200'
+                        }`}>
+                          +{item.officialScore} / {item.maxScore} đ
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Footer Summary Notice */}
+      <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+        <span className="text-slate-600">
+          Dữ liệu bảng điểm được cập nhật theo thời gian thực từ các minh chứng đã được Cán bộ phê duyệt và đối chiếu tự động.
+        </span>
+        <Link
+          to="/student/criteria"
+          className="font-bold text-[#1d6fc2] hover:underline flex items-center gap-1 shrink-0"
+        >
+          <span>Xem quy chế 16 tiêu chí</span>
+          <ChevronRight className="w-3.5 h-3.5" />
+        </Link>
       </div>
 
     </div>
