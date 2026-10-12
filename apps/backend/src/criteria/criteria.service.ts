@@ -143,4 +143,98 @@ export class CriteriaService {
       orderBy: { code: 'asc' },
     });
   }
+
+  async createFaculty(dto: { code: string; name: string }) {
+    const existing = await this.prisma.faculty.findUnique({ where: { code: dto.code.trim().toUpperCase() } });
+    if (existing) throw new BadRequestException('Mã khoa đã tồn tại');
+    return this.prisma.faculty.create({
+      data: {
+        code: dto.code.trim().toUpperCase(),
+        name: dto.name.trim(),
+      },
+      include: {
+        _count: { select: { classes: true, staffs: true } },
+      },
+    });
+  }
+
+  async updateFaculty(id: string, dto: { code?: string; name?: string }) {
+    const faculty = await this.prisma.faculty.findUnique({ where: { id } });
+    if (!faculty) throw new NotFoundException('Không tìm thấy khoa');
+    return this.prisma.faculty.update({
+      where: { id },
+      data: {
+        code: dto.code ? dto.code.trim().toUpperCase() : undefined,
+        name: dto.name ? dto.name.trim() : undefined,
+      },
+      include: {
+        _count: { select: { classes: true, staffs: true } },
+      },
+    });
+  }
+
+  async deleteFaculty(id: string) {
+    const faculty = await this.prisma.faculty.findUnique({
+      where: { id },
+      include: {
+        _count: { select: { classes: true, staffs: true } },
+      },
+    });
+    if (!faculty) throw new NotFoundException('Không tìm thấy khoa');
+    if (faculty._count.classes > 0 || faculty._count.staffs > 0) {
+      throw new BadRequestException('Không thể xóa khoa đang có lớp học hoặc cán bộ phụ trách. Vui lòng chuyển các lớp và cán bộ sang khoa khác trước.');
+    }
+    return this.prisma.faculty.delete({ where: { id } });
+  }
+
+  async createClass(dto: { code: string; name?: string; cohort: string; facultyId: string }) {
+    const existing = await this.prisma.class.findUnique({ where: { code: dto.code.trim().toUpperCase() } });
+    if (existing) throw new BadRequestException('Mã lớp sinh hoạt đã tồn tại');
+    const faculty = await this.prisma.faculty.findUnique({ where: { id: dto.facultyId } });
+    if (!faculty) throw new NotFoundException('Khoa không tồn tại');
+    return this.prisma.class.create({
+      data: {
+        code: dto.code.trim().toUpperCase(),
+        name: dto.name ? dto.name.trim() : dto.code.trim().toUpperCase(),
+        cohort: dto.cohort.trim(),
+        facultyId: dto.facultyId,
+      },
+      include: {
+        faculty: { select: { id: true, code: true, name: true } },
+        _count: { select: { students: true } },
+      },
+    });
+  }
+
+  async updateClass(id: string, dto: { code?: string; name?: string; cohort?: string; facultyId?: string }) {
+    const cls = await this.prisma.class.findUnique({ where: { id } });
+    if (!cls) throw new NotFoundException('Không tìm thấy lớp');
+    return this.prisma.class.update({
+      where: { id },
+      data: {
+        code: dto.code ? dto.code.trim().toUpperCase() : undefined,
+        name: dto.name ? dto.name.trim() : undefined,
+        cohort: dto.cohort ? dto.cohort.trim() : undefined,
+        facultyId: dto.facultyId ? dto.facultyId : undefined,
+      },
+      include: {
+        faculty: { select: { id: true, code: true, name: true } },
+        _count: { select: { students: true } },
+      },
+    });
+  }
+
+  async deleteClass(id: string) {
+    const cls = await this.prisma.class.findUnique({
+      where: { id },
+      include: {
+        _count: { select: { students: true } },
+      },
+    });
+    if (!cls) throw new NotFoundException('Không tìm thấy lớp');
+    if (cls._count.students > 0) {
+      throw new BadRequestException('Không thể xóa lớp sinh hoạt đang có sinh viên. Vui lòng chuyển sinh viên sang lớp khác trước.');
+    }
+    return this.prisma.class.delete({ where: { id } });
+  }
 }

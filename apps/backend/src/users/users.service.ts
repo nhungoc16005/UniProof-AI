@@ -140,6 +140,8 @@ export class UsersService {
       where: { id },
       data: {
         fullName: dto.fullName !== undefined ? dto.fullName.trim() : undefined,
+        email: dto.email !== undefined ? dto.email.trim().toLowerCase() : undefined,
+        studentCode: dto.studentCode !== undefined ? (dto.studentCode ? dto.studentCode.trim() : null) : undefined,
         isActive: dto.isActive !== undefined ? dto.isActive : undefined,
         classId: dto.classId !== undefined ? dto.classId : undefined,
         facultyId: dto.facultyId !== undefined ? dto.facultyId : undefined,
@@ -152,5 +154,36 @@ export class UsersService {
 
     const { password, ...safeUser } = updated;
     return safeUser;
+  }
+
+  async delete(id: string) {
+    const existing = await this.prisma.user.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: {
+            evidences: true,
+            reviews: true,
+            appeals: true,
+          },
+        },
+      },
+    });
+
+    if (!existing) throw new NotFoundException('Không tìm thấy người dùng');
+
+    // Clean up related data safely
+    await this.prisma.$transaction([
+      this.prisma.conductScore.deleteMany({ where: { studentId: id } }),
+      this.prisma.notification.deleteMany({ where: { userId: id } }),
+      this.prisma.auditLog.deleteMany({ where: { userId: id } }),
+      this.prisma.appeal.deleteMany({ where: { studentId: id } }),
+      this.prisma.review.deleteMany({ where: { reviewerId: id } }),
+      this.prisma.evidenceFile.deleteMany({ where: { evidence: { studentId: id } } }),
+      this.prisma.evidence.deleteMany({ where: { studentId: id } }),
+      this.prisma.user.delete({ where: { id } }),
+    ]);
+
+    return { success: true, message: 'Đã xóa người dùng thành công' };
   }
 }

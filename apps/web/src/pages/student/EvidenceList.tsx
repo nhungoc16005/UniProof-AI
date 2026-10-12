@@ -34,6 +34,18 @@ export const EvidenceList: React.FC = () => {
     }
   };
 
+  const handleDeleteEvidence = async (id: string) => {
+    if (window.confirm('Bạn có chắc chắn muốn xóa hồ sơ minh chứng này không? Dữ liệu sẽ không thể khôi phục.')) {
+      try {
+        await apiClient.deleteEvidence(id);
+        fetchEvidences();
+        alert('Đã xóa hồ sơ minh chứng.');
+      } catch (err: any) {
+        alert(err.response?.data?.message || 'Không thể xóa hồ sơ.');
+      }
+    }
+  };
+
   // Filter counts
   const counts = useMemo(() => {
     const all = evidences.length;
@@ -241,13 +253,23 @@ export const EvidenceList: React.FC = () => {
                             Xem chi tiết
                           </Link>
 
-                          {/* Cho phép rút hồ sơ nếu chưa được duyệt */}
+                          {/* Cho phép rút hồ sơ nếu đang chờ duyệt */}
                           {item.status !== 'APPROVED' && item.status !== 'WITHDRAWN' && (
                             <button
                               onClick={() => handleWithdraw(item.id)}
-                              className="px-2.5 py-1.5 text-xs font-medium text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition whitespace-nowrap shrink-0 cursor-pointer"
+                              className="px-2.5 py-1.5 text-xs font-medium text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition whitespace-nowrap shrink-0 cursor-pointer"
                             >
                               Rút
+                            </button>
+                          )}
+
+                          {/* Cho phép xóa hồ sơ nếu chưa duyệt chính thức */}
+                          {item.status !== 'APPROVED' && (
+                            <button
+                              onClick={() => handleDeleteEvidence(item.id)}
+                              className="px-2.5 py-1.5 text-xs font-medium text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition whitespace-nowrap shrink-0 cursor-pointer"
+                            >
+                              Xóa
                             </button>
                           )}
                         </div>

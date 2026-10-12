@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
@@ -42,9 +42,16 @@ export class UsersController {
   }
 
   @Patch(':id')
-  @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Cập nhật tài khoản người dùng (Khóa/Mở, đổi tên, lớp) (Admin)' })
+  @Roles(Role.ADMIN, Role.STAFF)
+  @ApiOperation({ summary: 'Cập nhật tài khoản người dùng (Khóa/Mở, đổi tên, lớp) (Admin, Cán bộ)' })
   async update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
     return this.usersService.update(id, dto);
+  }
+
+  @Delete(':id')
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Xóa tài khoản người dùng (Chỉ Admin)' })
+  async delete(@Param('id') id: string) {
+    return this.usersService.delete(id);
   }
 }

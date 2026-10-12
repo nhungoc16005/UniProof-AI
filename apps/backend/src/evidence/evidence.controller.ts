@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EvidenceService } from './evidence.service';
 import { CreateEvidenceDto, UploadFileDto } from './dto/evidence.dto';
@@ -61,9 +61,19 @@ export class EvidenceController {
     return this.evidenceService.addFile(id, studentId, dto);
   }
 
+  @Patch(':id')
+  @ApiOperation({ summary: 'Chỉnh sửa thông tin hồ sơ minh chứng (khi chưa phê duyệt)' })
+  async update(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+    @Body() dto: any,
+  ) {
+    return this.evidenceService.update(id, user, dto);
+  }
+
   @Delete(':id')
-  @ApiOperation({ summary: 'Xóa hồ sơ nháp' })
-  async deleteDraft(@Param('id') id: string, @CurrentUser('id') studentId: string) {
-    return this.evidenceService.deleteDraft(id, studentId);
+  @ApiOperation({ summary: 'Xóa hồ sơ minh chứng (khi chưa được phê duyệt chính thức)' })
+  async deleteEvidence(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.evidenceService.deleteEvidence(id, user);
   }
 }

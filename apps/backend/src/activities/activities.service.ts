@@ -115,4 +115,38 @@ export class ActivitiesService {
       orderBy: { createdAt: 'desc' },
     });
   }
+
+  async update(id: string, dto: any) {
+    const activity = await this.prisma.activity.findUnique({ where: { id } });
+    if (!activity) throw new NotFoundException('Không tìm thấy hoạt động');
+
+    return this.prisma.activity.update({
+      where: { id },
+      data: {
+        name: dto.name !== undefined ? dto.name.trim() : undefined,
+        organizer: dto.organizer !== undefined ? dto.organizer.trim() : undefined,
+        startDate: dto.startDate ? new Date(dto.startDate) : undefined,
+        endDate: dto.endDate ? new Date(dto.endDate) : undefined,
+        location: dto.location !== undefined ? dto.location : undefined,
+        description: dto.description !== undefined ? dto.description : undefined,
+      },
+    });
+  }
+
+  async delete(id: string) {
+    const activity = await this.prisma.activity.findUnique({
+      where: { id },
+      include: { _count: { select: { participants: true, evidences: true } } },
+    });
+    if (!activity) throw new NotFoundException('Không tìm thấy hoạt động');
+
+    // Clean up participants and unlink evidences safely
+    await this.prisma.$transaction([
+      this.prisma.activityParticipant.deleteMany({ where: { activityId: id } }),
+      this.prisma.evidence.updateMany({ where: { activityId: id }, data: { activityId: null } }),
+      this.prisma.activity.delete({ where: { id } }),
+    ]);
+
+    return { success: true, message: 'Đã xóa hoạt động thành công' };
+  }
 }

@@ -202,16 +202,50 @@ export class EvidenceService {
     });
   }
 
-  async deleteDraft(id: string, studentId: string) {
+  async update(id: string, user: any, dto: any) {
     const evidence = await this.prisma.evidence.findUnique({ where: { id } });
     if (!evidence) throw new NotFoundException('Không tìm thấy hồ sơ');
-    if (evidence.studentId !== studentId) throw new ForbiddenException('Không có quyền thao tác');
+    if (user.role === Role.STUDENT && evidence.studentId !== user.id) {
+      throw new ForbiddenException('Không có quyền thao tác');
+    }
+    if (evidence.status === EvidenceStatus.APPROVED) {
+      throw new BadRequestException('Hồ sơ đã được phê duyệt chính thức, không thể sửa');
+    }
 
-    if (evidence.status !== EvidenceStatus.DRAFT) {
-      throw new BadRequestException('Chỉ có thể xóa hồ sơ khi ở trạng thái Nháp (DRAFT)');
+    return this.prisma.evidence.update({
+      where: { id },
+      data: {
+        declaredActivityName: dto.declaredActivityName !== undefined ? dto.declaredActivityName.trim() : undefined,
+        declaredRole: dto.declaredRole !== undefined ? dto.declaredRole : undefined,
+        evidenceType: dto.evidenceType !== undefined ? dto.evidenceType : undefined,
+        participationDate: dto.participationDate ? new Date(dto.participationDate) : undefined,
+      },
+      include: {
+        files: true,
+        term: true,
+      },
+    });
+  }
+
+  async deleteEvidence(id: string, user: any) {
+    const evidence = await this.prisma.evidence.findUnique({ where: { id } });
+    if (!evidence) throw new NotFoundException('Không tìm thấy hồ sơ');
+    if (user.role === Role.STUDENT && evidence.studentId !== user.id) {
+      throw new ForbiddenException('Không có quyền thao tác');
+    }
+
+    if (evidence.status === EvidenceStatus.APPROVED) {
+      throw new BadRequestException('Không thể xóa hồ sơ đã được phê duyệt điểm chính thức');
     }
 
     await this.prisma.evidenceFile.deleteMany({ where: { evidenceId: id } });
+    await this.prisma.review.deleteMany({ where: { evidenceId: id } });
+    await this.prisma.supplementRequest.deleteMany({ where: { evidenceId: id } });
+    await this.prisma.appeal.deleteMany({ where: { evidenceId: id } });
     return this.prisma.evidence.delete({ where: { id } });
+  }
+
+  async deleteDraft(id: string, studentId: string) {
+    return this.deleteEvidence(id, { id: studentId, role: Role.STUDENT });
   }
 }

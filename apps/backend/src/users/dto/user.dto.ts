@@ -58,4 +58,14 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString()
   facultyId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  studentCode?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsEmail({}, { message: 'Email không đúng định dạng' })
+  email?: string;
 }

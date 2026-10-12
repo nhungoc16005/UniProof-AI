@@ -76,7 +76,9 @@ export const ScoreReport: React.FC = () => {
         </div>
         <div>
           <span className="text-slate-400 block font-medium">Lớp sinh hoạt / Khoa</span>
-          <span className="text-slate-900 font-semibold text-sm">21TCLC_DT1 · CNTT</span>
+          <span className="text-slate-900 font-semibold text-sm">
+            {user?.class?.code || '21TCLC_DT1'} · {user?.class?.faculty?.name || user?.faculty?.name || 'Khoa CNTT'}
+          </span>
         </div>
         <div className="sm:text-right">
           <span className="text-slate-400 block font-medium">Tổng điểm chính thức / Xếp loại</span>

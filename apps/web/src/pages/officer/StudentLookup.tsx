@@ -14,7 +14,9 @@ import {
   AlertCircle, 
   ArrowLeft,
   FileSpreadsheet,
-  Download
+  Download,
+  Edit3,
+  Trash2
 } from 'lucide-react';
 import { apiClient } from '../../lib/apiClient';
 import { Evidence, User, Class } from '../../types';
@@ -51,6 +53,46 @@ export const StudentLookup: React.FC = () => {
   const [newStudentCode, setNewStudentCode] = useState('');
   const [isSubmittingNew, setIsSubmittingNew] = useState(false);
   const [modalError, setModalError] = useState('');
+
+  // Edit Student State
+  const [showEditStudentModal, setShowEditStudentModal] = useState(false);
+  const [editingStudent, setEditingStudent] = useState<any>(null);
+  const [editFullName, setEditFullName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editCode, setEditCode] = useState('');
+  const [editClassId, setEditClassId] = useState('');
+
+  const handleEditStudentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStudent) return;
+    try {
+      setIsSubmittingNew(true);
+      await apiClient.updateUser(editingStudent.id, {
+        fullName: editFullName.trim(),
+        email: editEmail.trim(),
+        studentCode: editCode.trim(),
+        classId: editClassId,
+      });
+      setShowEditStudentModal(false);
+      loadClassScores(selectedClassId);
+      alert('Đã cập nhật sinh viên thành công.');
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Không thể cập nhật sinh viên.');
+    } finally {
+      setIsSubmittingNew(false);
+    }
+  };
+
+  const handleDeleteStudent = async (student: any) => {
+    if (!window.confirm(`Bạn có chắc muốn xóa sinh viên "${student.fullName}" (${student.studentCode}) khỏi hệ thống không?`)) return;
+    try {
+      await apiClient.deleteUser(student.id);
+      loadClassScores(selectedClassId);
+      alert('Đã xóa sinh viên thành công.');
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Không thể xóa sinh viên này.');
+    }
+  };
 
   // 1. Initial Load: Get classes belonging to Officer's faculty
   useEffect(() => {
@@ -431,13 +473,39 @@ export const StudentLookup: React.FC = () => {
                           </td>
 
                           <td className="py-3.5 px-4 text-right">
-                            <button
-                              onClick={() => loadSingleStudent(s.studentCode)}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-[#1d6fc2] hover:bg-blue-50 rounded-lg transition cursor-pointer"
-                            >
-                              <span>Hồ sơ minh chứng</span>
-                              <ChevronRight className="w-3.5 h-3.5" />
-                            </button>
+                            <div className="inline-flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => loadSingleStudent(s.studentCode)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-[#1d6fc2] hover:bg-blue-50 rounded-lg transition cursor-pointer"
+                                title="Xem hồ sơ minh chứng"
+                              >
+                                <span>Minh chứng</span>
+                                <ChevronRight className="w-3.5 h-3.5" />
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  setEditingStudent(s);
+                                  setEditFullName(s.fullName);
+                                  setEditEmail(s.email || '');
+                                  setEditCode(s.studentCode);
+                                  setEditClassId(selectedClassId);
+                                  setShowEditStudentModal(true);
+                                }}
+                                className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                                title="Sửa thông tin sinh viên"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+
+                              <button
+                                onClick={() => handleDeleteStudent(s)}
+                                className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                                title="Xóa sinh viên"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </td>
 
                         </tr>
@@ -635,6 +703,90 @@ export const StudentLookup: React.FC = () => {
               </div>
             </form>
 
+          </div>
+        </div>
+      )}
+
+      {/* MODAL SỬA THÔNG TIN SINH VIÊN */}
+      {showEditStudentModal && editingStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900">Sửa thông tin Sinh viên</h3>
+              <button
+                onClick={() => setShowEditStudentModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditStudentSubmit} className="p-6 space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700 block">Họ và tên</label>
+                <input
+                  type="text"
+                  required
+                  value={editFullName}
+                  onChange={(e) => setEditFullName(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700 block">MSSV</label>
+                <input
+                  type="text"
+                  required
+                  value={editCode}
+                  onChange={(e) => setEditCode(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700 block">Email trường cấp</label>
+                <input
+                  type="email"
+                  required
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700 block">Chuyển sang Lớp sinh hoạt khác</label>
+                <select
+                  value={editClassId}
+                  onChange={(e) => setEditClassId(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold"
+                >
+                  {classes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.code} · {c.cohort}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowEditStudentModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingNew}
+                  className="px-5 py-2 bg-[#1d6fc2] hover:bg-[#175ea5] text-white font-bold text-xs rounded-xl shadow-sm transition"
+                >
+                  {isSubmittingNew ? 'Đang lưu...' : 'Lưu thay đổi'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

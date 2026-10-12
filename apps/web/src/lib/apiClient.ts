@@ -180,6 +180,16 @@ export const apiClient = {
     }
   },
 
+  async updateActivity(id: string, data: any): Promise<Activity> {
+    const res = await http.patch(`/activities/${id}`, data);
+    return res.data.data;
+  },
+
+  async deleteActivity(id: string): Promise<any> {
+    const res = await http.delete(`/activities/${id}`);
+    return res.data.data;
+  },
+
   // ==========================================
   // EVIDENCES (EVD-05, EVD-06, EVD-01, EVD-09)
   // ==========================================
@@ -224,6 +234,16 @@ export const apiClient = {
 
   async deleteEvidenceDraft(id: string): Promise<void> {
     await http.delete(`/evidence/${id}`);
+  },
+
+  async updateEvidence(id: string, data: any): Promise<Evidence> {
+    const res = await http.patch(`/evidence/${id}`, data);
+    return res.data.data;
+  },
+
+  async deleteEvidence(id: string): Promise<any> {
+    const res = await http.delete(`/evidence/${id}`);
+    return res.data.data;
   },
 
   // ==========================================
@@ -286,12 +306,12 @@ export const apiClient = {
     }
   },
 
-  async createAppeal(data: Partial<Appeal>): Promise<Appeal> {
+  async createAppeal(data: any): Promise<Appeal> {
     const res = await http.post('/appeals', data);
     return res.data.data;
   },
 
-  async resolveAppeal(id: string, data: { action: 'ACCEPTED' | 'REJECTED'; resolutionNote: string; reopenReview?: boolean }): Promise<Appeal> {
+  async resolveAppeal(id: string, data: any): Promise<Appeal> {
     const res = await http.post(`/appeals/${id}/resolve`, data);
     return res.data.data;
   },
@@ -343,6 +363,11 @@ export const apiClient = {
     return res.data.data;
   },
 
+  async deleteUser(id: string): Promise<any> {
+    const res = await http.delete(`/users/${id}`);
+    return res.data.data;
+  },
+
   // ==========================================
   // FACULTIES & CLASSES MASTER DATA
   // ==========================================
@@ -355,6 +380,21 @@ export const apiClient = {
     }
   },
 
+  async createFaculty(data: { code: string; name: string }): Promise<Faculty> {
+    const res = await http.post('/faculties', data);
+    return res.data.data;
+  },
+
+  async updateFaculty(id: string, data: { code?: string; name?: string }): Promise<Faculty> {
+    const res = await http.patch(`/faculties/${id}`, data);
+    return res.data.data;
+  },
+
+  async deleteFaculty(id: string): Promise<any> {
+    const res = await http.delete(`/faculties/${id}`);
+    return res.data.data;
+  },
+
   async getClasses(facultyId?: string): Promise<Class[]> {
     try {
       const res = await http.get('/classes', { params: { facultyId } });
@@ -362,6 +402,21 @@ export const apiClient = {
     } catch {
       return [];
     }
+  },
+
+  async createClass(data: { code: string; name?: string; cohort: string; facultyId: string }): Promise<Class> {
+    const res = await http.post('/classes', data);
+    return res.data.data;
+  },
+
+  async updateClass(id: string, data: { code?: string; name?: string; cohort?: string; facultyId?: string }): Promise<Class> {
+    const res = await http.patch(`/classes/${id}`, data);
+    return res.data.data;
+  },
+
+  async deleteClass(id: string): Promise<any> {
+    const res = await http.delete(`/classes/${id}`);
+    return res.data.data;
   },
 
   // ==========================================

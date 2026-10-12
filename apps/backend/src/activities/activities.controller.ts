@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ActivitiesService } from './activities.service';
 import { CreateActivityDto, AddParticipantDto } from './dto/activity.dto';
@@ -45,5 +45,19 @@ export class ActivitiesController {
   @ApiOperation({ summary: 'Lấy danh sách điểm danh của hoạt động (Cán bộ)' })
   async getParticipants(@Param('id') id: string) {
     return this.activitiesService.getParticipants(id);
+  }
+
+  @Patch(':id')
+  @Roles(Role.ADMIN, Role.STAFF)
+  @ApiOperation({ summary: 'Cập nhật hoạt động (Cán bộ, Admin)' })
+  async update(@Param('id') id: string, @Body() dto: any) {
+    return this.activitiesService.update(id, dto);
+  }
+
+  @Delete(':id')
+  @Roles(Role.ADMIN, Role.STAFF)
+  @ApiOperation({ summary: 'Xóa hoạt động (Cán bộ, Admin)' })
+  async delete(@Param('id') id: string) {
+    return this.activitiesService.delete(id);
   }
 }

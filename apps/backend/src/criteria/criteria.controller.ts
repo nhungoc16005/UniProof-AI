@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { CriteriaService } from './criteria.service';
 import { CreateTermDto, UpdateTermDto, CreateCriterionDto, UpdateCriterionDto } from './dto/criteria.dto';
@@ -93,9 +93,63 @@ export class CriteriaController {
     return this.criteriaService.getFaculties();
   }
 
+  @Post('faculties')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Tạo Khoa mới (Admin)' })
+  async createFaculty(@Body() dto: { code: string; name: string }) {
+    return this.criteriaService.createFaculty(dto);
+  }
+
+  @Patch('faculties/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Cập nhật thông tin Khoa (Admin)' })
+  async updateFaculty(@Param('id') id: string, @Body() dto: { code?: string; name?: string }) {
+    return this.criteriaService.updateFaculty(id, dto);
+  }
+
+  @Delete('faculties/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Xóa Khoa (Admin)' })
+  async deleteFaculty(@Param('id') id: string) {
+    return this.criteriaService.deleteFaculty(id);
+  }
+
   @Get('classes')
   @ApiOperation({ summary: 'Lấy danh mục các Lớp học sinh hoạt' })
   async getClasses(@Query('facultyId') facultyId?: string) {
     return this.criteriaService.getClasses(facultyId);
+  }
+
+  @Post('classes')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.STAFF)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Tạo Lớp sinh hoạt mới (Admin, Cán bộ)' })
+  async createClass(@Body() dto: { code: string; name?: string; cohort: string; facultyId: string }) {
+    return this.criteriaService.createClass(dto);
+  }
+
+  @Patch('classes/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.STAFF)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Cập nhật Lớp sinh hoạt (Admin, Cán bộ)' })
+  async updateClass(@Param('id') id: string, @Body() dto: { code?: string; name?: string; cohort?: string; facultyId?: string }) {
+    return this.criteriaService.updateClass(id, dto);
+  }
+
+  @Delete('classes/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.STAFF)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Xóa Lớp sinh hoạt (Admin, Cán bộ)' })
+  async deleteClass(@Param('id') id: string) {
+    return this.criteriaService.deleteClass(id);
   }
 }
