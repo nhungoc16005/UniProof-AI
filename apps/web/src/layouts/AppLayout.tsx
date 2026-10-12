@@ -97,28 +97,27 @@ export const AppLayout: React.FC = () => {
       ];
     }
 
-    // Default: STUDENT
+    // Default: STUDENT (Tinh gọn & Chuẩn nghiệp vụ ĐHBK)
     return [
       {
         title: 'TỔNG QUAN',
         items: [
-          { label: 'Bảng điều khiển', path: '/student' },
-          { label: 'Bảng điểm chi tiết', path: '/student/scores' },
+          { label: 'Bảng điều khiển & Điểm số', path: '/student' },
         ],
       },
       {
         title: 'HỒ SƠ RÈN LUYỆN',
         items: [
-          { label: 'Danh sách minh chứng', path: '/student/evidence' },
           { label: 'Nộp minh chứng mới', path: '/student/evidence/new' },
+          { label: 'Danh sách hồ sơ minh chứng', path: '/student/evidence' },
           { label: 'Khiếu nại điểm', path: '/student/appeals' },
         ],
       },
       {
         title: 'QUY CHẾ & HỖ TRỢ',
         items: [
-          { label: 'Tiêu chí & Cơ hội tích điểm', path: '/student/criteria' },
-          { label: 'Hỏi đáp quy chế AI', path: '/regulations/ask' },
+          { label: 'Tra cứu Quy chế 16 tiêu chí', path: '/student/criteria' },
+          { label: 'Trợ lý Hỏi đáp Quy chế AI', path: '/regulations/ask' },
         ],
       },
     ];

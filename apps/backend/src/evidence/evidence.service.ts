@@ -123,7 +123,15 @@ export class EvidenceService {
       }
     }
 
-    // 2. Tạo Evidence
+    // 2. Tìm Tiêu chí nếu sinh viên có chọn
+    let targetCriterion = null;
+    if (dto.criterionId) {
+      targetCriterion = await this.prisma.criterion.findUnique({ where: { id: dto.criterionId } });
+    } else if (dto.criterionCode) {
+      targetCriterion = await this.prisma.criterion.findFirst({ where: { code: dto.criterionCode } });
+    }
+
+    // 3. Tạo Evidence
     return this.prisma.evidence.create({
       data: {
         studentId,
@@ -133,7 +141,7 @@ export class EvidenceService {
         declaredRole: dto.declaredRole || 'THAM_GIA_CHINH',
         evidenceType: dto.evidenceType,
         participationDate: dto.participationDate ? new Date(dto.participationDate) : new Date(),
-        status: EvidenceStatus.NEEDS_HUMAN_REVIEW, // Vì không có AI nên chuyển thẳng cho Cán bộ xem
+        status: EvidenceStatus.NEEDS_HUMAN_REVIEW, // Chuyển cho Cán bộ xem
         files: dto.fileUrls && dto.fileUrls.length > 0
           ? {
               create: dto.fileUrls.map((url) => ({
@@ -142,10 +150,24 @@ export class EvidenceService {
               })),
             }
           : undefined,
+        aiSuggestions: targetCriterion
+          ? {
+              create: {
+                criterionId: targetCriterion.id,
+                suggestedScore: targetCriterion.maxScore || 2.0,
+                suggestedRole: dto.declaredRole || 'THAM_GIA_CHINH',
+                reasoning: `Sinh viên tự khai báo áp dụng mục [${targetCriterion.code}: ${targetCriterion.name}]`,
+                confidenceScore: 0.95,
+              },
+            }
+          : undefined,
       },
       include: {
         files: true,
         term: true,
+        aiSuggestions: {
+          include: { criterion: true },
+        },
       },
     });
   }

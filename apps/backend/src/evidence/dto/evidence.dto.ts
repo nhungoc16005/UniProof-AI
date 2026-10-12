@@ -37,6 +37,11 @@ export class CreateEvidenceDto {
   @IsString()
   criterionCode?: string;
 
+  @ApiPropertyOptional({ description: 'ID Tiêu chí đánh giá sinh viên chọn' })
+  @IsOptional()
+  @IsString()
+  criterionId?: string;
+
   @ApiPropertyOptional({ description: 'Danh sách URL file minh chứng' })
   @IsOptional()
   fileUrls?: string[];

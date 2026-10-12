@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiClient } from '../../lib/apiClient';
+import { Criterion } from '../../types';
 
 export const SubmitEvidence: React.FC = () => {
   const { user, activeTerm } = useAuth();
@@ -9,6 +10,19 @@ export const SubmitEvidence: React.FC = () => {
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [activityOrigin, setActivityOrigin] = useState<'INTERNAL' | 'EXTERNAL' | 'UNKNOWN'>('INTERNAL');
+
+  // Criteria list
+  const [criteria, setCriteria] = useState<Criterion[]>([]);
+  const [selectedCriterionId, setSelectedCriterionId] = useState<string>('');
+
+  useEffect(() => {
+    apiClient.getCriteria().then((list) => {
+      setCriteria(list);
+      if (list.length > 0) {
+        setSelectedCriterionId(list[0].id);
+      }
+    });
+  }, []);
 
   // Form State
   const [activityName, setActivityName] = useState('');
@@ -22,6 +36,7 @@ export const SubmitEvidence: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [isDraft, setIsDraft] = useState(false);
+
 
   // Mẫu các hoạt động nội bộ có sẵn
   const internalActivities = [
@@ -60,6 +75,7 @@ export const SubmitEvidence: React.FC = () => {
         declaredRole: role,
         evidenceType: evidenceType,
         participationDate: date,
+        criterionId: selectedCriterionId || undefined,
         status: asDraft ? 'DRAFT' : 'SUBMITTED',
         files: [
           {
@@ -236,6 +252,29 @@ export const SubmitEvidence: React.FC = () => {
                 className="w-full px-3.5 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-900"
               />
             </div>
+          </div>
+
+          {/* Chọn Tiêu chí đánh giá trong 16 tiêu chí ĐHBK */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Mục tiêu chí xin cộng điểm (trong 16 mục ĐHBK) <span className="text-rose-500">*</span>
+            </label>
+            <select
+              value={selectedCriterionId}
+              onChange={(e) => setSelectedCriterionId(e.target.value)}
+              className="w-full px-3.5 py-2.5 text-xs border border-slate-300 rounded-xl bg-white font-medium focus:ring-2 focus:ring-slate-900 focus:outline-none"
+              required
+            >
+              <option value="">-- Chọn mục tiêu chí để cộng điểm --</option>
+              {criteria.map((c) => (
+                <option key={c.id} value={c.id}>
+                  Mục {c.code}: {c.name} — [Trần tối đa: {c.maxScore}đ]
+                </option>
+              ))}
+            </select>
+            <span className="text-[11px] text-slate-500 mt-1 block">
+              Minh chứng được duyệt sẽ cộng điểm trực tiếp vào mục tiêu chí này (không vượt quá trần quy định).
+            </span>
           </div>
 
           {/* Vai trò & Loại minh chứng */}
@@ -421,6 +460,14 @@ export const SubmitEvidence: React.FC = () => {
               <div>
                 <span className="text-slate-400 block font-medium">Kỳ đánh giá</span>
                 <span className="text-slate-900 font-semibold">{activeTerm.name}</span>
+              </div>
+              <div className="col-span-2 p-2.5 rounded-xl bg-blue-50/70 border border-blue-200/80">
+                <span className="text-slate-500 block font-medium text-[11px]">Mục tiêu chí xin cộng điểm:</span>
+                <span className="text-[#1d6fc2] font-bold text-xs">
+                  {criteria.find((c) => c.id === selectedCriterionId)
+                    ? `Mục ${criteria.find((c) => c.id === selectedCriterionId)?.code}: ${criteria.find((c) => c.id === selectedCriterionId)?.name} (Trần tối đa ${criteria.find((c) => c.id === selectedCriterionId)?.maxScore}đ)`
+                    : 'Chưa chọn'}
+                </span>
               </div>
             </div>
 
