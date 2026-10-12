@@ -1,22 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Term } from '../../types';
-import { mockTerms } from '../../lib/mockData';
-import { Calendar, Plus, Lock, Unlock, AlertTriangle, Building, Layers } from 'lucide-react';
+import { apiClient } from '../../lib/apiClient';
+import { Plus, Lock, AlertTriangle, Building } from 'lucide-react';
 
 export const TermsMasterData: React.FC = () => {
-  const [terms, setTerms] = useState<Term[]>(mockTerms);
+  const [terms, setTerms] = useState<Term[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'TERMS' | 'FACULTIES' | 'CLASSES'>('TERMS');
 
-  const handleToggleCloseTerm = (id: string) => {
-    setTerms((prev) =>
-      prev.map((t) => {
-        if (t.id === id) {
-          const nextStatus = t.status === 'CLOSED' ? 'ACTIVE' : 'CLOSED';
-          return { ...t, status: nextStatus };
-        }
-        return t;
-      })
-    );
+  const loadTerms = async () => {
+    try {
+      setIsLoading(true);
+      const data = await apiClient.getTerms();
+      setTerms(data);
+    } catch (err) {
+      console.error('Lỗi tải danh sách học kỳ', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadTerms();
+  }, []);
+
+  const handleToggleCloseTerm = async (id: string, currentStatus: string) => {
+    try {
+      if (currentStatus === 'ACTIVE') {
+        await apiClient.closeTerm(id);
+      } else {
+        await apiClient.updateTerm(id, { status: 'ACTIVE' });
+      }
+      await loadTerms();
+    } catch (err) {
+      console.error('Lỗi đổi trạng thái học kỳ', err);
+      alert('Không thể cập nhật trạng thái học kỳ.');
+    }
   };
 
   return (
@@ -83,63 +102,69 @@ export const TermsMasterData: React.FC = () => {
           </div>
 
           <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider text-[11px]">
-                  <tr>
-                    <th className="py-3 px-4">Tên kỳ đánh giá</th>
-                    <th className="py-3 px-4">Mã kỳ</th>
-                    <th className="py-3 px-4">Hạn nộp của SV</th>
-                    <th className="py-3 px-4">Hạn duyệt Cán bộ</th>
-                    <th className="py-3 px-4">Hạn khiếu nại</th>
-                    <th className="py-3 px-4">Trạng thái</th>
-                    <th className="py-3 px-4 text-right">Thao tác</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {terms.map((t) => (
-                    <tr key={t.id} className="hover:bg-slate-50/60 transition">
-                      <td className="py-3.5 px-4 font-bold text-slate-900">{t.name}</td>
-                      <td className="py-3.5 px-4 font-mono text-slate-600">{t.code}</td>
-                      <td className="py-3.5 px-4 text-slate-600 font-medium">
-                        {new Date(t.submissionDeadline).toLocaleDateString('vi-VN')}
-                      </td>
-                      <td className="py-3.5 px-4 text-slate-600 font-medium">
-                        {new Date(t.reviewDeadline).toLocaleDateString('vi-VN')}
-                      </td>
-                      <td className="py-3.5 px-4 text-slate-600 font-medium">
-                        {new Date(t.appealDeadline).toLocaleDateString('vi-VN')}
-                      </td>
-                      <td className="py-3.5 px-4">
-                        {t.status === 'ACTIVE' ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                            <span>Đang mở nhận bài (ACTIVE)</span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-200 text-slate-700">
-                            <Lock className="w-3 h-3 text-slate-500" />
-                            <span>Đã chốt sổ (CLOSED)</span>
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3.5 px-4 text-right">
-                        <button
-                          onClick={() => handleToggleCloseTerm(t.id)}
-                          className={`px-3 py-1.5 rounded-md font-semibold text-xs border transition ${
-                            t.status === 'ACTIVE'
-                              ? 'border-rose-300 text-rose-700 hover:bg-rose-50'
-                              : 'border-emerald-300 text-emerald-700 hover:bg-emerald-50'
-                          }`}
-                        >
-                          {t.status === 'ACTIVE' ? 'Chốt kỳ' : 'Mở lại kỳ'}
-                        </button>
-                      </td>
+            {isLoading ? (
+              <div className="text-center py-10 text-xs text-slate-400">Đang tải danh sách học kỳ...</div>
+            ) : terms.length === 0 ? (
+              <div className="text-center py-10 text-xs text-slate-400">Chưa có học kỳ nào.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider text-[11px]">
+                    <tr>
+                      <th className="py-3 px-4">Tên kỳ đánh giá</th>
+                      <th className="py-3 px-4">Mã kỳ</th>
+                      <th className="py-3 px-4">Hạn nộp của SV</th>
+                      <th className="py-3 px-4">Hạn duyệt Cán bộ</th>
+                      <th className="py-3 px-4">Hạn khiếu nại</th>
+                      <th className="py-3 px-4">Trạng thái</th>
+                      <th className="py-3 px-4 text-right">Thao tác</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {terms.map((t) => (
+                      <tr key={t.id} className="hover:bg-slate-50/60 transition">
+                        <td className="py-3.5 px-4 font-bold text-slate-900">{t.name}</td>
+                        <td className="py-3.5 px-4 font-mono text-slate-600">{t.code}</td>
+                        <td className="py-3.5 px-4 text-slate-600 font-medium">
+                          {t.submissionDeadline ? new Date(t.submissionDeadline).toLocaleDateString('vi-VN') : '—'}
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-600 font-medium">
+                          {t.reviewDeadline ? new Date(t.reviewDeadline).toLocaleDateString('vi-VN') : '—'}
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-600 font-medium">
+                          {t.appealDeadline ? new Date(t.appealDeadline).toLocaleDateString('vi-VN') : '—'}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          {t.status === 'ACTIVE' ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                              <span>Đang mở nhận bài (ACTIVE)</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-200 text-slate-700">
+                              <Lock className="w-3 h-3 text-slate-500" />
+                              <span>Đã chốt sổ (CLOSED)</span>
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <button
+                            onClick={() => handleToggleCloseTerm(t.id, t.status)}
+                            className={`px-3 py-1.5 rounded-md font-semibold text-xs border transition ${
+                              t.status === 'ACTIVE'
+                                ? 'border-rose-300 text-rose-700 hover:bg-rose-50'
+                                : 'border-emerald-300 text-emerald-700 hover:bg-emerald-50'
+                            }`}
+                          >
+                            {t.status === 'ACTIVE' ? 'Chốt kỳ' : 'Mở lại kỳ'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}

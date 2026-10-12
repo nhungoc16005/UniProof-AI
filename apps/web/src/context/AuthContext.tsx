@@ -1,7 +1,18 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Term, Role } from '../types';
 import { apiClient } from '../lib/apiClient';
-import { mockUsers, mockTerms } from '../lib/mockData';
+
+const defaultTerm: Term = {
+  id: '',
+  name: 'Đang tải học kỳ...',
+  code: '',
+  startDate: '',
+  endDate: '',
+  submissionDeadline: '',
+  reviewDeadline: '',
+  appealDeadline: '',
+  status: 'ACTIVE',
+};
 
 interface AuthContextType {
   user: User;
@@ -40,9 +51,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [activeTerm, setActiveTerm] = useState<Term>(() => {
     try {
       const saved = localStorage.getItem('edupoint_active_term');
-      return saved ? JSON.parse(saved) : mockTerms[0];
+      return saved ? JSON.parse(saved) : defaultTerm;
     } catch {
-      return mockTerms[0];
+      return defaultTerm;
     }
   });
 
@@ -68,11 +79,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         const [tList, tActive] = await Promise.all([
-          apiClient.getTerms(),
-          apiClient.getActiveTerm(),
+          apiClient.getTerms().catch(() => []),
+          apiClient.getActiveTerm().catch(() => defaultTerm),
         ]);
         setTerms(tList);
-        setActiveTerm(tActive);
+        if (tActive && tActive.id) {
+          setActiveTerm(tActive);
+        }
       } catch (err) {
         console.error('Failed to load initial auth data', err);
       } finally {
@@ -104,7 +117,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const switchRole = async (role: Role) => {
-    // Không cho phép tự đổi role client-side
     console.warn('Hệ thống không hỗ trợ đổi role tự do. Role được gán cố định theo tài khoản trường cấp.');
   };
 
@@ -144,7 +156,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return (
     <AuthContext.Provider
       value={{
-        user: user || mockUsers.student,
+        user: (user || ({} as User)),
         isAuthenticated,
         activeTerm,
         terms,

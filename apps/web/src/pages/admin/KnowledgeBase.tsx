@@ -1,9 +1,29 @@
 import React, { useState } from 'react';
 import { Database, Upload, FileText, CheckCircle, Clock, BookOpen, Trash2, Eye, Layers, Search, X } from 'lucide-react';
-import { mockRegulationDocs } from '../../lib/mockData';
+interface RegulationDoc {
+  id: string;
+  title: string;
+  version: string;
+  effectiveDate: string;
+  fileUrl: string;
+  status: 'ACTIVE' | 'EXPIRED';
+  uploadedById?: string;
+}
+
+const initialDocs: RegulationDoc[] = [
+  {
+    id: 'doc-01',
+    title: 'Quyết định 42/QĐ-ĐHBK ban hành Quy chế Đánh giá Kết quả Rèn luyện',
+    version: 'v2026.1',
+    effectiveDate: '2026-09-01',
+    fileUrl: '/docs/qd-42-drl.pdf',
+    status: 'ACTIVE',
+    uploadedById: 'usr-admin-01',
+  },
+];
 
 export const KnowledgeBase: React.FC = () => {
-  const [docs, setDocs] = useState(mockRegulationDocs);
+  const [docs, setDocs] = useState<RegulationDoc[]>(initialDocs);
   const [isUploading, setIsUploading] = useState(false);
   const [selectedDocForChunks, setSelectedDocForChunks] = useState<any | null>(null);
 
