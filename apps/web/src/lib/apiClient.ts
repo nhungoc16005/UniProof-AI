@@ -33,16 +33,24 @@ http.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      console.warn('Phiên đăng nhập đã hết hạn hoặc không hợp lệ');
+      const hadToken = !!localStorage.getItem('edupoint_auth_token');
       localStorage.removeItem('edupoint_auth_token');
       localStorage.removeItem('edupoint_current_user');
-      if (!window.location.pathname.includes('/login')) {
+      if (hadToken && !window.location.pathname.includes('/login')) {
+        console.warn('Phiên đăng nhập đã hết hạn. Chuyển hướng tới trang đăng nhập.');
         window.location.href = '/login';
       }
     }
     return Promise.reject(error);
   }
 );
+
+// Helper trích xuất mảng an toàn từ response API
+function extractArray<T>(data: any): T[] {
+  if (Array.isArray(data)) return data;
+  if (data && Array.isArray(data.items)) return data.items;
+  return [];
+}
 
 // API Client Wrapper - 100% Backend API Calls
 export const apiClient = {
@@ -89,8 +97,12 @@ export const apiClient = {
   // TERM ENDPOINTS
   // ==========================================
   async getTerms(): Promise<Term[]> {
-    const res = await http.get('/terms');
-    return res.data.data || [];
+    try {
+      const res = await http.get('/terms');
+      return extractArray<Term>(res.data.data);
+    } catch {
+      return [];
+    }
   },
 
   async getActiveTerm(): Promise<Term> {
@@ -122,16 +134,24 @@ export const apiClient = {
   // CRITERIA ENDPOINTS (CRI-01)
   // ==========================================
   async getCriteria(): Promise<Criterion[]> {
-    const res = await http.get('/criteria');
-    return res.data.data || [];
+    try {
+      const res = await http.get('/criteria');
+      return extractArray<Criterion>(res.data.data);
+    } catch {
+      return [];
+    }
   },
 
   // ==========================================
   // ACTIVITIES & ATTENDANCE
   // ==========================================
   async getActivities(params?: { type?: string; search?: string }): Promise<Activity[]> {
-    const res = await http.get('/activities', { params });
-    return res.data.data || [];
+    try {
+      const res = await http.get('/activities', { params });
+      return extractArray<Activity>(res.data.data);
+    } catch {
+      return [];
+    }
   },
 
   async getActivityById(id: string): Promise<Activity> {
@@ -150,16 +170,24 @@ export const apiClient = {
   },
 
   async getActivityParticipants(activityId: string): Promise<any[]> {
-    const res = await http.get(`/activities/${activityId}/attendance`);
-    return res.data.data || [];
+    try {
+      const res = await http.get(`/activities/${activityId}/attendance`);
+      return extractArray<any>(res.data.data);
+    } catch {
+      return [];
+    }
   },
 
   // ==========================================
   // EVIDENCES (EVD-05, EVD-06, EVD-01, EVD-09)
   // ==========================================
   async getEvidences(params?: { studentId?: string; status?: string; termId?: string; page?: number; pageSize?: number }): Promise<Evidence[]> {
-    const res = await http.get('/evidence', { params });
-    return res.data.data || [];
+    try {
+      const res = await http.get('/evidence', { params });
+      return extractArray<Evidence>(res.data.data);
+    } catch {
+      return [];
+    }
   },
 
   async getEvidenceById(id: string): Promise<Evidence | null> {
@@ -200,8 +228,12 @@ export const apiClient = {
   // REVIEW & QUEUE (REV-01, REV-03, REV-04)
   // ==========================================
   async getReviewQueue(params?: { status?: string; termId?: string; search?: string; page?: number; pageSize?: number }): Promise<Evidence[]> {
-    const res = await http.get('/reviews/queue', { params });
-    return res.data.data || [];
+    try {
+      const res = await http.get('/reviews/queue', { params });
+      return extractArray<Evidence>(res.data.data);
+    } catch {
+      return [];
+    }
   },
 
   async claimEvidence(id: string): Promise<Evidence> {
@@ -244,8 +276,12 @@ export const apiClient = {
   // APPEALS (APL-01, APL-04)
   // ==========================================
   async getAppeals(params?: { status?: string; page?: number; pageSize?: number }): Promise<Appeal[]> {
-    const res = await http.get('/appeals', { params });
-    return res.data.data || [];
+    try {
+      const res = await http.get('/appeals', { params });
+      return extractArray<Appeal>(res.data.data);
+    } catch {
+      return [];
+    }
   },
 
   async createAppeal(data: Partial<Appeal>): Promise<Appeal> {
@@ -262,8 +298,12 @@ export const apiClient = {
   // NOTIFICATIONS (NOTI-01, NOTI-02)
   // ==========================================
   async getNotifications(): Promise<Notification[]> {
-    const res = await http.get('/notifications');
-    return res.data.data || [];
+    try {
+      const res = await http.get('/notifications');
+      return extractArray<Notification>(res.data.data);
+    } catch {
+      return [];
+    }
   },
 
   async markNotificationAsRead(id: string): Promise<void> {
@@ -278,8 +318,12 @@ export const apiClient = {
   // USER MANAGEMENT (A02)
   // ==========================================
   async getUsers(params?: { role?: string; facultyId?: string; classId?: string; search?: string; page?: number; pageSize?: number }): Promise<User[]> {
-    const res = await http.get('/users', { params });
-    return res.data.data || [];
+    try {
+      const res = await http.get('/users', { params });
+      return extractArray<User>(res.data.data);
+    } catch {
+      return [];
+    }
   },
 
   async getUserById(id: string): Promise<User> {

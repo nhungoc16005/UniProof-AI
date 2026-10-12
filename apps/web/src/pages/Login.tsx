@@ -9,7 +9,7 @@ export const Login: React.FC = () => {
   const location = useLocation();
 
   const [studentCodeOrEmail, setStudentCodeOrEmail] = useState('102210001');
-  const [password, setPassword] = useState('123456');
+  const [password, setPassword] = useState('Student@123');
   const [selectedRole, setSelectedRole] = useState<Role>('STUDENT');
   const [errorMsg, setErrorMsg] = useState('');
   const [failedAttempts, setFailedAttempts] = useState(0);
@@ -31,13 +31,13 @@ export const Login: React.FC = () => {
     setErrorMsg('');
     if (role === 'STUDENT') {
       setStudentCodeOrEmail('102210001');
-      setPassword('123456');
+      setPassword('Student@123');
     } else if (role === 'STAFF') {
-      setStudentCodeOrEmail('staff.cntt@edupoint.edu.vn');
-      setPassword('123456');
+      setStudentCodeOrEmail('officer.cntt@dut.udn.vn');
+      setPassword('Officer@123');
     } else {
-      setStudentCodeOrEmail('admin@edupoint.edu.vn');
-      setPassword('123456');
+      setStudentCodeOrEmail('admin@dut.udn.vn');
+      setPassword('Admin@123');
     }
   };
 
@@ -50,9 +50,9 @@ export const Login: React.FC = () => {
     let emailToSubmit = loginIdentifier.trim();
     if (!emailToSubmit.includes('@')) {
       if (emailToSubmit === '102210001') {
-        emailToSubmit = 'an.nguyen@dut.udn.vn';
+        emailToSubmit = 'sv1.cntt@sv.dut.udn.vn';
       } else {
-        emailToSubmit = `${emailToSubmit}@dut.udn.vn`;
+        emailToSubmit = `${emailToSubmit}@sv.dut.udn.vn`;
       }
     }
 
@@ -91,7 +91,7 @@ export const Login: React.FC = () => {
 
   const handleMicrosoftLogin = () => {
     // Quick Microsoft SSO simulation
-    executeLogin('an.nguyen@dut.udn.vn', '123456', 'STUDENT');
+    executeLogin('sv1.cntt@sv.dut.udn.vn', 'Student@123', 'STUDENT');
   };
 
   return (

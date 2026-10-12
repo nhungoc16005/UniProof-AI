@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AppLayout } from './layouts/AppLayout';
 import { useAuth } from './context/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -52,7 +52,7 @@ import { SystemHealth } from './pages/admin/SystemHealth';
 // Redirect root theo vai trò hiện tại
 const RootRedirect: React.FC = () => {
   const { user } = useAuth();
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user || !user.role) return <Navigate to="/login" replace />;
   if (user.role === 'STAFF') return <Navigate to="/officer" replace />;
   if (user.role === 'ADMIN') return <Navigate to="/admin" replace />;
   return <Navigate to="/student" replace />;
@@ -86,11 +86,10 @@ export const AppRoutes: React.FC = () => {
           path="student"
           element={
             <ProtectedRoute allowedRoles={['STUDENT']}>
-              <React.Fragment />
+              <Outlet />
             </ProtectedRoute>
           }
-        />
-        <Route path="student">
+        >
           <Route index element={<StudentDashboard />} />
           <Route path="evidence" element={<EvidenceList />} />
           <Route path="evidence/new" element={<SubmitEvidence />} />
@@ -103,7 +102,14 @@ export const AppRoutes: React.FC = () => {
         </Route>
 
         {/* Phân hệ Cán bộ (Officer) */}
-        <Route path="officer">
+        <Route
+          path="officer"
+          element={
+            <ProtectedRoute allowedRoles={['STAFF', 'ADMIN']}>
+              <Outlet />
+            </ProtectedRoute>
+          }
+        >
           <Route index element={<OfficerDashboard />} />
           <Route path="queue" element={<ReviewQueue />} />
           <Route path="review/:id" element={<ReviewDetail />} />
@@ -116,7 +122,14 @@ export const AppRoutes: React.FC = () => {
         </Route>
 
         {/* Phân hệ Quản trị viên (Admin) */}
-        <Route path="admin">
+        <Route
+          path="admin"
+          element={
+            <ProtectedRoute allowedRoles={['ADMIN']}>
+              <Outlet />
+            </ProtectedRoute>
+          }
+        >
           <Route index element={<AdminDashboard />} />
           <Route path="users" element={<UserManagement />} />
           <Route path="terms" element={<TermsMasterData />} />
