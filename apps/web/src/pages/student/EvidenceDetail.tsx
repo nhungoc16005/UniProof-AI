@@ -18,7 +18,9 @@ import {
   AlertCircle,
   Clock,
   Sparkles,
-  ExternalLink
+  ExternalLink,
+  UploadCloud,
+  Paperclip
 } from 'lucide-react';
 
 export const EvidenceDetail: React.FC = () => {
@@ -32,6 +34,12 @@ export const EvidenceDetail: React.FC = () => {
   const [showAppealModal, setShowAppealModal] = useState(false);
   const [appealReason, setAppealReason] = useState('');
   const [appealSuccess, setAppealSuccess] = useState(false);
+
+  // Supplement Modal states
+  const [showSupplementModal, setShowSupplementModal] = useState(false);
+  const [supplementFileName, setSupplementFileName] = useState('');
+  const [supplementNote, setSupplementNote] = useState('');
+  const [isSubmittingSupplement, setIsSubmittingSupplement] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -71,6 +79,26 @@ export const EvidenceDetail: React.FC = () => {
     }, 2000);
   };
 
+  const handleSupplementSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!evidence) return;
+    setIsSubmittingSupplement(true);
+    try {
+      const updated = await apiClient.supplementEvidence(evidence.id, [
+        { fileUrl: 'https://placehold.co/600x400/png?text=Minh+Chung+Bo+Sung', fileType: 'image/png' },
+      ]);
+      setEvidence(updated);
+      setShowSupplementModal(false);
+      setSupplementFileName('');
+      setSupplementNote('');
+      alert('Đã gửi bổ sung minh chứng thành công! Hồ sơ đã được cập nhật.');
+    } catch {
+      alert('Có lỗi xảy ra khi nộp bổ sung!');
+    } finally {
+      setIsSubmittingSupplement(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       
@@ -97,13 +125,13 @@ export const EvidenceDetail: React.FC = () => {
 
         <div className="flex items-center gap-2">
           {evidence.status === 'NEEDS_SUPPLEMENT' && (
-            <Link
-              to={`/student/evidence/${evidence.id}/supplement`}
+            <button
+              onClick={() => setShowSupplementModal(true)}
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg shadow-sm transition"
             >
               <AlertCircle className="w-3.5 h-3.5" />
               <span>Bổ sung minh chứng</span>
-            </Link>
+            </button>
           )}
 
           {evidence.status === 'APPROVED' && (
@@ -125,6 +153,27 @@ export const EvidenceDetail: React.FC = () => {
           </Link>
         </div>
       </div>
+
+      {/* Banner cảnh báo nếu cần bổ sung hồ sơ */}
+      {evidence.status === 'NEEDS_SUPPLEMENT' && (
+        <div className="p-4 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-start gap-2.5">
+            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <strong className="block font-bold text-sm">Hồ sơ cần bổ sung minh chứng theo yêu cầu của Cán bộ:</strong>
+              <p className="mt-0.5 text-amber-800">
+                {review?.reason || 'Vui lòng bổ sung bản chụp/scan rõ nét có dấu mộc đỏ hoặc giấy xác nhận hợp lệ.'}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowSupplementModal(true)}
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg shadow-sm text-xs shrink-0 transition"
+          >
+            Bổ sung ngay
+          </button>
+        </div>
+      )}
 
       {/* 2. Real-time Stepper (7 bước) */}
       <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
@@ -349,6 +398,84 @@ export const EvidenceDetail: React.FC = () => {
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal Bổ sung minh chứng trực tiếp */}
+      {showSupplementModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
+                  <UploadCloud className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Bổ sung hồ sơ minh chứng</h3>
+                  <p className="text-[11px] text-slate-500">Tải tài liệu theo yêu cầu thẩm định của Cán bộ</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowSupplementModal(false)}
+                className="text-slate-400 hover:text-slate-700 text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSupplementSubmit} className="space-y-4 text-xs">
+              {/* File Dropzone */}
+              <div className="border-2 border-dashed border-slate-200 rounded-xl p-5 text-center hover:bg-slate-50 transition cursor-pointer relative">
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) setSupplementFileName(f.name);
+                  }}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                />
+                <UploadCloud className="w-8 h-8 text-amber-500 mx-auto mb-1.5" />
+                <span className="font-semibold text-slate-800 block">
+                  {supplementFileName || 'Kéo thả hoặc nhấp để chọn tệp tài liệu bổ sung'}
+                </span>
+                <span className="text-[11px] text-slate-400 mt-0.5 block">
+                  Hỗ trợ PNG, JPG, PDF (Dung lượng tối đa 15MB)
+                </span>
+              </div>
+
+              {/* Note / Explanation */}
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">
+                  Nội dung giải trình / Ghi chú cho Cán bộ (Tùy chọn)
+                </label>
+                <textarea
+                  rows={3}
+                  value={supplementNote}
+                  onChange={(e) => setSupplementNote(e.target.value)}
+                  placeholder="VD: Em đã xin lại giấy xác nhận có dấu mộc đỏ của Đoàn trường..."
+                  className="w-full p-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowSupplementModal(false)}
+                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 font-semibold rounded-xl text-xs transition"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingSupplement}
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs shadow-sm transition"
+                >
+                  {isSubmittingSupplement ? 'Đang gửi bổ sung...' : 'Nộp bổ sung ngay'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

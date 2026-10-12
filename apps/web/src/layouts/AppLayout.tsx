@@ -37,6 +37,7 @@ export const AppLayout: React.FC = () => {
   };
 
   // Grouped Navigation per role
+  // Grouped Navigation per role (Streamlined & Non-fragmented)
   const navGroups: NavGroup[] = useMemo(() => {
     if (!user) return [];
 
@@ -51,11 +52,10 @@ export const AppLayout: React.FC = () => {
           ],
         },
         {
-          title: 'QUẢN LÝ DỮ LIỆU',
+          title: 'DỮ LIỆU & HOẠT ĐỘNG',
           items: [
             { label: 'Hồ sơ sinh viên', path: '/officer/students' },
-            { label: 'Hoạt động nội bộ', path: '/officer/activities' },
-            { label: 'Nguồn ngoài trường', path: '/officer/external-activities' },
+            { label: 'Quản lý hoạt động (O05 - O06)', path: '/officer/activities' },
           ],
         },
         {
@@ -82,19 +82,15 @@ export const AppLayout: React.FC = () => {
         {
           title: 'TIÊU CHÍ & LUẬT ĐIỂM',
           items: [
-            { label: 'Khung tiêu chí', path: '/admin/criteria' },
-            { label: 'Rule Engine', path: '/admin/rules' },
+            { label: 'Tiêu chí & Rule Engine', path: '/admin/criteria' },
             { label: 'Knowledge Base (RAG)', path: '/admin/knowledge-base' },
           ],
         },
         {
           title: 'AI & AN TOÀN HỆ THỐNG',
           items: [
-            { label: 'Cấu hình AI & OCR', path: '/admin/ai-config' },
-            { label: 'Dữ liệu kiểm chuẩn', path: '/admin/ground-truth' },
-            { label: 'Đánh giá chất lượng AI', path: '/admin/ai-evaluation' },
-            { label: 'Nhật ký kiểm toán', path: '/admin/audit-logs' },
-            { label: 'Sức khỏe hệ thống', path: '/admin/health' },
+            { label: 'Trung tâm AI (A07 - A09)', path: '/admin/ai-center' },
+            { label: 'Giám sát & Kiểm toán (A10 - A11)', path: '/admin/monitoring' },
           ],
         },
       ];
@@ -112,16 +108,15 @@ export const AppLayout: React.FC = () => {
       {
         title: 'HỒ SƠ RÈN LUYỆN',
         items: [
-          { label: 'Nộp minh chứng mới', path: '/student/evidence/new' },
           { label: 'Danh sách minh chứng', path: '/student/evidence' },
+          { label: 'Nộp minh chứng mới', path: '/student/evidence/new' },
           { label: 'Khiếu nại điểm', path: '/student/appeals' },
         ],
       },
       {
         title: 'QUY CHẾ & HỖ TRỢ',
         items: [
-          { label: 'Cơ hội tích lũy điểm', path: '/student/what-can-i-claim' },
-          { label: 'Khung tiêu chí rèn luyện', path: '/student/criteria' },
+          { label: 'Tiêu chí & Cơ hội tích điểm', path: '/student/criteria' },
           { label: 'Hỏi đáp quy chế AI', path: '/regulations/ask' },
         ],
       },
@@ -141,8 +136,8 @@ export const AppLayout: React.FC = () => {
       else if (p.includes('/supplement')) crumbs.push({ label: 'Danh sách minh chứng', path: '/student/evidence' }, { label: 'Bổ sung hồ sơ' });
       else if (p.startsWith('/student/evidence/')) crumbs.push({ label: 'Danh sách minh chứng', path: '/student/evidence' }, { label: 'Chi tiết hồ sơ' });
       else if (p === '/student/scores') crumbs.push({ label: 'Bảng điểm chi tiết' });
-      else if (p === '/student/what-can-i-claim') crumbs.push({ label: 'Cơ hội tích lũy điểm' });
-      else if (p === '/student/criteria') crumbs.push({ label: 'Khung tiêu chí rèn luyện' });
+      else if (p === '/student/what-can-i-claim') crumbs.push({ label: 'Tiêu chí & Cơ hội tích điểm', path: '/student/criteria' });
+      else if (p === '/student/criteria') crumbs.push({ label: 'Tiêu chí & Cơ hội tích điểm' });
       else if (p === '/student/appeals') crumbs.push({ label: 'Khiếu nại điểm' });
     } else if (p.startsWith('/officer')) {
       crumbs.push({ label: 'Cán bộ', path: '/officer' });
@@ -151,8 +146,7 @@ export const AppLayout: React.FC = () => {
       else if (p.startsWith('/officer/review/')) crumbs.push({ label: 'Hàng đợi xét duyệt', path: '/officer/queue' }, { label: 'Thẩm định hồ sơ' });
       else if (p === '/officer/appeals') crumbs.push({ label: 'Xử lý khiếu nại' });
       else if (p === '/officer/students') crumbs.push({ label: 'Hồ sơ sinh viên' });
-      else if (p === '/officer/activities') crumbs.push({ label: 'Hoạt động nội bộ' });
-      else if (p === '/officer/external-activities') crumbs.push({ label: 'Nguồn ngoài trường' });
+      else if (p === '/officer/activities' || p === '/officer/external-activities') crumbs.push({ label: 'Quản lý hoạt động (O05 - O06)' });
       else if (p === '/officer/criteria') crumbs.push({ label: 'Tiêu chí & Quy tắc' });
       else if (p === '/officer/reports') crumbs.push({ label: 'Báo cáo & Thống kê' });
     } else if (p.startsWith('/admin')) {
@@ -160,14 +154,10 @@ export const AppLayout: React.FC = () => {
       if (p === '/admin') return crumbs;
       if (p === '/admin/users') crumbs.push({ label: 'Quản lý người dùng' });
       else if (p === '/admin/terms') crumbs.push({ label: 'Kỳ đánh giá' });
-      else if (p === '/admin/criteria') crumbs.push({ label: 'Khung tiêu chí' });
-      else if (p === '/admin/rules') crumbs.push({ label: 'Rule Engine' });
+      else if (p === '/admin/criteria' || p === '/admin/rules') crumbs.push({ label: 'Tiêu chí & Rule Engine' });
       else if (p === '/admin/knowledge-base') crumbs.push({ label: 'Knowledge Base (RAG)' });
-      else if (p === '/admin/ai-config') crumbs.push({ label: 'Cấu hình AI & OCR' });
-      else if (p === '/admin/ground-truth') crumbs.push({ label: 'Dữ liệu kiểm chuẩn' });
-      else if (p === '/admin/ai-evaluation') crumbs.push({ label: 'Đánh giá chất lượng AI' });
-      else if (p === '/admin/audit-logs') crumbs.push({ label: 'Nhật ký kiểm toán' });
-      else if (p === '/admin/health') crumbs.push({ label: 'Sức khỏe hệ thống' });
+      else if (p === '/admin/ai-center' || p === '/admin/ai-config' || p === '/admin/ground-truth' || p === '/admin/ai-evaluation') crumbs.push({ label: 'Trung tâm AI' });
+      else if (p === '/admin/monitoring' || p === '/admin/audit-logs' || p === '/admin/health') crumbs.push({ label: 'Giám sát & Kiểm toán' });
     } else if (p.startsWith('/regulations')) {
       crumbs.push({ label: 'Hỏi đáp quy chế AI' });
     } else if (p === '/account') {

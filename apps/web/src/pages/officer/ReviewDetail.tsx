@@ -5,6 +5,7 @@ import { Evidence, ReviewDecision } from '../../types';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { TwoQuestionsVerification, VerificationBadge } from '../../components/ui/VerificationBadge';
 import { ConfidenceBar } from '../../components/ui/ConfidenceBar';
+import { BookOpen, Search, X, CheckCircle, HelpCircle } from 'lucide-react';
 
 interface BoundingBox {
   id: string;
@@ -60,6 +61,10 @@ export const ReviewDetail: React.FC = () => {
       confirmedStudent: true,
     }
   ]);
+
+  // Quick Regulation/Criteria Reference Drawer
+  const [showCriteriaGuideDrawer, setShowCriteriaGuideDrawer] = useState(false);
+  const [criteriaSearch, setCriteriaSearch] = useState('');
 
   useEffect(() => {
     if (id) {
@@ -222,16 +227,27 @@ export const ReviewDetail: React.FC = () => {
           </p>
         </div>
 
-        {/* Hotkey Guide */}
-        <div className="hidden lg:flex items-center gap-2 text-[11px] text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 font-mono">
-          <span>Phím tắt:</span>
-          <span className="font-bold text-slate-800">[A] Duyệt</span>
-          <span>·</span>
-          <span className="font-bold text-slate-800">[S] Sửa điểm</span>
-          <span>·</span>
-          <span className="font-bold text-slate-800">[B] Bổ sung</span>
-          <span>·</span>
-          <span className="font-bold text-slate-800">[R] Từ chối</span>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setShowCriteriaGuideDrawer(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-[#1d6fc2] font-bold text-xs rounded-xl border border-blue-200 transition shadow-xs"
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>Tra cứu 16 tiêu chí</span>
+          </button>
+
+          {/* Hotkey Guide */}
+          <div className="hidden lg:flex items-center gap-2 text-[11px] text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 font-mono">
+            <span>Phím tắt:</span>
+            <span className="font-bold text-slate-800">[A] Duyệt</span>
+            <span>·</span>
+            <span className="font-bold text-slate-800">[S] Sửa điểm</span>
+            <span>·</span>
+            <span className="font-bold text-slate-800">[B] Bổ sung</span>
+            <span>·</span>
+            <span className="font-bold text-slate-800">[R] Từ chối</span>
+          </div>
         </div>
       </div>
 
@@ -967,6 +983,139 @@ export const ReviewDetail: React.FC = () => {
                 className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow"
               >
                 Lưu nguồn xác minh
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Criteria Quick Reference Slide-over Drawer */}
+      {showCriteriaGuideDrawer && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/50 backdrop-blur-xs">
+          <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
+            {/* Drawer Header */}
+            <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-sky-400" />
+                <span className="font-bold text-xs uppercase tracking-wider">
+                  Tra cứu quy chế 16 tiêu chí ĐRL
+                </span>
+              </div>
+              <button
+                onClick={() => setShowCriteriaGuideDrawer(false)}
+                className="p-1 hover:bg-slate-800 rounded transition text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Search Box */}
+            <div className="p-3 bg-slate-50 border-b border-slate-200">
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  value={criteriaSearch}
+                  onChange={(e) => setCriteriaSearch(e.target.value)}
+                  placeholder="Tìm theo tên tiêu chí, khung, điểm tối đa..."
+                  className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Criteria List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
+              {[
+                {
+                  cat: 'Khung I: Ý thức tham gia học tập (Tối đa 20đ)',
+                  items: [
+                    { code: 'Mục 1', name: 'Đi học đầy đủ, đúng giờ, nghiêm túc trong giờ học', max: 6, docs: 'Điểm danh hệ thống e-learning / Giảng viên xác nhận' },
+                    { code: 'Mục 2', name: 'Có ý thức, trách nhiệm khi tham gia nhóm làm việc chung', max: 3, docs: 'Đánh giá nhóm trưởng / Biên bản làm việc' },
+                    { code: 'Mục 3', name: 'Kết quả học tập đạt loại Giỏi và cao hơn kỳ trước', max: 5, docs: 'Bảng điểm portal đào tạo' },
+                    { code: 'Mục 4', name: 'Tham gia CLB Tin học học thuật và Khởi nghiệp ĐMST', max: 3, docs: 'Giấy chứng nhận thành viên / Xác nhận BCN CLB' },
+                    { code: 'Mục 5', name: 'Tham gia NCKH hoặc thi Olympic môn học', max: 3, docs: 'Quyết định giao đề tài NCKH / Giấy khen Olympic' },
+                  ],
+                },
+                {
+                  cat: 'Khung II: Ý thức chấp hành nội quy, quy chế (Tối đa 25đ)',
+                  items: [
+                    { code: 'Mục 6', name: 'Chấp hành chủ trương, phong trào Nhà trường và Đoàn thể', max: 5, docs: 'Xác nhận tham gia SHCD / Tuần sinh hoạt công dân' },
+                    { code: 'Mục 7', name: 'Không vi phạm quy chế, quy định, nội quy của Trường, Khoa', max: 15, docs: 'Mặc định nếu không có biên bản kỷ luật' },
+                    { code: 'Mục 8', name: 'Tích cực tham gia hoạt động giáo dục chính trị, kỹ năng mềm', max: 5, docs: 'Giấy chứng nhận khóa học kỹ năng mềm / Hội thảo' },
+                  ],
+                },
+                {
+                  cat: 'Khung III: Hoạt động chính trị, xã hội, phong trào (Tối đa 20đ)',
+                  items: [
+                    { code: 'Mục 9', name: 'Tham gia hoạt động văn hóa, văn nghệ, thể thao (≥ 3 lần)', max: 10, docs: 'Giấy chứng nhận tham gia hội thao / Hội diễn văn nghệ' },
+                    { code: 'Mục 10', name: 'Tuyên truyền phòng chống tệ nạn, an toàn giao thông', max: 10, docs: 'Giấy chứng nhận tuyên truyền / Tập huấn ATGT' },
+                  ],
+                },
+                {
+                  cat: 'Khung IV: Ý thức công dân trong quan hệ cộng đồng (Tối đa 25đ)',
+                  items: [
+                    { code: 'Mục 11', name: 'Tham gia BHYT, đăng ký tạm trú tạm vắng và chấp hành pháp luật', max: 10, docs: 'Thẻ BHYT còn hạn / Xác nhận tạm trú Công an' },
+                    { code: 'Mục 12', name: 'Tham gia hoạt động phục vụ cộng đồng, tình nguyện (≥ 3 đợt)', max: 10, docs: 'Giấy chứng nhận Hiến máu / Tiếp sức mùa thi / Mùa hè xanh' },
+                    { code: 'Mục 13', name: 'Thành viên Ban tổ chức / cộng tác viên các sự kiện', max: 5, docs: 'Giấy chứng nhận BTC / CTV có dấu mộc đỏ' },
+                  ],
+                },
+                {
+                  cat: 'Khung V: Công tác cán bộ lớp, đoàn thể, khen thưởng (Tối đa 10đ)',
+                  items: [
+                    { code: 'Mục 14', name: 'Thành viên BCS lớp, BCH Đoàn, Hội hoàn thành tốt nhiệm vụ', max: 5, docs: 'Nghị quyết công nhận cán bộ lớp / BCH' },
+                    { code: 'Mục 15', name: 'Thành viên BCS, Đoàn, Hội hoàn thành xuất sắc nhiệm vụ', max: 3, docs: 'Giấy khen cán bộ Đoàn Hội tiêu biểu' },
+                    { code: 'Mục 16', name: 'Khen thưởng cấp Trường trở lên về học tập, rèn luyện', max: 2, docs: 'Quyết định khen thưởng của Hiệu trưởng' },
+                  ],
+                },
+              ]
+                .map((group) => ({
+                  ...group,
+                  items: group.items.filter(
+                    (it) =>
+                      !criteriaSearch.trim() ||
+                      it.name.toLowerCase().includes(criteriaSearch.toLowerCase()) ||
+                      it.code.toLowerCase().includes(criteriaSearch.toLowerCase()) ||
+                      group.cat.toLowerCase().includes(criteriaSearch.toLowerCase())
+                  ),
+                }))
+                .filter((group) => group.items.length > 0)
+                .map((group, gIdx) => (
+                  <div key={gIdx} className="space-y-2">
+                    <span className="font-bold text-[11px] text-slate-700 uppercase tracking-wider block bg-slate-100 px-2 py-1 rounded">
+                      {group.cat}
+                    </span>
+                    <div className="space-y-2 pl-1">
+                      {group.items.map((item, iIdx) => (
+                        <div
+                          key={iIdx}
+                          className="p-2.5 rounded-lg border border-slate-200 bg-white hover:border-sky-300 transition space-y-1"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="font-bold text-slate-900 leading-tight">
+                              {item.code}: {item.name}
+                            </span>
+                            <span className="font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded text-[11px] whitespace-nowrap border border-sky-200">
+                              +{item.max} đ
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500">
+                            <strong>Hồ sơ minh chứng:</strong> {item.docs}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+            </div>
+
+            {/* Drawer Footer */}
+            <div className="p-3 bg-slate-50 border-t border-slate-200 flex justify-between items-center text-xs">
+              <span className="text-slate-400 text-[11px]">Quy chế ĐRL ĐH Đà Nẵng</span>
+              <button
+                onClick={() => setShowCriteriaGuideDrawer(false)}
+                className="px-3.5 py-1.5 bg-slate-900 text-white font-semibold rounded-lg hover:bg-slate-800 transition"
+              >
+                Đóng tra cứu
               </button>
             </div>
           </div>

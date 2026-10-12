@@ -5,6 +5,7 @@ import { apiClient } from '../../lib/apiClient';
 import { Evidence } from '../../types';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { ScoreGauge } from '../../components/ui/ScoreGauge';
+import { Printer, FileText, X, CheckCircle, ChevronRight, Award } from 'lucide-react';
 
 import { calculateStudentConductScore } from '../../lib/ruleEngine';
 
@@ -12,6 +13,7 @@ export const StudentDashboard: React.FC = () => {
   const { user, activeTerm } = useAuth();
   const [evidences, setEvidences] = useState<Evidence[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showScoreModal, setShowScoreModal] = useState(false);
 
   useEffect(() => {
     if (user?.id) {
@@ -109,7 +111,7 @@ export const StudentDashboard: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-3 w-full sm:w-auto z-10">
+        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto z-10">
           <Link
             to="/student/evidence/new"
             className="flex-1 sm:flex-initial text-center px-4 py-2.5 bg-[#1d6fc2] hover:bg-[#175ea5] active:scale-[0.99] text-white font-bold text-xs rounded-xl shadow-md shadow-blue-600/20 transition cursor-pointer"
@@ -117,12 +119,13 @@ export const StudentDashboard: React.FC = () => {
             Nộp minh chứng mới
           </Link>
 
-          <Link
-            to="/student/what-can-i-claim"
-            className="flex-1 sm:flex-initial text-center px-4 py-2.5 bg-white hover:bg-slate-50 active:scale-[0.99] text-slate-700 font-bold text-xs rounded-xl border border-slate-200 shadow-sm transition cursor-pointer"
+          <button
+            onClick={() => setShowScoreModal(true)}
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-white hover:bg-slate-50 active:scale-[0.99] text-slate-700 font-bold text-xs rounded-xl border border-slate-200 shadow-sm transition cursor-pointer"
           >
-            Cơ hội tích lũy điểm
-          </Link>
+            <Printer className="w-3.5 h-3.5 text-slate-500" />
+            <span>Bảng điểm & In</span>
+          </button>
         </div>
       </div>
 
@@ -371,6 +374,120 @@ export const StudentDashboard: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* 6. Score Report Modal Preview (S09 Integrated) */}
+      {showScoreModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-blue-100/80 text-[#1d6fc2] rounded-lg">
+                  <Award className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Bảng điểm rèn luyện & Truy vết (S09)</h3>
+                  <p className="text-[11px] text-slate-500">Xem trước và in phiếu đánh giá rèn luyện học kỳ {activeTerm.name}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => window.print()}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1d6fc2] hover:bg-[#175ea5] text-white font-semibold text-xs rounded-lg shadow-sm transition"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>In / Xuất PDF</span>
+                </button>
+                <button
+                  onClick={() => setShowScoreModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 rounded-lg transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-5 text-xs">
+              {/* Student info card */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px]">
+                <div>
+                  <span className="text-slate-400 block font-medium">Họ và tên sinh viên</span>
+                  <span className="text-slate-900 font-bold text-xs">{user?.fullName}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block font-medium">Mã số sinh viên (MSSV)</span>
+                  <span className="text-slate-900 font-semibold text-xs">{user?.studentCode || '102210001'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block font-medium">Lớp sinh hoạt / Khoa</span>
+                  <span className="text-slate-900 font-semibold text-xs">21TCLC_DT1 · CNTT</span>
+                </div>
+                <div className="sm:text-right">
+                  <span className="text-slate-400 block font-medium">Tổng điểm chính thức</span>
+                  <span className="text-emerald-700 font-black text-sm">
+                    {officialScore} / 100 ({rankInfo.currentRank})
+                  </span>
+                </div>
+              </div>
+
+              {/* 5 categories breakdown */}
+              <div className="space-y-3">
+                <span className="font-bold text-slate-900 uppercase text-[11px] tracking-wider block">
+                  Chi tiết 5 khung đánh giá ĐRL
+                </span>
+                {categorySummaries.map((cat, idx) => (
+                  <div key={idx} className="border border-slate-200 rounded-xl p-3.5 bg-white space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-800">{cat.name}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-slate-900">
+                          {cat.officialScore} / {cat.maxScore} đ
+                        </span>
+                        {cat.officialScore >= cat.maxScore && (
+                          <span className="text-[10px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded">
+                            Đạt trần
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[#1d6fc2] rounded-full"
+                        style={{ width: `${Math.min(100, (cat.officialScore / cat.maxScore) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between text-xs">
+                <span className="text-blue-900">
+                  Cần xem toàn trang hoặc lịch sử kỳ trước?
+                </span>
+                <Link
+                  to="/student/scores"
+                  onClick={() => setShowScoreModal(false)}
+                  className="font-bold text-[#1d6fc2] hover:underline flex items-center gap-1"
+                >
+                  <span>Mở trang Bảng điểm đầy đủ</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 flex justify-end">
+              <button
+                onClick={() => setShowScoreModal(false)}
+                className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

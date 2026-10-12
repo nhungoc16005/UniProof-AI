@@ -4,9 +4,13 @@ import { useAuth } from '../../context/AuthContext';
 import { apiClient } from '../../lib/apiClient';
 import { Criterion, Evidence } from '../../types';
 import { calculateStudentConductScore } from '../../lib/ruleEngine';
+import { Sparkles, Calendar, MapPin, ArrowRight, Award, CheckCircle } from 'lucide-react';
 
 export const CriteriaView: React.FC = () => {
   const { user, activeTerm } = useAuth();
+  const [activeTab, setActiveTab] = useState<'CRITERIA' | 'OPPORTUNITIES'>(() => {
+    return new URLSearchParams(window.location.search).get('tab') === 'opportunities' ? 'OPPORTUNITIES' : 'CRITERIA';
+  });
   const [criteria, setCriteria] = useState<Criterion[]>([]);
   const [evidences, setEvidences] = useState<Evidence[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -79,8 +83,35 @@ export const CriteriaView: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. Rule Engine Explanation Banner */}
-      <div className="p-4 bg-gradient-to-r from-blue-50/90 via-sky-50/80 to-indigo-50/90 border border-blue-200/90 rounded-2xl shadow-xs space-y-2">
+      {/* Tab Switcher: Khung tiêu chí vs Cơ hội tích lũy */}
+      <div className="flex items-center gap-2 border-b border-slate-200">
+        <button
+          onClick={() => setActiveTab('CRITERIA')}
+          className={`py-3 px-4 text-xs font-bold border-b-2 transition ${
+            activeTab === 'CRITERIA'
+              ? 'border-[#1d6fc2] text-[#1d6fc2]'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          Khung 16 Tiêu chí đánh giá ĐRL
+        </button>
+        <button
+          onClick={() => setActiveTab('OPPORTUNITIES')}
+          className={`py-3 px-4 text-xs font-bold border-b-2 transition flex items-center gap-1.5 ${
+            activeTab === 'OPPORTUNITIES'
+              ? 'border-[#1d6fc2] text-[#1d6fc2]'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+          <span>Cơ hội tích lũy & Gợi ý cải thiện điểm (S08)</span>
+        </button>
+      </div>
+
+      {activeTab === 'CRITERIA' ? (
+        <>
+          {/* 2. Rule Engine Explanation Banner */}
+          <div className="p-4 bg-gradient-to-r from-blue-50/90 via-sky-50/80 to-indigo-50/90 border border-blue-200/90 rounded-2xl shadow-xs space-y-2">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-[#1d6fc2] animate-pulse" />
           <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">
@@ -349,25 +380,135 @@ export const CriteriaView: React.FC = () => {
         </div>
       </div>
 
-      {/* 6. Action Bar */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="space-y-0.5">
-          <span className="text-xs font-bold text-slate-900 block">
-            Cần tích lũy thêm điểm cho học kỳ này?
-          </span>
-          <p className="text-xs text-slate-500">
-            Hệ thống tự động rà soát các hoạt động ngoại khóa, tình nguyện và học thuật phù hợp với các tiêu chí bạn còn thiếu điểm.
+        {/* 6. Action Bar */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="space-y-0.5">
+            <span className="text-xs font-bold text-slate-900 block">
+              Cần tích lũy thêm điểm cho học kỳ này?
+            </span>
+            <p className="text-xs text-slate-500">
+              Hệ thống tự động rà soát các hoạt động ngoại khóa, tình nguyện và học thuật phù hợp với các tiêu chí bạn còn thiếu điểm.
+            </p>
+          </div>
+
+          <button
+            onClick={() => setActiveTab('OPPORTUNITIES')}
+            className="px-4 py-2.5 bg-[#1d6fc2] hover:bg-[#175ea5] text-white font-bold text-xs rounded-xl shadow-sm transition whitespace-nowrap cursor-pointer"
+          >
+            Khám phá cơ hội tích lũy điểm →
+          </button>
+        </div>
+      </>
+    ) : (
+      /* OPPORTUNITIES TAB VIEW (What Can I Claim) */
+      <div className="space-y-6 animate-in fade-in duration-200">
+        <div className="p-5 bg-gradient-to-r from-amber-50/80 via-sky-50/60 to-blue-50/80 border border-amber-200/80 rounded-2xl space-y-1.5 shadow-xs">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-amber-600" />
+            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+              Gợi ý cơ hội tích lũy & Nâng bậc điểm rèn luyện (S08)
+            </h2>
+          </div>
+          <p className="text-xs text-slate-600 leading-relaxed">
+            Dựa trên số điểm hiện tại của bạn ({totalOfficialScore}đ), hệ thống tự động tính toán các khung điểm bạn còn khoảng trống để tối ưu hóa nỗ lực tham gia:
           </p>
         </div>
 
-        <Link
-          to="/student/what-can-i-claim"
-          className="px-4 py-2.5 bg-[#1d6fc2] hover:bg-[#175ea5] text-white font-bold text-xs rounded-xl shadow-sm transition whitespace-nowrap"
-        >
-          Khám phá cơ hội tích lũy điểm →
-        </Link>
-      </div>
+        <div className="space-y-5">
+          {[
+            {
+              category: 'Khung III: Hoạt động Văn thể mỹ & Phong trào chính trị - xã hội',
+              gap: 'Còn có thể tích lũy thêm tối đa 8.0 điểm',
+              color: 'border-sky-200 bg-sky-50/40',
+              recommendedActivities: [
+                {
+                  name: 'Hội thao Sinh viên Bách Khoa DUT Games 2026',
+                  points: '+4.0 điểm',
+                  date: '25/10/2026',
+                  location: 'Nhà thi đấu Đa năng',
+                  type: 'Nội bộ trường (I3)',
+                },
+                {
+                  name: 'Cuộc thi Tiếng hát Sinh viên Khoa CNTT 2026',
+                  points: '+3.0 điểm',
+                  date: '02/11/2026',
+                  location: 'Hội trường F',
+                  type: 'Nội bộ trường (I3)',
+                },
+              ],
+            },
+            {
+              category: 'Khung IV: Phẩm chất công dân & Phục vụ cộng đồng (HĐPVCĐ)',
+              gap: 'Còn có thể tích lũy thêm tối đa 15.0 điểm',
+              color: 'border-emerald-200 bg-emerald-50/40',
+              recommendedActivities: [
+                {
+                  name: 'Ngày hội Chủ Nhật Đỏ — Hiến máu tình nguyện đợt 2',
+                  points: '+5.0 điểm',
+                  date: '15/11/2026',
+                  location: 'Khu E Bách Khoa',
+                  type: 'Nội bộ trường (I3)',
+                },
+                {
+                  name: 'Chiến dịch Mùa hè xanh / Tình nguyện hỗ trợ Tân sinh viên',
+                  points: '+5.0 điểm',
+                  date: '01/12/2026',
+                  location: 'Khuôn viên trường',
+                  type: 'Đoàn Thanh niên',
+                },
+              ],
+            },
+          ].map((item, idx) => (
+            <div key={idx} className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
+                <span className="font-bold text-xs text-slate-900 uppercase tracking-wider">{item.category}</span>
+                <span className="text-xs font-bold text-[#1d6fc2] bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
+                  {item.gap}
+                </span>
+              </div>
 
-    </div>
-  );
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {item.recommendedActivities.map((act, i) => (
+                  <div key={i} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white hover:border-blue-300 transition space-y-3 flex flex-col justify-between shadow-2xs">
+                    <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <h4 className="font-bold text-xs text-slate-900 leading-snug">{act.name}</h4>
+                        <span className="shrink-0 text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md">
+                          {act.points}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-2">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                          {act.date}
+                        </span>
+                        <span>·</span>
+                        <span className="flex items-center gap-1">
+                          <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                          {act.location}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between">
+                      <span className="text-[11px] text-slate-400 font-medium">{act.type}</span>
+                      <Link
+                        to="/student/evidence/new"
+                        className="inline-flex items-center gap-1 text-xs font-bold text-[#1d6fc2] hover:text-[#175ea5]"
+                      >
+                        <span>Nộp minh chứng hoạt động này</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+
+  </div>
+);
 };

@@ -43,9 +43,11 @@ import { TermsMasterData } from './pages/admin/TermsMasterData';
 import { CriteriaManager } from './pages/admin/CriteriaManager';
 import { RuleEngineEditor } from './pages/admin/RuleEngineEditor';
 import { KnowledgeBase } from './pages/admin/KnowledgeBase';
+import { AiCenter } from './pages/admin/AiCenter';
 import { AiConfig } from './pages/admin/AiConfig';
 import { GroundTruth } from './pages/admin/GroundTruth';
 import { AiEvaluation } from './pages/admin/AiEvaluation';
+import { Monitoring } from './pages/admin/Monitoring';
 import { AuditLogs } from './pages/admin/AuditLogs';
 import { SystemHealth } from './pages/admin/SystemHealth';
 
@@ -114,7 +116,7 @@ export const AppRoutes: React.FC = () => {
           <Route path="queue" element={<ReviewQueue />} />
           <Route path="review/:id" element={<ReviewDetail />} />
           <Route path="activities" element={<InternalActivities />} />
-          <Route path="external-activities" element={<ExternalActivities />} />
+          <Route path="external-activities" element={<Navigate to="/officer/activities" replace />} />
           <Route path="appeals" element={<AppealsResolution />} />
           <Route path="criteria" element={<CriteriaRulesView />} />
           <Route path="students" element={<StudentLookup />} />
@@ -134,13 +136,15 @@ export const AppRoutes: React.FC = () => {
           <Route path="users" element={<UserManagement />} />
           <Route path="terms" element={<TermsMasterData />} />
           <Route path="criteria" element={<CriteriaManager />} />
-          <Route path="rules" element={<RuleEngineEditor />} />
+          <Route path="rules" element={<Navigate to="/admin/criteria" replace />} />
           <Route path="knowledge-base" element={<KnowledgeBase />} />
-          <Route path="ai-config" element={<AiConfig />} />
-          <Route path="ground-truth" element={<GroundTruth />} />
-          <Route path="ai-evaluation" element={<AiEvaluation />} />
-          <Route path="audit-logs" element={<AuditLogs />} />
-          <Route path="health" element={<SystemHealth />} />
+          <Route path="ai-center" element={<AiCenter />} />
+          <Route path="ai-config" element={<Navigate to="/admin/ai-center" replace />} />
+          <Route path="ground-truth" element={<Navigate to="/admin/ai-center" replace />} />
+          <Route path="ai-evaluation" element={<Navigate to="/admin/ai-center" replace />} />
+          <Route path="monitoring" element={<Monitoring />} />
+          <Route path="audit-logs" element={<Navigate to="/admin/monitoring" replace />} />
+          <Route path="health" element={<Navigate to="/admin/monitoring" replace />} />
         </Route>
 
         {/* 404 Not Found */}

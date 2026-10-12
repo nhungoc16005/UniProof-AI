@@ -1,14 +1,43 @@
 import React, { useState, useEffect } from 'react';
 import { Activity } from '../../types';
 import { apiClient } from '../../lib/apiClient';
-import { Plus, Upload, Calendar, MapPin, CheckCircle } from 'lucide-react';
+import { Plus, Upload, Calendar, MapPin, CheckCircle, ShieldCheck, Send, Building, Globe } from 'lucide-react';
 
 export const InternalActivities: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'internal' | 'external'>('internal');
   const [activities, setActivities] = useState<Activity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
+
+  // Partners data (O05)
+  const [partners, setPartners] = useState([
+    {
+      id: 'p-01',
+      name: 'Thành đoàn Đà Nẵng & Hội LHTN Việt Nam TP. Đà Nẵng',
+      contactEmail: 'thanhdoan@danang.gov.vn',
+      verifiedCount: 145,
+      trustLevel: 'Level 2 (Xác nhận qua email/portal chính thức)',
+      status: 'VERIFIED',
+    },
+    {
+      id: 'p-02',
+      name: 'Chi hội An toàn Thông tin phía Nam (VNISA)',
+      contactEmail: 'contact@vnisa.org.vn',
+      verifiedCount: 42,
+      trustLevel: 'Level 3 (Website sự kiện & danh sách công khai)',
+      status: 'VERIFIED',
+    },
+    {
+      id: 'p-03',
+      name: 'Google Developer Student Clubs (GDSC Vietnam)',
+      contactEmail: 'gdsc.vietnam@google.com',
+      verifiedCount: 88,
+      trustLevel: 'Level 2 (Portal chứng nhận điện tử QR)',
+      status: 'VERIFIED',
+    },
+  ]);
 
   // New Activity form
   const [newName, setNewName] = useState('');
@@ -55,72 +84,177 @@ export const InternalActivities: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Quản lý hoạt động nội bộ & Điểm danh (O06)</h1>
+          <h1 className="text-xl font-bold text-slate-900">Quản lý Hoạt động & Điểm danh (O05 - O06)</h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Dữ liệu điểm danh nội bộ (I3) dùng để tự động xác nhận minh chứng sinh viên tham gia.
+            Trung tâm đối chiếu dữ liệu hoạt động nội bộ trường (I3) và nguồn đối tác ngoài trường (I4).
           </p>
         </div>
 
+        {activeTab === 'internal' ? (
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs rounded-lg shadow-sm transition"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Thêm hoạt động mới</span>
+          </button>
+        ) : (
+          <button
+            onClick={() => alert('Thêm đơn vị đối tác tổ chức mới')}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs rounded-lg shadow-sm transition"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Thêm đơn vị đối tác</span>
+          </button>
+        )}
+      </div>
+
+      {/* Tab Switcher */}
+      <div className="flex border-b border-slate-200">
         <button
-          onClick={() => setShowAddModal(true)}
-          className="inline-flex items-center gap-1.5 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs rounded-lg shadow-sm transition"
+          onClick={() => setActiveTab('internal')}
+          className={`pb-3 px-4 font-bold text-xs border-b-2 flex items-center gap-2 transition ${
+            activeTab === 'internal'
+              ? 'border-sky-600 text-sky-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
         >
-          <Plus className="w-4 h-4" />
-          <span>Thêm hoạt động mới</span>
+          <Building className="w-4 h-4" />
+          <span>Hoạt động nội bộ & Điểm danh (O06)</span>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold">
+            {activities.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('external')}
+          className={`pb-3 px-4 font-bold text-xs border-b-2 flex items-center gap-2 transition ${
+            activeTab === 'external'
+              ? 'border-sky-600 text-sky-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Globe className="w-4 h-4" />
+          <span>Nguồn ngoài trường & Đơn vị đối tác (O05)</span>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold">
+            {partners.length}
+          </span>
         </button>
       </div>
 
-      {isLoading ? (
-        <div className="text-center py-12 text-slate-400 text-xs">Đang tải danh sách hoạt động...</div>
-      ) : activities.length === 0 ? (
-        <div className="text-center py-12 text-slate-400 text-xs bg-white rounded-xl border border-slate-200">
-          Chưa có hoạt động nội bộ nào trong hệ thống. Bấm nút trên để tạo hoạt động mới.
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {activities.map((act) => (
-            <div key={act.id} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3 flex flex-col justify-between">
-              <div>
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-xs font-semibold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
-                    Nội bộ trường
-                  </span>
-                  <span className="text-[11px] text-slate-400 font-mono">ID: {act.id.slice(0, 8)}...</span>
-                </div>
-                <h3 className="text-sm font-bold text-slate-900 mt-2">{act.name}</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Đơn vị: {act.organizer}</p>
-
-                <div className="flex items-center gap-4 text-xs text-slate-600 mt-3 pt-3 border-t border-slate-100">
-                  <span className="flex items-center gap-1">
-                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                    {act.startDate ? new Date(act.startDate).toLocaleDateString('vi-VN') : '10/2026'}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                    {act.location || 'Bách Khoa'}
-                  </span>
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                <span className="text-xs text-emerald-700 font-semibold flex items-center gap-1">
-                  <CheckCircle className="w-3.5 h-3.5" />
-                  <span>Điểm danh đồng bộ</span>
-                </span>
-
-                <button
-                  onClick={() => {
-                    setSelectedActivity(act);
-                    setShowImportModal(true);
-                  }}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-sky-700 hover:bg-sky-50 border border-sky-200 rounded-lg transition"
-                >
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>Import Excel</span>
-                </button>
-              </div>
+      {activeTab === 'internal' ? (
+        <>
+          {isLoading ? (
+            <div className="text-center py-12 text-slate-400 text-xs">Đang tải danh sách hoạt động...</div>
+          ) : activities.length === 0 ? (
+            <div className="text-center py-12 text-slate-400 text-xs bg-white rounded-xl border border-slate-200">
+              Chưa có hoạt động nội bộ nào trong hệ thống. Bấm nút trên để tạo hoạt động mới.
             </div>
-          ))}
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {activities.map((act) => (
+                <div key={act.id} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-xs font-semibold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
+                        Nội bộ trường
+                      </span>
+                      <span className="text-[11px] text-slate-400 font-mono">ID: {act.id.slice(0, 8)}...</span>
+                    </div>
+                    <h3 className="text-sm font-bold text-slate-900 mt-2">{act.name}</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Đơn vị: {act.organizer}</p>
+
+                    <div className="flex items-center gap-4 text-xs text-slate-600 mt-3 pt-3 border-t border-slate-100">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                        {act.startDate ? new Date(act.startDate).toLocaleDateString('vi-VN') : '10/2026'}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                        {act.location || 'Bách Khoa'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                    <span className="text-xs text-emerald-700 font-semibold flex items-center gap-1">
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      <span>Điểm danh đồng bộ</span>
+                    </span>
+
+                    <button
+                      onClick={() => {
+                        setSelectedActivity(act);
+                        setShowImportModal(true);
+                      }}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-sky-700 hover:bg-sky-50 border border-sky-200 rounded-lg transition"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Import Excel</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      ) : (
+        /* Tab External Partners (O05) */
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+          <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs">
+            <span className="font-bold text-slate-800">
+              Danh sách đơn vị tổ chức bên ngoài được tin cậy
+            </span>
+            <span className="text-slate-500 text-[11px]">
+              Tự động đối chiếu minh chứng ngoại khóa qua email/portal hoặc link xác nhận C07
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider text-[11px]">
+                <tr>
+                  <th className="py-3.5 px-4">Tên đơn vị tổ chức</th>
+                  <th className="py-3.5 px-4">Email đầu mối liên hệ</th>
+                  <th className="py-3.5 px-4">Mức xác minh mặc định</th>
+                  <th className="py-3.5 px-4">Số hồ sơ đã xác nhận</th>
+                  <th className="py-3.5 px-4 text-right">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {partners.map((p) => (
+                  <tr key={p.id} className="hover:bg-slate-50/60 transition">
+                    <td className="py-3.5 px-4">
+                      <span className="font-bold text-slate-900 block">{p.name}</span>
+                      <span className="text-[10px] text-slate-400 font-mono">ID: {p.id}</span>
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-600 font-medium">
+                      {p.contactEmail}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200">
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        <span>{p.trustLevel}</span>
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 font-bold text-slate-800">
+                      {p.verifiedCount} hồ sơ
+                    </td>
+                    <td className="py-3.5 px-4 text-right">
+                      <button
+                        onClick={() => alert(`Đã tạo link xác nhận một lần C07 gửi tới ${p.contactEmail}`)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-sky-700 hover:bg-sky-50 rounded border border-sky-200 transition"
+                        title="Gửi link xác nhận trực tuyến cho đơn vị"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        <span>Gửi link C07</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

@@ -53,6 +53,7 @@ export class CriteriaService {
   async getActiveTerm() {
     const term = await this.prisma.term.findFirst({
       where: { status: TermStatus.ACTIVE },
+      orderBy: { startDate: 'desc' },
     });
     if (!term) {
       // Fallback lấy kỳ mới nhất

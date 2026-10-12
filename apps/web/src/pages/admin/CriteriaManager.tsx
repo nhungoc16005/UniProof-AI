@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '../../lib/apiClient';
 import { Criterion } from '../../types';
+import { RuleEngineEditor } from './RuleEngineEditor';
+import { ListFilter, Sliders, Plus } from 'lucide-react';
 
 export const CriteriaManager: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'criteria' | 'rules'>('criteria');
   const [criteria, setCriteria] = useState<Criterion[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
 
@@ -39,21 +42,61 @@ export const CriteriaManager: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Quản trị Khung Tiêu chí Rèn luyện</h1>
+          <h1 className="text-xl font-bold text-slate-900">Quản trị Khung Tiêu chí & Rule Engine (A03 - A04)</h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Cấu hình danh mục tiêu chí, trần điểm tối đa và điều kiện áp dụng điểm rèn luyện.
+            Cấu hình danh mục tiêu chí, trần điểm tối đa và các luật tính điểm bậc thang độc lập.
           </p>
         </div>
 
+        {activeTab === 'criteria' && (
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm shadow-blue-500/20 transition"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Thêm tiêu chí mới</span>
+          </button>
+        )}
+      </div>
+
+      {/* Tab Switcher */}
+      <div className="flex border-b border-slate-200">
         <button
-          onClick={() => setShowAddModal(true)}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm shadow-blue-500/20 transition"
+          onClick={() => setActiveTab('criteria')}
+          className={`pb-3 px-4 font-bold text-xs border-b-2 flex items-center gap-2 transition ${
+            activeTab === 'criteria'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
         >
-          Thêm tiêu chí mới
+          <ListFilter className="w-4 h-4" />
+          <span>Danh mục 16 Tiêu chí (A03)</span>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold">
+            {criteria.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('rules')}
+          className={`pb-3 px-4 font-bold text-xs border-b-2 flex items-center gap-2 transition ${
+            activeTab === 'rules'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Sliders className="w-4 h-4" />
+          <span>Quy tắc khống chế & Bậc thang (A04)</span>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">
+            Rule Engine
+          </span>
         </button>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+      {activeTab === 'rules' ? (
+        <RuleEngineEditor />
+      ) : (
+        <>
+          <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider text-[11px]">
@@ -188,6 +231,8 @@ export const CriteriaManager: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );
