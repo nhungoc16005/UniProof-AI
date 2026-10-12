@@ -26,6 +26,13 @@ export class ConductScoresController {
     return this.scoresService.traceEvidenceScore(evidenceId);
   }
 
+  @Get('class/:classId')
+  @Roles(Role.ADMIN, Role.STAFF)
+  @ApiOperation({ summary: 'Lấy bảng điểm rèn luyện tổng hợp của tất cả sinh viên trong một Lớp (Theo kỳ)' })
+  async getClassScores(@Param('classId') classId: string, @Query('termId') termId?: string) {
+    return this.scoresService.getClassScores(classId, termId);
+  }
+
   @Get(':studentId')
   @Roles(Role.ADMIN, Role.STAFF)
   @ApiOperation({ summary: 'Tra cứu bảng điểm rèn luyện của một sinh viên (Cán bộ, Admin)' })

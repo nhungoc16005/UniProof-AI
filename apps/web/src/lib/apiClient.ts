@@ -381,4 +381,9 @@ export const apiClient = {
     const res = await http.get(`/scores/trace/${evidenceId}`);
     return res.data.data;
   },
+
+  async getClassScores(classId: string, termId?: string): Promise<any> {
+    const res = await http.get(`/scores/class/${classId}`, { params: { termId } });
+    return res.data.data;
+  },
 };
