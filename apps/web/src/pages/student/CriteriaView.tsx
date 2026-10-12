@@ -19,6 +19,8 @@ import {
   X,
   ExternalLink,
   Info,
+  Sparkles,
+  Award,
 } from 'lucide-react';
 
 export const CriteriaView: React.FC = () => {
@@ -192,24 +194,45 @@ export const CriteriaView: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-16 font-sans">
-      {/* 1. Header Toolbar */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-[#1d6fc2] mb-2 border border-blue-100">
-            <span>Trường Đại học Bách Khoa – Đại học Đà Nẵng</span>
+      {/* 1. Header Toolbar với Term Status Badge tích hợp sang trọng */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-xs flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-[#1d6fc2] border border-blue-100">
+              Trường ĐH Bách Khoa – ĐHĐN
+            </span>
+            {isSubmissionOpen ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                Đang mở nhận hồ sơ (Hạn: {formattedDeadline})
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 shadow-2xs">
+                <Lock className="w-3.5 h-3.5 text-amber-600" />
+                Đã đóng đợt nộp (Hạn chót: {formattedDeadline}) · Đang xét duyệt
+              </span>
+            )}
           </div>
+
           <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
             Phiếu Tự Đánh Giá & 16 Tiêu Chí Điểm Rèn Luyện
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Kỳ đánh giá: <strong className="text-slate-800">{activeTerm.name}</strong> · Bạn có thể tự khai báo, xem chi tiết, sửa hoặc xóa minh chứng trong thời hạn quy định.
+
+          <p className="text-xs text-slate-500 flex items-center gap-2 flex-wrap">
+            <span>Học kỳ: <strong className="text-slate-800 font-bold">{activeTerm.name}</strong></span>
+            <span>•</span>
+            <span>
+              {isSubmissionOpen
+                ? 'Bạn được phép khai báo, xem chi tiết, sửa hoặc xóa minh chứng chưa phê duyệt.'
+                : 'Minh chứng đã được chốt để Cán bộ Khoa và Hội đồng tiến hành xét duyệt.'}
+            </span>
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 w-full sm:w-auto">
+        <div className="flex items-center gap-2.5 w-full sm:w-auto shrink-0">
           <Link
             to="/regulations/ask"
-            className="flex-1 sm:flex-initial text-center px-4 py-2.5 bg-blue-50 hover:bg-blue-100 text-[#1d6fc2] font-bold text-xs rounded-xl border border-blue-200 transition"
+            className="flex-1 sm:flex-initial text-center px-4 py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition"
           >
             Hỏi đáp AI Quy chế
           </Link>
@@ -222,96 +245,95 @@ export const CriteriaView: React.FC = () => {
               + Nộp minh chứng mới
             </Link>
           ) : (
-            <div className="flex-1 sm:flex-initial text-center px-4 py-2.5 bg-slate-100 text-slate-400 font-bold text-xs rounded-xl border border-slate-200 cursor-not-allowed">
-              🔒 Đã hết hạn nộp
+            <div className="flex-1 sm:flex-initial text-center px-3.5 py-2.5 bg-slate-100 text-slate-500 font-bold text-xs rounded-xl border border-slate-200 flex items-center justify-center gap-1.5 cursor-not-allowed">
+              <Lock className="w-3.5 h-3.5 text-slate-400" />
+              <span>Đã khóa nộp hồ sơ</span>
             </div>
           )}
         </div>
       </div>
 
-      {/* 2. Banner Trạng Thái Thời Hạn Đợt Đánh Giá */}
-      <div
-        className={`p-4.5 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs ${
-          isSubmissionOpen
-            ? 'bg-gradient-to-r from-emerald-50/80 via-teal-50/50 to-blue-50/80 border-emerald-200/90 text-emerald-950'
-            : 'bg-gradient-to-r from-amber-50/90 via-orange-50/60 to-slate-50/90 border-amber-300 text-amber-950'
-        }`}
-      >
-        <div className="flex items-center gap-3">
-          <div
-            className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-              isSubmissionOpen ? 'bg-emerald-600 text-white' : 'bg-amber-600 text-white'
-            }`}
-          >
-            {isSubmissionOpen ? <Unlock className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-extrabold text-sm">
-                {isSubmissionOpen
-                  ? 'GIAI ĐOẠN ĐANG MỞ: TỰ ĐÁNH GIÁ & NỘP MINH CHỨNG'
-                  : 'GIAI ĐOẠN ĐÃ ĐÓNG: HỆ THỐNG ĐANG XÉT DUYỆT'}
-              </span>
-              <span
-                className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase ${
-                  isSubmissionOpen ? 'bg-emerald-200 text-emerald-900' : 'bg-amber-200 text-amber-900'
-                }`}
-              >
-                {activeTerm.status}
-              </span>
+      {/* 2. Thống Kê Điểm Rèn Luyện (Cards phong cách Dashboard hiện đại) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Card 1: AI / Tự đánh giá */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs hover:shadow-sm transition space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500">
+              Điểm tự khai báo / AI đề xuất
+            </span>
+            <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#1d6fc2] flex items-center justify-center">
+              <Sparkles className="w-4 h-4" />
             </div>
-            <p className="text-xs opacity-90 mt-0.5">
-              {isSubmissionOpen
-                ? `Hạn chót tự khai báo và điều chỉnh hồ sơ: ${formattedDeadline}. Bạn được phép thêm, sửa hoặc xóa minh chứng chưa phê duyệt.`
-                : `Hạn nộp hồ sơ đã kết thúc (${formattedDeadline}). Bảng điểm và minh chứng đã được khóa để Cán bộ Khoa và Hội đồng đánh giá.`}
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-3xl font-black text-[#1d6fc2] font-mono tracking-tight">
+              {totalAiScore.toFixed(1)}
+            </span>
+            <span className="text-xs text-slate-400 font-bold">/ 100 điểm</span>
+          </div>
+          <div className="space-y-1">
+            <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+              <div
+                className="bg-[#1d6fc2] h-1.5 rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(100, Math.max(0, totalAiScore))}%` }}
+              />
+            </div>
+            <p className="text-[11px] text-slate-400 font-medium pt-0.5">
+              Quy đổi theo quy chế bậc thang Rule Engine
             </p>
           </div>
         </div>
 
-        <div className="text-right shrink-0">
-          <span className="text-[11px] block font-semibold opacity-75">Hạn chót nộp hồ sơ</span>
-          <span className="text-sm font-black font-mono">{formattedDeadline}</span>
-        </div>
-      </div>
-
-      {/* 3. Thống Kê Tổng Điểm Rèn Luyện */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-        <div className="bg-white border border-slate-200 rounded-2xl p-4.5 shadow-sm space-y-1">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-            Điểm tự khai báo / AI đề xuất
-          </span>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-[#1d6fc2] font-mono">
-              {totalAiScore.toFixed(1)}
+        {/* Card 2: Điểm duyệt chính thức */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs hover:shadow-sm transition space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500">
+              Điểm Cán bộ duyệt chính thức
             </span>
-            <span className="text-xs text-slate-400 font-semibold">/ 100 điểm</span>
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <CheckCircle className="w-4 h-4" />
+            </div>
           </div>
-          <p className="text-[11px] text-slate-500">Áp dụng bậc thang Rule Engine</p>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-2xl p-4.5 shadow-sm space-y-1">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-            Điểm Cán bộ đã duyệt chính thức
-          </span>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-emerald-700 font-mono">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-3xl font-black text-emerald-700 font-mono tracking-tight">
               {totalOfficialScore.toFixed(1)}
             </span>
-            <span className="text-xs text-slate-400 font-semibold">/ 100 điểm</span>
+            <span className="text-xs text-slate-400 font-bold">/ 100 điểm</span>
           </div>
-          <p className="text-[11px] text-slate-500">Điểm số có giá trị pháp lý học kỳ</p>
+          <div className="space-y-1">
+            <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+              <div
+                className="bg-emerald-600 h-1.5 rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(100, Math.max(0, totalOfficialScore))}%` }}
+              />
+            </div>
+            <p className="text-[11px] text-slate-400 font-medium pt-0.5">
+              Điểm số chính thức có giá trị pháp lý học kỳ
+            </p>
+          </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-2xl p-4.5 shadow-sm space-y-1">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-            Xếp loại rèn luyện tạm tính
-          </span>
-          <div className="flex items-center gap-2 mt-1">
-            <span className={`px-3 py-1 rounded-xl text-sm font-black border ${currentRating.color}`}>
+        {/* Card 3: Xếp loại tạm tính */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs hover:shadow-sm transition space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500">
+              Xếp loại rèn luyện kết quả
+            </span>
+            <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+              <Award className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5 pt-0.5">
+            <span className={`px-3.5 py-1.5 rounded-xl text-base font-black border ${currentRating.color}`}>
               {currentRating.label}
             </span>
+            <span className="text-xs text-slate-400 font-medium">
+              (Thang điểm ĐHBK)
+            </span>
           </div>
-          <p className="text-[11px] text-slate-500">Quy chế ĐRL Trường ĐH Bách Khoa</p>
+          <p className="text-[11px] text-slate-400 font-medium pt-1.5">
+            ≥90: Xuất sắc · ≥80: Tốt · ≥65: Khá · ≥50: TB
+          </p>
         </div>
       </div>
 

@@ -116,7 +116,7 @@ export const AppLayout: React.FC = () => {
       {
         title: 'QUY CHẾ & HỖ TRỢ',
         items: [
-          { label: 'Tra cứu Quy chế 16 tiêu chí', path: '/student/criteria' },
+          { label: 'Phiếu đánh giá 16 tiêu chí', path: '/student/criteria' },
           { label: 'Trợ lý Hỏi đáp Quy chế AI', path: '/regulations/ask' },
         ],
       },
@@ -136,8 +136,8 @@ export const AppLayout: React.FC = () => {
       else if (p.includes('/supplement')) crumbs.push({ label: 'Danh sách minh chứng', path: '/student/evidence' }, { label: 'Bổ sung hồ sơ' });
       else if (p.startsWith('/student/evidence/')) crumbs.push({ label: 'Danh sách minh chứng', path: '/student/evidence' }, { label: 'Chi tiết hồ sơ' });
       else if (p === '/student/scores') crumbs.push({ label: 'Bảng điểm chi tiết' });
-      else if (p === '/student/what-can-i-claim') crumbs.push({ label: 'Tiêu chí & Cơ hội tích điểm', path: '/student/criteria' });
-      else if (p === '/student/criteria') crumbs.push({ label: 'Tiêu chí & Cơ hội tích điểm' });
+      else if (p === '/student/what-can-i-claim') crumbs.push({ label: 'Phiếu tự đánh giá 16 tiêu chí', path: '/student/criteria' });
+      else if (p === '/student/criteria') crumbs.push({ label: 'Phiếu tự đánh giá 16 tiêu chí' });
       else if (p === '/student/appeals') crumbs.push({ label: 'Khiếu nại điểm' });
     } else if (p.startsWith('/officer')) {
       crumbs.push({ label: 'Cán bộ', path: '/officer' });
