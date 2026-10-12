@@ -5,7 +5,19 @@ import { apiClient } from '../../lib/apiClient';
 import { Evidence } from '../../types';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { ScoreGauge } from '../../components/ui/ScoreGauge';
-import { Printer, FileText, X, CheckCircle, ChevronRight, Award } from 'lucide-react';
+import {
+  Printer,
+  FileText,
+  X,
+  CheckCircle,
+  ChevronRight,
+  Award,
+  Calendar,
+  Clock,
+  AlertCircle,
+  Lock,
+  Sparkles,
+} from 'lucide-react';
 
 import { calculateStudentConductScore } from '../../lib/ruleEngine';
 
@@ -24,6 +36,29 @@ export const StudentDashboard: React.FC = () => {
     }
   }, [user?.id, activeTerm.id]);
 
+  // Kiểm tra thời hạn nộp điểm rèn luyện
+  const isSubmissionOpen = useMemo(() => {
+    if (!activeTerm) return false;
+    if (activeTerm.status !== 'ACTIVE') return false;
+    if (activeTerm.submissionDeadline) {
+      return new Date() <= new Date(activeTerm.submissionDeadline);
+    }
+    return true;
+  }, [activeTerm]);
+
+  const formattedDeadline = useMemo(() => {
+    if (!activeTerm?.submissionDeadline) return 'Chưa công bố';
+    try {
+      return new Date(activeTerm.submissionDeadline).toLocaleDateString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      });
+    } catch {
+      return activeTerm.submissionDeadline;
+    }
+  }, [activeTerm]);
+
   // Rule Engine Calculations (Bậc thang & khống chế trần từng khung)
   const { categorySummaries, totalAiScore, totalOfficialScore } = useMemo(() => {
     return calculateStudentConductScore(evidences);
@@ -31,6 +66,20 @@ export const StudentDashboard: React.FC = () => {
 
   const officialScore = totalOfficialScore;
   const pendingScore = Math.max(0, +(totalAiScore - totalOfficialScore).toFixed(1));
+
+  const approvedEvidences = useMemo(() => {
+    return evidences.filter((e) => e.status === 'APPROVED');
+  }, [evidences]);
+
+  const pendingEvidences = useMemo(() => {
+    return evidences.filter(
+      (e) =>
+        e.status === 'NEEDS_HUMAN_REVIEW' ||
+        e.status === 'PLAUSIBLE' ||
+        e.status === 'VERIFIED' ||
+        e.status === 'PROCESSING'
+    );
+  }, [evidences]);
 
   const needsActionEvidences = useMemo(() => {
     return evidences.filter((e) => e.status === 'NEEDS_SUPPLEMENT');
@@ -89,39 +138,60 @@ export const StudentDashboard: React.FC = () => {
   }, [officialScore]);
 
   return (
-    <div className="space-y-6 pb-12">
-      
-      {/* 1. Hero Banner with Soft Gradient & Layered Shadow */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-7 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.05)] flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
+    <div className="space-y-6 pb-12 font-sans">
+      {/* 1. Hero Banner: Thông tin động & Lối tắt nhanh */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-7 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.05)] flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative overflow-hidden">
         <div className="space-y-2 max-w-xl z-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100/90 text-slate-700 border border-slate-200/60">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100/90 text-slate-700 border border-slate-200/60 flex-wrap">
             <span>{activeTerm.name}</span>
             <span className="text-slate-300">·</span>
-            <span className="text-emerald-700 font-bold flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              Đang mở đợt nhận minh chứng
-            </span>
+            {isSubmissionOpen ? (
+              <span className="text-emerald-700 font-bold flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                Đang mở đợt nhận minh chứng (Hạn: {formattedDeadline})
+              </span>
+            ) : (
+              <span className="text-amber-800 font-bold flex items-center gap-1.5">
+                <Lock className="w-3.5 h-3.5 text-amber-600" />
+                Đã đóng đợt nộp (Hạn: {formattedDeadline}) · Đang xét duyệt
+              </span>
+            )}
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-tight">
             Xin chào, {user?.fullName || 'Sinh viên'}
           </h1>
           <p className="text-xs text-slate-500 leading-relaxed">
-            Mã sinh viên: <strong className="text-slate-800 font-bold">{user?.studentCode || '102210001'}</strong> · Khoa Công nghệ Thông tin · Lớp 21TCLC_DT1
+            Mã sinh viên: <strong className="text-slate-800 font-bold">{user?.studentCode || 'Chưa cập nhật'}</strong> · {user?.faculty?.name || (user?.class as any)?.faculty?.name || 'Khoa Công nghệ Thông tin'} · Lớp {(user?.class as any)?.code || (user?.class as any)?.name || '21TCLC_DT1'}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto z-10">
           <Link
-            to="/student/evidence/new"
-            className="flex-1 sm:flex-initial text-center px-4 py-2.5 bg-[#1d6fc2] hover:bg-[#175ea5] active:scale-[0.99] text-white font-bold text-xs rounded-xl shadow-md shadow-blue-600/20 transition cursor-pointer"
+            to="/student/criteria"
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-[#1d6fc2] hover:bg-[#175ea5] active:scale-[0.99] text-white font-bold text-xs rounded-xl shadow-md shadow-blue-600/20 transition cursor-pointer"
           >
-            Nộp minh chứng mới
+            <FileText className="w-3.5 h-3.5" />
+            <span>Phiếu tự đánh giá</span>
           </Link>
+
+          {isSubmissionOpen ? (
+            <Link
+              to="/student/evidence/new"
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-blue-50 hover:bg-blue-100 active:scale-[0.99] text-[#1d6fc2] font-bold text-xs rounded-xl border border-blue-200 transition cursor-pointer"
+            >
+              <span>+ Nộp minh chứng</span>
+            </Link>
+          ) : (
+            <div className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-slate-100 text-slate-400 font-bold text-xs rounded-xl border border-slate-200 cursor-not-allowed">
+              <Lock className="w-3.5 h-3.5 text-slate-400" />
+              <span>Đã khóa nộp</span>
+            </div>
+          )}
 
           <button
             onClick={() => setShowScoreModal(true)}
-            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-white hover:bg-slate-50 active:scale-[0.99] text-slate-700 font-bold text-xs rounded-xl border border-slate-200 shadow-sm transition cursor-pointer"
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-white hover:bg-slate-50 active:scale-[0.99] text-slate-700 font-bold text-xs rounded-xl border border-slate-200 shadow-xs transition cursor-pointer"
           >
             <Printer className="w-3.5 h-3.5 text-slate-500" />
             <span>Bảng điểm & In</span>
@@ -129,7 +199,76 @@ export const StudentDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. Priority Notice (Hồ sơ cần bổ sung) */}
+      {/* 2. Thống Kê Nhanh Hồ Sơ & Hạn Chót (Quick Status Cards) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        {/* Card 1: Hạn chót */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-1">
+          <div className="flex items-center justify-between text-slate-400">
+            <span className="text-[11px] font-bold uppercase tracking-wider">Hạn chót nộp hồ sơ</span>
+            <Calendar className="w-4 h-4 text-slate-500" />
+          </div>
+          <div className="text-lg font-black text-slate-900 font-mono">
+            {formattedDeadline}
+          </div>
+          <p className="text-[11px] text-slate-500 truncate">
+            {isSubmissionOpen ? '🟢 Đợt nộp hồ sơ đang mở' : '🔒 Đã kết thúc nhận hồ sơ'}
+          </p>
+        </div>
+
+        {/* Card 2: Đã duyệt */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-1">
+          <div className="flex items-center justify-between text-emerald-600">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Đã phê duyệt</span>
+            <CheckCircle className="w-4 h-4 text-emerald-600" />
+          </div>
+          <div className="text-lg font-black text-emerald-700 font-mono">
+            {approvedEvidences.length} <span className="text-xs font-normal text-slate-400">hồ sơ</span>
+          </div>
+          <p className="text-[11px] text-slate-500">
+            Ghi nhận: <strong className="text-emerald-700 font-bold">{officialScore} điểm</strong>
+          </p>
+        </div>
+
+        {/* Card 3: Chờ duyệt */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-1">
+          <div className="flex items-center justify-between text-[#1d6fc2]">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Đang chờ duyệt</span>
+            <Clock className="w-4 h-4 text-[#1d6fc2]" />
+          </div>
+          <div className="text-lg font-black text-blue-900 font-mono">
+            {pendingEvidences.length} <span className="text-xs font-normal text-slate-400">hồ sơ</span>
+          </div>
+          <p className="text-[11px] text-slate-500">
+            Dự kiến: <strong className="text-[#1d6fc2] font-bold">+{pendingScore} điểm</strong>
+          </p>
+        </div>
+
+        {/* Card 4: Cần bổ sung */}
+        <div
+          className={`bg-white border rounded-2xl p-4 shadow-xs space-y-1 ${
+            needsActionEvidences.length > 0 ? 'border-amber-300 bg-amber-50/40' : 'border-slate-200/90'
+          }`}
+        >
+          <div className="flex items-center justify-between text-amber-600">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Cần bổ sung</span>
+            <AlertCircle className="w-4 h-4 text-amber-600" />
+          </div>
+          <div className="text-lg font-black text-amber-800 font-mono">
+            {needsActionEvidences.length} <span className="text-xs font-normal text-slate-400">hồ sơ</span>
+          </div>
+          <p className="text-[11px] text-slate-500 truncate">
+            {needsActionEvidences.length > 0 ? (
+              <Link to="/student/evidence" className="text-amber-800 font-bold underline">
+                Bổ sung hồ sơ ngay
+              </Link>
+            ) : (
+              'Không có yêu cầu bổ sung'
+            )}
+          </p>
+        </div>
+      </div>
+
+      {/* 3. Priority Notice (Hồ sơ cần bổ sung chi tiết) */}
       {needsActionEvidences.length > 0 && (
         <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="space-y-1">
@@ -149,7 +288,7 @@ export const StudentDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* 3. Milestone Tracker Card (Thanh mốc xếp loại điểm rèn luyện) */}
+      {/* 4. Milestone Tracker Card (Thanh mốc xếp loại điểm rèn luyện) */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.05)] space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
           <div>
@@ -220,14 +359,13 @@ export const StudentDashboard: React.FC = () => {
             )}
           </p>
 
-          {rankInfo.nextRank && (
-            <Link
-              to="/student/what-can-i-claim"
-              className="px-3 py-1.5 bg-[#1d6fc2] hover:bg-[#175ea5] text-white font-bold rounded-lg shrink-0 transition shadow-xs text-center"
-            >
-              Xem hoạt động tích điểm ngay
-            </Link>
-          )}
+          <Link
+            to="/student/criteria"
+            className="px-3.5 py-1.5 bg-[#1d6fc2] hover:bg-[#175ea5] text-white font-bold rounded-lg shrink-0 transition shadow-xs text-center inline-flex items-center gap-1.5"
+          >
+            <span>Mở Phiếu tự đánh giá</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
         </div>
       </div>
 
