@@ -97,6 +97,7 @@ export const AppRoutes: React.FC = () => {
           <Route path="evidence/:id" element={<EvidenceDetail />} />
           <Route path="evidence/:id/supplement" element={<SupplementEvidence />} />
           <Route path="criteria" element={<CriteriaView />} />
+          <Route path="appeals" element={<Appeals />} />
           <Route path="what-can-i-claim" element={<Navigate to="/student/criteria" replace />} />
           <Route path="scores" element={<ScoreReport />} />
         </Route>
