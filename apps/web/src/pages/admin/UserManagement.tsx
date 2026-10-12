@@ -16,7 +16,9 @@ import {
   X, 
   Check, 
   Edit3,
-  UserCheck
+  UserCheck,
+  ChevronDown,
+  SlidersHorizontal
 } from 'lucide-react';
 
 export const UserManagement: React.FC = () => {
@@ -107,7 +109,7 @@ export const UserManagement: React.FC = () => {
       // 3. Class Filter
       if (selectedClass !== 'ALL' && u.classId !== selectedClass) return false;
 
-      // 4. Search Filter (Name, Email, Student Code)
+      // 4. Search Filter (Name, Email, Student Code, Class Code)
       if (searchTerm.trim()) {
         const query = searchTerm.toLowerCase().trim();
         const matchName = u.fullName.toLowerCase().includes(query);
@@ -131,6 +133,18 @@ export const UserManagement: React.FC = () => {
     const locked = total - active;
     return { total, students, staff, admins, active, locked };
   }, [users]);
+
+  // Active filters count
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (selectedFaculty !== 'ALL') count++;
+    if (selectedClass !== 'ALL') count++;
+    if (selectedRole !== 'ALL') count++;
+    if (searchTerm.trim() !== '') count++;
+    return count;
+  }, [selectedFaculty, selectedClass, selectedRole, searchTerm]);
+
+  const isFilterActive = activeFiltersCount > 0;
 
   // Toggle user active status
   const handleToggleActive = async (id: string, currentActive: boolean) => {
@@ -208,7 +222,6 @@ export const UserManagement: React.FC = () => {
 
       const created = await apiClient.createUser(payload);
       
-      // Enrich with local class/faculty object if needed
       const enrichedUser: User = {
         ...created,
         class: classes.find(c => c.id === payload.classId),
@@ -271,8 +284,6 @@ export const UserManagement: React.FC = () => {
     }
   };
 
-  const isFilterActive = selectedFaculty !== 'ALL' || selectedClass !== 'ALL' || selectedRole !== 'ALL' || searchTerm.trim() !== '';
-
   return (
     <div className="space-y-6 pb-12">
       
@@ -287,7 +298,7 @@ export const UserManagement: React.FC = () => {
             Quản trị Người dùng theo Khoa & Lớp
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Phân bổ cơ cấu trường cấp: Sinh viên theo Lớp sinh hoạt, Cán bộ theo Khoa phụ trách xét duyệt.
+            Cơ cấu tổ chức trường cấp: Sinh viên theo Lớp sinh hoạt, Cán bộ theo Khoa phụ trách thẩm định.
           </p>
         </div>
 
@@ -314,18 +325,21 @@ export const UserManagement: React.FC = () => {
 
       {/* 2. KPI Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs">
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs hover:border-slate-300 transition">
           <div className="flex items-center justify-between text-slate-400 mb-1">
             <span className="text-[11px] font-bold uppercase tracking-wider">Tổng tài khoản</span>
             <Users className="w-4 h-4 text-blue-500" />
           </div>
           <div className="text-2xl font-black text-slate-900">{stats.total}</div>
-          <div className="text-[11px] text-slate-500 mt-0.5">
-            {stats.active} hoạt động · {stats.locked} bị khóa
+          <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            <span>{stats.active} hoạt động</span>
+            <span className="text-slate-300">·</span>
+            <span>{stats.locked} bị khóa</span>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs">
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs hover:border-slate-300 transition">
           <div className="flex items-center justify-between text-slate-400 mb-1">
             <span className="text-[11px] font-bold uppercase tracking-wider">Sinh viên</span>
             <GraduationCap className="w-4 h-4 text-emerald-500" />
@@ -336,7 +350,7 @@ export const UserManagement: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs">
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs hover:border-slate-300 transition">
           <div className="flex items-center justify-between text-slate-400 mb-1">
             <span className="text-[11px] font-bold uppercase tracking-wider">Cán bộ Khoa</span>
             <Building2 className="w-4 h-4 text-sky-500" />
@@ -347,7 +361,7 @@ export const UserManagement: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs">
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs hover:border-slate-300 transition">
           <div className="flex items-center justify-between text-slate-400 mb-1">
             <span className="text-[11px] font-bold uppercase tracking-wider">Quản trị viên</span>
             <ShieldCheck className="w-4 h-4 text-purple-500" />
@@ -359,100 +373,196 @@ export const UserManagement: React.FC = () => {
         </div>
       </div>
 
-      {/* 3. Cascading Smart Filters Bar */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-            <Filter className="w-4 h-4 text-[#1d6fc2]" />
-            <span>Bộ lọc Phân tầng Cơ cấu Tổ chức</span>
+      {/* 3. Unified Search & Intelligent Filter Console */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs p-4 sm:p-5 space-y-4">
+        
+        {/* Top: Primary Prominent Search Bar */}
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+          <div className="relative flex-1 group">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors group-focus-within:text-[#1d6fc2]" />
+            <input
+              type="text"
+              placeholder="Tìm kiếm nhanh theo Họ và tên, Email, MSSV hoặc Mã lớp..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-slate-50 hover:bg-slate-100/60 focus:bg-white border border-slate-200/90 rounded-xl pl-10 pr-24 py-2.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 transition-all focus:outline-none focus:border-[#1d6fc2] focus:ring-4 focus:ring-blue-500/10"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-12 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-200/60 transition cursor-pointer"
+                title="Xóa tìm kiếm"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-slate-200/70 text-[10px] font-mono text-slate-500 font-bold">
+              ⌘K
+            </div>
           </div>
 
+          {/* Quick Clear All Button */}
           {isFilterActive && (
             <button
               onClick={handleResetFilters}
-              className="text-xs text-[#1d6fc2] hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-rose-200/80 bg-rose-50/70 hover:bg-rose-100/80 text-rose-700 text-xs font-bold transition cursor-pointer shrink-0"
             >
               <X className="w-3.5 h-3.5" />
-              <span>Xóa bộ lọc</span>
+              <span>Xóa bộ lọc ({activeFiltersCount})</span>
             </button>
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* Middle: Role Segmented Pills & Organization Dropdowns */}
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 pt-3 border-t border-slate-100">
           
-          {/* Faculty Selector */}
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-              1. Khoa / Viện phụ trách
-            </label>
-            <select
-              value={selectedFaculty}
-              onChange={(e) => handleFacultyFilterChange(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-            >
-              <option value="ALL">Tất cả các Khoa ({faculties.length})</option>
-              {faculties.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name} ({f.code})
-                </option>
-              ))}
-            </select>
+          {/* Role Segmented Buttons */}
+          <div className="flex items-center p-1 bg-slate-100/90 rounded-xl overflow-x-auto max-w-full gap-1 border border-slate-200/60">
+            {[
+              { id: 'ALL', label: 'Tất cả', count: stats.total },
+              { id: 'STUDENT', label: 'Sinh viên', count: stats.students, icon: GraduationCap },
+              { id: 'STAFF', label: 'Cán bộ Khoa', count: stats.staff, icon: Building2 },
+              { id: 'ADMIN', label: 'Quản trị viên', count: stats.admins, icon: ShieldCheck },
+            ].map((tab) => {
+              const Icon = tab.icon;
+              const isSelected = selectedRole === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setSelectedRole(tab.id)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+                    isSelected
+                      ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                  }`}
+                >
+                  {Icon && <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-[#1d6fc2]' : 'text-slate-400'}`} />}
+                  <span>{tab.label}</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                    isSelected ? 'bg-blue-50 text-[#1d6fc2]' : 'bg-slate-200/70 text-slate-500'
+                  }`}>
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
-          {/* Class Selector (Dependent on Faculty) */}
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-              2. Lớp sinh hoạt
-            </label>
-            <select
-              value={selectedClass}
-              onChange={(e) => setSelectedClass(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-            >
-              <option value="ALL">Tất cả các Lớp ({availableClassesInFilter.length})</option>
-              {availableClassesInFilter.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.code} · {c.cohort} ({c.name})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Role Selector */}
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-              3. Vai trò (Role)
-            </label>
-            <select
-              value={selectedRole}
-              onChange={(e) => setSelectedRole(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-            >
-              <option value="ALL">Tất cả vai trò</option>
-              <option value="STUDENT">Sinh viên (STUDENT)</option>
-              <option value="STAFF">Cán bộ Khoa (STAFF)</option>
-              <option value="ADMIN">Quản trị viên (ADMIN)</option>
-            </select>
-          </div>
-
-          {/* Search Box */}
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-              4. Tìm kiếm nhanh
-            </label>
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Họ tên, email, MSSV..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8.5 pr-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-slate-400"
-              />
+          {/* Cascading Faculty & Class Selectors */}
+          <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+            
+            {/* Faculty Selector Pill */}
+            <div className="relative inline-flex items-center flex-1 sm:flex-initial">
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                <Building2 className="w-3.5 h-3.5 text-[#1d6fc2]" />
+              </div>
+              <select
+                value={selectedFaculty}
+                onChange={(e) => handleFacultyFilterChange(e.target.value)}
+                className="w-full sm:w-auto pl-8.5 pr-8 py-1.5 text-xs font-bold text-slate-800 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer appearance-none transition"
+              >
+                <option value="ALL">Khoa: Tất cả ({faculties.length})</option>
+                {faculties.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name} ({f.code})
+                  </option>
+                ))}
+              </select>
+              <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                <ChevronDown className="w-3.5 h-3.5" />
+              </div>
             </div>
+
+            {/* Class Selector Pill */}
+            <div className="relative inline-flex items-center flex-1 sm:flex-initial">
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                <GraduationCap className="w-3.5 h-3.5 text-emerald-600" />
+              </div>
+              <select
+                value={selectedClass}
+                onChange={(e) => setSelectedClass(e.target.value)}
+                className="w-full sm:w-auto pl-8.5 pr-8 py-1.5 text-xs font-bold text-slate-800 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer appearance-none transition"
+              >
+                <option value="ALL">Lớp: Tất cả ({availableClassesInFilter.length})</option>
+                {availableClassesInFilter.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.code} · {c.cohort}
+                  </option>
+                ))}
+              </select>
+              <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                <ChevronDown className="w-3.5 h-3.5" />
+              </div>
+            </div>
+
           </div>
 
         </div>
+
+        {/* Bottom: Active Filter Chips Bar */}
+        {isFilterActive && (
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 text-xs">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+              <SlidersHorizontal className="w-3 h-3" />
+              Đang lọc:
+            </span>
+
+            {selectedFaculty !== 'ALL' && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200/80 text-blue-800 text-[11px] font-bold">
+                <Building2 className="w-3 h-3 text-[#1d6fc2]" />
+                <span>Khoa: {faculties.find(f => f.id === selectedFaculty)?.name}</span>
+                <button
+                  onClick={() => handleFacultyFilterChange('ALL')}
+                  className="hover:bg-blue-200/60 rounded p-0.5 ml-0.5 cursor-pointer"
+                  title="Bỏ lọc Khoa"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            {selectedClass !== 'ALL' && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200/80 text-emerald-800 text-[11px] font-bold">
+                <GraduationCap className="w-3 h-3 text-emerald-600" />
+                <span>Lớp: {classes.find(c => c.id === selectedClass)?.code}</span>
+                <button
+                  onClick={() => setSelectedClass('ALL')}
+                  className="hover:bg-emerald-200/60 rounded p-0.5 ml-0.5 cursor-pointer"
+                  title="Bỏ lọc Lớp"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            {selectedRole !== 'ALL' && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-50 border border-purple-200/80 text-purple-800 text-[11px] font-bold">
+                <span>Vai trò: {selectedRole === 'STUDENT' ? 'Sinh viên' : selectedRole === 'STAFF' ? 'Cán bộ Khoa' : 'Quản trị viên'}</span>
+                <button
+                  onClick={() => setSelectedRole('ALL')}
+                  className="hover:bg-purple-200/60 rounded p-0.5 ml-0.5 cursor-pointer"
+                  title="Bỏ lọc Vai trò"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            {searchTerm.trim() && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-800 text-[11px] font-bold">
+                <span>Từ khóa: "{searchTerm}"</span>
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="hover:bg-slate-200 rounded p-0.5 ml-0.5 cursor-pointer"
+                  title="Xóa từ khóa"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+          </div>
+        )}
+
       </div>
 
       {/* 4. Users Data Table */}
@@ -502,11 +612,8 @@ export const UserManagement: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredUsers.map((u) => {
-                  // Resolve Faculty display name
                   const facultyName = u.faculty?.name || u.class?.faculty?.name || (u.role === 'ADMIN' ? 'Cấp Trường (P.CTSV)' : 'Chưa phân Khoa');
                   const facultyCode = u.faculty?.code || u.class?.faculty?.code;
-
-                  // Resolve Class display name
                   const classDisplay = u.class ? `${u.class.code} (${u.class.cohort})` : u.role === 'STAFF' ? 'Phụ trách toàn Khoa' : 'Cấp Trường';
 
                   return (
@@ -736,7 +843,6 @@ export const UserManagement: React.FC = () => {
                         value={newFacultyId}
                         onChange={(e) => {
                           setNewFacultyId(e.target.value);
-                          // Auto select first class of this faculty
                           const firstClass = classes.find(c => c.facultyId === e.target.value);
                           if (firstClass) setNewClassId(firstClass.id);
                         }}
