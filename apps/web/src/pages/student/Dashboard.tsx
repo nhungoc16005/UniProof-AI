@@ -381,13 +381,15 @@ export const StudentDashboard: React.FC = () => {
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
             <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-blue-100/80 text-[#1d6fc2] rounded-lg">
-                  <Award className="w-5 h-5" />
-                </div>
+              <div className="flex items-center gap-3">
+                <img
+                  src="/dut-logo.png"
+                  alt="DUT Logo"
+                  className="w-10 h-10 object-contain rounded-xl p-0.5 bg-white border border-slate-200 shadow-xs shrink-0"
+                />
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">Bảng điểm rèn luyện & Truy vết (S09)</h3>
-                  <p className="text-[11px] text-slate-500">Xem trước và in phiếu đánh giá rèn luyện học kỳ {activeTerm.name}</p>
+                  <p className="text-[11px] text-slate-500">Trường Đại học Bách Khoa – ĐH Đà Nẵng · {activeTerm.name}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">

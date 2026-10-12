@@ -41,11 +41,18 @@ export const ScoreReport: React.FC = () => {
       
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Bảng điểm rèn luyện & Truy vết (S09)</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Bảng điểm chi tiết có truy vết căn cứ từng hoạt động và kết quả hậu kiểm trong {activeTerm.name}.
-          </p>
+        <div className="flex items-center gap-3">
+          <img
+            src="/dut-logo.png"
+            alt="DUT Logo"
+            className="w-12 h-12 object-contain rounded-xl p-1 bg-white border border-slate-200 shadow-xs shrink-0"
+          />
+          <div>
+            <h1 className="text-xl font-bold text-slate-900">Bảng điểm rèn luyện & Truy vết (S09)</h1>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Trường Đại học Bách Khoa – ĐH Đà Nẵng · {activeTerm.name}
+            </p>
+          </div>
         </div>
 
         <button

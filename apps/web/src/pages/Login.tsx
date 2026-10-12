@@ -112,14 +112,21 @@ export const Login: React.FC = () => {
         {/* Right Column: Clean Login Form */}
         <div className="flex flex-col justify-center px-1 sm:px-2">
           
-          {/* Header Typography */}
-          <div className="text-center sm:text-left space-y-1 mb-6">
-            <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight leading-snug">
-              Hệ thống Quản lý Điểm Rèn luyện
-            </h1>
-            <p className="text-xs text-slate-400 font-medium">
-              Vui lòng đăng nhập để truy cập Hệ thống
-            </p>
+          {/* Header Typography with Logo */}
+          <div className="flex items-center gap-3.5 mb-6">
+            <img
+              src="/dut-logo.png"
+              alt="Logo Đại học Bách Khoa"
+              className="w-12 h-12 object-contain rounded-xl p-1 bg-white border border-slate-200 shadow-xs shrink-0"
+            />
+            <div className="text-left space-y-0.5">
+              <h1 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight leading-snug">
+                Hệ thống Quản lý Điểm Rèn luyện
+              </h1>
+              <p className="text-[11px] text-slate-500 font-medium">
+                Trường Đại học Bách Khoa – ĐH Đà Nẵng
+              </p>
+            </div>
           </div>
 
           {/* Error Notice */}

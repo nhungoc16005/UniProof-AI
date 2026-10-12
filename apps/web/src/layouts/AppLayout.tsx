@@ -184,15 +184,17 @@ export const AppLayout: React.FC = () => {
             </button>
 
             <Link to="/" className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-[#1d6fc2] text-white flex items-center justify-center font-black text-xs shadow-sm shadow-blue-500/25 tracking-wider">
-                EP
-              </div>
+              <img
+                src="/dut-logo.png"
+                alt="Logo Đại học Bách Khoa"
+                className="w-9 h-9 object-contain rounded-lg border border-slate-200/80 p-0.5 bg-white shadow-xs shrink-0"
+              />
               <div className="flex flex-col">
                 <span className="text-base font-extrabold tracking-tight text-slate-900 leading-tight">
                   Edu<span className="text-[#1d6fc2]">Point</span>
                 </span>
-                <span className="text-[10px] font-medium text-slate-400 hidden sm:block">
-                  Hệ thống Quản lý Điểm Rèn Luyện
+                <span className="text-[10px] font-medium text-slate-500 hidden sm:block">
+                  Đại học Bách Khoa – ĐH Đà Nẵng
                 </span>
               </div>
             </Link>
