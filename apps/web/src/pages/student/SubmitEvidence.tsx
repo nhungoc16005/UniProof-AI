@@ -16,9 +16,12 @@ export const SubmitEvidence: React.FC = () => {
   const [selectedCriterionId, setSelectedCriterionId] = useState<string>('');
 
   useEffect(() => {
+    const queryParamId = new URLSearchParams(window.location.search).get('criterionId');
     apiClient.getCriteria().then((list) => {
       setCriteria(list);
-      if (list.length > 0) {
+      if (queryParamId && list.some((c) => c.id === queryParamId)) {
+        setSelectedCriterionId(queryParamId);
+      } else if (list.length > 0) {
         setSelectedCriterionId(list[0].id);
       }
     });
@@ -77,6 +80,7 @@ export const SubmitEvidence: React.FC = () => {
         participationDate: date,
         criterionId: selectedCriterionId || undefined,
         status: asDraft ? 'DRAFT' : 'SUBMITTED',
+        fileUrls: [fileUrl],
         files: [
           {
             id: `f-${Date.now()}`,
@@ -90,8 +94,9 @@ export const SubmitEvidence: React.FC = () => {
 
       alert(asDraft ? 'Đã lưu bản nháp thành công!' : 'Đã nộp hồ sơ minh chứng thành công!');
       navigate(`/student/evidence/${newEvd.id}`);
-    } catch (err) {
-      alert('Nộp hồ sơ thất bại, vui lòng thử lại');
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.message || 'Nộp hồ sơ thất bại, vui lòng thử lại';
+      alert(`Lỗi: ${Array.isArray(msg) ? msg.join('\n') : msg}`);
     } finally {
       setIsSubmitting(false);
     }

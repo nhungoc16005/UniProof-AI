@@ -22,7 +22,6 @@ import { EvidenceDetail } from './pages/student/EvidenceDetail';
 import { SupplementEvidence } from './pages/student/SupplementEvidence';
 import { CriteriaView } from './pages/student/CriteriaView';
 import { Appeals } from './pages/student/Appeals';
-import { WhatCanIClaim } from './pages/student/WhatCanIClaim';
 import { ScoreReport } from './pages/student/ScoreReport';
 
 // Officer pages (O01 - O10)
@@ -98,8 +97,7 @@ export const AppRoutes: React.FC = () => {
           <Route path="evidence/:id" element={<EvidenceDetail />} />
           <Route path="evidence/:id/supplement" element={<SupplementEvidence />} />
           <Route path="criteria" element={<CriteriaView />} />
-          <Route path="appeals" element={<Appeals />} />
-          <Route path="what-can-i-claim" element={<WhatCanIClaim />} />
+          <Route path="what-can-i-claim" element={<Navigate to="/student/criteria" replace />} />
           <Route path="scores" element={<ScoreReport />} />
         </Route>
 
