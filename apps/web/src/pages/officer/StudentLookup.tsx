@@ -18,6 +18,7 @@ import {
   Edit3,
   Trash2
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { apiClient } from '../../lib/apiClient';
 import { Evidence, User, Class } from '../../types';
 import { useAuth } from '../../context/AuthContext';
@@ -174,6 +175,31 @@ export const StudentLookup: React.FC = () => {
     });
   }, [classData, selectedRankFilter, searchTerm]);
 
+  // Xuất Bảng điểm Lớp ra file Excel (.xlsx) chuẩn ĐHBK
+  const handleExportExcel = () => {
+    if (!classData?.students || classData.students.length === 0) {
+      alert('Không có dữ liệu sinh viên trong lớp để xuất.');
+      return;
+    }
+
+    const rows = filteredStudents.map((st: any, idx: number) => ({
+      'STT': idx + 1,
+      'Mã sinh viên': st.studentCode || '—',
+      'Họ và tên': st.fullName,
+      'Email': st.email,
+      'Điểm rèn luyện': st.score ?? 0,
+      'Xếp loại': st.classification || 'CHƯA ĐÁNH GIÁ',
+      'Số minh chứng đã nộp': st.evidenceCount ?? 0,
+      'Hồ sơ đã duyệt': st.approvedCount ?? 0,
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'BangDiem');
+    const fileName = `BangDiem_RenLuyen_${classData?.class?.code || 'Lop'}_${activeTerm?.code || 'Term'}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+  };
+
   // Handle Add Student to Class
   const handleAddStudentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -245,6 +271,15 @@ export const StudentLookup: React.FC = () => {
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Tiếp nhận sinh viên</span>
+              </button>
+
+              <button
+                onClick={handleExportExcel}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-600/20 transition cursor-pointer"
+                title="Xuất bảng điểm lớp ra định dạng Excel .xlsx"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                <span>Xuất Excel (.xlsx)</span>
               </button>
 
               <button
@@ -808,6 +843,14 @@ export const StudentLookup: React.FC = () => {
               </div>
 
               <div className="flex items-center gap-2">
+                <button
+                  onClick={handleExportExcel}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm transition cursor-pointer"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span>Xuất Excel (.xlsx)</span>
+                </button>
+
                 <button
                   onClick={() => window.print()}
                   className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#1d6fc2] hover:bg-[#175ea5] text-white font-bold text-xs rounded-lg shadow-sm transition cursor-pointer"

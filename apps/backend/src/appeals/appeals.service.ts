@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { CreateAppealDto, ResolveAppealDto } from './dto/appeal.dto';
-import { AppealStatus, EvidenceStatus, Role } from '@prisma/client';
+import { AppealStatus, EvidenceStatus, ReviewDecision, Role } from '@prisma/client';
 
 @Injectable()
 export class AppealsService {
@@ -110,12 +110,69 @@ export class AppealsService {
         },
       });
 
-      // 2. Nếu chấp thuận (ACCEPTED) -> Mở lại hồ sơ đưa vào hàng đợi duyệt
+      // 2. Nếu chấp thuận (ACCEPTED) -> Phê duyệt hồ sơ và cập nhật điểm hoặc mở lại kiểm duyệt
       if (dto.status === AppealStatus.ACCEPTED) {
-        await tx.evidence.update({
-          where: { id: appeal.evidenceId },
-          data: { status: EvidenceStatus.NEEDS_HUMAN_REVIEW },
-        });
+        if (dto.adjustedScore !== undefined && dto.adjustedScore !== null && dto.adjustedScore > 0) {
+          // Cán bộ chốt trực tiếp số điểm mới được duyệt:
+          await tx.evidence.update({
+            where: { id: appeal.evidenceId },
+            data: { status: EvidenceStatus.APPROVED },
+          });
+
+          await tx.review.create({
+            data: {
+              evidenceId: appeal.evidenceId,
+              reviewerId: officer.id,
+              decision: ReviewDecision.SCORE_ADJUSTED,
+              finalScore: dto.adjustedScore,
+              reason: `Chấp thuận khiếu nại: ${dto.resolutionNote.trim()}`,
+            },
+          });
+
+          // Cập nhật ConductScore cho sinh viên
+          const currentScore = await tx.conductScore.findUnique({
+            where: {
+              studentId_termId: {
+                studentId: appeal.studentId,
+                termId: appeal.evidence.termId,
+              },
+            },
+          });
+
+          const pointsToAdd = dto.adjustedScore;
+          const newTotal = Math.min(100.0, (currentScore?.totalScore || 0) + pointsToAdd);
+
+          let classification = 'YẾU';
+          if (newTotal >= 90) classification = 'XUẤT SẮC';
+          else if (newTotal >= 80) classification = 'TỐT';
+          else if (newTotal >= 65) classification = 'KHÁ';
+          else if (newTotal >= 50) classification = 'TRUNG BÌNH';
+
+          await tx.conductScore.upsert({
+            where: {
+              studentId_termId: {
+                studentId: appeal.studentId,
+                termId: appeal.evidence.termId,
+              },
+            },
+            update: {
+              totalScore: newTotal,
+              classification,
+            },
+            create: {
+              studentId: appeal.studentId,
+              termId: appeal.evidence.termId,
+              totalScore: newTotal,
+              classification,
+            },
+          });
+        } else {
+          // Trả về hàng đợi cán bộ duyệt lại
+          await tx.evidence.update({
+            where: { id: appeal.evidenceId },
+            data: { status: EvidenceStatus.NEEDS_HUMAN_REVIEW },
+          });
+        }
       } else {
         // Bác đơn -> Trả về trạng thái cũ REJECTED
         await tx.evidence.update({

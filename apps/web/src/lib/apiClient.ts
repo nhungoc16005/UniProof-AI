@@ -363,6 +363,11 @@ export const apiClient = {
     return res.data.data;
   },
 
+  async bulkImportUsers(users: any[]): Promise<{ total: number; importedCount: number; updatedCount: number; errorCount: number; errors: string[] }> {
+    const res = await http.post('/users/import', { users });
+    return res.data.data;
+  },
+
   async deleteUser(id: string): Promise<any> {
     const res = await http.delete(`/users/${id}`);
     return res.data.data;

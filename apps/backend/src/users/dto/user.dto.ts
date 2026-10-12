@@ -69,3 +69,49 @@ export class UpdateUserDto {
   @IsEmail({}, { message: 'Email không đúng định dạng' })
   email?: string;
 }
+
+export class ImportUserRowDto {
+  @ApiProperty({ example: 'Nguyễn Văn A' })
+  @IsString()
+  @IsNotEmpty()
+  fullName: string;
+
+  @ApiProperty({ example: 'sv.cntt@sv.dut.udn.vn' })
+  @IsEmail({}, { message: 'Email không đúng định dạng' })
+  email: string;
+
+  @ApiPropertyOptional({ example: '102210001' })
+  @IsOptional()
+  @IsString()
+  studentCode?: string;
+
+  @ApiPropertyOptional({ enum: Role, example: Role.STUDENT })
+  @IsOptional()
+  role?: Role;
+
+  @ApiPropertyOptional({ description: 'Mã lớp (VD: 21TCLC_DT1)' })
+  @IsOptional()
+  @IsString()
+  classCode?: string;
+
+  @ApiPropertyOptional({ description: 'ID Lớp học' })
+  @IsOptional()
+  @IsString()
+  classId?: string;
+
+  @ApiPropertyOptional({ description: 'Mã khoa (VD: CNTT)' })
+  @IsOptional()
+  @IsString()
+  facultyCode?: string;
+
+  @ApiPropertyOptional({ description: 'ID Khoa' })
+  @IsOptional()
+  @IsString()
+  facultyId?: string;
+}
+
+export class BulkImportUsersDto {
+  @ApiProperty({ type: [ImportUserRowDto] })
+  users: ImportUserRowDto[];
+}
+

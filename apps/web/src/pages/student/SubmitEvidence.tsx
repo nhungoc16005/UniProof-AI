@@ -21,6 +21,8 @@ export const SubmitEvidence: React.FC = () => {
   const [fileName, setFileName] = useState('giay_chung_nhan_hoat_dong.jpg');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [isDraft, setIsDraft] = useState(false);
+
   // Mẫu các hoạt động nội bộ có sẵn
   const internalActivities = [
     { name: 'Ngày hội Hiến máu Nhân đạo Giọt hồng Bách Khoa 2026', org: 'Đoàn Thanh niên Trường ĐH Bách Khoa', score: 5.0, criteria: 'Tiêu chí 3' },
@@ -40,12 +42,17 @@ export const SubmitEvidence: React.FC = () => {
     const f = e.target.files?.[0];
     if (f) {
       setFileName(f.name);
-      const url = URL.createObjectURL(f);
-      setFileUrl(url);
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        if (evt.target?.result) {
+          setFileUrl(evt.target.result as string);
+        }
+      };
+      reader.readAsDataURL(f);
     }
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (asDraft: boolean = false) => {
     setIsSubmitting(true);
     try {
       const newEvd = await apiClient.createEvidence({
@@ -53,6 +60,7 @@ export const SubmitEvidence: React.FC = () => {
         declaredRole: role,
         evidenceType: evidenceType,
         participationDate: date,
+        status: asDraft ? 'DRAFT' : 'SUBMITTED',
         files: [
           {
             id: `f-${Date.now()}`,
@@ -64,6 +72,7 @@ export const SubmitEvidence: React.FC = () => {
         ],
       });
 
+      alert(asDraft ? 'Đã lưu bản nháp thành công!' : 'Đã nộp hồ sơ minh chứng thành công!');
       navigate(`/student/evidence/${newEvd.id}`);
     } catch (err) {
       alert('Nộp hồ sơ thất bại, vui lòng thử lại');
@@ -330,14 +339,31 @@ export const SubmitEvidence: React.FC = () => {
 
           {/* File Preview */}
           {fileUrl && (
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
-              <div>
-                <div className="text-xs font-bold text-slate-900">{fileName}</div>
-                <div className="text-[11px] text-slate-500 mt-0.5">Tệp đã sẵn sàng phân tích</div>
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-bold text-slate-900">{fileName}</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">Tệp đã sẵn sàng phân tích AI OCR</div>
+                </div>
+                <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 font-semibold text-[11px]">
+                  ✓ Đã tải lên
+                </span>
               </div>
-              <span className="px-2.5 py-1 rounded-full bg-blue-100 text-blue-800 font-semibold text-[11px]">
-                Đã sẵn sàng
-              </span>
+
+              {/* Real Thumbnail Preview */}
+              <div className="border border-slate-200 rounded-xl overflow-hidden bg-white max-h-56 flex items-center justify-center p-2 shadow-2xs">
+                {fileUrl.startsWith('data:image') || fileUrl.includes('unsplash') || fileUrl.endsWith('.jpg') || fileUrl.endsWith('.png') ? (
+                  <img
+                    src={fileUrl}
+                    alt="Xem trước minh chứng"
+                    className="max-h-52 object-contain rounded-lg shadow-2xs"
+                  />
+                ) : (
+                  <div className="py-8 text-center text-xs text-slate-500 font-medium">
+                    📄 Tài liệu PDF / File đính kèm ({fileName})
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -352,7 +378,7 @@ export const SubmitEvidence: React.FC = () => {
             <button
               type="button"
               onClick={handleNext}
-              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm shadow-blue-500/20 transition"
+              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm shadow-blue-500/20 transition cursor-pointer"
             >
               Xem lại và xác nhận
             </button>
@@ -408,22 +434,32 @@ export const SubmitEvidence: React.FC = () => {
             Tôi xin cam đoan minh chứng và thông tin khai báo trên là chính xác. Mọi hành vi làm giả tài liệu sẽ bị xử lý kỷ luật theo quy định của nhà trường.
           </div>
 
-          <div className="flex justify-between pt-4 border-t border-slate-100">
+          <div className="flex justify-between items-center pt-4 border-t border-slate-100">
             <button
               type="button"
               onClick={() => setStep(2)}
-              className="px-4 py-2 text-slate-600 hover:bg-slate-100 text-xs font-semibold rounded-xl transition"
+              className="px-4 py-2 text-slate-600 hover:bg-slate-100 text-xs font-semibold rounded-xl transition cursor-pointer"
             >
               Quay lại
             </button>
-            <button
-              type="button"
-              disabled={isSubmitting}
-              onClick={handleSubmit}
-              className="px-7 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md shadow-blue-500/20 transition disabled:opacity-50"
-            >
-              {isSubmitting ? 'Đang gửi hồ sơ...' : 'Xác nhận và Gửi hồ sơ'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => handleSubmit(true)}
+                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition cursor-pointer"
+              >
+                Lưu bản nháp (DRAFT)
+              </button>
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => handleSubmit(false)}
+                className="px-7 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md shadow-blue-500/20 transition disabled:opacity-50 cursor-pointer"
+              >
+                {isSubmitting ? 'Đang gửi hồ sơ...' : 'Xác nhận và Gửi hồ sơ'}
+              </button>
+            </div>
           </div>
         </div>
       )}

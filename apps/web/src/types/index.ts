@@ -323,6 +323,9 @@ export interface Evidence {
   lockedAt?: string;
   version: number;
 
+  criterionId?: string;
+  criterion?: Criterion;
+
   files: EvidenceFile[];
   ocrResults?: OcrResult[];
   verificationResults?: VerificationResult[];

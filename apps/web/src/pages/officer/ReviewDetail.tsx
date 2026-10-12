@@ -640,70 +640,114 @@ export const ReviewDetail: React.FC = () => {
             </div>
 
             {/* Action Form Submissions */}
-            {activeAction === 'APPROVED' && (
-              <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-3 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-emerald-950">Điểm phê duyệt chính thức:</span>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="number"
-                      step="0.5"
-                      value={finalScoreInput}
-                      onChange={(e) => setFinalScoreInput(parseFloat(e.target.value) || 0)}
-                      className="w-24 p-1.5 border border-emerald-300 rounded font-bold text-center bg-white text-emerald-900 text-sm"
-                    />
-                    <span className="font-bold text-emerald-900">điểm</span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  disabled={isSubmitting}
-                  onClick={() => handleDecisionSubmit('APPROVED')}
-                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-sm transition"
-                >
-                  Xác nhận Duyệt hồ sơ & Ghi điểm
-                </button>
-              </div>
-            )}
+            {activeAction === 'APPROVED' && (() => {
+              const appliedCriterion = evidence?.criterion || evidence?.aiSuggestions?.[0]?.criterion;
+              const maxLimit = appliedCriterion?.maxScore || 10;
+              return (
+                <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-3 text-xs">
+                  {/* Cap Tracker Widget */}
+                  {appliedCriterion && (
+                    <div className="p-2.5 bg-white/90 border border-emerald-200 rounded-lg space-y-1">
+                      <div className="flex items-center justify-between text-emerald-950 font-bold">
+                        <span className="truncate pr-2">Mục áp dụng: {appliedCriterion.name}</span>
+                        <span className="shrink-0 bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded text-[11px] border border-emerald-300">
+                          Trần tối đa: {maxLimit}đ
+                        </span>
+                      </div>
+                      {finalScoreInput > maxLimit && (
+                        <p className="text-[11px] text-amber-700 font-bold pt-0.5">
+                          ⚠️ Cảnh báo: Điểm duyệt ({finalScoreInput}đ) vượt mức trần tối đa quy định ({maxLimit}đ)!
+                        </p>
+                      )}
+                    </div>
+                  )}
 
-            {activeAction === 'SCORE_ADJUSTED' && (
-              <div className="p-4 bg-sky-50/70 border border-sky-200 rounded-xl space-y-3 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-sky-950">Điểm điều chỉnh mới:</span>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="number"
-                      step="0.5"
-                      value={finalScoreInput}
-                      onChange={(e) => setFinalScoreInput(parseFloat(e.target.value) || 0)}
-                      className="w-24 p-1.5 border border-sky-300 rounded font-bold text-center bg-white text-sky-900 text-sm"
-                    />
-                    <span className="font-bold text-sky-900">điểm</span>
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-emerald-950">Điểm phê duyệt chính thức:</span>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        step="0.5"
+                        max={maxLimit}
+                        value={finalScoreInput}
+                        onChange={(e) => setFinalScoreInput(parseFloat(e.target.value) || 0)}
+                        className="w-24 p-1.5 border border-emerald-300 rounded font-bold text-center bg-white text-emerald-900 text-sm"
+                      />
+                      <span className="font-bold text-emerald-900">điểm</span>
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => handleDecisionSubmit('APPROVED')}
+                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-sm transition"
+                  >
+                    Xác nhận Duyệt hồ sơ & Ghi điểm
+                  </button>
                 </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-sky-950 mb-1">
-                    Lý do điều chỉnh điểm:
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={reasonInput}
-                    onChange={(e) => setReasonInput(e.target.value)}
-                    placeholder="VD: Điều chỉnh về mức 3.0đ do đạt giải khuyến khích theo Điều 5."
-                    className="w-full p-2 border border-sky-300 rounded-xl bg-white"
-                    required
-                  />
+              );
+            })()}
+
+            {activeAction === 'SCORE_ADJUSTED' && (() => {
+              const appliedCriterion = evidence?.criterion || evidence?.aiSuggestions?.[0]?.criterion;
+              const maxLimit = appliedCriterion?.maxScore || 10;
+              return (
+                <div className="p-4 bg-sky-50/70 border border-sky-200 rounded-xl space-y-3 text-xs">
+                  {/* Cap Tracker Widget */}
+                  {appliedCriterion && (
+                    <div className="p-2.5 bg-white/90 border border-sky-200 rounded-lg space-y-1">
+                      <div className="flex items-center justify-between text-sky-950 font-bold">
+                        <span className="truncate pr-2">Mục áp dụng: {appliedCriterion.name}</span>
+                        <span className="shrink-0 bg-sky-100 text-sky-800 px-2 py-0.5 rounded text-[11px] border border-sky-300">
+                          Trần tối đa: {maxLimit}đ
+                        </span>
+                      </div>
+                      {finalScoreInput > maxLimit && (
+                        <p className="text-[11px] text-amber-700 font-bold pt-0.5">
+                          ⚠️ Cảnh báo: Điểm sửa ({finalScoreInput}đ) vượt mức trần tối đa ({maxLimit}đ)!
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-sky-950">Điểm điều chỉnh mới:</span>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        step="0.5"
+                        max={maxLimit}
+                        value={finalScoreInput}
+                        onChange={(e) => setFinalScoreInput(parseFloat(e.target.value) || 0)}
+                        className="w-24 p-1.5 border border-sky-300 rounded font-bold text-center bg-white text-sky-900 text-sm"
+                      />
+                      <span className="font-bold text-sky-900">điểm</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-sky-950 mb-1">
+                      Lý do điều chỉnh điểm:
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={reasonInput}
+                      onChange={(e) => setReasonInput(e.target.value)}
+                      placeholder="VD: Điều chỉnh về mức 3.0đ do đạt giải khuyến khích theo Điều 5."
+                      className="w-full p-2 border border-sky-300 rounded-xl bg-white"
+                      required
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => handleDecisionSubmit('SCORE_ADJUSTED')}
+                    className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl shadow-sm transition"
+                  >
+                    Lưu điểm điều chỉnh
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  disabled={isSubmitting}
-                  onClick={() => handleDecisionSubmit('SCORE_ADJUSTED')}
-                  className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl shadow-sm transition"
-                >
-                  Lưu điểm điều chỉnh
-                </button>
-              </div>
-            )}
+              );
+            })()}
 
             {activeAction === 'SUPPLEMENT_REQUESTED' && (
               <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-xl space-y-3 text-xs">
@@ -769,10 +813,35 @@ export const ReviewDetail: React.FC = () => {
                     <option value="REJECT_BASIS_DUPLICATE">Minh chứng đã được nộp và tính điểm ở tiêu chí khác</option>
                   </select>
                 </div>
+
                 <div>
-                  <label className="block font-semibold text-rose-950 mb-1">
-                    Giải thích lý do cụ thể gửi sinh viên:
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-semibold text-rose-950">
+                      Giải thích lý do cụ thể gửi sinh viên:
+                    </label>
+                    <span className="text-[10px] text-rose-700">Chọn mẫu nhanh bên dưới:</span>
+                  </div>
+
+                  {/* 1-click Quick Rejection Reasons */}
+                  <div className="flex flex-wrap gap-1.5 pb-2">
+                    {[
+                      'Minh chứng mờ/không thể đọc rõ nội dung và con dấu xác nhận.',
+                      'Thời gian hoạt động không nằm trong phạm vi học kỳ đánh giá.',
+                      'Họ tên hoặc MSSV trên minh chứng không trùng khớp với hồ sơ.',
+                      'Sai mục tiêu chí đánh giá quy định theo thang điểm 16 mục.',
+                      'Trùng lặp với minh chứng đã được cộng điểm trước đó.',
+                    ].map((tpl, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setReasonInput(tpl)}
+                        className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-white text-rose-800 hover:bg-rose-100 border border-rose-200 transition cursor-pointer shadow-2xs"
+                      >
+                        + {tpl.slice(0, 30)}...
+                      </button>
+                    ))}
+                  </div>
+
                   <textarea
                     rows={2}
                     value={reasonInput}
@@ -782,6 +851,7 @@ export const ReviewDetail: React.FC = () => {
                     required
                   />
                 </div>
+
                 <button
                   type="button"
                   disabled={isSubmitting}

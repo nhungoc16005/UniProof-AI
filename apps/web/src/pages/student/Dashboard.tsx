@@ -279,27 +279,40 @@ export const StudentDashboard: React.FC = () => {
           <div className="space-y-4">
             {categorySummaries.map((c) => {
               const pct = Math.round((c.officialScore / c.maxScore) * 100);
+              const isCapped = c.officialScore >= c.maxScore;
               return (
                 <div key={c.category} className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-slate-800">
-                      {c.name}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-semibold text-slate-800">
+                        {c.name}
+                      </span>
+                      {isCapped && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-200">
+                          ĐÃ ĐẠT TRẦN
+                        </span>
+                      )}
+                    </div>
                     <span className="font-mono text-slate-500">
-                      <strong className="text-slate-900 font-bold">{c.officialScore}</strong> / {c.maxScore} đ
+                      <strong className={`font-bold ${isCapped ? 'text-amber-800' : 'text-slate-900'}`}>{c.officialScore}</strong> / {c.maxScore} đ
                       {c.aiScore > c.officialScore && (
                         <span className="text-[#1d6fc2] ml-1.5 text-[11px] font-semibold">
-                          (Dự kiến AI: {c.aiScore}đ)
+                          (Dự kiến: {c.aiScore}đ)
                         </span>
                       )}
                     </span>
                   </div>
                   <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-[#1d6fc2] rounded-full transition-all duration-300"
+                      className={`h-full rounded-full transition-all duration-300 ${isCapped ? 'bg-amber-500' : 'bg-[#1d6fc2]'}`}
                       style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
                     />
                   </div>
+                  {isCapped && (
+                    <p className="text-[10px] text-amber-700 italic">
+                      Khung này đã đạt điểm tối đa quy định ({c.maxScore}đ). Minh chứng nộp thêm ở khung này sẽ không cộng dồn vào tổng điểm.
+                    </p>
+                  )}
                 </div>
               );
             })}

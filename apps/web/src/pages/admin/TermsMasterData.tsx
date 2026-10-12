@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Term } from '../../types';
 import { apiClient } from '../../lib/apiClient';
-import { Plus, Lock, AlertTriangle, Building } from 'lucide-react';
+import { Plus, Lock, AlertTriangle, Building, X, Calendar } from 'lucide-react';
 
 export const TermsMasterData: React.FC = () => {
   const [terms, setTerms] = useState<Term[]>([]);
@@ -24,17 +24,95 @@ export const TermsMasterData: React.FC = () => {
     loadTerms();
   }, []);
 
-  const handleToggleCloseTerm = async (id: string, currentStatus: string) => {
+  // Modal Tạo kỳ mới
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [formName, setFormName] = useState('');
+  const [formCode, setFormCode] = useState('');
+  const [formStartDate, setFormStartDate] = useState('');
+  const [formEndDate, setFormEndDate] = useState('');
+  const [formSubmissionDeadline, setFormSubmissionDeadline] = useState('');
+  const [formReviewDeadline, setFormReviewDeadline] = useState('');
+  const [formAppealDeadline, setFormAppealDeadline] = useState('');
+  const [formStatus, setFormStatus] = useState<'UPCOMING' | 'ACTIVE' | 'REVIEWING' | 'CLOSED'>('UPCOMING');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleCreateTerm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formName || !formCode) {
+      alert('Vui lòng nhập tên và mã kỳ');
+      return;
+    }
     try {
-      if (currentStatus === 'ACTIVE') {
+      setIsSubmitting(true);
+      await apiClient.createTerm({
+        name: formName.trim(),
+        code: formCode.trim().toUpperCase(),
+        startDate: formStartDate || new Date().toISOString(),
+        endDate: formEndDate || new Date(Date.now() + 120 * 86400000).toISOString(),
+        submissionDeadline: formSubmissionDeadline || new Date(Date.now() + 30 * 86400000).toISOString(),
+        reviewDeadline: formReviewDeadline || new Date(Date.now() + 45 * 86400000).toISOString(),
+        appealDeadline: formAppealDeadline || new Date(Date.now() + 60 * 86400000).toISOString(),
+        status: formStatus,
+      });
+      setShowCreateModal(false);
+      await loadTerms();
+      alert('Đã tạo kỳ đánh giá mới thành công!');
+    } catch (err: any) {
+      console.error('Lỗi tạo kỳ', err);
+      alert(err.response?.data?.message || 'Không thể tạo kỳ đánh giá.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleUpdateStatus = async (id: string, newStatus: any) => {
+    try {
+      if (newStatus === 'CLOSED') {
+        if (!window.confirm('CẢNH BÁO: Khi chốt kỳ (CLOSED), sinh viên không thể nộp thêm minh chứng và điểm sẽ được đóng băng. Bạn có chắc chắn?')) {
+          return;
+        }
         await apiClient.closeTerm(id);
       } else {
-        await apiClient.updateTerm(id, { status: 'ACTIVE' });
+        await apiClient.updateTerm(id, { status: newStatus });
       }
       await loadTerms();
     } catch (err) {
       console.error('Lỗi đổi trạng thái học kỳ', err);
       alert('Không thể cập nhật trạng thái học kỳ.');
+    }
+  };
+
+  const renderStatusBadge = (status: string) => {
+    switch (status) {
+      case 'UPCOMING':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+            <span>Sắp diễn ra (UPCOMING)</span>
+          </span>
+        );
+      case 'ACTIVE':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Mở nộp minh chứng (ACTIVE)</span>
+          </span>
+        );
+      case 'REVIEWING':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+            <span>Đang chấm & khiếu nại (REVIEWING)</span>
+          </span>
+        );
+      case 'CLOSED':
+      default:
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+            <Lock className="w-3 h-3 text-slate-500" />
+            <span>Đã chốt sổ (CLOSED)</span>
+          </span>
+        );
     }
   };
 
@@ -44,13 +122,17 @@ export const TermsMasterData: React.FC = () => {
         <div>
           <h1 className="text-xl font-bold text-slate-900">Dữ liệu nền & Kỳ đánh giá (A03)</h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Cấu hình thời hạn nộp, xét duyệt, khiếu nại và chốt sổ điểm chính thức từng học kỳ.
+            Cấu hình vòng đời 4 bước: Chuẩn bị $\rightarrow$ Mở nộp $\rightarrow$ Chấm & Khiếu nại $\rightarrow$ Chốt sổ điểm chính thức.
           </p>
         </div>
 
         <button
-          onClick={() => alert('Mở form tạo Kỳ đánh giá mới')}
-          className="inline-flex items-center gap-1.5 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs rounded-lg shadow-sm transition"
+          onClick={() => {
+            setFormName('');
+            setFormCode('');
+            setShowCreateModal(true);
+          }}
+          className="inline-flex items-center gap-1.5 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs rounded-xl shadow-sm transition cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           <span>Tạo kỳ đánh giá mới</span>
@@ -96,8 +178,8 @@ export const TermsMasterData: React.FC = () => {
           <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 text-xs text-amber-900 flex items-start gap-2.5">
             <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <div>
-              <strong className="block mb-0.5">Chính sách chốt kỳ (TERM_CLOSED):</strong>
-              Khi chuyển trạng thái sang <strong>CLOSED</strong>, toàn bộ hệ thống sẽ tự động khóa chức năng nộp minh chứng của sinh viên và cố định điểm rèn luyện chính thức của học kỳ đó.
+              <strong className="block mb-0.5">Vòng đời Kỳ học ĐRL chuẩn ĐHBK:</strong>
+              1. <strong>UPCOMING</strong>: Đang chuẩn bị, chưa cho sinh viên nộp · 2. <strong>ACTIVE</strong>: Sinh viên đang nộp minh chứng · 3. <strong>REVIEWING</strong>: Hết hạn SV nộp, Cán bộ đang chấm duyệt & hội đồng giải quyết khiếu nại · 4. <strong>CLOSED</strong>: Khóa toàn bộ dữ liệu, đóng băng điểm chính thức.
             </div>
           </div>
 
@@ -117,7 +199,7 @@ export const TermsMasterData: React.FC = () => {
                       <th className="py-3 px-4">Hạn duyệt Cán bộ</th>
                       <th className="py-3 px-4">Hạn khiếu nại</th>
                       <th className="py-3 px-4">Trạng thái</th>
-                      <th className="py-3 px-4 text-right">Thao tác</th>
+                      <th className="py-3 px-4 text-right">Chuyển vòng đời</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -135,29 +217,19 @@ export const TermsMasterData: React.FC = () => {
                           {t.appealDeadline ? new Date(t.appealDeadline).toLocaleDateString('vi-VN') : '—'}
                         </td>
                         <td className="py-3.5 px-4">
-                          {t.status === 'ACTIVE' ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
-                              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                              <span>Đang mở nhận bài (ACTIVE)</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-200 text-slate-700">
-                              <Lock className="w-3 h-3 text-slate-500" />
-                              <span>Đã chốt sổ (CLOSED)</span>
-                            </span>
-                          )}
+                          {renderStatusBadge(t.status)}
                         </td>
                         <td className="py-3.5 px-4 text-right">
-                          <button
-                            onClick={() => handleToggleCloseTerm(t.id, t.status)}
-                            className={`px-3 py-1.5 rounded-md font-semibold text-xs border transition ${
-                              t.status === 'ACTIVE'
-                                ? 'border-rose-300 text-rose-700 hover:bg-rose-50'
-                                : 'border-emerald-300 text-emerald-700 hover:bg-emerald-50'
-                            }`}
+                          <select
+                            value={t.status}
+                            onChange={(e) => handleUpdateStatus(t.id, e.target.value)}
+                            className="px-2.5 py-1.5 rounded-lg border border-slate-200 font-bold text-[11px] bg-white text-slate-800 shadow-2xs focus:outline-none focus:border-sky-500 cursor-pointer"
                           >
-                            {t.status === 'ACTIVE' ? 'Chốt kỳ' : 'Mở lại kỳ'}
-                          </button>
+                            <option value="UPCOMING">Sắp diễn ra (UPCOMING)</option>
+                            <option value="ACTIVE">Mở nộp SV (ACTIVE)</option>
+                            <option value="REVIEWING">Chấm & khiếu nại (REVIEWING)</option>
+                            <option value="CLOSED">Chốt sổ (CLOSED)</option>
+                          </select>
                         </td>
                       </tr>
                     ))}
@@ -168,6 +240,7 @@ export const TermsMasterData: React.FC = () => {
           </div>
         </div>
       )}
+
 
       {activeTab === 'FACULTIES' && (
         <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm text-xs space-y-3">
@@ -192,6 +265,113 @@ export const TermsMasterData: React.FC = () => {
                 {c}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Modal Tạo kỳ đánh giá mới */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-sky-600" />
+                <h3 className="font-bold text-slate-800 text-sm">Tạo Kỳ Đánh Giá ĐRL Mới</h3>
+              </div>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateTerm} className="py-4 space-y-3.5">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Tên kỳ học *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="VD: Học kỳ 2 (2026-2027)"
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                  className="w-full px-3.5 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-sky-600"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Mã kỳ (Code) *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="VD: 2026_2"
+                    value={formCode}
+                    onChange={(e) => setFormCode(e.target.value)}
+                    className="w-full px-3.5 py-2 text-xs font-mono border border-slate-200 rounded-xl focus:outline-none focus:border-sky-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Trạng thái khởi tạo</label>
+                  <select
+                    value={formStatus}
+                    onChange={(e: any) => setFormStatus(e.target.value)}
+                    className="w-full px-3.5 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-sky-600"
+                  >
+                    <option value="UPCOMING">Sắp diễn ra (UPCOMING)</option>
+                    <option value="ACTIVE">Mở nộp SV ngay (ACTIVE)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Hạn nộp minh chứng (SV)</label>
+                  <input
+                    type="date"
+                    value={formSubmissionDeadline}
+                    onChange={(e) => setFormSubmissionDeadline(e.target.value)}
+                    className="w-full px-3.5 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-sky-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Hạn duyệt (Cán bộ)</label>
+                  <input
+                    type="date"
+                    value={formReviewDeadline}
+                    onChange={(e) => setFormReviewDeadline(e.target.value)}
+                    className="w-full px-3.5 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-sky-600"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Hạn chót khiếu nại</label>
+                <input
+                  type="date"
+                  value={formAppealDeadline}
+                  onChange={(e) => setFormAppealDeadline(e.target.value)}
+                  className="w-full px-3.5 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-sky-600"
+                />
+              </div>
+
+              <div className="pt-3 flex justify-end gap-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 font-bold text-xs rounded-xl hover:bg-slate-50 transition"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl shadow-sm transition"
+                >
+                  {isSubmitting ? 'Đang tạo...' : 'Tạo kỳ đánh giá'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

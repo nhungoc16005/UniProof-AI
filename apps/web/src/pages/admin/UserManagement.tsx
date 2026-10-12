@@ -26,8 +26,14 @@ import {
   School,
   ArrowRight,
   Sparkles,
-  AlertTriangle
+  AlertTriangle,
+  FileSpreadsheet,
+  Download,
+  UploadCloud,
+  CheckCircle2
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
+
 
 export const UserManagement: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
@@ -76,6 +82,126 @@ export const UserManagement: React.FC = () => {
   const [newStudentCode, setNewStudentCode] = useState('');
   const [newFacultyId, setNewFacultyId] = useState('');
   const [newClassId, setNewClassId] = useState('');
+
+  // Bulk Import Modal State
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFileName, setImportFileName] = useState('');
+  const [parsedStudents, setParsedStudents] = useState<any[]>([]);
+  const [importResult, setImportResult] = useState<{ total: number; importedCount: number; updatedCount: number; errorCount: number; errors: string[] } | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState('');
+
+  // Tải file Excel mẫu chuẩn ĐHBK Đà Nẵng
+  const handleDownloadTemplate = () => {
+    const templateData = [
+      {
+        'Mã sinh viên': '102210001',
+        'Họ và tên': 'Nguyễn Văn An',
+        'Email': 'an.nv@sv.dut.udn.vn',
+        'Mã lớp': '21TCLC_DT1',
+        'Mã khoa': 'CNTT',
+        'Vai trò': 'STUDENT',
+      },
+      {
+        'Mã sinh viên': '102210002',
+        'Họ và tên': 'Trần Thị Bình',
+        'Email': 'binh.tt@sv.dut.udn.vn',
+        'Mã lớp': '21TCLC_DT1',
+        'Mã khoa': 'CNTT',
+        'Vai trò': 'STUDENT',
+      },
+      {
+        'Mã sinh viên': '102210003',
+        'Họ và tên': 'Lê Hoàng Cường',
+        'Email': 'cuong.lh@sv.dut.udn.vn',
+        'Mã lớp': '22TCLC_KHDL',
+        'Mã khoa': 'CNTT',
+        'Vai trò': 'STUDENT',
+      },
+    ];
+
+    const ws = XLSX.utils.json_to_sheet(templateData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Mau_SinhVien');
+    XLSX.writeFile(wb, 'Mau_Import_SinhVien_EduPoint.xlsx');
+  };
+
+  // Đọc file Excel tải lên
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImportFileName(file.name);
+    setImportError('');
+    setImportResult(null);
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const rawRows = XLSX.utils.sheet_to_json<any>(ws);
+
+        if (!rawRows || rawRows.length === 0) {
+          setImportError('File không có dữ liệu');
+          setParsedStudents([]);
+          return;
+        }
+
+        // Chuẩn hóa tên cột
+        const normalized = rawRows.map((row) => {
+          const studentCode = row['Mã sinh viên'] || row['MSSV'] || row['studentCode'] || row['MaSV'] || '';
+          const fullName = row['Họ và tên'] || row['Họ tên'] || row['fullName'] || row['HoTen'] || '';
+          const email = row['Email'] || row['email'] || '';
+          const classCode = row['Mã lớp'] || row['Lớp'] || row['classCode'] || row['Lop'] || '';
+          const facultyCode = row['Mã khoa'] || row['Khoa'] || row['facultyCode'] || '';
+          const role = (row['Vai trò'] || row['role'] || 'STUDENT').toUpperCase();
+
+          return {
+            studentCode: studentCode ? String(studentCode).trim() : undefined,
+            fullName: String(fullName).trim(),
+            email: String(email).trim().toLowerCase(),
+            classCode: classCode ? String(classCode).trim() : undefined,
+            facultyCode: facultyCode ? String(facultyCode).trim() : undefined,
+            role: role === 'STAFF' ? 'STAFF' : 'STUDENT',
+          };
+        }).filter(item => item.fullName && item.email);
+
+        if (normalized.length === 0) {
+          setImportError('Không tìm thấy dòng dữ liệu hợp lệ (Cần có Họ tên và Email)');
+          setParsedStudents([]);
+          return;
+        }
+
+        setParsedStudents(normalized);
+      } catch (err: any) {
+        console.error('Lỗi phân tích file Excel', err);
+        setImportError('Không thể đọc file Excel. Vui lòng kiểm tra định dạng.');
+        setParsedStudents([]);
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  // Xác nhận lưu vào hệ thống
+  const handleConfirmImport = async () => {
+    if (parsedStudents.length === 0) return;
+    try {
+      setIsImporting(true);
+      setImportError('');
+      const res = await apiClient.bulkImportUsers(parsedStudents);
+      setImportResult(res);
+      await loadMasterData();
+    } catch (err: any) {
+      console.error('Lỗi import', err);
+      setImportError(err.response?.data?.message || err.message || 'Lỗi khi gửi yêu cầu import');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
 
   // Load initial master data
   const loadMasterData = async () => {
@@ -541,6 +667,21 @@ export const UserManagement: React.FC = () => {
             title="Tải lại dữ liệu"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
+
+          <button
+            onClick={() => {
+              setParsedStudents([]);
+              setImportFileName('');
+              setImportResult(null);
+              setImportError('');
+              setShowImportModal(true);
+            }}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-600/20 transition cursor-pointer"
+            title="Import danh sách người dùng từ file Excel / CSV"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>Import Excel / CSV</span>
           </button>
 
           <button
@@ -1629,6 +1770,157 @@ export const UserManagement: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Modal Import Người dùng từ Excel / CSV */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-150 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-200/60">
+                  <FileSpreadsheet className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-800 text-base">Import Người dùng / Sinh viên hàng loạt</h3>
+                  <p className="text-[11px] text-slate-500">Đọc trực tiếp từ file Excel (.xlsx, .xls) hoặc CSV</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowImportModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto py-4 space-y-4">
+              {/* Bước 1: Tải mẫu */}
+              <div className="bg-blue-50/60 border border-blue-200/60 rounded-xl p-3.5 flex items-center justify-between gap-3">
+                <div className="text-xs text-blue-900">
+                  <span className="font-bold block">Chưa có file mẫu chuẩn của Trường?</span>
+                  <span className="text-[11px] text-blue-700">Tải file mẫu có sẵn cấu trúc cột MSSV, Họ tên, Email, Mã lớp, Mã khoa.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleDownloadTemplate}
+                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-blue-300 text-blue-700 hover:bg-blue-50 font-bold text-xs rounded-lg shadow-2xs transition cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Tải file mẫu .xlsx</span>
+                </button>
+              </div>
+
+              {/* Bước 2: Upload File */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Chọn file danh sách sinh viên (.xlsx, .xls, .csv)
+                </label>
+                <label className="border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer bg-slate-50/50 hover:bg-emerald-50/20 transition group">
+                  <UploadCloud className="w-8 h-8 text-slate-400 group-hover:text-emerald-600 mb-2 transition" />
+                  <span className="text-xs font-bold text-slate-700 group-hover:text-emerald-700">
+                    {importFileName ? importFileName : 'Nhấn để chọn file hoặc kéo thả vào đây'}
+                  </span>
+                  <span className="text-[11px] text-slate-400 mt-0.5">Hỗ trợ Excel và CSV</span>
+                  <input
+                    type="file"
+                    accept=".xlsx, .xls, .csv"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+
+              {/* Lỗi nếu có */}
+              {importError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>{importError}</span>
+                </div>
+              )}
+
+              {/* Kết quả import thành công */}
+              {importResult && (
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs space-y-1.5">
+                  <div className="font-bold flex items-center gap-1.5 text-sm text-emerald-900">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Đã xử lý xong dữ liệu import!</span>
+                  </div>
+                  <div>• Tổng số dòng: <strong>{importResult.total}</strong></div>
+                  <div>• Thêm mới thành công: <strong className="text-emerald-700">{importResult.importedCount}</strong> tài khoản</div>
+                  <div>• Cập nhật thông tin: <strong className="text-blue-700">{importResult.updatedCount}</strong> tài khoản</div>
+                  {importResult.errorCount > 0 && (
+                    <div className="text-amber-700 pt-1">
+                      <div>• Bỏ qua / lỗi: <strong>{importResult.errorCount}</strong> dòng:</div>
+                      <ul className="list-disc list-inside mt-1 max-h-24 overflow-y-auto text-[11px]">
+                        {importResult.errors.map((err, idx) => (
+                          <li key={idx}>{err}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Bước 3: Xem trước dữ liệu (Preview) */}
+              {parsedStudents.length > 0 && !importResult && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-700">
+                      Xem trước ({parsedStudents.length} sinh viên nhận diện)
+                    </span>
+                    <span className="text-[11px] text-slate-400">Hiển thị tối đa 5 dòng đầu</span>
+                  </div>
+                  <div className="border border-slate-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto text-xs">
+                    <table className="w-full text-left">
+                      <thead className="bg-slate-100 text-slate-600 font-bold text-[11px] border-b border-slate-200">
+                        <tr>
+                          <th className="p-2">MSSV</th>
+                          <th className="p-2">Họ và tên</th>
+                          <th className="p-2">Email</th>
+                          <th className="p-2">Lớp</th>
+                          <th className="p-2">Khoa</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {parsedStudents.slice(0, 5).map((row, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50">
+                            <td className="p-2 font-mono font-bold text-slate-700">{row.studentCode || '—'}</td>
+                            <td className="p-2 font-bold text-slate-800">{row.fullName}</td>
+                            <td className="p-2 text-slate-500">{row.email}</td>
+                            <td className="p-2 text-slate-600">{row.classCode || '—'}</td>
+                            <td className="p-2 text-slate-600">{row.facultyCode || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 flex justify-end gap-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowImportModal(false)}
+                className="px-4 py-2 border border-slate-200 text-slate-600 font-bold text-xs rounded-xl hover:bg-slate-50 transition cursor-pointer"
+              >
+                {importResult ? 'Đóng' : 'Hủy'}
+              </button>
+              {parsedStudents.length > 0 && !importResult && (
+                <button
+                  type="button"
+                  onClick={handleConfirmImport}
+                  disabled={isImporting}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>{isImporting ? 'Đang lưu vào hệ thống...' : `Xác nhận Import (${parsedStudents.length} SV)`}</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

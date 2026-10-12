@@ -34,6 +34,13 @@ export class UsersController {
     return this.usersService.findOne(id);
   }
 
+  @Post('import')
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Import người dùng hàng loạt từ Excel / JSON (Chỉ Admin)' })
+  async bulkImport(@Body() dto: { users: any[] }) {
+    return this.usersService.bulkImport(dto);
+  }
+
   @Post()
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Tạo tài khoản người dùng mới (Chỉ Admin)' })

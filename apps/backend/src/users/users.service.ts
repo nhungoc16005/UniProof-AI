@@ -186,4 +186,106 @@ export class UsersService {
 
     return { success: true, message: 'Đã xóa người dùng thành công' };
   }
+
+  async bulkImport(dto: { users: any[] }) {
+    if (!dto.users || !Array.isArray(dto.users) || dto.users.length === 0) {
+      throw new BadRequestException('Danh sách người dùng import không được để trống');
+    }
+
+    const faculties = await this.prisma.faculty.findMany();
+    const classes = await this.prisma.class.findMany();
+
+    const facultyMap = new Map<string, string>(); // code/name lowercase -> id
+    faculties.forEach((f) => {
+      facultyMap.set(f.code.toLowerCase(), f.id);
+      facultyMap.set(f.name.toLowerCase(), f.id);
+      facultyMap.set(f.id, f.id);
+    });
+
+    const classMap = new Map<string, string>(); // code/name lowercase -> id
+    classes.forEach((c) => {
+      classMap.set(c.code.toLowerCase(), c.id);
+      classMap.set(c.name.toLowerCase(), c.id);
+      classMap.set(c.id, c.id);
+    });
+
+    const defaultPasswordHash = await bcrypt.hash('123456', 10);
+    let importedCount = 0;
+    let updatedCount = 0;
+    const errors: string[] = [];
+
+    for (let i = 0; i < dto.users.length; i++) {
+      const row = dto.users[i];
+      const rowIdx = i + 1;
+
+      if (!row.fullName || !row.fullName.trim()) {
+        errors.push(`Dòng ${rowIdx}: Họ tên không được để trống`);
+        continue;
+      }
+      if (!row.email || !row.email.trim()) {
+        errors.push(`Dòng ${rowIdx}: Email không được để trống`);
+        continue;
+      }
+
+      const email = row.email.trim().toLowerCase();
+      const fullName = row.fullName.trim();
+      const studentCode = row.studentCode ? String(row.studentCode).trim() : undefined;
+      const role = row.role || Role.STUDENT;
+
+      let facultyId = row.facultyId;
+      if (!facultyId && row.facultyCode) {
+        facultyId = facultyMap.get(String(row.facultyCode).toLowerCase());
+      }
+
+      let classId = row.classId;
+      if (!classId && row.classCode) {
+        classId = classMap.get(String(row.classCode).toLowerCase());
+      }
+
+      try {
+        // Tìm xem user đã tồn tại chưa bằng email hoặc studentCode
+        let existingUser = await this.prisma.user.findUnique({ where: { email } });
+        if (!existingUser && studentCode) {
+          existingUser = await this.prisma.user.findFirst({ where: { studentCode } });
+        }
+
+        if (existingUser) {
+          await this.prisma.user.update({
+            where: { id: existingUser.id },
+            data: {
+              fullName,
+              studentCode: studentCode || existingUser.studentCode,
+              classId: classId || existingUser.classId,
+              facultyId: facultyId || existingUser.facultyId,
+            },
+          });
+          updatedCount++;
+        } else {
+          await this.prisma.user.create({
+            data: {
+              email,
+              fullName,
+              role,
+              studentCode: studentCode || null,
+              password: defaultPasswordHash,
+              classId: classId || null,
+              facultyId: facultyId || null,
+            },
+          });
+          importedCount++;
+        }
+      } catch (err: any) {
+        errors.push(`Dòng ${rowIdx} (${email}): ${err.message || 'Lỗi lưu dữ liệu'}`);
+      }
+    }
+
+    return {
+      total: dto.users.length,
+      importedCount,
+      updatedCount,
+      errorCount: errors.length,
+      errors,
+    };
+  }
 }
+
