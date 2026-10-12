@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { Bell, Calendar } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiClient } from '../lib/apiClient';
 import { Notification } from '../types';
@@ -187,7 +188,7 @@ export const AppLayout: React.FC = () => {
               <img
                 src="/dut-logo.png"
                 alt="Logo Đại học Bách Khoa"
-                className="w-9 h-9 object-contain rounded-lg border border-slate-200/80 p-0.5 bg-white shadow-xs shrink-0"
+                className="w-9 h-9 object-contain shrink-0"
               />
               <div className="flex flex-col">
                 <span className="text-base font-extrabold tracking-tight text-slate-900 leading-tight">
@@ -204,42 +205,51 @@ export const AppLayout: React.FC = () => {
           <div className="flex items-center gap-2 sm:gap-3">
             
             {/* Term Selector */}
-            <div className="hidden md:flex items-center gap-1.5 px-3 py-1 bg-slate-50 border border-slate-200/90 rounded-lg text-xs font-medium text-slate-600 shadow-sm">
-              <span className="text-slate-400">Kỳ:</span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200/90 rounded-xl text-xs font-medium text-slate-700 shadow-xs transition">
+              <Calendar className="w-3.5 h-3.5 text-[#1d6fc2] shrink-0" />
               <select
                 value={activeTerm?.id}
                 onChange={(e) => {
                   const t = terms.find((item) => item.id === e.target.value);
                   if (t) switchTerm(t);
                 }}
-                className="bg-transparent border-none text-slate-900 font-semibold focus:outline-none cursor-pointer text-xs"
+                className="bg-transparent border-none text-slate-900 font-bold focus:outline-none cursor-pointer text-xs max-w-[125px] sm:max-w-none truncate"
+                title="Chọn kỳ học đánh giá"
               >
-                {terms.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
+                {terms.length > 0 ? (
+                  terms.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} {t.status === 'ACTIVE' ? '(Hiện tại)' : ''}
+                    </option>
+                  ))
+                ) : (
+                  <option value={activeTerm?.id || ''}>
+                    {activeTerm?.name || 'Học kỳ 1 (2026-2027)'}
                   </option>
-                ))}
+                )}
               </select>
             </div>
 
             {/* User Official Role Badge */}
-            <div className="flex items-center px-3 py-1 rounded-xl text-xs font-semibold bg-blue-50 text-[#1d6fc2] border border-blue-200/60 shadow-sm">
+            <div className="hidden sm:flex items-center px-3 py-1 rounded-xl text-xs font-semibold bg-blue-50 text-[#1d6fc2] border border-blue-200/60 shadow-sm">
               <span className="w-1.5 h-1.5 rounded-full bg-[#1d6fc2] mr-1.5 animate-pulse"></span>
               {user?.role === 'STUDENT' ? 'Sinh viên' : user?.role === 'STAFF' ? 'Cán bộ Khoa' : 'Quản trị viên'}
             </div>
 
-            {/* Notifications Button */}
+            {/* Notifications Button with Bell Icon */}
             <div className="relative">
               <button
                 onClick={() => {
                   setShowNotifMenu(!showNotifMenu);
                   setShowUserDropdown(false);
                 }}
-                className="relative px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-[#1d6fc2] rounded-lg hover:bg-blue-50/60 transition"
+                className="relative p-2 text-slate-600 hover:text-[#1d6fc2] hover:bg-blue-50/70 rounded-xl transition focus:outline-none flex items-center justify-center"
+                title="Thông báo"
+                aria-label="Thông báo"
               >
-                <span>Thông báo</span>
+                <Bell className="w-5 h-5" />
                 {unreadCount > 0 && (
-                  <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-[#1d6fc2] text-white text-[10px] font-bold">
+                  <span className="absolute 0 top-0.5 right-0.5 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full bg-rose-600 text-white text-[10px] font-bold shadow-xs">
                     {unreadCount}
                   </span>
                 )}
@@ -383,6 +393,34 @@ export const AppLayout: React.FC = () => {
                 <button onClick={() => setMobileMenuOpen(false)} className="text-slate-400 hover:text-slate-700">
                   ✕
                 </button>
+              </div>
+
+              {/* Mobile Term Selector */}
+              <div className="p-2.5 bg-slate-50 border border-slate-200/90 rounded-xl space-y-1">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Calendar className="w-3 h-3 text-[#1d6fc2]" />
+                  <span>Kỳ đánh giá</span>
+                </div>
+                <select
+                  value={activeTerm?.id}
+                  onChange={(e) => {
+                    const t = terms.find((item) => item.id === e.target.value);
+                    if (t) switchTerm(t);
+                  }}
+                  className="w-full bg-white border border-slate-200 text-slate-900 font-semibold rounded-lg px-2 py-1.5 text-xs focus:outline-none"
+                >
+                  {terms.length > 0 ? (
+                    terms.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name} {t.status === 'ACTIVE' ? '(Hiện tại)' : ''}
+                      </option>
+                    ))
+                  ) : (
+                    <option value={activeTerm?.id || ''}>
+                      {activeTerm?.name || 'Học kỳ 1 (2026-2027)'}
+                    </option>
+                  )}
+                </select>
               </div>
               <nav className="space-y-4 overflow-y-auto flex-1">
                 {navGroups.map((group, gIdx) => (

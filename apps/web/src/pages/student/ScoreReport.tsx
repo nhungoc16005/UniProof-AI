@@ -45,7 +45,7 @@ export const ScoreReport: React.FC = () => {
           <img
             src="/dut-logo.png"
             alt="DUT Logo"
-            className="w-12 h-12 object-contain rounded-xl p-1 bg-white border border-slate-200 shadow-xs shrink-0"
+            className="w-12 h-12 object-contain shrink-0"
           />
           <div>
             <h1 className="text-xl font-bold text-slate-900">Bảng điểm rèn luyện & Truy vết (S09)</h1>

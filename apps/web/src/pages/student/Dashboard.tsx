@@ -385,7 +385,7 @@ export const StudentDashboard: React.FC = () => {
                 <img
                   src="/dut-logo.png"
                   alt="DUT Logo"
-                  className="w-10 h-10 object-contain rounded-xl p-0.5 bg-white border border-slate-200 shadow-xs shrink-0"
+                  className="w-10 h-10 object-contain shrink-0"
                 />
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">Bảng điểm rèn luyện & Truy vết (S09)</h3>

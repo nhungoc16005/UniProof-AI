@@ -60,6 +60,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [terms, setTerms] = useState<Term[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  const loadTermsData = async () => {
+    try {
+      const [tList, tActive] = await Promise.all([
+        apiClient.getTerms().catch(() => []),
+        apiClient.getActiveTerm().catch(() => defaultTerm),
+      ]);
+      if (tList && tList.length > 0) {
+        setTerms(tList);
+        setActiveTerm((prev) => {
+          if (prev?.id && tList.some((t: Term) => t.id === prev.id)) {
+            return prev;
+          }
+          const chosen = (tActive && tActive.id) ? tActive : tList[0];
+          localStorage.setItem('edupoint_active_term', JSON.stringify(chosen));
+          return chosen;
+        });
+      }
+    } catch (e) {
+      console.error('Failed to load terms data', e);
+    }
+  };
+
   useEffect(() => {
     const init = async () => {
       try {
@@ -78,14 +100,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
 
-        const [tList, tActive] = await Promise.all([
-          apiClient.getTerms().catch(() => []),
-          apiClient.getActiveTerm().catch(() => defaultTerm),
-        ]);
-        setTerms(tList);
-        if (tActive && tActive.id) {
-          setActiveTerm(tActive);
-        }
+        await loadTermsData();
       } catch (err) {
         console.error('Failed to load initial auth data', err);
       } finally {
@@ -100,6 +115,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { user: loggedInUser } = await apiClient.login(email, password);
       setUser(loggedInUser);
       setIsAuthenticated(true);
+      await loadTermsData();
       return { success: true };
     } catch (err: any) {
       const errorMsg =

@@ -9,8 +9,6 @@ import { Role } from '@prisma/client';
 
 @ApiTags('Criteria & Master Data')
 @Controller()
-@UseGuards(JwtAuthGuard, RolesGuard)
-@ApiBearerAuth()
 export class CriteriaController {
   constructor(private criteriaService: CriteriaService) {}
 
@@ -22,14 +20,18 @@ export class CriteriaController {
   }
 
   @Post('criteria')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Tạo tiêu chí mới (Admin)' })
   async createCriterion(@Body() dto: CreateCriterionDto) {
     return this.criteriaService.createCriterion(dto);
   }
 
   @Patch('criteria/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Cập nhật tiêu chí / trần điểm (Admin)' })
   async updateCriterion(@Param('id') id: string, @Body() dto: UpdateCriterionDto) {
     return this.criteriaService.updateCriterion(id, dto);
@@ -49,28 +51,36 @@ export class CriteriaController {
   }
 
   @Post('terms')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Tạo kỳ đánh giá mới (Admin)' })
   async createTerm(@Body() dto: CreateTermDto) {
     return this.criteriaService.createTerm(dto);
   }
 
   @Patch('terms/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Cập nhật thời hạn kỳ đánh giá (Admin)' })
   async updateTerm(@Param('id') id: string, @Body() dto: UpdateTermDto) {
     return this.criteriaService.updateTerm(id, dto);
   }
 
   @Post('terms/:id/close')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Chốt kỳ đánh giá - không cho sửa hoặc nộp thêm (Admin)' })
   async closeTerm(@Param('id') id: string) {
     return this.criteriaService.closeTerm(id);
   }
 
   @Post('terms/:id/reopen')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Mở lại kỳ đánh giá đặc biệt (Bắt buộc có lý do) (Admin)' })
   async reopenTerm(@Param('id') id: string, @Body('reason') reason: string) {
     return this.criteriaService.reopenTerm(id, reason);
