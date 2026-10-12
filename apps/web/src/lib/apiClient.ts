@@ -8,6 +8,8 @@ import {
   ReviewDecision, 
   Appeal,
   Activity,
+  Faculty,
+  Class,
 } from '../types';
 
 const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3001/api';
@@ -339,6 +341,27 @@ export const apiClient = {
   async updateUser(id: string, data: any): Promise<User> {
     const res = await http.patch(`/users/${id}`, data);
     return res.data.data;
+  },
+
+  // ==========================================
+  // FACULTIES & CLASSES MASTER DATA
+  // ==========================================
+  async getFaculties(): Promise<Faculty[]> {
+    try {
+      const res = await http.get('/faculties');
+      return extractArray<Faculty>(res.data.data);
+    } catch {
+      return [];
+    }
+  },
+
+  async getClasses(facultyId?: string): Promise<Class[]> {
+    try {
+      const res = await http.get('/classes', { params: { facultyId } });
+      return extractArray<Class>(res.data.data);
+    } catch {
+      return [];
+    }
   },
 
   // ==========================================

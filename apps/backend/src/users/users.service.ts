@@ -14,14 +14,38 @@ export class UsersService {
 
     const where: any = {};
     if (role) where.role = role;
-    if (facultyId) where.facultyId = facultyId;
+
+    if (facultyId) {
+      if (role === Role.STAFF) {
+        where.facultyId = facultyId;
+      } else if (role === Role.STUDENT) {
+        where.class = { facultyId };
+      } else {
+        where.OR = [
+          { facultyId },
+          { class: { facultyId } },
+        ];
+      }
+    }
+
     if (classId) where.classId = classId;
+
     if (search) {
-      where.OR = [
+      const searchConditions = [
         { fullName: { contains: search, mode: 'insensitive' } },
         { email: { contains: search, mode: 'insensitive' } },
         { studentCode: { contains: search, mode: 'insensitive' } },
       ];
+
+      if (where.OR) {
+        where.AND = [
+          { OR: where.OR },
+          { OR: searchConditions },
+        ];
+        delete where.OR;
+      } else {
+        where.OR = searchConditions;
+      }
     }
 
     const [items, total] = await Promise.all([
@@ -39,7 +63,15 @@ export class UsersService {
           isActive: true,
           isFirstLogin: true,
           faculty: { select: { id: true, code: true, name: true } },
-          class: { select: { id: true, code: true, name: true, cohort: true } },
+          class: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              cohort: true,
+              faculty: { select: { id: true, code: true, name: true } },
+            },
+          },
           createdAt: true,
         },
       }),
