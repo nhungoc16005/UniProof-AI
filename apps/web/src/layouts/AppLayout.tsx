@@ -106,17 +106,17 @@ export const AppLayout: React.FC = () => {
         ],
       },
       {
-        title: 'HỒ SƠ RÈN LUYỆN',
+        title: 'ĐÁNH GIÁ RÈN LUYỆN',
         items: [
+          { label: 'Phiếu tự đánh giá', path: '/student/criteria' },
           { label: 'Nộp minh chứng mới', path: '/student/evidence/new' },
           { label: 'Danh sách hồ sơ minh chứng', path: '/student/evidence' },
           { label: 'Khiếu nại điểm', path: '/student/appeals' },
         ],
       },
       {
-        title: 'QUY CHẾ & HỖ TRỢ',
+        title: 'HỖ TRỢ & QUY CHẾ',
         items: [
-          { label: 'Phiếu đánh giá 16 tiêu chí', path: '/student/criteria' },
           { label: 'Trợ lý Hỏi đáp Quy chế AI', path: '/regulations/ask' },
         ],
       },
@@ -136,8 +136,8 @@ export const AppLayout: React.FC = () => {
       else if (p.includes('/supplement')) crumbs.push({ label: 'Danh sách minh chứng', path: '/student/evidence' }, { label: 'Bổ sung hồ sơ' });
       else if (p.startsWith('/student/evidence/')) crumbs.push({ label: 'Danh sách minh chứng', path: '/student/evidence' }, { label: 'Chi tiết hồ sơ' });
       else if (p === '/student/scores') crumbs.push({ label: 'Bảng điểm chi tiết' });
-      else if (p === '/student/what-can-i-claim') crumbs.push({ label: 'Phiếu tự đánh giá 16 tiêu chí', path: '/student/criteria' });
-      else if (p === '/student/criteria') crumbs.push({ label: 'Phiếu tự đánh giá 16 tiêu chí' });
+      else if (p === '/student/what-can-i-claim') crumbs.push({ label: 'Phiếu tự đánh giá', path: '/student/criteria' });
+      else if (p === '/student/criteria') crumbs.push({ label: 'Phiếu tự đánh giá' });
       else if (p === '/student/appeals') crumbs.push({ label: 'Khiếu nại điểm' });
     } else if (p.startsWith('/officer')) {
       crumbs.push({ label: 'Cán bộ', path: '/officer' });

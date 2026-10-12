@@ -215,7 +215,7 @@ export const CriteriaView: React.FC = () => {
           </div>
 
           <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-            Phiếu Tự Đánh Giá & 16 Tiêu Chí Điểm Rèn Luyện
+            Phiếu Tự Đánh Giá Điểm Rèn Luyện
           </h1>
 
           <p className="text-xs text-slate-500 flex items-center gap-2 flex-wrap">
