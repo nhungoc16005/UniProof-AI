@@ -38,6 +38,7 @@ export const EvidenceDetail: React.FC = () => {
   // Supplement Modal states
   const [showSupplementModal, setShowSupplementModal] = useState(false);
   const [supplementFileName, setSupplementFileName] = useState('');
+  const [supplementFileUrl, setSupplementFileUrl] = useState('');
   const [supplementNote, setSupplementNote] = useState('');
   const [isSubmittingSupplement, setIsSubmittingSupplement] = useState(false);
 
@@ -70,30 +71,47 @@ export const EvidenceDetail: React.FC = () => {
   const ai = evidence.aiSuggestions?.[0];
   const review = evidence.reviews?.[0];
 
-  const handleAppealSubmit = (e: React.FormEvent) => {
+  const handleAppealSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setAppealSuccess(true);
-    setTimeout(() => {
-      setShowAppealModal(false);
-      setAppealSuccess(false);
-    }, 2000);
+    if (!appealReason.trim()) return;
+    try {
+      await apiClient.createAppeal({
+        evidenceId: evidence.id,
+        reason: appealReason.trim(),
+        desiredScore: evidence.aiSuggestions?.[0]?.suggestedScore ?? 5.0,
+      });
+      setAppealSuccess(true);
+      setTimeout(() => {
+        setShowAppealModal(false);
+        setAppealSuccess(false);
+      }, 1500);
+      const updated = await apiClient.getEvidenceById(evidence.id);
+      if (updated) setEvidence(updated);
+    } catch (err: any) {
+      alert('Không thể gửi khiếu nại: ' + (err.response?.data?.message || err.message || 'Lỗi hệ thống'));
+    }
   };
 
   const handleSupplementSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!evidence) return;
+    if (!supplementFileUrl) {
+      alert('Vui lòng chọn tệp tài liệu bổ sung từ thiết bị');
+      return;
+    }
     setIsSubmittingSupplement(true);
     try {
       const updated = await apiClient.supplementEvidence(evidence.id, [
-        { fileUrl: 'https://placehold.co/600x400/png?text=Minh+Chung+Bo+Sung', fileType: 'image/png' },
+        { fileUrl: supplementFileUrl, fileType: 'image/jpeg' },
       ]);
       setEvidence(updated);
       setShowSupplementModal(false);
       setSupplementFileName('');
+      setSupplementFileUrl('');
       setSupplementNote('');
       alert('Đã gửi bổ sung minh chứng thành công! Hồ sơ đã được cập nhật.');
-    } catch {
-      alert('Có lỗi xảy ra khi nộp bổ sung!');
+    } catch (err: any) {
+      alert('Có lỗi xảy ra khi nộp bổ sung: ' + (err.response?.data?.message || err.message));
     } finally {
       setIsSubmittingSupplement(false);
     }
@@ -197,20 +215,28 @@ export const EvidenceDetail: React.FC = () => {
             </div>
 
             <div className="border border-slate-200 rounded-lg overflow-hidden bg-slate-900/5 aspect-[4/3] flex items-center justify-center relative group">
-              <img
-                src={evidence.files[0]?.fileUrl || 'https://images.unsplash.com/photo-1557804506-669a67965ba0?auto=format&fit=crop&q=80&w=1000'}
-                alt="Minh chứng"
-                className="w-full h-full object-contain"
-              />
-              <a
-                href={evidence.files[0]?.fileUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="absolute bottom-3 right-3 px-2.5 py-1.5 bg-slate-900/80 hover:bg-slate-900 text-white text-[11px] font-semibold rounded-md shadow backdrop-blur transition flex items-center gap-1.5"
-              >
-                <Eye className="w-3.5 h-3.5" />
-                <span>Xem ảnh kích thước thật</span>
-              </a>
+              {evidence.files[0]?.fileUrl ? (
+                <>
+                  <img
+                    src={evidence.files[0].fileUrl}
+                    alt="Minh chứng"
+                    className="w-full h-full object-contain"
+                  />
+                  <a
+                    href={evidence.files[0].fileUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="absolute bottom-3 right-3 px-2.5 py-1.5 bg-slate-900/80 hover:bg-slate-900 text-white text-[11px] font-semibold rounded-md shadow backdrop-blur transition flex items-center gap-1.5"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>Xem ảnh kích thước thật</span>
+                  </a>
+                </>
+              ) : (
+                <div className="text-center p-6 text-slate-400 text-xs">
+                  Không tìm thấy tệp minh chứng hoặc hồ sơ chưa đính kèm ảnh
+                </div>
+              )}
             </div>
           </div>
 
@@ -432,7 +458,14 @@ export const EvidenceDetail: React.FC = () => {
                   accept="image/*,.pdf"
                   onChange={(e) => {
                     const f = e.target.files?.[0];
-                    if (f) setSupplementFileName(f.name);
+                    if (f) {
+                      setSupplementFileName(f.name);
+                      const reader = new FileReader();
+                      reader.onload = (evt) => {
+                        if (evt.target?.result) setSupplementFileUrl(evt.target.result as string);
+                      };
+                      reader.readAsDataURL(f);
+                    }
                   }}
                   className="absolute inset-0 opacity-0 cursor-pointer"
                 />

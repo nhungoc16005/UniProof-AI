@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { CreateActivityDto, AddParticipantDto } from './dto/activity.dto';
-import { ActivityType } from '@prisma/client';
+import { ActivityType, Role } from '@prisma/client';
 
 @Injectable()
 export class ActivitiesService {
@@ -131,6 +131,85 @@ export class ActivitiesService {
         description: dto.description !== undefined ? dto.description : undefined,
       },
     });
+  }
+
+  async batchAddParticipants(activityId: string, dto: { studentCodes: string[]; formRole?: string }) {
+    const activity = await this.prisma.activity.findUnique({ where: { id: activityId } });
+    if (!activity) throw new NotFoundException('Không tìm thấy hoạt động');
+
+    const trimmedCodes = Array.from(new Set((dto.studentCodes || []).map((c) => c.trim()).filter(Boolean)));
+    if (trimmedCodes.length === 0) throw new BadRequestException('Danh sách MSSV không được để trống');
+
+    const students = await this.prisma.user.findMany({
+      where: { studentCode: { in: trimmedCodes }, role: Role.STUDENT },
+      select: { id: true, studentCode: true, fullName: true },
+    });
+
+    const foundStudentMap = new Map<string, typeof students[0]>();
+    students.forEach((s) => {
+      if (s.studentCode) foundStudentMap.set(s.studentCode, s);
+    });
+
+    const existingParticipants = await this.prisma.activityParticipant.findMany({
+      where: {
+        activityId,
+        studentId: { in: students.map((s) => s.id) },
+      },
+      select: { studentId: true },
+    });
+    const existingStudentIdSet = new Set(existingParticipants.map((ep) => ep.studentId));
+
+    const toCreate: { activityId: string; studentId: string; formRole: string; source: string }[] = [];
+    const addedCodes: string[] = [];
+    const alreadyInListCodes: string[] = [];
+    const notFoundCodes: string[] = [];
+
+    for (const code of trimmedCodes) {
+      const student = foundStudentMap.get(code);
+      if (!student) {
+        notFoundCodes.push(code);
+      } else if (existingStudentIdSet.has(student.id)) {
+        alreadyInListCodes.push(code);
+      } else {
+        toCreate.push({
+          activityId,
+          studentId: student.id,
+          formRole: dto.formRole || 'THAM_GIA_CHINH',
+          source: 'Import danh sách',
+        });
+        addedCodes.push(code);
+      }
+    }
+
+    if (toCreate.length > 0) {
+      await this.prisma.activityParticipant.createMany({
+        data: toCreate,
+        skipDuplicates: true,
+      });
+    }
+
+    return {
+      success: true,
+      totalInput: trimmedCodes.length,
+      addedCount: addedCodes.length,
+      addedCodes,
+      alreadyInListCount: alreadyInListCodes.length,
+      alreadyInListCodes,
+      notFoundCount: notFoundCodes.length,
+      notFoundCodes,
+    };
+  }
+
+  async deleteParticipant(activityId: string, participantId: string) {
+    const participant = await this.prisma.activityParticipant.findUnique({
+      where: { id: participantId },
+    });
+    if (!participant || participant.activityId !== activityId) {
+      throw new NotFoundException('Không tìm thấy sinh viên trong danh sách điểm danh của hoạt động');
+    }
+
+    await this.prisma.activityParticipant.delete({ where: { id: participantId } });
+    return { success: true, message: 'Đã xóa sinh viên khỏi danh sách điểm danh' };
   }
 
   async delete(id: string) {

@@ -7,8 +7,20 @@ import { EvidenceStatus, Role, TermStatus } from '@prisma/client';
 export class EvidenceService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(user: any, params: { studentId?: string; termId?: string; status?: EvidenceStatus; page?: number; pageSize?: number }) {
-    const { termId, status, page = 1, pageSize = 20 } = params;
+  async findAll(
+    user: any,
+    params: {
+      studentId?: string;
+      termId?: string;
+      classId?: string;
+      status?: EvidenceStatus;
+      search?: string;
+      sortOrder?: 'asc' | 'desc';
+      page?: number;
+      pageSize?: number;
+    },
+  ) {
+    const { termId, classId, status, search, sortOrder = 'desc', page = 1, pageSize = 20 } = params;
     const skip = (page - 1) * pageSize;
 
     const where: any = {};
@@ -18,40 +30,67 @@ export class EvidenceService {
       where.studentId = user.id;
     } else if (user.role === Role.STAFF) {
       // Cán bộ chỉ xem hồ sơ của sinh viên thuộc khoa mình
+      const studentFilter: any = {};
       if (user.facultyId) {
-        where.student = { class: { facultyId: user.facultyId } };
+        studentFilter.class = { facultyId: user.facultyId };
+      }
+      if (classId) {
+        studentFilter.classId = classId;
+      }
+      if (Object.keys(studentFilter).length > 0) {
+        where.student = studentFilter;
       }
       if (params.studentId) where.studentId = params.studentId;
     } else {
+      if (classId) where.student = { classId };
       if (params.studentId) where.studentId = params.studentId;
     }
 
     if (termId) where.termId = termId;
     if (status) where.status = status;
 
+    if (search) {
+      where.OR = [
+        { declaredActivityName: { contains: search, mode: 'insensitive' } },
+        { student: { fullName: { contains: search, mode: 'insensitive' } } },
+        { student: { studentCode: { contains: search, mode: 'insensitive' } } },
+      ];
+    }
+
     const [items, total] = await Promise.all([
       this.prisma.evidence.findMany({
         where,
         skip,
         take: pageSize,
-        orderBy: { submittedAt: 'desc' },
+        orderBy: { submittedAt: sortOrder },
         include: {
           student: {
             select: {
               id: true,
               fullName: true,
               studentCode: true,
-              class: { select: { code: true } },
+              class: { select: { id: true, code: true, name: true } },
             },
           },
           term: { select: { id: true, code: true, name: true, status: true } },
           activity: { select: { id: true, name: true, type: true } },
           files: true,
+          lockedBy: { select: { id: true, fullName: true } },
+          verificationResults: {
+            take: 1,
+            orderBy: { createdAt: 'desc' },
+          },
+          aiSuggestions: {
+            take: 1,
+            orderBy: { createdAt: 'desc' },
+          },
+          anomalyFlags: true,
           reviews: {
             include: {
               reviewer: { select: { fullName: true } },
               criterion: { select: { code: true, name: true } },
             },
+            orderBy: { createdAt: 'desc' },
           },
         },
       }),

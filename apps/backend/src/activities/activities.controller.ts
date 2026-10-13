@@ -40,11 +40,31 @@ export class ActivitiesController {
     return this.activitiesService.addParticipant(id, dto);
   }
 
+  @Post(':id/attendance/batch')
+  @Roles(Role.ADMIN, Role.STAFF)
+  @ApiOperation({ summary: 'Điểm danh hàng loạt bằng danh sách MSSV (Cán bộ)' })
+  async batchAddParticipants(
+    @Param('id') id: string,
+    @Body() dto: { studentCodes: string[]; formRole?: string },
+  ) {
+    return this.activitiesService.batchAddParticipants(id, dto);
+  }
+
   @Get(':id/attendance')
   @Roles(Role.ADMIN, Role.STAFF)
   @ApiOperation({ summary: 'Lấy danh sách điểm danh của hoạt động (Cán bộ)' })
   async getParticipants(@Param('id') id: string) {
     return this.activitiesService.getParticipants(id);
+  }
+
+  @Delete(':id/attendance/:participantId')
+  @Roles(Role.ADMIN, Role.STAFF)
+  @ApiOperation({ summary: 'Xóa sinh viên khỏi danh sách điểm danh (Cán bộ)' })
+  async deleteParticipant(
+    @Param('id') id: string,
+    @Param('participantId') participantId: string,
+  ) {
+    return this.activitiesService.deleteParticipant(id, participantId);
   }
 
   @Patch(':id')

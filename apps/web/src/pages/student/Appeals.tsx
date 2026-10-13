@@ -27,8 +27,11 @@ export const Appeals: React.FC = () => {
       ]);
       setAppeals(appealList);
       setEvidences(evdList);
-      if (evdList.length > 0 && !selectedEvidenceId) {
-        setSelectedEvidenceId(evdList[0].id);
+      const reviewed = evdList.filter(
+        (e) => e.status === 'APPROVED' || e.status === 'REJECTED' || (e.status as any) === 'SCORE_ADJUSTED'
+      );
+      if (reviewed.length > 0 && !selectedEvidenceId) {
+        setSelectedEvidenceId(reviewed[0].id);
       }
     } catch (err) {
       console.error('Lỗi tải danh sách khiếu nại', err);
@@ -94,13 +97,16 @@ export const Appeals: React.FC = () => {
 
         <button
           onClick={() => {
-            if (evidences.length === 0) {
-              alert('Bạn chưa có hồ sơ minh chứng nào trong học kỳ này để khiếu nại.');
+            const reviewed = evidences.filter(
+              (e) => e.status === 'APPROVED' || e.status === 'REJECTED' || (e.status as any) === 'SCORE_ADJUSTED'
+            );
+            if (reviewed.length === 0) {
+              alert('Bạn chưa có hồ sơ minh chứng nào đã có kết quả thẩm định (Đã duyệt hoặc Bị từ chối) để gửi đơn khiếu nại.');
               return;
             }
             setShowModal(true);
           }}
-          className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#1d6fc2] hover:bg-[#175ea5] text-white font-bold text-xs rounded-xl shadow-md shadow-blue-600/20 transition cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md shadow-blue-600/20 transition cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           <span>Tạo đơn khiếu nại mới</span>
@@ -219,13 +225,15 @@ export const Appeals: React.FC = () => {
                 <select
                   value={selectedEvidenceId}
                   onChange={(e) => setSelectedEvidenceId(e.target.value)}
-                  className="w-full px-3.5 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-[#1d6fc2] font-medium"
+                  className="w-full px-3.5 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-blue-600 font-medium"
                 >
-                  {evidences.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.declaredActivityName} ({e.evidenceType} · {e.status})
-                    </option>
-                  ))}
+                  {evidences
+                    .filter((e) => e.status === 'APPROVED' || e.status === 'REJECTED' || (e.status as any) === 'SCORE_ADJUSTED')
+                    .map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.declaredActivityName} ({e.evidenceType} · {e.status === 'APPROVED' ? 'Đã duyệt' : e.status === 'REJECTED' ? 'Bị từ chối' : e.status})
+                      </option>
+                    ))}
                 </select>
               </div>
 

@@ -22,11 +22,21 @@ export class ReviewsController {
     @CurrentUser() officer: any,
     @Query('status') status?: string,
     @Query('termId') termId?: string,
+    @Query('classId') classId?: string,
     @Query('search') search?: string,
+    @Query('sortOrder') sortOrder?: 'asc' | 'desc',
     @Query('page') page?: number,
     @Query('pageSize') pageSize?: number,
   ) {
-    return this.reviewsService.getQueue(officer, { status, termId, search, page: page ? Number(page) : 1, pageSize: pageSize ? Number(pageSize) : 20 });
+    return this.reviewsService.getQueue(officer, {
+      status,
+      termId,
+      classId,
+      search,
+      sortOrder,
+      page: page ? Number(page) : 1,
+      pageSize: pageSize ? Number(pageSize) : 20,
+    });
   }
 
   @Post('evidence/:id/claim')

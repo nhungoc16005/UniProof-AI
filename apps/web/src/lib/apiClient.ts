@@ -132,6 +132,11 @@ export const apiClient = {
     return res.data.data;
   },
 
+  async reopenTerm(id: string, reason?: string): Promise<Term> {
+    const res = await http.post(`/terms/${id}/reopen`, { reason: reason || 'Mở lại theo quyết định hội đồng' });
+    return res.data.data;
+  },
+
   // ==========================================
   // CRITERIA ENDPOINTS (CRI-01)
   // ==========================================
@@ -142,6 +147,21 @@ export const apiClient = {
     } catch {
       return [];
     }
+  },
+
+  async createCriterion(data: any): Promise<Criterion> {
+    const res = await http.post('/criteria', data);
+    return res.data.data;
+  },
+
+  async updateCriterion(id: string, data: any): Promise<Criterion> {
+    const res = await http.patch(`/criteria/${id}`, data);
+    return res.data.data;
+  },
+
+  async deleteCriterion(id: string): Promise<any> {
+    const res = await http.delete(`/criteria/${id}`);
+    return res.data.data;
   },
 
   // ==========================================
@@ -171,6 +191,16 @@ export const apiClient = {
     return res.data.data;
   },
 
+  async batchAddActivityParticipants(activityId: string, data: { studentCodes: string[]; formRole?: string }): Promise<any> {
+    const res = await http.post(`/activities/${activityId}/attendance/batch`, data);
+    return res.data.data;
+  },
+
+  async deleteActivityParticipant(activityId: string, participantId: string): Promise<any> {
+    const res = await http.delete(`/activities/${activityId}/attendance/${participantId}`);
+    return res.data.data;
+  },
+
   async getActivityParticipants(activityId: string): Promise<any[]> {
     try {
       const res = await http.get(`/activities/${activityId}/attendance`);
@@ -193,7 +223,16 @@ export const apiClient = {
   // ==========================================
   // EVIDENCES (EVD-05, EVD-06, EVD-01, EVD-09)
   // ==========================================
-  async getEvidences(params?: { studentId?: string; status?: string; termId?: string; page?: number; pageSize?: number }): Promise<Evidence[]> {
+  async getEvidences(params?: {
+    studentId?: string;
+    status?: string;
+    termId?: string;
+    classId?: string;
+    search?: string;
+    sortOrder?: 'asc' | 'desc';
+    page?: number;
+    pageSize?: number;
+  }): Promise<Evidence[]> {
     try {
       const res = await http.get('/evidence', { params });
       return extractArray<Evidence>(res.data.data);
@@ -225,7 +264,7 @@ export const apiClient = {
   async supplementEvidence(id: string, files: any[]): Promise<Evidence> {
     for (const f of files) {
       await http.post(`/evidence/${id}/files`, {
-        fileUrl: f.fileUrl || f.url || 'https://placehold.co/600x400.png',
+        fileUrl: f.fileUrl || f.url,
         fileType: f.fileType || f.type || 'image/png',
       });
     }
@@ -249,7 +288,15 @@ export const apiClient = {
   // ==========================================
   // REVIEW & QUEUE (REV-01, REV-03, REV-04)
   // ==========================================
-  async getReviewQueue(params?: { status?: string; termId?: string; search?: string; page?: number; pageSize?: number }): Promise<Evidence[]> {
+  async getReviewQueue(params?: {
+    status?: string;
+    termId?: string;
+    classId?: string;
+    search?: string;
+    sortOrder?: 'asc' | 'desc';
+    page?: number;
+    pageSize?: number;
+  }): Promise<Evidence[]> {
     try {
       const res = await http.get('/reviews/queue', { params });
       return extractArray<Evidence>(res.data.data);
@@ -445,5 +492,69 @@ export const apiClient = {
   async getClassScores(classId: string, termId?: string): Promise<any> {
     const res = await http.get(`/scores/class/${classId}`, { params: { termId } });
     return res.data.data;
+  },
+
+  // ==========================================
+  // REPORTS & ADMIN ANALYTICS
+  // ==========================================
+  async getKpiSummary(termId?: string): Promise<any> {
+    try {
+      const res = await http.get('/reports/summary', { params: { termId } });
+      return res.data.data;
+    } catch {
+      return null;
+    }
+  },
+
+  async getFacultyReports(termId?: string): Promise<any[]> {
+    try {
+      const res = await http.get('/reports/faculties', { params: { termId } });
+      return extractArray<any>(res.data.data);
+    } catch {
+      return [];
+    }
+  },
+
+  // ==========================================
+  // KNOWLEDGE BASE (REGULATION DOCUMENTS)
+  // ==========================================
+  async getRegulations(): Promise<any[]> {
+    try {
+      const res = await http.get('/regulations');
+      return extractArray<any>(res.data.data);
+    } catch {
+      return [];
+    }
+  },
+
+  async createRegulation(data: { title: string; version: string; fileUrl?: string; effectiveDate?: string }): Promise<any> {
+    const res = await http.post('/regulations', data);
+    return res.data.data;
+  },
+
+  async deleteRegulation(id: string): Promise<any> {
+    const res = await http.delete(`/regulations/${id}`);
+    return res.data.data;
+  },
+
+  // ==========================================
+  // AUDIT LOGS & HEALTH CHECK
+  // ==========================================
+  async getAuditLogs(params?: { userId?: string; action?: string; entityType?: string; page?: number; pageSize?: number }): Promise<{ items: any[]; total: number }> {
+    try {
+      const res = await http.get('/audit-logs', { params });
+      return res.data.data || { items: [], total: 0 };
+    } catch {
+      return { items: [], total: 0 };
+    }
+  },
+
+  async getSystemHealth(): Promise<any> {
+    try {
+      const res = await http.get('/health');
+      return res.data.data;
+    } catch {
+      return { status: 'down', database: 'DOWN', uptimeSeconds: 0 };
+    }
   },
 };

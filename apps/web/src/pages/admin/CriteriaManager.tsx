@@ -16,26 +16,95 @@ export const CriteriaManager: React.FC = () => {
   const [maxScore, setMaxScore] = useState(5.0);
   const [category, setCategory] = useState('KHUNG_I');
 
+  const [loading, setLoading] = useState(false);
+
+  const fetchCriteria = async () => {
+    try {
+      setLoading(true);
+      const data = await apiClient.getCriteria();
+      setCriteria(data);
+    } catch (err: any) {
+      console.error('Lỗi khi tải danh sách tiêu chí:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    apiClient.getCriteria().then(setCriteria);
+    fetchCriteria();
   }, []);
 
-  const handleCreate = (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newCrit: Criterion = {
-      id: `crit-${Date.now()}`,
-      code,
-      name,
-      description: desc,
-      minScore: 0,
-      maxScore: Number(maxScore),
-      category,
-    };
-    setCriteria([...criteria, newCrit]);
-    setShowAddModal(false);
-    setCode('');
-    setName('');
-    setDesc('');
+    try {
+      setLoading(true);
+      await apiClient.createCriterion({
+        code,
+        name,
+        description: desc,
+        minScore: 0,
+        maxScore: Number(maxScore),
+        category,
+      });
+      setShowAddModal(false);
+      setCode('');
+      setName('');
+      setDesc('');
+      await fetchCriteria();
+    } catch (err: any) {
+      alert('Không thể tạo tiêu chí: ' + (err.message || 'Lỗi hệ thống'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const [editingCriterion, setEditingCriterion] = useState<Criterion | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [editMaxScore, setEditMaxScore] = useState(5.0);
+  const [editCategory, setEditCategory] = useState('KHUNG_I');
+
+  const handleOpenEdit = (c: Criterion) => {
+    setEditingCriterion(c);
+    setEditName(c.name);
+    setEditDesc(c.description || '');
+    setEditMaxScore(c.maxScore);
+    setEditCategory(c.category || 'KHUNG_I');
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCriterion) return;
+    try {
+      setLoading(true);
+      await apiClient.updateCriterion(editingCriterion.id, {
+        name: editName.trim(),
+        description: editDesc.trim(),
+        maxScore: Number(editMaxScore),
+        category: editCategory,
+      });
+      setEditingCriterion(null);
+      await fetchCriteria();
+    } catch (err: any) {
+      alert('Không thể cập nhật tiêu chí: ' + (err.message || 'Lỗi hệ thống'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id: string, codeName: string) => {
+    if (!window.confirm(`Bạn có chắc muốn xóa tiêu chí ${codeName}? Thao tác này sẽ gỡ các liên kết quy tắc liên quan.`)) {
+      return;
+    }
+    try {
+      setLoading(true);
+      await apiClient.deleteCriterion(id);
+      await fetchCriteria();
+    } catch (err: any) {
+      alert('Không thể xóa tiêu chí: ' + (err.message || 'Lỗi hệ thống'));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -126,10 +195,18 @@ export const CriteriaManager: React.FC = () => {
                     {c.description}
                   </td>
                   <td className="py-3.5 px-4 text-right space-x-2">
-                    <button className="text-xs font-semibold text-blue-600 hover:underline">
+                    <button
+                      onClick={() => handleOpenEdit(c)}
+                      disabled={loading}
+                      className="text-xs font-semibold text-blue-600 hover:underline disabled:opacity-50"
+                    >
                       Sửa
                     </button>
-                    <button className="text-xs font-semibold text-rose-600 hover:underline">
+                    <button
+                      onClick={() => handleDelete(c.id, c.code)}
+                      disabled={loading}
+                      className="text-xs font-semibold text-rose-600 hover:underline disabled:opacity-50"
+                    >
                       Xóa
                     </button>
                   </td>
@@ -226,6 +303,97 @@ export const CriteriaManager: React.FC = () => {
                   className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm transition"
                 >
                   Tạo tiêu chí
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Edit Criterion */}
+      {editingCriterion && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b">
+              <h3 className="font-bold text-slate-900 text-sm">Chỉnh sửa tiêu chí {editingCriterion.code}</h3>
+              <button onClick={() => setEditingCriterion(null)} className="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+
+            <form onSubmit={handleUpdate} className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-medium text-slate-700 mb-1">Mã tiêu chí</label>
+                  <input
+                    type="text"
+                    value={editingCriterion.code}
+                    disabled
+                    className="w-full p-2 border rounded bg-slate-100 text-slate-500 cursor-not-allowed"
+                  />
+                </div>
+                <div>
+                  <label className="block font-medium text-slate-700 mb-1">Trần điểm (Max Float)</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={editMaxScore}
+                    onChange={(e) => setEditMaxScore(parseFloat(e.target.value) || 0)}
+                    className="w-full p-2 border rounded"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">Thuộc Khung tiêu chí</label>
+                <select
+                  value={editCategory}
+                  onChange={(e) => setEditCategory(e.target.value)}
+                  className="w-full p-2 border rounded bg-white"
+                >
+                  <option value="KHUNG_I">Khung I: Ý thức học tập</option>
+                  <option value="KHUNG_II">Khung II: Ý thức chấp hành pháp luật & nội quy</option>
+                  <option value="KHUNG_III">Khung III: Hoạt động chính trị - xã hội, văn thể mỹ</option>
+                  <option value="KHUNG_IV">Khung IV: Phẩm chất công dân & cộng đồng</option>
+                  <option value="KHUNG_V">Khung V: Cán sự lớp & Đoàn - Hội</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">Tên tiêu chí</label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full p-2 border rounded"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">Mô tả và điều kiện áp dụng</label>
+                <textarea
+                  rows={3}
+                  value={editDesc}
+                  onChange={(e) => setEditDesc(e.target.value)}
+                  className="w-full p-2 border rounded"
+                  required
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setEditingCriterion(null)}
+                  className="px-3 py-1.5 text-slate-600 hover:bg-slate-100 rounded"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm transition disabled:opacity-50"
+                >
+                  {loading ? 'Đang lưu...' : 'Cập nhật'}
                 </button>
               </div>
             </form>

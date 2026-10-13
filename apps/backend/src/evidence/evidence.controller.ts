@@ -15,16 +15,28 @@ export class EvidenceController {
   constructor(private evidenceService: EvidenceService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Lấy danh sách hồ sơ minh chứng (Lọc theo kỳ, trạng thái)' })
+  @ApiOperation({ summary: 'Lấy danh sách hồ sơ minh chứng (Lọc theo kỳ, lớp, trạng thái, tìm kiếm)' })
   async findAll(
     @CurrentUser() user: any,
     @Query('studentId') studentId?: string,
     @Query('termId') termId?: string,
+    @Query('classId') classId?: string,
     @Query('status') status?: EvidenceStatus,
+    @Query('search') search?: string,
+    @Query('sortOrder') sortOrder?: 'asc' | 'desc',
     @Query('page') page?: number,
     @Query('pageSize') pageSize?: number,
   ) {
-    return this.evidenceService.findAll(user, { studentId, termId, status, page: page ? Number(page) : 1, pageSize: pageSize ? Number(pageSize) : 20 });
+    return this.evidenceService.findAll(user, {
+      studentId,
+      termId,
+      classId,
+      status,
+      search,
+      sortOrder,
+      page: page ? Number(page) : 1,
+      pageSize: pageSize ? Number(pageSize) : 20,
+    });
   }
 
   @Get(':id')

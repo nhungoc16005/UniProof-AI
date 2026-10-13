@@ -107,6 +107,10 @@ export interface Activity {
   location?: string;
   description?: string;
   createdAt?: string;
+  _count?: {
+    participants?: number;
+    evidences?: number;
+  };
 }
 
 export interface ActivityParticipant {
@@ -132,6 +136,7 @@ export interface Criterion {
   classScore?: number; // Điểm tập thể lớp đánh giá
   notes?: string;
   rolesScore?: Record<string, number>;
+  rules?: Rule[];
   regulationDocumentId?: string;
   createdAt?: string;
 }

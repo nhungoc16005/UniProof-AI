@@ -33,24 +33,40 @@ export const SubmitEvidence: React.FC = () => {
   const [role, setRole] = useState('PARTICIPANT');
   const [evidenceType, setEvidenceType] = useState('GIAY_CHUNG_NHAN');
   const [verificationUrl, setVerificationUrl] = useState('');
-  const [date, setDate] = useState('2026-10-12');
-  const [fileUrl, setFileUrl] = useState('https://images.unsplash.com/photo-1557804506-669a67965ba0?auto=format&fit=crop&q=80&w=1000');
-  const [fileName, setFileName] = useState('giay_chung_nhan_hoat_dong.jpg');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [fileUrl, setFileUrl] = useState('');
+  const [fileName, setFileName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [isDraft, setIsDraft] = useState(false);
 
+  // Danh sách hoạt động nội bộ thật từ DB
+  const [internalActivities, setInternalActivities] = useState<any[]>([]);
+  const [selectedActivityId, setSelectedActivityId] = useState<string>('');
 
-  // Mẫu các hoạt động nội bộ có sẵn
-  const internalActivities = [
-    { name: 'Ngày hội Hiến máu Nhân đạo Giọt hồng Bách Khoa 2026', org: 'Đoàn Thanh niên Trường ĐH Bách Khoa', score: 5.0, criteria: 'Tiêu chí 3' },
-    { name: 'Workshop Ứng dụng GenAI và LLM trong Doanh nghiệp', org: 'Khoa Công nghệ Thông tin', score: 3.0, criteria: 'Tiêu chí 1.2' },
-    { name: 'Hội thao Sinh viên Bách Khoa DUT Games 2026', org: 'Hội Sinh viên Trường', score: 4.0, criteria: 'Tiêu chí 4' },
-  ];
+  useEffect(() => {
+    apiClient.getActivities({ type: 'INTERNAL' }).then((list) => {
+      setInternalActivities(list);
+      if (list.length > 0 && activityOrigin === 'INTERNAL') {
+        setSelectedActivityId(list[0].id);
+        setActivityName(list[0].name);
+        setOrganizer(list[0].organizer || '');
+        if (list[0].startDate) {
+          setDate(list[0].startDate.split('T')[0]);
+        }
+      }
+    }).catch((err) => {
+      console.error('Lỗi tải danh sách hoạt động nội bộ', err);
+    });
+  }, [activityOrigin]);
 
   const handleNext = () => {
-    if (step === 1 && !activityName) {
+    if (step === 1 && !activityName.trim()) {
       alert('Vui lòng chọn hoặc nhập tên hoạt động');
+      return;
+    }
+    if (step === 2 && !fileUrl) {
+      alert('Vui lòng tải lên tệp minh chứng (ảnh hoặc tài liệu)');
       return;
     }
     setStep((prev) => (prev + 1) as any);
@@ -71,14 +87,20 @@ export const SubmitEvidence: React.FC = () => {
   };
 
   const handleSubmit = async (asDraft: boolean = false) => {
+    if (!fileUrl) {
+      alert('Vui lòng tải lên tệp minh chứng trước khi gửi hồ sơ');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const newEvd = await apiClient.createEvidence({
-        declaredActivityName: activityName,
+        declaredActivityName: activityName.trim(),
         declaredRole: role,
         evidenceType: evidenceType,
-        participationDate: date,
+        participationDate: date ? new Date(date).toISOString() : new Date().toISOString(),
         criterionId: selectedCriterionId || undefined,
+        activityId: activityOrigin === 'INTERNAL' && selectedActivityId ? selectedActivityId : undefined,
         status: asDraft ? 'DRAFT' : 'SUBMITTED',
         fileUrls: [fileUrl],
         files: [
@@ -184,10 +206,15 @@ export const SubmitEvidence: React.FC = () => {
                     type="button"
                     onClick={() => {
                       setActivityOrigin(opt.type);
-                      if (opt.type === 'INTERNAL') {
+                      if (opt.type === 'INTERNAL' && internalActivities.length > 0) {
+                        setSelectedActivityId(internalActivities[0].id);
                         setActivityName(internalActivities[0].name);
-                        setOrganizer(internalActivities[0].org);
-                      } else {
+                        setOrganizer(internalActivities[0].organizer || '');
+                        if (internalActivities[0].startDate) {
+                          setDate(internalActivities[0].startDate.split('T')[0]);
+                        }
+                      } else if (opt.type !== 'INTERNAL') {
+                        setSelectedActivityId('');
                         setActivityName('');
                         setOrganizer('');
                       }
@@ -212,21 +239,33 @@ export const SubmitEvidence: React.FC = () => {
               <label className="block text-xs font-bold text-slate-700">
                 Chọn hoạt động trong kỳ (Tự động đối chiếu điểm danh):
               </label>
-              <select
-                value={activityName}
-                onChange={(e) => {
-                  setActivityName(e.target.value);
-                  const found = internalActivities.find((a) => a.name === e.target.value);
-                  if (found) setOrganizer(found.org);
-                }}
-                className="w-full p-2.5 text-xs border border-slate-300 rounded-lg bg-white font-medium"
-              >
-                {internalActivities.map((act, i) => (
-                  <option key={i} value={act.name}>
-                    {act.name} — [{act.criteria}] (+{act.score}đ)
-                  </option>
-                ))}
-              </select>
+              {internalActivities.length === 0 ? (
+                <div className="text-xs text-slate-500 italic p-2 bg-white border border-slate-200 rounded-lg">
+                  Hiện chưa có hoạt động nội bộ nào được mở trong kỳ này. Bạn có thể tự nhập tên hoạt động ở ô bên dưới.
+                </div>
+              ) : (
+                <select
+                  value={selectedActivityId}
+                  onChange={(e) => {
+                    const found = internalActivities.find((a) => a.id === e.target.value);
+                    if (found) {
+                      setSelectedActivityId(found.id);
+                      setActivityName(found.name);
+                      setOrganizer(found.organizer || '');
+                      if (found.startDate) {
+                        setDate(found.startDate.split('T')[0]);
+                      }
+                    }
+                  }}
+                  className="w-full p-2.5 text-xs border border-slate-300 rounded-lg bg-white font-medium"
+                >
+                  {internalActivities.map((act) => (
+                    <option key={act.id} value={act.id}>
+                      {act.name} — [{act.organizer || 'Trường ĐHBK'}]
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           )}
 
@@ -396,7 +435,7 @@ export const SubmitEvidence: React.FC = () => {
 
               {/* Real Thumbnail Preview */}
               <div className="border border-slate-200 rounded-xl overflow-hidden bg-white max-h-56 flex items-center justify-center p-2 shadow-2xs">
-                {fileUrl.startsWith('data:image') || fileUrl.includes('unsplash') || fileUrl.endsWith('.jpg') || fileUrl.endsWith('.png') ? (
+                {fileUrl.startsWith('data:image') || fileUrl.endsWith('.jpg') || fileUrl.endsWith('.png') || fileUrl.endsWith('.jpeg') || fileUrl.endsWith('.webp') ? (
                   <img
                     src={fileUrl}
                     alt="Xem trước minh chứng"
@@ -404,7 +443,7 @@ export const SubmitEvidence: React.FC = () => {
                   />
                 ) : (
                   <div className="py-8 text-center text-xs text-slate-500 font-medium">
-                    📄 Tài liệu PDF / File đính kèm ({fileName})
+                    Tệp tài liệu đính kèm ({fileName})
                   </div>
                 )}
               </div>

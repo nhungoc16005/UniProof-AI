@@ -1,33 +1,58 @@
-import React, { useState } from 'react';
-import { Database, Plus, CheckCircle, Search, Tag, FileText } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Database, Search, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { apiClient } from '../../lib/apiClient';
+
+interface GroundTruthItem {
+  id: string;
+  activityText: string;
+  trueCriterion: string;
+  trueScore: number;
+  source: string;
+  verifiedDate: string;
+}
 
 export const GroundTruth: React.FC = () => {
-  const [samples, setSamples] = useState([
-    {
-      id: 'gt-01',
-      activityText: 'Đạt Giải Nhất Cuộc thi Lập trình Hackathon Bách Khoa 2026',
-      trueCriterion: '1.2 (Nghiên cứu & Sáng tạo học thuật)',
-      trueScore: 5.0,
-      source: 'Xác thực thủ công bởi Trưởng Khoa',
-      verifiedDate: '2026-09-10',
-    },
-    {
-      id: 'gt-02',
-      activityText: 'Tham gia Ngày hội Chủ nhật Đỏ hiến máu tình nguyện tại Khu F',
-      trueCriterion: '3.2 (Hoạt động tình nguyện vì cộng đồng)',
-      trueScore: 5.0,
-      source: 'Đối chiếu danh sách Đoàn trường',
-      verifiedDate: '2026-09-12',
-    },
-    {
-      id: 'gt-03',
-      activityText: 'Cổ vũ trận chung kết giải bóng đá Sinh viên khoa CNTT',
-      trueCriterion: '3.1 (Văn hóa, Thể thao - Cổ vũ)',
-      trueScore: 2.0,
-      source: 'Quy định Rule Cap Cheerleader',
-      verifiedDate: '2026-09-15',
-    },
-  ]);
+  const [samples, setSamples] = useState<GroundTruthItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+
+  const fetchGroundTruth = async () => {
+    try {
+      setLoading(true);
+      const res = await apiClient.getEvidences({ status: 'APPROVED', pageSize: 50 });
+      const rawList = Array.isArray(res) ? res : [];
+      const items: GroundTruthItem[] = rawList.map((e: any) => {
+        const primaryReview = e.reviews?.[0];
+        const critName = primaryReview?.criterion 
+          ? `${primaryReview.criterion.code} - ${primaryReview.criterion.name}` 
+          : 'Tiêu chí đã duyệt';
+        const reviewerName = primaryReview?.reviewer?.fullName || 'Hội đồng Khoa';
+        return {
+          id: e.id,
+          activityText: e.title || e.description || e.activity?.name || 'Minh chứng hoạt động',
+          trueCriterion: critName,
+          trueScore: primaryReview?.approvedScore ?? e.finalScore ?? 0,
+          source: `Thẩm định bởi ${reviewerName}`,
+          verifiedDate: new Date(primaryReview?.createdAt || e.updatedAt).toLocaleDateString('vi-VN'),
+        };
+      });
+      setSamples(items);
+    } catch (err: any) {
+      console.error('Lỗi khi tải dữ liệu Ground Truth:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchGroundTruth();
+  }, []);
+
+  const filteredSamples = samples.filter((s) =>
+    s.activityText.toLowerCase().includes(search.toLowerCase()) ||
+    s.trueCriterion.toLowerCase().includes(search.toLowerCase()) ||
+    s.source.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
     <div className="space-y-6">
@@ -35,17 +60,34 @@ export const GroundTruth: React.FC = () => {
         <div>
           <h1 className="text-xl font-bold text-slate-900">Quản trị Ground Truth Dataset (A08)</h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Tập dữ liệu nhãn vàng đối chứng chuẩn để huấn luyện và đánh giá định kỳ các mô hình PhoBERT / LLM.
+            Tập dữ liệu chuẩn đối chứng trích xuất trực tiếp từ các hồ sơ đã thẩm định và phê duyệt (APPROVED) trong hệ thống để huấn luyện và đánh giá mô hình.
           </p>
         </div>
 
         <button
-          onClick={() => alert('Thêm mẫu ground truth mới')}
-          className="inline-flex items-center gap-1.5 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs rounded-lg shadow-sm transition"
+          onClick={fetchGroundTruth}
+          disabled={loading}
+          className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg transition disabled:opacity-50"
         >
-          <Plus className="w-4 h-4" />
-          <span>Gán nhãn mẫu mới</span>
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+          <span>Làm mới dữ liệu</span>
         </button>
+      </div>
+
+      <div className="flex items-center justify-between gap-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Tìm theo nội dung hoạt động, tiêu chí hoặc người thẩm định..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div className="text-xs text-slate-500 font-medium">
+          Tổng số mẫu chuẩn: <span className="font-bold text-slate-900">{filteredSamples.length}</span>
+        </div>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
@@ -61,23 +103,37 @@ export const GroundTruth: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {samples.map((s) => (
-                <tr key={s.id} className="hover:bg-slate-50/60 transition">
-                  <td className="py-3.5 px-4 font-bold text-slate-900 max-w-sm">
-                    {s.activityText}
-                  </td>
-                  <td className="py-3.5 px-4 font-semibold text-sky-700">
-                    {s.trueCriterion}
-                  </td>
-                  <td className="py-3.5 px-4 font-bold text-emerald-700">
-                    +{s.trueScore} đ
-                  </td>
-                  <td className="py-3.5 px-4 text-slate-500">{s.source}</td>
-                  <td className="py-3.5 px-4 text-right text-slate-400 font-mono">
-                    {s.verifiedDate}
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-slate-400">
+                    Đang truy vấn cơ sở dữ liệu hồ sơ đã duyệt...
                   </td>
                 </tr>
-              ))}
+              ) : filteredSamples.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-slate-400">
+                    Chưa có hồ sơ minh chứng nào được thẩm định và phê duyệt (APPROVED) để đưa vào tập dữ liệu chuẩn.
+                  </td>
+                </tr>
+              ) : (
+                filteredSamples.map((s) => (
+                  <tr key={s.id} className="hover:bg-slate-50/60 transition">
+                    <td className="py-3.5 px-4 font-bold text-slate-900 max-w-sm">
+                      {s.activityText}
+                    </td>
+                    <td className="py-3.5 px-4 font-semibold text-blue-700">
+                      {s.trueCriterion}
+                    </td>
+                    <td className="py-3.5 px-4 font-bold text-emerald-700">
+                      +{s.trueScore} đ
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-600">{s.source}</td>
+                    <td className="py-3.5 px-4 text-right text-slate-500 font-mono">
+                      {s.verifiedDate}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

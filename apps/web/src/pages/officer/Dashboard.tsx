@@ -176,10 +176,17 @@ export const OfficerDashboard: React.FC = () => {
 
             <div className="space-y-2 text-xs">
               <Link
-                to="/officer/activities"
+                to="/officer/queue"
                 className="flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:bg-blue-50/60 hover:text-blue-700 hover:border-blue-300 transition font-semibold text-slate-700"
               >
-                <span>Quản lý hoạt động nội bộ & Điểm danh</span>
+                <span>Hàng đợi thẩm định hồ sơ minh chứng</span>
+                <span className="text-slate-400 font-mono text-[11px]">→</span>
+              </Link>
+              <Link
+                to="/officer/students"
+                className="flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:bg-blue-50/60 hover:text-blue-700 hover:border-blue-300 transition font-semibold text-slate-700"
+              >
+                <span>Quản lý điểm rèn luyện theo Lớp & Xuất Excel</span>
                 <span className="text-slate-400 font-mono text-[11px]">→</span>
               </Link>
               <Link
@@ -190,17 +197,10 @@ export const OfficerDashboard: React.FC = () => {
                 <span className="text-slate-400 font-mono text-[11px]">→</span>
               </Link>
               <Link
-                to="/officer/students"
+                to="/officer/activities"
                 className="flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:bg-blue-50/60 hover:text-blue-700 hover:border-blue-300 transition font-semibold text-slate-700"
               >
-                <span>Tra cứu bảng điểm sinh viên</span>
-                <span className="text-slate-400 font-mono text-[11px]">→</span>
-              </Link>
-              <Link
-                to="/officer/reports"
-                className="flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:bg-blue-50/60 hover:text-blue-700 hover:border-blue-300 transition font-semibold text-slate-700"
-              >
-                <span>Báo cáo thống kê & Xuất Excel</span>
+                <span>Quản lý hoạt động nội bộ & Điểm danh</span>
                 <span className="text-slate-400 font-mono text-[11px]">→</span>
               </Link>
             </div>

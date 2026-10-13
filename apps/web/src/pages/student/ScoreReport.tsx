@@ -129,7 +129,7 @@ export const ScoreReport: React.FC = () => {
                         </p>
                         {item.nextTierAdvice && (
                           <span className="text-[11px] text-[#1d6fc2] block font-medium">
-                            💡 Gợi ý: {item.nextTierAdvice}
+                            Gợi ý: {item.nextTierAdvice}
                           </span>
                         )}
                       </div>

@@ -26,4 +26,11 @@ export class ReportsController {
   async getDistribution(@Query('termId') termId?: string, @Query('facultyId') facultyId?: string) {
     return this.reportsService.getDistribution(termId, facultyId);
   }
+
+  @Get('faculties')
+  @Roles(Role.ADMIN, Role.STAFF)
+  @ApiOperation({ summary: 'Thống kê tiến độ đánh giá của tất cả các Khoa trong trường (Admin, Cán bộ)' })
+  async getFacultyProgress(@Query('termId') termId?: string) {
+    return this.reportsService.getFacultyProgress(termId);
+  }
 }

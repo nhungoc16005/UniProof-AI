@@ -5,6 +5,7 @@ import { CreateTermDto, UpdateTermDto, CreateCriterionDto, UpdateCriterionDto } 
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Role } from '@prisma/client';
 
 @ApiTags('Criteria & Master Data')
@@ -35,6 +36,15 @@ export class CriteriaController {
   @ApiOperation({ summary: 'Cập nhật tiêu chí / trần điểm (Admin)' })
   async updateCriterion(@Param('id') id: string, @Body() dto: UpdateCriterionDto) {
     return this.criteriaService.updateCriterion(id, dto);
+  }
+
+  @Delete('criteria/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Xóa tiêu chí (Admin)' })
+  async deleteCriterion(@Param('id') id: string) {
+    return this.criteriaService.deleteCriterion(id);
   }
 
   // --- TERMS ---
@@ -151,5 +161,33 @@ export class CriteriaController {
   @ApiOperation({ summary: 'Xóa Lớp sinh hoạt (Admin, Cán bộ)' })
   async deleteClass(@Param('id') id: string) {
     return this.criteriaService.deleteClass(id);
+  }
+
+  // --- REGULATION DOCUMENTS (KNOWLEDGE BASE) ---
+  @Get('regulations')
+  @ApiOperation({ summary: 'Lấy danh mục văn bản quy chế (Knowledge Base)' })
+  async getRegulations() {
+    return this.criteriaService.getRegulations();
+  }
+
+  @Post('regulations')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Tải lên / Tạo mới tài liệu quy chế (Admin)' })
+  async createRegulation(
+    @CurrentUser('id') userId: string,
+    @Body() dto: { title: string; version: string; fileUrl?: string; effectiveDate?: string },
+  ) {
+    return this.criteriaService.createRegulation({ ...dto, uploadedById: userId });
+  }
+
+  @Delete('regulations/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Xóa tài liệu quy chế (Admin)' })
+  async deleteRegulation(@Param('id') id: string) {
+    return this.criteriaService.deleteRegulation(id);
   }
 }

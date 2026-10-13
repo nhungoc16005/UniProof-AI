@@ -51,16 +51,7 @@ export const ReviewDetail: React.FC = () => {
   const [o04ConfirmActivity, setO04ConfirmActivity] = useState(true);
   const [o04ConfirmStudent, setO04ConfirmStudent] = useState(true);
   const [o04Note, setO04Note] = useState('');
-  const [savedSources, setSavedSources] = useState<{ id: string; name: string; level: number; url?: string; confirmedActivity: boolean; confirmedStudent: boolean }[]>([
-    {
-      id: 'src-1',
-      name: 'Cổng thông tin Thành đoàn Đà Nẵng',
-      level: 2,
-      url: 'https://thanhdoan.danang.gov.vn/khen-thuong/2026',
-      confirmedActivity: true,
-      confirmedStudent: true,
-    }
-  ]);
+  const [savedSources, setSavedSources] = useState<{ id: string; name: string; level: number; url?: string; confirmedActivity: boolean; confirmedStudent: boolean }[]>([]);
 
   // Quick Regulation/Criteria Reference Drawer
   const [showCriteriaGuideDrawer, setShowCriteriaGuideDrawer] = useState(false);
@@ -130,7 +121,7 @@ export const ReviewDetail: React.FC = () => {
   const verif = evidence.verificationResults?.[0];
   const ai = evidence.aiSuggestions?.[0];
 
-  const boundingBoxes: BoundingBox[] = [
+  const boundingBoxes: BoundingBox[] = (ocr && ocr.studentNameExtracted) ? [
     {
       id: 'box-name',
       field: 'name',
@@ -139,8 +130,8 @@ export const ReviewDetail: React.FC = () => {
       left: 28,
       width: 44,
       height: 7,
-      value: ocr?.studentNameExtracted || evidence.student?.fullName || 'Nguyễn Văn An',
-      confidence: 0.98,
+      value: ocr.studentNameExtracted || evidence.student?.fullName || 'Chưa trích xuất',
+      confidence: ocr.confidenceScore || 0.95,
     },
     {
       id: 'box-code',
@@ -150,32 +141,10 @@ export const ReviewDetail: React.FC = () => {
       left: 35,
       width: 30,
       height: 6,
-      value: ocr?.studentCodeExtracted || evidence.student?.studentCode || '102210001',
-      confidence: 0.96,
+      value: ocr.studentCodeExtracted || evidence.student?.studentCode || 'Chưa trích xuất',
+      confidence: ocr.confidenceScore || 0.95,
     },
-    {
-      id: 'box-activity',
-      field: 'activity',
-      label: 'Tên hoạt động',
-      top: 54,
-      left: 18,
-      width: 64,
-      height: 9,
-      value: ocr?.activityNameExtracted || evidence.declaredActivityName || 'Hoạt động khai báo',
-      confidence: 0.94,
-    },
-    {
-      id: 'box-organizer',
-      field: 'organizer',
-      label: 'Đơn vị tổ chức',
-      top: 72,
-      left: 56,
-      width: 38,
-      height: 12,
-      value: ocr?.organizerExtracted || 'Thành đoàn Đà Nẵng',
-      confidence: 0.91,
-    },
-  ];
+  ] : [];
 
   const handleDecisionSubmit = async (decision: ReviewDecision) => {
     if ((decision === 'REJECTED' || decision === 'SUPPLEMENT_REQUESTED' || decision === 'SCORE_ADJUSTED') && !reasonInput.trim()) {
@@ -223,7 +192,8 @@ export const ReviewDetail: React.FC = () => {
 
           <h1 className="text-lg font-bold text-slate-900">{evidence.declaredActivityName}</h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Sinh viên: <strong className="text-slate-900">{evidence.student?.fullName || 'Nguyễn Văn An'}</strong> ({evidence.student?.studentCode || '102210001'}) · Khoa Công nghệ Thông tin
+            Sinh viên: <strong className="text-slate-900">{evidence.student?.fullName || 'Chưa cập nhật'}</strong> ({evidence.student?.studentCode || 'N/A'})
+            {evidence.student?.class?.code ? ` · Lớp ${evidence.student.class.code}` : ''}
           </p>
         </div>
 
@@ -319,11 +289,17 @@ export const ReviewDetail: React.FC = () => {
                 filter: highContrast ? 'contrast(160%) saturate(140%)' : 'none',
               }}
             >
-              <img
-                src={evidence.files[0]?.fileUrl || 'https://images.unsplash.com/photo-1557804506-669a67965ba0?auto=format&fit=crop&q=80&w=1000'}
-                alt="Minh chứng"
-                className="max-h-[500px] w-auto object-contain rounded shadow-md block"
-              />
+              {evidence.files && evidence.files[0]?.fileUrl ? (
+                <img
+                  src={evidence.files[0].fileUrl}
+                  alt="Minh chứng"
+                  className="max-h-[500px] w-auto object-contain rounded shadow-md block"
+                />
+              ) : (
+                <div className="p-8 text-center text-xs text-slate-400">
+                  Hồ sơ này không có tệp ảnh minh chứng đính kèm.
+                </div>
+              )}
 
               {/* Bounding Boxes Layer */}
               {showBoxes && boundingBoxes.map((box) => {
@@ -430,7 +406,7 @@ export const ReviewDetail: React.FC = () => {
                 }`}
               >
                 <span className="text-slate-400 text-[10px] block">Họ tên trên chứng nhận</span>
-                <span className="font-bold text-slate-900 block">{ocr?.studentNameExtracted || 'Nguyễn Văn An'}</span>
+                <span className="font-bold text-slate-900 block">{ocr?.studentNameExtracted || evidence.student?.fullName || 'Chưa trích xuất'}</span>
               </div>
 
               <div 
@@ -443,7 +419,7 @@ export const ReviewDetail: React.FC = () => {
                 }`}
               >
                 <span className="text-slate-400 text-[10px] block">MSSV trích xuất</span>
-                <span className="font-bold text-slate-900 block">{ocr?.studentCodeExtracted || '102210001'}</span>
+                <span className="font-bold text-slate-900 block">{ocr?.studentCodeExtracted || evidence.student?.studentCode || 'Chưa trích xuất'}</span>
               </div>
 
               <div 
@@ -472,7 +448,7 @@ export const ReviewDetail: React.FC = () => {
               >
                 <span className="text-slate-400 text-[10px] block">Đơn vị tổ chức</span>
                 <span className="font-semibold text-slate-800 line-clamp-1">
-                  {ocr?.organizerExtracted || 'Thành đoàn Đà Nẵng'}
+                  {ocr?.organizerExtracted || evidence.activity?.name || 'Chưa xác định'}
                 </span>
               </div>
             </div>
@@ -482,7 +458,7 @@ export const ReviewDetail: React.FC = () => {
           <TwoQuestionsVerification
             activityExists={verif?.activityExistsVerified ?? true}
             studentParticipation={verif?.studentParticipationVerified ?? true}
-            sourceDesc={verif?.sourceDescription || 'Đối chiếu khớp danh sách giải thưởng công bố trên Cổng thông tin Thành đoàn.'}
+            sourceDesc={verif?.sourceDescription || 'Chưa có thông tin đối chứng độc lập'}
           />
 
           <VerificationBadge level={verif?.verificationLevel || 2} isOfficer={true} />
@@ -656,7 +632,7 @@ export const ReviewDetail: React.FC = () => {
                       </div>
                       {finalScoreInput > maxLimit && (
                         <p className="text-[11px] text-amber-700 font-bold pt-0.5">
-                          ⚠️ Cảnh báo: Điểm duyệt ({finalScoreInput}đ) vượt mức trần tối đa quy định ({maxLimit}đ)!
+                          Cảnh báo: Điểm duyệt ({finalScoreInput}đ) vượt mức trần tối đa quy định ({maxLimit}đ)!
                         </p>
                       )}
                     </div>
@@ -704,7 +680,7 @@ export const ReviewDetail: React.FC = () => {
                       </div>
                       {finalScoreInput > maxLimit && (
                         <p className="text-[11px] text-amber-700 font-bold pt-0.5">
-                          ⚠️ Cảnh báo: Điểm sửa ({finalScoreInput}đ) vượt mức trần tối đa ({maxLimit}đ)!
+                          Cảnh báo: Điểm sửa ({finalScoreInput}đ) vượt mức trần tối đa ({maxLimit}đ)!
                         </p>
                       )}
                     </div>

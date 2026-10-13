@@ -49,7 +49,7 @@ export const ForgotPassword: React.FC = () => {
             {/* Demo Link to simulate receiving email */}
             <div className="p-3 bg-sky-50 border border-sky-200 rounded-lg text-xs space-y-2">
               <span className="font-semibold text-sky-900 block text-[11px]">
-                ✦ Trải nghiệm thử nghiệm (Demo Link):
+                Trải nghiệm thử nghiệm (Demo Link):
               </span>
               <Link
                 to="/reset-password?token=demo-token-123"

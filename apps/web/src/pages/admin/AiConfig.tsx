@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Cpu, Sliders, ShieldAlert, Check, RefreshCw } from 'lucide-react';
 
 export const AiConfig: React.FC = () => {
@@ -7,8 +7,28 @@ export const AiConfig: React.FC = () => {
   const [selectiveThreshold, setSelectiveThreshold] = useState(0.80);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  useEffect(() => {
+    try {
+      const savedOcr = localStorage.getItem('ai_config_ocr');
+      const savedAbs = localStorage.getItem('ai_config_abstention');
+      const savedSel = localStorage.getItem('ai_config_selective');
+      if (savedOcr) setOcrThreshold(parseFloat(savedOcr));
+      if (savedAbs) setAbstentionThreshold(parseFloat(savedAbs));
+      if (savedSel) setSelectiveThreshold(parseFloat(savedSel));
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    try {
+      localStorage.setItem('ai_config_ocr', ocrThreshold.toString());
+      localStorage.setItem('ai_config_abstention', abstentionThreshold.toString());
+      localStorage.setItem('ai_config_selective', selectiveThreshold.toString());
+    } catch (e) {
+      // ignore
+    }
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 3000);
   };

@@ -119,7 +119,7 @@ export const AppRoutes: React.FC = () => {
           <Route path="appeals" element={<AppealsResolution />} />
           <Route path="criteria" element={<CriteriaRulesView />} />
           <Route path="students" element={<StudentLookup />} />
-          <Route path="reports" element={<OfficerReports />} />
+          <Route path="reports" element={<Navigate to="/officer/students" replace />} />
         </Route>
 
         {/* Phân hệ Quản trị viên (Admin) */}

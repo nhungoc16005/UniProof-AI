@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Bell, Calendar } from 'lucide-react';
+import { Bell, Calendar, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiClient } from '../lib/apiClient';
 import { Notification } from '../types';
@@ -53,18 +53,16 @@ export const AppLayout: React.FC = () => {
           ],
         },
         {
-          title: 'DỮ LIỆU & HOẠT ĐỘNG',
+          title: 'QUẢN LÝ ĐIỂM & HOẠT ĐỘNG',
           items: [
-            { label: 'Hồ sơ sinh viên', path: '/officer/students' },
-            { label: 'Quản lý hoạt động (O05 - O06)', path: '/officer/activities' },
+            { label: 'Điểm rèn luyện theo Lớp', path: '/officer/students' },
+            { label: 'Hoạt động & Điểm danh', path: '/officer/activities' },
           ],
         },
         {
-          title: 'QUY CHẾ & BÁO CÁO',
+          title: 'HỖ TRỢ & QUY CHẾ',
           items: [
-            { label: 'Tiêu chí & Quy tắc', path: '/officer/criteria' },
-            { label: 'Báo cáo & Thống kê', path: '/officer/reports' },
-            { label: 'Hỏi đáp quy chế AI', path: '/regulations/ask' },
+            { label: 'Trợ lý Hỏi đáp Quy chế AI', path: '/regulations/ask' },
           ],
         },
       ];
@@ -145,10 +143,10 @@ export const AppLayout: React.FC = () => {
       if (p === '/officer/queue') crumbs.push({ label: 'Hàng đợi xét duyệt' });
       else if (p.startsWith('/officer/review/')) crumbs.push({ label: 'Hàng đợi xét duyệt', path: '/officer/queue' }, { label: 'Thẩm định hồ sơ' });
       else if (p === '/officer/appeals') crumbs.push({ label: 'Xử lý khiếu nại' });
-      else if (p === '/officer/students') crumbs.push({ label: 'Hồ sơ sinh viên' });
-      else if (p === '/officer/activities' || p === '/officer/external-activities') crumbs.push({ label: 'Quản lý hoạt động (O05 - O06)' });
+      else if (p === '/officer/students') crumbs.push({ label: 'Điểm rèn luyện theo Lớp' });
+      else if (p === '/officer/activities' || p === '/officer/external-activities') crumbs.push({ label: 'Hoạt động & Điểm danh' });
       else if (p === '/officer/criteria') crumbs.push({ label: 'Tiêu chí & Quy tắc' });
-      else if (p === '/officer/reports') crumbs.push({ label: 'Báo cáo & Thống kê' });
+      else if (p === '/officer/reports') crumbs.push({ label: 'Điểm rèn luyện theo Lớp', path: '/officer/students' });
     } else if (p.startsWith('/admin')) {
       crumbs.push({ label: 'Quản trị hệ thống', path: '/admin' });
       if (p === '/admin') return crumbs;
@@ -389,8 +387,8 @@ export const AppLayout: React.FC = () => {
             <div className="relative w-64 bg-white h-full p-4 flex flex-col shadow-2xl z-10 space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 font-bold text-sm text-slate-900">
                 <span>Menu Điều hướng</span>
-                <button onClick={() => setMobileMenuOpen(false)} className="text-slate-400 hover:text-slate-700">
-                  ✕
+                <button onClick={() => setMobileMenuOpen(false)} className="text-slate-400 hover:text-slate-700 p-1 rounded-md">
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 

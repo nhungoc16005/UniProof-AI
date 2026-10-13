@@ -1,230 +1,282 @@
-import React, { useState } from 'react';
-import { Shield, Search, Filter, Lock, Eye, FileCode, CheckCircle2, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { apiClient } from '../../lib/apiClient';
+import { Shield, Search, Filter, Lock, Eye, FileCode, CheckCircle2, X, RefreshCw, Clock, Globe } from 'lucide-react';
+
+interface AuditLogItem {
+  id: string;
+  userId: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  oldValue: any;
+  newValue: any;
+  ipAddress: string | null;
+  createdAt: string;
+  user?: {
+    id: string;
+    fullName: string;
+    email: string;
+    role: string;
+  };
+}
 
 export const AuditLogs: React.FC = () => {
-  const [logs, setLogs] = useState([
-    {
-      id: 'log-001',
-      user: 'ThS. Trần Thị Mai (Cán bộ Khoa CNTT)',
-      action: 'APPROVE',
-      entityType: 'Evidence',
-      entityId: 'evd-001',
-      details: 'Duyệt hồ sơ Danang TechHack 2026: +5.0 điểm vào Tiêu chí 1.2',
-      ip: '10.20.4.15',
-      time: '2026-09-18 14:20:15',
-      hashSignature: 'sha256:7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069',
-      diffPayload: {
-        before: { status: 'NEEDS_HUMAN_REVIEW', finalScore: null, reviewerId: null },
-        after: { status: 'APPROVED', finalScore: 5.0, reviewerId: 'usr-staff-01', ruleId: 'RULE_HACKATHON_PRIZE' },
-      },
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/128.0.0.0',
-    },
-    {
-      id: 'log-002',
-      user: 'TS. Lê Hoàng Nam (Quản trị viên)',
-      action: 'EDIT_RULE',
-      entityType: 'Rule',
-      entityId: 'RULE_CAP_CHEERLEADER',
-      details: 'Cập nhật phiên bản Rule v2: Khống chế trần điểm cổ vũ tối đa 5.0đ/kỳ',
-      ip: '10.20.1.2',
-      time: '2026-09-15 09:12:00',
-      hashSignature: 'sha256:4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a',
-      diffPayload: {
-        before: { maxCap: 10.0, version: 'v1.0' },
-        after: { maxCap: 5.0, version: 'v2.0', updatedBy: 'usr-admin-01' },
-      },
-      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Safari/17.0',
-    },
-    {
-      id: 'log-003',
-      user: 'ThS. Trần Thị Mai (Cán bộ Khoa CNTT)',
-      action: 'SUPPLEMENT_REQUEST',
-      entityType: 'Evidence',
-      entityId: 'evd-003',
-      details: 'Yêu cầu sinh viên Nguyễn Văn An bổ sung thẻ đeo hoặc email VNISA',
-      ip: '10.20.4.15',
-      time: '2026-09-28 16:00:32',
-      hashSignature: 'sha256:ef2d127de37b942baad06145e54b0c619a1f22327b2ebbcfbec78f5564afe39d',
-      diffPayload: {
-        before: { status: 'NEEDS_HUMAN_REVIEW' },
-        after: { status: 'NEEDS_SUPPLEMENT', missingItem: 'Thẻ đeo đại biểu hoặc Email BTC', deadline: '2026-10-25' },
-      },
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/128.0.0.0',
-    },
-    {
-      id: 'log-004',
-      user: 'Nguyễn Văn An (Sinh viên)',
-      action: 'LOGIN',
-      entityType: 'User',
-      entityId: 'usr-student-01',
-      details: 'Đăng nhập thành công từ thiết bị di động',
-      ip: '113.161.42.10',
-      time: '2026-09-27 08:00:10',
-      hashSignature: 'sha256:8f434346648f6b96df89dda901c5176b10a6d83961dd3c1ac88b59b2dc327aa4',
-      diffPayload: {
-        before: { lastLoginAt: '2026-09-26 19:40:11' },
-        after: { lastLoginAt: '2026-09-27 08:00:10', authMethod: 'PASSWORD' },
-      },
-      userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148',
-    },
-  ]);
+  const [logs, setLogs] = useState<AuditLogItem[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const [selectedLog, setSelectedLog] = useState<any | null>(null);
+  // Filters
+  const [filterAction, setFilterAction] = useState<string>('ALL');
+  const [filterEntityType, setFilterEntityType] = useState<string>('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
+
+  // Detail Modal
+  const [selectedLog, setSelectedLog] = useState<AuditLogItem | null>(null);
+
+  const loadAuditLogs = async () => {
+    try {
+      setIsLoading(true);
+      const res = await apiClient.getAuditLogs({
+        action: filterAction !== 'ALL' ? filterAction : undefined,
+        entityType: filterEntityType !== 'ALL' ? filterEntityType : undefined,
+        page,
+        pageSize,
+      });
+      setLogs(res.items || []);
+      setTotalCount(res.total || 0);
+    } catch (err) {
+      console.error('Lỗi khi tải audit logs:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAuditLogs();
+  }, [filterAction, filterEntityType, page]);
+
+  const filteredLogs = logs.filter((log) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    const matchUser = log.user?.fullName.toLowerCase().includes(q) || log.user?.email.toLowerCase().includes(q);
+    const matchEntity = log.entityType.toLowerCase().includes(q) || log.entityId.toLowerCase().includes(q);
+    const matchIp = log.ipAddress?.toLowerCase().includes(q);
+    return matchUser || matchEntity || matchIp;
+  });
 
   return (
     <div className="space-y-6 pb-12">
+      {/* 1. Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Nhật ký Kiểm toán Toàn hệ thống — Audit Log (A10)</h1>
+          <h1 className="text-xl font-bold text-slate-900">Nhật ký Kiểm toán & Truy vết Hệ thống (A10)</h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Bản ghi bất biến (Append-only & Hash-chain) lưu lại mọi hành động thay đổi dữ liệu và quyết định chấm điểm.
+            Ghi nhận toàn bộ thao tác phê duyệt, chỉnh sửa điểm, đổi mật khẩu và cập nhật quy chế từ Real Database.
           </p>
         </div>
 
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg border border-slate-300">
-          <Lock className="w-3.5 h-3.5 text-slate-500" />
-          <span>Bảo mật chống can thiệp</span>
+        <button
+          onClick={loadAuditLogs}
+          disabled={isLoading}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 rounded-lg transition"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+          <span>Làm mới</span>
+        </button>
+      </div>
+
+      {/* 2. Filters & Search */}
+      <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Action Filter */}
+          <select
+            value={filterAction}
+            onChange={(e) => {
+              setFilterAction(e.target.value);
+              setPage(1);
+            }}
+            className="px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="ALL">Tất cả hành động</option>
+            <option value="APPROVE">Phê duyệt (APPROVE)</option>
+            <option value="REJECT">Từ chối (REJECT)</option>
+            <option value="OVERRIDE_SCORE">Sửa điểm (OVERRIDE_SCORE)</option>
+            <option value="LOGIN">Đăng nhập (LOGIN)</option>
+            <option value="EDIT_RULE">Sửa quy tắc (EDIT_RULE)</option>
+          </select>
+
+          {/* Entity Filter */}
+          <select
+            value={filterEntityType}
+            onChange={(e) => {
+              setFilterEntityType(e.target.value);
+              setPage(1);
+            }}
+            className="px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="ALL">Tất cả đối tượng</option>
+            <option value="Evidence">Hồ sơ minh chứng (Evidence)</option>
+            <option value="Review">Đánh giá (Review)</option>
+            <option value="User">Người dùng (User)</option>
+            <option value="Criterion">Tiêu chí (Criterion)</option>
+            <option value="Term">Học kỳ (Term)</option>
+          </select>
+        </div>
+
+        <div className="relative w-full md:w-72">
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Tìm theo người thực hiện, IP, ID..."
+            className="w-full pl-9 pr-3.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
+          />
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+      {/* 3. Audit Logs Table */}
+      <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider text-[11px]">
+          <table className="w-full text-left text-xs min-w-[760px]">
+            <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[11px]">
               <tr>
                 <th className="py-3 px-4">Thời gian</th>
                 <th className="py-3 px-4">Người thực hiện</th>
-                <th className="py-3 px-4">Hành động</th>
-                <th className="py-3 px-4">Đối tượng (Entity)</th>
-                <th className="py-3 px-4">Chi tiết thao tác</th>
+                <th className="py-3 px-4">Hành vi</th>
+                <th className="py-3 px-4">Đối tượng</th>
                 <th className="py-3 px-4">Địa chỉ IP</th>
                 <th className="py-3 px-4 text-right">Chi tiết</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
-              {logs.map((l) => (
-                <tr 
-                  key={l.id} 
-                  onClick={() => setSelectedLog(l)}
-                  className="hover:bg-slate-50/80 transition cursor-pointer"
-                >
-                  <td className="py-3.5 px-4 text-slate-500 font-sans">{l.time}</td>
-                  <td className="py-3.5 px-4 font-bold text-slate-900 font-sans">{l.user}</td>
-                  <td className="py-3.5 px-4">
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        l.action === 'APPROVE'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : l.action === 'EDIT_RULE'
-                          ? 'bg-purple-100 text-purple-800'
-                          : l.action === 'SUPPLEMENT_REQUEST'
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-slate-100 text-slate-700'
-                      }`}
-                    >
-                      {l.action}
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-4 text-slate-700 font-sans">
-                    {l.entityType} ({l.entityId})
-                  </td>
-                  <td className="py-3.5 px-4 text-slate-800 font-sans max-w-sm truncate" title={l.details}>
-                    {l.details}
-                  </td>
-                  <td className="py-3.5 px-4 text-slate-500">{l.ip}</td>
-                  <td className="py-3.5 px-4 text-right">
-                    <button className="p-1 text-slate-400 hover:text-sky-600 transition">
-                      <Eye className="w-4 h-4" />
-                    </button>
+            <tbody className="divide-y divide-slate-100">
+              {isLoading ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-slate-400 text-xs">
+                    Đang tải nhật ký kiểm toán...
                   </td>
                 </tr>
-              ))}
+              ) : filteredLogs.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-slate-400 text-xs">
+                    Không có bản ghi nhật ký kiểm toán nào.
+                  </td>
+                </tr>
+              ) : (
+                filteredLogs.map((log) => (
+                  <tr key={log.id} className="hover:bg-slate-50/70 transition">
+                    <td className="py-3.5 px-4 font-mono text-[11px] text-slate-600 whitespace-nowrap">
+                      {new Date(log.createdAt).toLocaleString('vi-VN')}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <span className="font-bold text-slate-900 block">
+                        {log.user?.fullName || 'Hệ thống'}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        {log.user?.email || `User ID: ${log.userId.slice(0, 8)}...`}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded font-mono font-bold text-[10px] ${
+                          log.action === 'APPROVE'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : log.action === 'REJECT'
+                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                            : log.action === 'LOGIN'
+                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                            : 'bg-amber-50 text-amber-700 border border-amber-200'
+                        }`}
+                      >
+                        {log.action}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <span className="font-semibold text-slate-800 block">{log.entityType}</span>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {log.entityId ? `ID: ${log.entityId.slice(0, 8)}...` : '—'}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 font-mono text-[11px] text-slate-500">
+                      {log.ipAddress || '127.0.0.1'}
+                    </td>
+                    <td className="py-3.5 px-4 text-right">
+                      <button
+                        onClick={() => setSelectedLog(log)}
+                        className="px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50 rounded border border-blue-200 transition"
+                      >
+                        Xem JSON
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Audit Detail & Diff Modal */}
+      {/* 4. Modal Chi tiết JSON Diff */}
       {selectedLog && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 space-y-4 max-h-[85vh] flex flex-col">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <Shield className="w-5 h-5 text-sky-600" />
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                    Chi Tiết Bản Ghi Kiểm Toán (Audit Payload Diff)
-                  </h3>
-                  <span className="text-[11px] text-slate-500">
-                    Bản ghi toàn vẹn ID: {selectedLog.id}
-                  </span>
-                </div>
-              </div>
-              <button 
-                type="button" 
+              <h3 className="font-bold text-slate-900 text-sm">
+                Chi tiết Bản ghi Kiểm toán ({selectedLog.action})
+              </h3>
+              <button
                 onClick={() => setSelectedLog(null)}
-                className="text-slate-400 hover:text-slate-600 p-1"
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="overflow-y-auto space-y-3 pr-1 text-xs">
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Người thực hiện:</span>
-                  <strong className="text-slate-900">{selectedLog.user}</strong>
+            <div className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <div>
+                  <span className="text-slate-400 text-[10px] block">Người thực hiện:</span>
+                  <span className="font-bold text-slate-800">{selectedLog.user?.fullName || selectedLog.userId}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Thời gian ghi nhận:</span>
-                  <span className="font-mono text-slate-700">{selectedLog.time}</span>
+                <div>
+                  <span className="text-slate-400 text-[10px] block">Thời gian:</span>
+                  <span className="font-mono text-slate-700">{new Date(selectedLog.createdAt).toLocaleString('vi-VN')}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Địa chỉ IP & Thiết bị:</span>
-                  <span className="font-mono text-slate-700">{selectedLog.ip}</span>
+                <div>
+                  <span className="text-slate-400 text-[10px] block">Hành vi:</span>
+                  <span className="font-mono font-bold text-blue-700">{selectedLog.action}</span>
                 </div>
-              </div>
-
-              {/* Hash Chain Integrity */}
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1">
-                <div className="flex items-center gap-1.5 font-bold text-emerald-900 text-[11px]">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Chữ ký số toàn vẹn (Cryptographic Hash Signature)</span>
-                </div>
-                <p className="font-mono text-[10px] text-emerald-800 break-all bg-white/80 p-1.5 rounded border border-emerald-200">
-                  {selectedLog.hashSignature}
-                </p>
-              </div>
-
-              {/* JSON Diff Payload */}
-              <div className="space-y-1.5">
-                <span className="font-bold text-slate-800 flex items-center gap-1">
-                  <FileCode className="w-3.5 h-3.5 text-sky-600" />
-                  <span>Dữ liệu biến động (Payload Before vs After):</span>
-                </span>
-                <div className="grid grid-cols-2 gap-2 font-mono text-[10px]">
-                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl">
-                    <span className="text-rose-800 font-bold block mb-1">BEFORE:</span>
-                    <pre className="text-rose-950 whitespace-pre-wrap">{JSON.stringify(selectedLog.diffPayload.before, null, 2)}</pre>
-                  </div>
-                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
-                    <span className="text-emerald-800 font-bold block mb-1">AFTER:</span>
-                    <pre className="text-emerald-950 whitespace-pre-wrap">{JSON.stringify(selectedLog.diffPayload.after, null, 2)}</pre>
-                  </div>
+                <div>
+                  <span className="text-slate-400 text-[10px] block">Đối tượng:</span>
+                  <span className="font-semibold text-slate-800">{selectedLog.entityType} ({selectedLog.entityId})</span>
                 </div>
               </div>
 
-              <div>
-                <span className="text-slate-400 block text-[10px]">User-Agent:</span>
-                <span className="font-mono text-[10px] text-slate-500">{selectedLog.userAgent}</span>
-              </div>
+              {selectedLog.oldValue && (
+                <div>
+                  <span className="font-bold text-slate-700 block mb-1">Dữ liệu trước thay đổi (Old Value):</span>
+                  <pre className="p-3 bg-slate-900 text-slate-100 rounded-xl text-[11px] font-mono overflow-x-auto max-h-36">
+                    {JSON.stringify(selectedLog.oldValue, null, 2)}
+                  </pre>
+                </div>
+              )}
+
+              {selectedLog.newValue && (
+                <div>
+                  <span className="font-bold text-slate-700 block mb-1">Dữ liệu mới cập nhật (New Value):</span>
+                  <pre className="p-3 bg-slate-900 text-emerald-400 rounded-xl text-[11px] font-mono overflow-x-auto max-h-36">
+                    {JSON.stringify(selectedLog.newValue, null, 2)}
+                  </pre>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end pt-3 border-t border-slate-100">
               <button
-                type="button"
                 onClick={() => setSelectedLog(null)}
-                className="px-4 py-2 bg-slate-900 text-white font-semibold text-xs rounded-xl"
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs transition"
               >
                 Đóng
               </button>
@@ -232,7 +284,6 @@ export const AuditLogs: React.FC = () => {
           </div>
         </div>
       )}
-
     </div>
   );
 };

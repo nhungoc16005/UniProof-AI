@@ -10,23 +10,41 @@ export class ReviewsService {
   // ==========================================
   // REVIEW QUEUE (OFFICER)
   // ==========================================
-  async getQueue(officer: any, params: { status?: string; termId?: string; search?: string; page?: number; pageSize?: number }) {
-    const { status, termId, search, page = 1, pageSize = 20 } = params;
+  async getQueue(
+    officer: any,
+    params: {
+      status?: string;
+      termId?: string;
+      classId?: string;
+      search?: string;
+      sortOrder?: 'asc' | 'desc';
+      page?: number;
+      pageSize?: number;
+    },
+  ) {
+    const { status, termId, classId, search, sortOrder = 'asc', page = 1, pageSize = 20 } = params;
     const skip = (page - 1) * pageSize;
 
     const where: any = {};
 
     // Cán bộ chỉ xét duyệt hồ sơ thuộc khoa phụ trách
+    const studentFilter: any = {};
     if (officer.role === Role.STAFF && officer.facultyId) {
-      where.student = { class: { facultyId: officer.facultyId } };
+      studentFilter.class = { facultyId: officer.facultyId };
+    }
+    if (classId) {
+      studentFilter.classId = classId;
+    }
+    if (Object.keys(studentFilter).length > 0) {
+      where.student = studentFilter;
     }
 
     if (termId) where.termId = termId;
 
     if (status && status !== 'ALL') {
-      where.status = status;
-    } else {
-      // Mặc định lấy các hồ sơ cần xử lý
+      where.status = status as EvidenceStatus;
+    } else if (!status) {
+      // Mặc định lấy các hồ sơ cần xử lý nếu không chỉ định
       where.status = {
         in: [
           EvidenceStatus.NEEDS_HUMAN_REVIEW,
@@ -37,6 +55,7 @@ export class ReviewsService {
         ],
       };
     }
+    // Nếu status === 'ALL', không lọc theo status (lấy tất cả bao gồm APPROVED)
 
     if (search) {
       where.OR = [
@@ -51,20 +70,36 @@ export class ReviewsService {
         where,
         skip,
         take: pageSize,
-        orderBy: { submittedAt: 'asc' }, // FIFO: hồ sơ nộp trước duyệt trước
+        orderBy: { submittedAt: sortOrder }, // FIFO mặc định (hồ sơ nộp trước duyệt trước)
         include: {
           student: {
             select: {
               id: true,
               fullName: true,
               studentCode: true,
-              class: { select: { code: true } },
+              class: { select: { id: true, code: true, name: true } },
             },
           },
           term: { select: { id: true, code: true, name: true, status: true } },
           activity: { select: { id: true, name: true } },
           files: true,
           lockedBy: { select: { id: true, fullName: true } },
+          verificationResults: {
+            take: 1,
+            orderBy: { createdAt: 'desc' },
+          },
+          aiSuggestions: {
+            take: 1,
+            orderBy: { createdAt: 'desc' },
+          },
+          anomalyFlags: true,
+          reviews: {
+            include: {
+              reviewer: { select: { fullName: true } },
+              criterion: { select: { code: true, name: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+          },
         },
       }),
       this.prisma.evidence.count({ where }),

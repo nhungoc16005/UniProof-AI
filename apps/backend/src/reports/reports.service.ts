@@ -78,4 +78,70 @@ export class ReportsService {
       distribution: counts,
     };
   }
+
+  async getFacultyProgress(termId?: string) {
+    let targetTermId = termId;
+    if (!targetTermId) {
+      const activeTerm = await this.prisma.term.findFirst({ where: { status: TermStatus.ACTIVE } });
+      targetTermId = activeTerm?.id;
+    }
+
+    const faculties = await this.prisma.faculty.findMany({
+      include: {
+        classes: {
+          select: { id: true },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    const results = await Promise.all(
+      faculties.map(async (fac) => {
+        const classIds = fac.classes.map((c) => c.id);
+
+        const [totalStudents, totalEvidences, approvedEvidences] = await Promise.all([
+          this.prisma.user.count({
+            where: {
+              role: 'STUDENT',
+              classId: { in: classIds },
+              isActive: true,
+            },
+          }),
+          targetTermId
+            ? this.prisma.evidence.count({
+                where: {
+                  termId: targetTermId,
+                  student: { classId: { in: classIds } },
+                },
+              })
+            : 0,
+          targetTermId
+            ? this.prisma.evidence.count({
+                where: {
+                  termId: targetTermId,
+                  student: { classId: { in: classIds } },
+                  status: EvidenceStatus.APPROVED,
+                },
+              })
+            : 0,
+        ]);
+
+        const approvedRate = totalEvidences > 0 ? Math.round((approvedEvidences / totalEvidences) * 100) : 0;
+        const status = approvedRate >= 80 ? 'Đúng tiến độ' : totalEvidences > 0 ? 'Cần đẩy nhanh' : 'Chưa có hồ sơ';
+
+        return {
+          id: fac.id,
+          code: fac.code,
+          name: fac.name,
+          totalStudents,
+          submittedCount: totalEvidences,
+          approvedCount: approvedEvidences,
+          approvedRate: `${approvedRate}%`,
+          status,
+        };
+      }),
+    );
+
+    return results;
+  }
 }

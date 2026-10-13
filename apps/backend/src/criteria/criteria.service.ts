@@ -12,6 +12,7 @@ export class CriteriaService {
   // ==========================================
   async getCriteria() {
     return this.prisma.criterion.findMany({
+      include: { rules: true },
       orderBy: { code: 'asc' },
     });
   }
@@ -39,6 +40,20 @@ export class CriteriaService {
       where: { id },
       data: dto,
     });
+  }
+
+  async deleteCriterion(id: string) {
+    const crit = await this.prisma.criterion.findUnique({ where: { id } });
+    if (!crit) throw new NotFoundException('Không tìm thấy tiêu chí');
+
+    await this.prisma.$transaction([
+      this.prisma.rule.deleteMany({ where: { criterionId: id } }),
+      this.prisma.aiSuggestion.updateMany({ where: { criterionId: id }, data: { criterionId: null } }),
+      this.prisma.review.updateMany({ where: { criterionId: id }, data: { criterionId: null } }),
+      this.prisma.criterion.delete({ where: { id } }),
+    ]);
+
+    return { success: true, message: 'Đã xóa tiêu chí thành công' };
   }
 
   // ==========================================
@@ -236,5 +251,48 @@ export class CriteriaService {
       throw new BadRequestException('Không thể xóa lớp sinh hoạt đang có sinh viên. Vui lòng chuyển sinh viên sang lớp khác trước.');
     }
     return this.prisma.class.delete({ where: { id } });
+  }
+
+  // ==========================================
+  // REGULATION DOCUMENTS (KNOWLEDGE BASE A06)
+  // ==========================================
+  async getRegulations() {
+    return this.prisma.regulationDocument.findMany({
+      include: {
+        uploadedBy: { select: { id: true, fullName: true, email: true } },
+        _count: { select: { chunks: true, criteria: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async createRegulation(dto: { title: string; version: string; fileUrl?: string; effectiveDate?: string; uploadedById: string }) {
+    return this.prisma.regulationDocument.create({
+      data: {
+        title: dto.title.trim(),
+        version: dto.version.trim(),
+        fileUrl: dto.fileUrl || '/docs/quy-che.pdf',
+        effectiveDate: dto.effectiveDate ? new Date(dto.effectiveDate) : new Date(),
+        uploadedById: dto.uploadedById,
+        status: 'ACTIVE',
+      },
+      include: {
+        uploadedBy: { select: { id: true, fullName: true, email: true } },
+        _count: { select: { chunks: true, criteria: true } },
+      },
+    });
+  }
+
+  async deleteRegulation(id: string) {
+    const doc = await this.prisma.regulationDocument.findUnique({ where: { id } });
+    if (!doc) throw new NotFoundException('Không tìm thấy tài liệu quy chế');
+
+    await this.prisma.$transaction([
+      this.prisma.regulationChunk.deleteMany({ where: { regulationDocumentId: id } }),
+      this.prisma.criterion.updateMany({ where: { regulationDocumentId: id }, data: { regulationDocumentId: null } }),
+      this.prisma.regulationDocument.delete({ where: { id } }),
+    ]);
+
+    return { success: true, message: 'Đã xóa tài liệu quy chế thành công' };
   }
 }

@@ -68,8 +68,9 @@ export const AiEvaluation: React.FC = () => {
           <p className="text-xs text-slate-600 leading-relaxed">
             Khi đặt ngưỡng tin cậy ≥ 0.85, hệ thống bao phủ (coverage) <strong>78.4%</strong> số hồ sơ mà không cần cán bộ can thiệp thủ công, với tỷ lệ chính xác đạt <strong>98.1%</strong> trên các hồ sơ tự động này.
           </p>
-          <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200 text-xs text-emerald-900 font-medium">
-            ✓ Tiết kiệm 78.4% thời gian xem xét hồ sơ của Cán bộ Khoa.
+          <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200 text-xs text-emerald-900 font-medium flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>Tiết kiệm 78.4% thời gian xem xét hồ sơ của Cán bộ Khoa.</span>
           </div>
         </div>
 
@@ -80,8 +81,9 @@ export const AiEvaluation: React.FC = () => {
           <p className="text-xs text-slate-600 leading-relaxed">
             Sự kết hợp giữa <strong>PhoBERT + Rule Engine</strong> giúp ngăn chặn hoàn toàn 100% các lỗi vượt trần điểm quy chế (Cap) so với việc chỉ dùng LLM đơn thuần.
           </p>
-          <div className="p-3 bg-sky-50 rounded-lg border border-sky-200 text-xs text-sky-900 font-medium">
-            ✦ Quy tắc tường minh (Rule Engine) là chốt chặn bảo đảm tính pháp lý.
+          <div className="p-3 bg-blue-50 rounded-lg border border-blue-200 text-xs text-blue-900 font-medium flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-blue-600 shrink-0" />
+            <span>Quy tắc tường minh (Rule Engine) là chốt chặn bảo đảm tính pháp lý.</span>
           </div>
         </div>
       </div>

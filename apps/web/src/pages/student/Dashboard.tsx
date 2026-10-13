@@ -142,20 +142,8 @@ export const StudentDashboard: React.FC = () => {
       {/* 1. Hero Banner: Thông tin động & Lối tắt nhanh */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-7 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.05)] flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative overflow-hidden">
         <div className="space-y-2 max-w-xl z-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100/90 text-slate-700 border border-slate-200/60 flex-wrap">
+          <div className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100/90 text-slate-700 border border-slate-200/60">
             <span>{activeTerm.name}</span>
-            <span className="text-slate-300">·</span>
-            {isSubmissionOpen ? (
-              <span className="text-emerald-700 font-bold flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                Đang mở đợt nhận minh chứng (Hạn: {formattedDeadline})
-              </span>
-            ) : (
-              <span className="text-amber-800 font-bold flex items-center gap-1.5">
-                <Lock className="w-3.5 h-3.5 text-amber-600" />
-                Đã đóng đợt nộp (Hạn: {formattedDeadline}) · Đang xét duyệt
-              </span>
-            )}
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-tight">
