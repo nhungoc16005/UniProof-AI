@@ -68,8 +68,8 @@ export const VerificationBadge: React.FC<VerificationBadgeProps> = ({ level, isO
 
 // 2 independent verification questions
 interface TwoQuestionsProps {
-  activityExists: boolean;
-  studentParticipation: boolean;
+  activityExists: boolean | null;
+  studentParticipation: boolean | null;
   sourceDesc?: string;
   className?: string;
 }
@@ -88,24 +88,24 @@ export const TwoQuestionsVerification: React.FC<TwoQuestionsProps> = ({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
         <div
           className={`p-2.5 rounded-lg border font-medium ${
-            activityExists
+            activityExists === true
               ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
-              : 'bg-amber-50 text-amber-900 border-amber-200'
+              : activityExists === false ? 'bg-amber-50 text-amber-900 border-amber-200' : 'bg-slate-50 text-slate-700 border-slate-200'
           }`}
         >
           <div className="text-[10px] text-slate-500 uppercase">1. Hoạt động có diễn ra:</div>
-          <div className="font-bold text-sm mt-0.5">{activityExists ? 'ĐÃ XÁC NHẬN' : 'CHƯA ĐỦ CĂN CỨ'}</div>
+          <div className="font-bold text-sm mt-0.5">{activityExists === true ? 'ĐÃ XÁC NHẬN' : activityExists === false ? 'CHƯA ĐỦ CĂN CỨ' : 'CHƯA XÁC MINH'}</div>
         </div>
 
         <div
           className={`p-2.5 rounded-lg border font-medium ${
-            studentParticipation
+            studentParticipation === true
               ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
-              : 'bg-amber-50 text-amber-900 border-amber-200'
+              : studentParticipation === false ? 'bg-amber-50 text-amber-900 border-amber-200' : 'bg-slate-50 text-slate-700 border-slate-200'
           }`}
         >
           <div className="text-[10px] text-slate-500 uppercase">2. Sinh viên có tham gia:</div>
-          <div className="font-bold text-sm mt-0.5">{studentParticipation ? 'ĐÃ XÁC NHẬN' : 'CHƯA ĐỦ CĂN CỨ'}</div>
+          <div className="font-bold text-sm mt-0.5">{studentParticipation === true ? 'ĐÃ XÁC NHẬN' : studentParticipation === false ? 'CHƯA ĐỦ CĂN CỨ' : 'CHƯA XÁC MINH'}</div>
         </div>
       </div>
       {sourceDesc && (

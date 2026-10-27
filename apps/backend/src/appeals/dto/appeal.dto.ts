@@ -5,8 +5,11 @@ import { AppealStatus } from '@prisma/client';
 export class CreateAppealDto {
   @ApiProperty({ description: 'ID Hồ sơ minh chứng cần khiếu nại' })
   @IsString()
+  @IsOptional()
   @IsNotEmpty()
-  evidenceId: string;
+  evidenceId?: string;
+
+  @IsOptional() @IsString() criterionAssessmentId?: string;
 
   @ApiProperty({ example: 'Em đã tham gia đầy đủ 2 ngày, xin cán bộ xem xét lại giấy xác nhận dấu đỏ' })
   @IsString()

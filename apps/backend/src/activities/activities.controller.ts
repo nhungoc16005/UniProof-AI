@@ -5,6 +5,7 @@ import { CreateActivityDto, AddParticipantDto } from './dto/activity.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Role, ActivityType } from '@prisma/client';
 
 @ApiTags('Activities & Attendance')
@@ -16,28 +17,28 @@ export class ActivitiesController {
 
   @Get()
   @ApiOperation({ summary: 'Lấy danh sách các hoạt động (Nội bộ & Ngoài trường)' })
-  async findAll(@Query('type') type?: ActivityType, @Query('search') search?: string) {
-    return this.activitiesService.findAll(type, search);
+  async findAll(@CurrentUser() actor: any, @Query('type') type?: ActivityType, @Query('search') search?: string, @Query('termId') termId?: string) {
+    return this.activitiesService.findAll(actor, type, search, termId);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Xem chi tiết hoạt động' })
-  async findOne(@Param('id') id: string) {
-    return this.activitiesService.findOne(id);
+  async findOne(@Param('id') id: string, @CurrentUser() actor: any) {
+    return this.activitiesService.findOne(id, actor);
   }
 
   @Post()
   @Roles(Role.ADMIN, Role.STAFF)
   @ApiOperation({ summary: 'Tạo hoạt động mới (Cán bộ, Admin)' })
-  async create(@Body() dto: CreateActivityDto) {
-    return this.activitiesService.create(dto);
+  async create(@Body() dto: CreateActivityDto, @CurrentUser() actor: any) {
+    return this.activitiesService.create(dto, actor);
   }
 
   @Post(':id/attendance')
   @Roles(Role.ADMIN, Role.STAFF)
   @ApiOperation({ summary: 'Ghi nhận điểm danh sinh viên tham gia hoạt động (Cán bộ)' })
-  async addParticipant(@Param('id') id: string, @Body() dto: AddParticipantDto) {
-    return this.activitiesService.addParticipant(id, dto);
+  async addParticipant(@Param('id') id: string, @Body() dto: AddParticipantDto, @CurrentUser() actor: any) {
+    return this.activitiesService.addParticipant(id, dto, actor);
   }
 
   @Post(':id/attendance/batch')
@@ -46,15 +47,16 @@ export class ActivitiesController {
   async batchAddParticipants(
     @Param('id') id: string,
     @Body() dto: { studentCodes: string[]; formRole?: string },
+    @CurrentUser() actor: any,
   ) {
-    return this.activitiesService.batchAddParticipants(id, dto);
+    return this.activitiesService.batchAddParticipants(id, dto, actor);
   }
 
   @Get(':id/attendance')
   @Roles(Role.ADMIN, Role.STAFF)
   @ApiOperation({ summary: 'Lấy danh sách điểm danh của hoạt động (Cán bộ)' })
-  async getParticipants(@Param('id') id: string) {
-    return this.activitiesService.getParticipants(id);
+  async getParticipants(@Param('id') id: string, @CurrentUser() actor: any) {
+    return this.activitiesService.getParticipants(id, actor);
   }
 
   @Delete(':id/attendance/:participantId')
@@ -63,21 +65,22 @@ export class ActivitiesController {
   async deleteParticipant(
     @Param('id') id: string,
     @Param('participantId') participantId: string,
+    @CurrentUser() actor: any,
   ) {
-    return this.activitiesService.deleteParticipant(id, participantId);
+    return this.activitiesService.deleteParticipant(id, participantId, actor);
   }
 
   @Patch(':id')
   @Roles(Role.ADMIN, Role.STAFF)
   @ApiOperation({ summary: 'Cập nhật hoạt động (Cán bộ, Admin)' })
-  async update(@Param('id') id: string, @Body() dto: any) {
-    return this.activitiesService.update(id, dto);
+  async update(@Param('id') id: string, @Body() dto: any, @CurrentUser() actor: any) {
+    return this.activitiesService.update(id, dto, actor);
   }
 
   @Delete(':id')
   @Roles(Role.ADMIN, Role.STAFF)
   @ApiOperation({ summary: 'Xóa hoạt động (Cán bộ, Admin)' })
-  async delete(@Param('id') id: string) {
-    return this.activitiesService.delete(id);
+  async delete(@Param('id') id: string, @CurrentUser() actor: any) {
+    return this.activitiesService.delete(id, actor);
   }
 }

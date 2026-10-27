@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../../lib/apiClient';
-import { Evidence, ReviewDecision } from '../../types';
+import { Evidence, ReviewDecision, RubricPayload } from '../../types';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { TwoQuestionsVerification, VerificationBadge } from '../../components/ui/VerificationBadge';
 import { ConfidenceBar } from '../../components/ui/ConfidenceBar';
-import { BookOpen, Search, X, CheckCircle, HelpCircle } from 'lucide-react';
+import { BookOpen, Search, X, CheckCircle, HelpCircle, Sparkles } from 'lucide-react';
 
 interface BoundingBox {
   id: string;
@@ -22,9 +22,17 @@ interface BoundingBox {
 export const ReviewDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const [rubric, setRubric] = useState<RubricPayload | null>(null);
+  const [loadError, setLoadError] = useState('');
+  const backTo = params.get('returnTo')?.startsWith('/officer/queue?') ? params.get('returnTo')! : '/officer/queue?termId=' + (params.get('termId') || '');
+
 
   const [evidence, setEvidence] = useState<Evidence | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  useEffect(() => {
+    if (evidence?.termId) apiClient.getRubric(evidence.termId).then(setRubric).catch(() => setLoadError('Không tải được tiêu chí của kỳ.'));
+  }, [evidence?.termId]);
 
   // Document Viewer Controls
   const [zoomLevel, setZoomLevel] = useState<number>(1);
@@ -36,11 +44,11 @@ export const ReviewDetail: React.FC = () => {
 
   // Decision Bar State
   const [activeAction, setActiveAction] = useState<ReviewDecision | null>(null);
-  const [finalScoreInput, setFinalScoreInput] = useState<number>(5.0);
+  const [finalScoreInput, setFinalScoreInput] = useState<number | undefined>(undefined);
   const [reasonInput, setReasonInput] = useState('');
   const [rejectBasisInput, setRejectBasisInput] = useState('REJECT_BASIS_UNVERIFIED');
   const [missingItemInput, setMissingItemInput] = useState('');
-  const [deadlineInput, setDeadlineInput] = useState('2026-10-25');
+  const [deadlineInput, setDeadlineInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // O04: External Source Verification Drawer
@@ -65,7 +73,7 @@ export const ReviewDetail: React.FC = () => {
           setFinalScoreInput(data.aiSuggestions[0].suggestedScore);
         }
         setIsLoading(false);
-      });
+      }).catch(() => { setLoadError('Không tải được minh chứng.'); setIsLoading(false); });
     }
   }, [id]);
 
@@ -82,7 +90,7 @@ export const ReviewDetail: React.FC = () => {
         setActiveAction('APPROVED');
       } else if (e.key === 's' || e.key === 'S') {
         e.preventDefault();
-        setActiveAction('SCORE_ADJUSTED');
+        if (!evidence?.criterionAssessment?.criterion?.rubricVersionId) setActiveAction('SCORE_ADJUSTED');
       } else if (e.key === 'b' || e.key === 'B') {
         e.preventDefault();
         setActiveAction('SUPPLEMENT_REQUESTED');
@@ -96,7 +104,7 @@ export const ReviewDetail: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [evidence?.criterionAssessment?.criterion?.rubricVersionId]);
 
   if (isLoading) {
     return (
@@ -110,7 +118,7 @@ export const ReviewDetail: React.FC = () => {
     return (
       <div className="p-8 text-center space-y-3 bg-white border border-slate-200 rounded-xl">
         <p className="text-xs font-semibold text-slate-700">Hồ sơ không tồn tại hoặc đã bị xóa.</p>
-        <Link to="/officer/queue" className="text-xs text-sky-600 hover:underline font-bold">
+        <Link to={backTo} className="text-xs text-sky-600 hover:underline font-bold">
           Quay lại Hàng đợi
         </Link>
       </div>
@@ -120,33 +128,16 @@ export const ReviewDetail: React.FC = () => {
   const ocr = evidence.ocrResults?.[0];
   const verif = evidence.verificationResults?.[0];
   const ai = evidence.aiSuggestions?.[0];
+  const usesVersionedRubric = Boolean(evidence.criterionAssessment?.criterion?.rubricVersionId);
 
-  const boundingBoxes: BoundingBox[] = (ocr && ocr.studentNameExtracted) ? [
-    {
-      id: 'box-name',
-      field: 'name',
-      label: 'Họ tên',
-      top: 36,
-      left: 28,
-      width: 44,
-      height: 7,
-      value: ocr.studentNameExtracted || evidence.student?.fullName || 'Chưa trích xuất',
-      confidence: ocr.confidenceScore || 0.95,
-    },
-    {
-      id: 'box-code',
-      field: 'code',
-      label: 'MSSV',
-      top: 45,
-      left: 35,
-      width: 30,
-      height: 6,
-      value: ocr.studentCodeExtracted || evidence.student?.studentCode || 'Chưa trích xuất',
-      confidence: ocr.confidenceScore || 0.95,
-    },
-  ] : [];
+  // OCR API currently returns extracted fields, not document coordinates.
+  const boundingBoxes: BoundingBox[] = [];
 
   const handleDecisionSubmit = async (decision: ReviewDecision) => {
+    if (!usesVersionedRubric && (decision === 'APPROVED' || decision === 'SCORE_ADJUSTED') && finalScoreInput === undefined) {
+      alert('Cần có điểm được xác định từ căn cứ đã đối chiếu trước khi duyệt.');
+      return;
+    }
     if ((decision === 'REJECTED' || decision === 'SUPPLEMENT_REQUESTED' || decision === 'SCORE_ADJUSTED') && !reasonInput.trim()) {
       alert('Bắt buộc phải nhập lý do khi Từ chối, Sửa điểm hoặc Yêu cầu bổ sung!');
       return;
@@ -156,7 +147,7 @@ export const ReviewDetail: React.FC = () => {
     try {
       await apiClient.reviewEvidence(evidence.id, {
         decision: decision,
-        finalScore: decision === 'APPROVED' || decision === 'SCORE_ADJUSTED' ? finalScoreInput : undefined,
+        finalScore: !usesVersionedRubric && (decision === 'APPROVED' || decision === 'SCORE_ADJUSTED') ? finalScoreInput : undefined,
         reason: reasonInput || (decision === 'APPROVED' ? 'Đã đối chiếu khớp minh chứng hợp lệ.' : ''),
         rejectBasis: decision === 'REJECTED' ? rejectBasisInput : undefined,
         missingItem: decision === 'SUPPLEMENT_REQUESTED' ? missingItemInput : undefined,
@@ -164,7 +155,7 @@ export const ReviewDetail: React.FC = () => {
       });
 
       alert(`Đã hoàn tất xử lý hồ sơ: ${decision}`);
-      navigate('/officer/queue');
+      navigate(backTo);
     } catch (err) {
       alert('Có lỗi xảy ra khi lưu quyết định duyệt');
     } finally {
@@ -174,6 +165,8 @@ export const ReviewDetail: React.FC = () => {
 
   return (
     <div className="space-y-5 pb-28 relative">
+      {loadError && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{loadError}</p>}
+      <Link className="inline-block text-sm font-semibold text-blue-700" to={`/officer/students/${evidence.studentId}/assessment?termId=${evidence.termId}`}>Mở phiếu rèn luyện của sinh viên →</Link>
       
       {/* 1. Header Toolbar */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -211,8 +204,7 @@ export const ReviewDetail: React.FC = () => {
           <div className="hidden lg:flex items-center gap-2 text-[11px] text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 font-mono">
             <span>Phím tắt:</span>
             <span className="font-bold text-slate-800">[A] Duyệt</span>
-            <span>·</span>
-            <span className="font-bold text-slate-800">[S] Sửa điểm</span>
+            {!usesVersionedRubric && <><span>·</span><span className="font-bold text-slate-800">[S] Sửa điểm</span></>}
             <span>·</span>
             <span className="font-bold text-slate-800">[B] Bổ sung</span>
             <span>·</span>
@@ -392,7 +384,7 @@ export const ReviewDetail: React.FC = () => {
               <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                 1. Trích xuất OCR & Đối chiếu trường
               </span>
-              <ConfidenceBar score={ocr?.confidenceScore || 0.94} isOfficer={true} />
+              {ocr?.confidenceScore != null ? <ConfidenceBar score={ocr.confidenceScore} isOfficer={true} /> : <span className="text-[11px] text-slate-500">Chưa có dữ liệu độ tin cậy OCR</span>}
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-xs">
@@ -448,7 +440,7 @@ export const ReviewDetail: React.FC = () => {
               >
                 <span className="text-slate-400 text-[10px] block">Đơn vị tổ chức</span>
                 <span className="font-semibold text-slate-800 line-clamp-1">
-                  {ocr?.organizerExtracted || evidence.activity?.name || 'Chưa xác định'}
+                  {ocr?.organizerExtracted || 'Chưa có dữ liệu trích xuất'}
                 </span>
               </div>
             </div>
@@ -456,12 +448,12 @@ export const ReviewDetail: React.FC = () => {
 
           {/* Section 2: Verification Checklist */}
           <TwoQuestionsVerification
-            activityExists={verif?.activityExistsVerified ?? true}
-            studentParticipation={verif?.studentParticipationVerified ?? true}
+            activityExists={verif ? verif.activityExistsVerified : null}
+            studentParticipation={verif ? verif.studentParticipationVerified : null}
             sourceDesc={verif?.sourceDescription || 'Chưa có thông tin đối chứng độc lập'}
           />
 
-          <VerificationBadge level={verif?.verificationLevel || 2} isOfficer={true} />
+          {verif ? <VerificationBadge level={verif.verificationLevel} isOfficer={true} /> : <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">Chưa có kết quả xác minh độc lập cho hồ sơ này.</div>}
 
           {/* O04: Recorded Sources */}
           <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-2.5">
@@ -503,58 +495,40 @@ export const ReviewDetail: React.FC = () => {
               <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                 3. Đề xuất AI & Khống chế Trần Quy chế
               </span>
-              <span className="text-[10px] font-mono text-slate-500">Quy chế v2025.1</span>
+              <span className="text-[10px] font-mono text-slate-500">Rubric kỳ đang chọn</span>
             </div>
 
             <div className="flex items-center justify-between text-xs font-medium p-3 bg-slate-50 border border-slate-200 rounded-xl">
               <div>
                 <span className="text-slate-400 block text-[10px]">AI Đề xuất</span>
-                <strong className="text-slate-900 text-sm">{ai?.suggestedScore || 5.0} đ</strong>
+                <strong className="text-slate-900 text-sm">{ai?.suggestedScore ?? 'Chưa có đề xuất'}{ai?.suggestedScore != null ? ' đ' : ''}</strong>
               </div>
-              <span className="text-slate-400">→</span>
               <div>
-                <span className="text-slate-400 block text-[10px]">Trần Tiêu chí 1.2</span>
-                <strong className="text-slate-700 text-sm">10.0 đ</strong>
-              </div>
-              <span className="text-slate-400">→</span>
-              <div>
-                <span className="text-emerald-700 block text-[10px]">Chốt đề xuất</span>
-                <strong className="text-emerald-800 text-sm">{ai?.suggestedScore || 5.0} đ</strong>
+                <span className="text-slate-400 block text-[10px]">Tiêu chí liên kết / điểm tối đa</span>
+                <strong className="text-slate-700 text-sm">{evidence.criterionAssessment?.criterion?.code || ai?.criterion?.code || 'Chưa gắn tiêu chí'} · {evidence.criterionAssessment?.criterion?.maxScore ?? ai?.criterion?.maxScore ?? '—'} đ</strong>
               </div>
             </div>
 
             <p className="text-[11px] text-slate-600 italic">
-              Căn cứ: {ai?.reasoning || 'Chứng nhận hợp lệ, khớp tiêu chí 1.2 Cuộc thi học thuật cấp Thành phố theo Điều 4 Khoản 2.'}
+              Căn cứ AI: {ai?.reasoning || 'Chưa có kết quả phân tích AI cho hồ sơ này.'}
             </p>
           </div>
 
-          {/* Section 4: Decision Actions (Clean Typography Buttons) */}
+          {/* Section 4: Officer decision */}
           <div className="bg-white border-2 border-slate-300 rounded-2xl p-5 shadow-sm space-y-4">
-            
-            {/* 1-Click Fast Track AI Approve */}
+
+            {/* AI suggestions never submit or approve evidence by themselves. */}
             {ai?.suggestedScore !== undefined && (
               <div className="p-3.5 bg-gradient-to-r from-blue-50/80 to-emerald-50/80 border border-blue-200/90 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
                 <div className="space-y-0.5">
                   <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    Đề xuất duyệt tự động (Khớp 100% đối soát)
+                    <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                    AI phân tích tham khảo · cần cán bộ xác minh
                   </span>
                   <p className="text-[11px] text-slate-600">
-                    AI đề xuất <strong className="text-[#1d6fc2] font-bold">+{ai.suggestedScore} điểm</strong> theo tiêu chí phù hợp.
+                    Đề xuất điểm: <strong className="text-[#1d6fc2] font-bold">{ai.suggestedScore} điểm</strong>. Đây chưa phải kết quả duyệt hay điểm chính thức.
                   </p>
                 </div>
-
-                <button
-                  type="button"
-                  disabled={isSubmitting}
-                  onClick={() => {
-                    setFinalScoreInput(ai.suggestedScore ?? 5.0);
-                    handleDecisionSubmit('APPROVED');
-                  }}
-                  className="px-4 py-2 bg-[#1d6fc2] hover:bg-[#175ea5] active:scale-[0.99] text-white font-bold text-xs rounded-xl shadow-md shadow-blue-600/20 transition cursor-pointer shrink-0"
-                >
-                  Duyệt nhanh 1-Click ({ai.suggestedScore} đ)
-                </button>
               </div>
             )}
 
@@ -562,7 +536,7 @@ export const ReviewDetail: React.FC = () => {
               <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                 Quyết định thẩm định thủ công
               </span>
-              <span className="text-[11px] text-slate-400">Phím tắt: [A] [S] [B] [R] · [Esc] Hủy</span>
+              <span className="text-[11px] text-slate-400">Phím tắt: [A] {usesVersionedRubric ? '' : '[S] '}[B] [R] · [Esc] Hủy</span>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
@@ -575,10 +549,10 @@ export const ReviewDetail: React.FC = () => {
                     : 'bg-slate-50 text-slate-800 border-slate-200 hover:bg-slate-100'
                 }`}
               >
-                Duyệt hồ sơ [A]
+                {usesVersionedRubric ? 'Xác nhận minh chứng [A]' : 'Duyệt hồ sơ [A]'}
               </button>
 
-              <button
+              {!usesVersionedRubric && <button
                 type="button"
                 onClick={() => setActiveAction('SCORE_ADJUSTED')}
                 className={`py-2 px-2 text-xs font-bold rounded-xl border transition text-center ${
@@ -588,7 +562,7 @@ export const ReviewDetail: React.FC = () => {
                 }`}
               >
                 Sửa điểm [S]
-              </button>
+              </button>}
 
               <button
                 type="button"
@@ -617,8 +591,9 @@ export const ReviewDetail: React.FC = () => {
 
             {/* Action Form Submissions */}
             {activeAction === 'APPROVED' && (() => {
+              if (usesVersionedRubric) return <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-3 text-xs"><p className="text-sm text-emerald-950">Xác nhận tính hợp lệ của minh chứng. Điểm chính thức được cán bộ chốt riêng tại phiếu đánh giá tiêu chí của sinh viên.</p><button type="button" disabled={isSubmitting} onClick={() => handleDecisionSubmit('APPROVED')} className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-sm transition">Xác nhận minh chứng hợp lệ</button></div>;
               const appliedCriterion = evidence?.criterion || evidence?.aiSuggestions?.[0]?.criterion;
-              const maxLimit = appliedCriterion?.maxScore || 10;
+              const maxLimit = appliedCriterion?.maxScore ?? 0;
               return (
                 <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-3 text-xs">
                   {/* Cap Tracker Widget */}
@@ -630,7 +605,7 @@ export const ReviewDetail: React.FC = () => {
                           Trần tối đa: {maxLimit}đ
                         </span>
                       </div>
-                      {finalScoreInput > maxLimit && (
+                      {finalScoreInput !== undefined && finalScoreInput > maxLimit && (
                         <p className="text-[11px] text-amber-700 font-bold pt-0.5">
                           Cảnh báo: Điểm duyệt ({finalScoreInput}đ) vượt mức trần tối đa quy định ({maxLimit}đ)!
                         </p>
@@ -646,7 +621,7 @@ export const ReviewDetail: React.FC = () => {
                         step="0.5"
                         max={maxLimit}
                         value={finalScoreInput}
-                        onChange={(e) => setFinalScoreInput(parseFloat(e.target.value) || 0)}
+                        onChange={(e) => setFinalScoreInput(e.target.value === '' ? undefined : parseFloat(e.target.value))}
                         className="w-24 p-1.5 border border-emerald-300 rounded font-bold text-center bg-white text-emerald-900 text-sm"
                       />
                       <span className="font-bold text-emerald-900">điểm</span>
@@ -654,7 +629,7 @@ export const ReviewDetail: React.FC = () => {
                   </div>
                   <button
                     type="button"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || finalScoreInput === undefined || finalScoreInput > maxLimit}
                     onClick={() => handleDecisionSubmit('APPROVED')}
                     className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-sm transition"
                   >
@@ -666,7 +641,7 @@ export const ReviewDetail: React.FC = () => {
 
             {activeAction === 'SCORE_ADJUSTED' && (() => {
               const appliedCriterion = evidence?.criterion || evidence?.aiSuggestions?.[0]?.criterion;
-              const maxLimit = appliedCriterion?.maxScore || 10;
+              const maxLimit = appliedCriterion?.maxScore ?? 0;
               return (
                 <div className="p-4 bg-sky-50/70 border border-sky-200 rounded-xl space-y-3 text-xs">
                   {/* Cap Tracker Widget */}
@@ -678,7 +653,7 @@ export const ReviewDetail: React.FC = () => {
                           Trần tối đa: {maxLimit}đ
                         </span>
                       </div>
-                      {finalScoreInput > maxLimit && (
+                      {finalScoreInput !== undefined && finalScoreInput > maxLimit && (
                         <p className="text-[11px] text-amber-700 font-bold pt-0.5">
                           Cảnh báo: Điểm sửa ({finalScoreInput}đ) vượt mức trần tối đa ({maxLimit}đ)!
                         </p>
@@ -694,7 +669,7 @@ export const ReviewDetail: React.FC = () => {
                         step="0.5"
                         max={maxLimit}
                         value={finalScoreInput}
-                        onChange={(e) => setFinalScoreInput(parseFloat(e.target.value) || 0)}
+                        onChange={(e) => setFinalScoreInput(e.target.value === '' ? undefined : parseFloat(e.target.value))}
                         className="w-24 p-1.5 border border-sky-300 rounded font-bold text-center bg-white text-sky-900 text-sm"
                       />
                       <span className="font-bold text-sky-900">điểm</span>
@@ -853,12 +828,12 @@ export const ReviewDetail: React.FC = () => {
         >
           [A] Duyệt
         </button>
-        <button
+        {!usesVersionedRubric && <button
           onClick={() => setActiveAction('SCORE_ADJUSTED')}
           className="px-3 py-1 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-full transition"
         >
           [S] Sửa điểm
-        </button>
+        </button>}
         <button
           onClick={() => setActiveAction('SUPPLEMENT_REQUESTED')}
           className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-full transition"
@@ -1071,49 +1046,7 @@ export const ReviewDetail: React.FC = () => {
 
             {/* Criteria List */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
-              {[
-                {
-                  cat: 'Khung I: Ý thức tham gia học tập (Tối đa 20đ)',
-                  items: [
-                    { code: 'Mục 1', name: 'Đi học đầy đủ, đúng giờ, nghiêm túc trong giờ học', max: 6, docs: 'Điểm danh hệ thống e-learning / Giảng viên xác nhận' },
-                    { code: 'Mục 2', name: 'Có ý thức, trách nhiệm khi tham gia nhóm làm việc chung', max: 3, docs: 'Đánh giá nhóm trưởng / Biên bản làm việc' },
-                    { code: 'Mục 3', name: 'Kết quả học tập đạt loại Giỏi và cao hơn kỳ trước', max: 5, docs: 'Bảng điểm portal đào tạo' },
-                    { code: 'Mục 4', name: 'Tham gia CLB Tin học học thuật và Khởi nghiệp ĐMST', max: 3, docs: 'Giấy chứng nhận thành viên / Xác nhận BCN CLB' },
-                    { code: 'Mục 5', name: 'Tham gia NCKH hoặc thi Olympic môn học', max: 3, docs: 'Quyết định giao đề tài NCKH / Giấy khen Olympic' },
-                  ],
-                },
-                {
-                  cat: 'Khung II: Ý thức chấp hành nội quy, quy chế (Tối đa 25đ)',
-                  items: [
-                    { code: 'Mục 6', name: 'Chấp hành chủ trương, phong trào Nhà trường và Đoàn thể', max: 5, docs: 'Xác nhận tham gia SHCD / Tuần sinh hoạt công dân' },
-                    { code: 'Mục 7', name: 'Không vi phạm quy chế, quy định, nội quy của Trường, Khoa', max: 15, docs: 'Mặc định nếu không có biên bản kỷ luật' },
-                    { code: 'Mục 8', name: 'Tích cực tham gia hoạt động giáo dục chính trị, kỹ năng mềm', max: 5, docs: 'Giấy chứng nhận khóa học kỹ năng mềm / Hội thảo' },
-                  ],
-                },
-                {
-                  cat: 'Khung III: Hoạt động chính trị, xã hội, phong trào (Tối đa 20đ)',
-                  items: [
-                    { code: 'Mục 9', name: 'Tham gia hoạt động văn hóa, văn nghệ, thể thao (≥ 3 lần)', max: 10, docs: 'Giấy chứng nhận tham gia hội thao / Hội diễn văn nghệ' },
-                    { code: 'Mục 10', name: 'Tuyên truyền phòng chống tệ nạn, an toàn giao thông', max: 10, docs: 'Giấy chứng nhận tuyên truyền / Tập huấn ATGT' },
-                  ],
-                },
-                {
-                  cat: 'Khung IV: Ý thức công dân trong quan hệ cộng đồng (Tối đa 25đ)',
-                  items: [
-                    { code: 'Mục 11', name: 'Tham gia BHYT, đăng ký tạm trú tạm vắng và chấp hành pháp luật', max: 10, docs: 'Thẻ BHYT còn hạn / Xác nhận tạm trú Công an' },
-                    { code: 'Mục 12', name: 'Tham gia hoạt động phục vụ cộng đồng, tình nguyện (≥ 3 đợt)', max: 10, docs: 'Giấy chứng nhận Hiến máu / Tiếp sức mùa thi / Mùa hè xanh' },
-                    { code: 'Mục 13', name: 'Thành viên Ban tổ chức / cộng tác viên các sự kiện', max: 5, docs: 'Giấy chứng nhận BTC / CTV có dấu mộc đỏ' },
-                  ],
-                },
-                {
-                  cat: 'Khung V: Công tác cán bộ lớp, đoàn thể, khen thưởng (Tối đa 10đ)',
-                  items: [
-                    { code: 'Mục 14', name: 'Thành viên BCS lớp, BCH Đoàn, Hội hoàn thành tốt nhiệm vụ', max: 5, docs: 'Nghị quyết công nhận cán bộ lớp / BCH' },
-                    { code: 'Mục 15', name: 'Thành viên BCS, Đoàn, Hội hoàn thành xuất sắc nhiệm vụ', max: 3, docs: 'Giấy khen cán bộ Đoàn Hội tiêu biểu' },
-                    { code: 'Mục 16', name: 'Khen thưởng cấp Trường trở lên về học tập, rèn luyện', max: 2, docs: 'Quyết định khen thưởng của Hiệu trưởng' },
-                  ],
-                },
-              ]
+              {(rubric?.categories || []).map(category => ({ cat: category.name + ' (Tối đa ' + category.maxScore + 'đ)', items: category.criteria.map(c => ({ code: 'Mục ' + c.code, name: c.name, max: c.maxScore, docs: c.description })) }))
                 .map((group) => ({
                   ...group,
                   items: group.items.filter(

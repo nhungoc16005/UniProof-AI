@@ -21,8 +21,8 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Lấy thông tin người dùng hiện tại từ token' })
-  async getProfile(@CurrentUser('id') userId: string) {
-    return this.authService.getProfile(userId);
+  async getProfile(@CurrentUser() user: any) {
+    return user;
   }
 
   @Post('change-password')

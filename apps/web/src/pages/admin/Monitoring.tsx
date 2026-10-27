@@ -10,9 +10,9 @@ export const Monitoring: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-bold text-slate-900">Giám sát & Nhật ký Kiểm toán (A10 - A11)</h1>
+        <h1 className="text-xl font-bold text-slate-900">Giám sát & nhật ký</h1>
         <p className="text-xs text-slate-500 mt-0.5">
-          Theo dõi nhật ký truy vết mọi hành vi trong hệ thống, tính toàn vẹn Hash Chain và trạng thái hạ tầng BullMQ / Microservices.
+          Theo dõi lịch sử xử lý, kết nối dữ liệu và trạng thái dịch vụ.
         </p>
       </div>
 
@@ -27,7 +27,7 @@ export const Monitoring: React.FC = () => {
           }`}
         >
           <ShieldCheck className="w-4 h-4" />
-          <span>Nhật ký kiểm toán & Hash Chain (A10)</span>
+          <span>Nhật ký xử lý</span>
         </button>
 
         <button
@@ -39,7 +39,7 @@ export const Monitoring: React.FC = () => {
           }`}
         >
           <Activity className="w-4 h-4" />
-          <span>Sức khỏe hệ thống & Worker Jobs (A11)</span>
+          <span>Trạng thái dịch vụ</span>
         </button>
       </div>
 

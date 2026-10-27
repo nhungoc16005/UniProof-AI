@@ -4,14 +4,14 @@ import { apiClient } from '../lib/apiClient';
 
 const defaultTerm: Term = {
   id: '',
-  name: 'Đang tải học kỳ...',
+  name: 'Chưa có kỳ đánh giá',
   code: '',
   startDate: '',
   endDate: '',
   submissionDeadline: '',
   reviewDeadline: '',
   appealDeadline: '',
-  status: 'ACTIVE',
+  status: 'UPCOMING',
 };
 
 interface AuthContextType {
@@ -61,25 +61,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
 
   const loadTermsData = async () => {
-    try {
-      const [tList, tActive] = await Promise.all([
-        apiClient.getTerms().catch(() => []),
-        apiClient.getActiveTerm().catch(() => defaultTerm),
-      ]);
-      if (tList && tList.length > 0) {
-        setTerms(tList);
-        setActiveTerm((prev) => {
-          if (prev?.id && tList.some((t: Term) => t.id === prev.id)) {
-            return prev;
-          }
-          const chosen = (tActive && tActive.id) ? tActive : tList[0];
-          localStorage.setItem('edupoint_active_term', JSON.stringify(chosen));
-          return chosen;
-        });
-      }
-    } catch (e) {
-      console.error('Failed to load terms data', e);
-    }
+    const tList = await apiClient.getTerms();
+    setTerms(tList);
+    const saved = localStorage.getItem('edupoint_active_term');
+    const savedTerm = saved ? (JSON.parse(saved) as Term) : null;
+    const chosen = savedTerm && tList.some((term) => term.id === savedTerm.id)
+      ? tList.find((term) => term.id === savedTerm.id)!
+      : tList.find((term) => term.status === 'ACTIVE') || tList[0] || defaultTerm;
+    setActiveTerm(chosen);
+    localStorage.setItem('edupoint_active_term', JSON.stringify(chosen));
   };
 
   useEffect(() => {
@@ -88,7 +78,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const token = localStorage.getItem('edupoint_auth_token');
         if (token) {
           try {
-            const currentUser = await apiClient.getCurrentUser();
+            const [currentUser] = await Promise.all([
+              apiClient.getCurrentUser(),
+              loadTermsData(),
+            ]);
             setUser(currentUser);
             setIsAuthenticated(true);
           } catch (e) {
@@ -98,11 +91,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUser(null);
             setIsAuthenticated(false);
           }
+        } else {
+          await loadTermsData();
         }
-
-        await loadTermsData();
       } catch (err) {
         console.error('Failed to load initial auth data', err);
+        setTerms([]);
+        setActiveTerm(defaultTerm);
       } finally {
         setIsLoading(false);
       }
@@ -157,16 +152,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const resetPassword = async (token: string, newPassword: string): Promise<{ success: boolean; message: string }> => {
-    if (!token || token === 'expired') {
+    try {
+      const result = await apiClient.resetPassword(token, newPassword);
+      return { success: true, message: result.message || 'Đặt lại mật khẩu thành công.' };
+    } catch (err: any) {
       return {
         success: false,
-        message: 'Liên kết đặt lại mật khẩu đã hết hạn hoặc không hợp lệ. Vui lòng gửi lại yêu cầu.',
+        message: err.response?.data?.error?.message || err.response?.data?.message || 'Không thể đặt lại mật khẩu từ máy chủ.',
       };
     }
-    return {
-      success: true,
-      message: 'Đặt lại mật khẩu mới thành công! Bạn có thể đăng nhập ngay.',
-    };
   };
 
   return (

@@ -68,7 +68,6 @@ model User {
   resolvedAppeals  Appeal[]              @relation("OfficerResolvedAppeals")
   notifications    Notification[]
   auditLogs        AuditLog[]
-  conductScores    ConductScore[]
   uploadedDocs     RegulationDocument[]
   participations   ActivityParticipant[]
 }
@@ -97,7 +96,6 @@ model Term {
   createdAt          DateTime   @default(now())
 
   evidences     Evidence[]
-  conductScores ConductScore[]
 }
 
 enum ActivityType {
@@ -182,27 +180,8 @@ model Criterion {
   regulationDocument   RegulationDocument? @relation(fields: [regulationDocumentId], references: [id])
   createdAt            DateTime            @default(now())
 
-  rules         Rule[]
   aiSuggestions AiSuggestion[]
   reviews       Review[]
-}
-
-enum RuleStatus {
-  DRAFT
-  PUBLISHED
-  ARCHIVED
-}
-
-model Rule {
-  id          String     @id @default(uuid())
-  name        String     // "RULE_CAP_CHEERLEADER"
-  criterionId String
-  criterion   Criterion  @relation(fields: [criterionId], references: [id])
-  ruleType    String     // CAP_RESTRICTION, PREREQUISITE, EXCLUSION
-  logicJson   Json       // Cấu trúc JSON Logic linh hoạt
-  status      RuleStatus @default(PUBLISHED)
-  version     Int        @default(1)
-  createdAt   DateTime   @default(now())
 }
 
 // =========================================================================
@@ -421,19 +400,6 @@ model Appeal {
   adjustedScore  Float?       // Điểm sau khi giải quyết khiếu nại
   resolvedAt     DateTime?
   createdAt      DateTime     @default(now())
-}
-
-model ConductScore {
-  id             String   @id @default(uuid())
-  studentId      String
-  student        User     @relation(fields: [studentId], references: [id])
-  termId         String
-  term           Term     @relation(fields: [termId], references: [id])
-  totalScore     Float    // Tổng điểm kiểu Float
-  classification String?  // XUẤT SẮC | TỐT | KHÁ | TRUNG BÌNH | YẾU
-  finalizedAt    DateTime @default(now())
-
-  @@unique([studentId, termId])
 }
 
 // =========================================================================

@@ -10,12 +10,19 @@ import {
   Activity,
   Faculty,
   Class,
+  RubricPayload,
+  CriterionAssessment,
+  EvidenceFile,
+  RubricDefinition,
+  RubricTemplate,
+  RubricTemplateVersionSummary,
 } from '../types';
 
-const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3001/api';
+export const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3001/api';
 
 export const http = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 15_000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -24,7 +31,7 @@ export const http = axios.create({
 // Interceptor đính kèm Token
 http.interceptors.request.use((config) => {
   const token = localStorage.getItem('edupoint_auth_token');
-  if (token && !token.startsWith('mock_')) {
+  if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
@@ -34,6 +41,11 @@ http.interceptors.request.use((config) => {
 http.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Backend wraps errors in { error: { message } }; page handlers read message.
+    const payload = error.response?.data;
+    if (payload?.error?.message && !payload.message) {
+      payload.message = payload.error.message;
+    }
     if (error.response?.status === 401) {
       const hadToken = !!localStorage.getItem('edupoint_auth_token');
       localStorage.removeItem('edupoint_auth_token');
@@ -51,7 +63,7 @@ http.interceptors.response.use(
 function extractArray<T>(data: any): T[] {
   if (Array.isArray(data)) return data;
   if (data && Array.isArray(data.items)) return data.items;
-  return [];
+  throw new Error('API response không có danh sách dữ liệu hợp lệ.');
 }
 
 // API Client Wrapper - 100% Backend API Calls
@@ -59,6 +71,32 @@ export const apiClient = {
   // ==========================================
   // AUTH ENDPOINTS
   // ==========================================
+  async getReviewQueuePage(params: any): Promise<{ items: Evidence[]; total: number }> {
+    const response = await http.get('/reviews/queue', { params });
+    const items = extractArray<Evidence>(response.data.data);
+    return {
+      items,
+      total: Number(response.data.meta?.total ?? items.length),
+    };
+  },
+  async getEvaluationWorkflow(termId: string, params?: { classId?: string; facultyId?: string }) {
+    return (await http.get('/evaluation-workflow/' + termId, { params })).data.data;
+  },
+  async sendFacultyResults(termId: string, studentIds: string[]) {
+    return (await http.post('/evaluation-workflow/' + termId + '/send', { studentIds })).data.data;
+  },
+  async returnFacultyResult(termId: string, studentId: string, reason: string) {
+    return (await http.post('/evaluation-workflow/' + termId + '/students/' + studentId + '/return', { reason })).data.data;
+  },
+  async recordNonSubmission(termId: string, studentId: string, reason: string) {
+    return (await http.post('/evaluation-workflow/' + termId + '/students/' + studentId + '/not-submitted', { reason })).data.data;
+  },
+  async publishResults(termId: string) {
+    return (await http.post('/evaluation-workflow/' + termId + '/publish')).data.data;
+  },
+  async getAssessmentHistory(termId: string, studentId: string) {
+    return (await http.get('/evaluation-workflow/' + termId + '/students/' + studentId + '/history')).data.data;
+  },
   async login(email: string, password: string): Promise<{ accessToken: string; user: User }> {
     const response = await http.post('/auth/login', { email, password });
     const { accessToken, user } = response.data.data;
@@ -84,6 +122,11 @@ export const apiClient = {
     return response.data.data;
   },
 
+  async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+    const response = await http.post('/auth/reset-password', { token, newPassword });
+    return response.data.data;
+  },
+
   async logout(): Promise<void> {
     try {
       await http.post('/auth/logout');
@@ -99,12 +142,8 @@ export const apiClient = {
   // TERM ENDPOINTS
   // ==========================================
   async getTerms(): Promise<Term[]> {
-    try {
-      const res = await http.get('/terms');
-      return extractArray<Term>(res.data.data);
-    } catch {
-      return [];
-    }
+    const res = await http.get('/terms');
+    return extractArray<Term>(res.data.data);
   },
 
   async getActiveTerm(): Promise<Term> {
@@ -122,6 +161,51 @@ export const apiClient = {
     return res.data.data;
   },
 
+  async getRubricTemplates(): Promise<RubricTemplate[]> {
+    const res = await http.get('/rubric-templates');
+    return extractArray<RubricTemplate>(res.data.data);
+  },
+
+  async getRubricTemplateVersion(versionId: string): Promise<any> {
+    const res = await http.get(`/rubric-templates/${versionId}`);
+    return res.data.data;
+  },
+
+  async createRubricTemplateDraft(): Promise<RubricTemplateVersionSummary> {
+    const res = await http.post('/rubric-templates/draft');
+    return res.data.data;
+  },
+
+  async saveRubricTemplateDraft(versionId: string, definition: RubricDefinition, changeNote: string): Promise<RubricTemplateVersionSummary> {
+    const res = await http.put(`/rubric-templates/${versionId}`, { definition, changeNote });
+    return res.data.data;
+  },
+
+  async publishRubricTemplateDraft(versionId: string): Promise<RubricTemplateVersionSummary> {
+    const res = await http.post(`/rubric-templates/${versionId}/publish`);
+    return res.data.data;
+  },
+
+  async getTermRubric(termId: string): Promise<{ term: Term; rubricVersion: any; definition: RubricDefinition | null }> {
+    const res = await http.get(`/terms/${termId}/rubric`);
+    return res.data.data;
+  },
+
+  async saveTermRubricDraft(termId: string, definition: RubricDefinition, changeNote?: string): Promise<any> {
+    const res = await http.put(`/terms/${termId}/rubric`, { definition, changeNote });
+    return res.data.data;
+  },
+
+  async createTermRubricDraft(termId: string, data: { type: 'DEFAULT' | 'TERM'; sourceTermId?: string }): Promise<any> {
+    const res = await http.post(`/terms/${termId}/rubric/draft`, data);
+    return res.data.data;
+  },
+
+  async publishTermRubric(termId: string): Promise<any> {
+    const res = await http.post(`/terms/${termId}/rubric/publish`);
+    return res.data.data;
+  },
+
   async updateTerm(id: string, data: any): Promise<Term> {
     const res = await http.patch(`/terms/${id}`, data);
     return res.data.data;
@@ -129,6 +213,11 @@ export const apiClient = {
 
   async closeTerm(id: string): Promise<Term> {
     const res = await http.post(`/terms/${id}/close`);
+    return res.data.data;
+  },
+
+  async activateTerm(id: string): Promise<Term> {
+    const res = await http.post(`/terms/${id}/activate`);
     return res.data.data;
   },
 
@@ -140,13 +229,60 @@ export const apiClient = {
   // ==========================================
   // CRITERIA ENDPOINTS (CRI-01)
   // ==========================================
-  async getCriteria(): Promise<Criterion[]> {
-    try {
-      const res = await http.get('/criteria');
-      return extractArray<Criterion>(res.data.data);
-    } catch {
-      return [];
-    }
+  async getCriteria(termId?: string): Promise<Criterion[]> {
+    const res = await http.get('/criteria', { params: { termId } });
+    if (termId) return Array.isArray(res.data.data?.criteria) ? res.data.data.criteria : [];
+    return extractArray<Criterion>(res.data.data);
+  },
+
+  async getRubric(termId: string): Promise<RubricPayload> {
+    const res = await http.get('/criteria', { params: { termId } });
+    return res.data.data;
+  },
+
+  async getMyAssessments(termId: string): Promise<RubricPayload> {
+    const res = await http.get('/assessments/me', { params: { termId } });
+    return res.data.data;
+  },
+
+  async saveSelfAssessment(termId: string, criterionId: string, data: { score?: number | null; note?: string }): Promise<CriterionAssessment> {
+    const res = await http.put(`/assessments/me/${criterionId}`, data, { params: { termId } });
+    return res.data.data;
+  },
+
+  async saveSelfAssessments(termId: string, scores: Array<{ criterionId: string; score: number | null }>): Promise<RubricPayload> {
+    const res = await http.post('/assessments/me/save', { scores }, { params: { termId } });
+    return res.data.data;
+  },
+
+  async submitSelfAssessment(termId: string): Promise<{ submission: NonNullable<RubricPayload['submission']>; submittedEvidenceCount: number }> {
+    const res = await http.post('/assessments/me/submit', {}, { params: { termId } });
+    return res.data.data;
+  },
+
+  async returnSelfAssessment(studentId: string, termId: string, reason: string): Promise<NonNullable<RubricPayload['submission']>> {
+    const res = await http.put(`/assessments/students/${studentId}/${termId}/return`, { reason });
+    return res.data.data;
+  },
+
+  async getStudentAssessments(studentId: string, termId: string): Promise<RubricPayload> {
+    const res = await http.get(`/assessments/students/${studentId}`, { params: { termId } });
+    return res.data.data;
+  },
+
+  async recordClassAssessment(studentId: string, termId: string, criterionId: string, data: { score: number; note: string }): Promise<CriterionAssessment> {
+    const res = await http.put(`/assessments/students/${studentId}/${termId}/${criterionId}/class`, data);
+    return res.data.data;
+  },
+
+  async verifyCriterion(studentId: string, termId: string, criterionId: string, data: { data: Record<string, unknown>; note: string }): Promise<CriterionAssessment> {
+    const res = await http.put(`/assessments/students/${studentId}/${termId}/${criterionId}/verification`, data);
+    return res.data.data;
+  },
+
+  async finalizeCriterion(studentId: string, termId: string, criterionId: string, data: { score?: number; reason?: string }): Promise<CriterionAssessment> {
+    const res = await http.put(`/assessments/students/${studentId}/${termId}/${criterionId}/final`, data);
+    return res.data.data;
   },
 
   async createCriterion(data: any): Promise<Criterion> {
@@ -167,13 +303,9 @@ export const apiClient = {
   // ==========================================
   // ACTIVITIES & ATTENDANCE
   // ==========================================
-  async getActivities(params?: { type?: string; search?: string }): Promise<Activity[]> {
-    try {
-      const res = await http.get('/activities', { params });
-      return extractArray<Activity>(res.data.data);
-    } catch {
-      return [];
-    }
+  async getActivities(params?: { type?: string; search?: string; termId?: string }): Promise<Activity[]> {
+    const res = await http.get('/activities', { params });
+    return extractArray<Activity>(res.data.data);
   },
 
   async getActivityById(id: string): Promise<Activity> {
@@ -187,7 +319,10 @@ export const apiClient = {
   },
 
   async addActivityAttendance(activityId: string, data: { studentCode: string; role?: string }): Promise<any> {
-    const res = await http.post(`/activities/${activityId}/attendance`, data);
+    const res = await http.post(`/activities/${activityId}/attendance`, {
+      studentCode: data.studentCode,
+      formRole: data.role,
+    });
     return res.data.data;
   },
 
@@ -202,12 +337,8 @@ export const apiClient = {
   },
 
   async getActivityParticipants(activityId: string): Promise<any[]> {
-    try {
-      const res = await http.get(`/activities/${activityId}/attendance`);
-      return extractArray<any>(res.data.data);
-    } catch {
-      return [];
-    }
+    const res = await http.get(`/activities/${activityId}/attendance`);
+    return extractArray<any>(res.data.data);
   },
 
   async updateActivity(id: string, data: any): Promise<Activity> {
@@ -233,12 +364,8 @@ export const apiClient = {
     page?: number;
     pageSize?: number;
   }): Promise<Evidence[]> {
-    try {
-      const res = await http.get('/evidence', { params });
-      return extractArray<Evidence>(res.data.data);
-    } catch {
-      return [];
-    }
+    const res = await http.get('/evidence', { params });
+    return extractArray<Evidence>(res.data.data);
   },
 
   async getEvidenceById(id: string): Promise<Evidence | null> {
@@ -249,6 +376,15 @@ export const apiClient = {
   async createEvidence(data: any): Promise<Evidence> {
     const res = await http.post('/evidence', data);
     return res.data.data;
+  },
+
+  async uploadEvidenceDraftFile(evidenceId: string, fileData: string, fileName: string, fileType: string): Promise<EvidenceFile> {
+    const res = await http.post(`/evidence/${evidenceId}/files/upload`, { fileData, fileName, fileType });
+    return res.data.data;
+  },
+
+  async deleteEvidenceDraftFile(evidenceId: string, fileId: string): Promise<void> {
+    await http.delete(`/evidence/${evidenceId}/files/${fileId}`);
   },
 
   async submitEvidence(id: string): Promise<Evidence> {
@@ -297,12 +433,8 @@ export const apiClient = {
     page?: number;
     pageSize?: number;
   }): Promise<Evidence[]> {
-    try {
-      const res = await http.get('/reviews/queue', { params });
-      return extractArray<Evidence>(res.data.data);
-    } catch {
-      return [];
-    }
+    const res = await http.get('/reviews/queue', { params });
+    return extractArray<Evidence>(res.data.data);
   },
 
   async claimEvidence(id: string): Promise<Evidence> {
@@ -344,13 +476,18 @@ export const apiClient = {
   // ==========================================
   // APPEALS (APL-01, APL-04)
   // ==========================================
-  async getAppeals(params?: { status?: string; page?: number; pageSize?: number }): Promise<Appeal[]> {
-    try {
-      const res = await http.get('/appeals', { params });
-      return extractArray<Appeal>(res.data.data);
-    } catch {
-      return [];
-    }
+  async getAppeals(params?: { termId?: string; status?: string; page?: number; pageSize?: number }): Promise<Appeal[]> {
+    const res = await http.get('/appeals', { params });
+    return extractArray<Appeal>(res.data.data);
+  },
+
+  async getAppealsPage(params?: { termId?: string; status?: string; page?: number; pageSize?: number }): Promise<{ items: Appeal[]; total: number }> {
+    const res = await http.get('/appeals', { params });
+    const items = extractArray<Appeal>(res.data.data);
+    return {
+      items,
+      total: Number(res.data.meta?.total ?? items.length),
+    };
   },
 
   async createAppeal(data: any): Promise<Appeal> {
@@ -367,12 +504,8 @@ export const apiClient = {
   // NOTIFICATIONS (NOTI-01, NOTI-02)
   // ==========================================
   async getNotifications(): Promise<Notification[]> {
-    try {
-      const res = await http.get('/notifications');
-      return extractArray<Notification>(res.data.data);
-    } catch {
-      return [];
-    }
+    const res = await http.get('/notifications');
+    return extractArray<Notification>(res.data.data);
   },
 
   async markNotificationAsRead(id: string): Promise<void> {
@@ -387,12 +520,8 @@ export const apiClient = {
   // USER MANAGEMENT (A02)
   // ==========================================
   async getUsers(params?: { role?: string; facultyId?: string; classId?: string; search?: string; page?: number; pageSize?: number }): Promise<User[]> {
-    try {
-      const res = await http.get('/users', { params });
-      return extractArray<User>(res.data.data);
-    } catch {
-      return [];
-    }
+    const res = await http.get('/users', { params });
+    return extractArray<User>(res.data.data);
   },
 
   async getUserById(id: string): Promise<User> {
@@ -424,12 +553,8 @@ export const apiClient = {
   // FACULTIES & CLASSES MASTER DATA
   // ==========================================
   async getFaculties(): Promise<Faculty[]> {
-    try {
-      const res = await http.get('/faculties');
-      return extractArray<Faculty>(res.data.data);
-    } catch {
-      return [];
-    }
+    const res = await http.get('/faculties');
+    return extractArray<Faculty>(res.data.data);
   },
 
   async createFaculty(data: { code: string; name: string }): Promise<Faculty> {
@@ -448,12 +573,8 @@ export const apiClient = {
   },
 
   async getClasses(facultyId?: string): Promise<Class[]> {
-    try {
-      const res = await http.get('/classes', { params: { facultyId } });
-      return extractArray<Class>(res.data.data);
-    } catch {
-      return [];
-    }
+    const res = await http.get('/classes', { params: { facultyId } });
+    return extractArray<Class>(res.data.data);
   },
 
   async createClass(data: { code: string; name?: string; cohort: string; facultyId: string }): Promise<Class> {
@@ -498,33 +619,21 @@ export const apiClient = {
   // REPORTS & ADMIN ANALYTICS
   // ==========================================
   async getKpiSummary(termId?: string): Promise<any> {
-    try {
-      const res = await http.get('/reports/summary', { params: { termId } });
-      return res.data.data;
-    } catch {
-      return null;
-    }
+    const res = await http.get('/reports/summary', { params: { termId } });
+    return res.data.data;
   },
 
   async getFacultyReports(termId?: string): Promise<any[]> {
-    try {
-      const res = await http.get('/reports/faculties', { params: { termId } });
-      return extractArray<any>(res.data.data);
-    } catch {
-      return [];
-    }
+    const res = await http.get('/reports/faculties', { params: { termId } });
+    return extractArray<any>(res.data.data);
   },
 
   // ==========================================
   // KNOWLEDGE BASE (REGULATION DOCUMENTS)
   // ==========================================
   async getRegulations(): Promise<any[]> {
-    try {
-      const res = await http.get('/regulations');
-      return extractArray<any>(res.data.data);
-    } catch {
-      return [];
-    }
+    const res = await http.get('/regulations');
+    return extractArray<any>(res.data.data);
   },
 
   async createRegulation(data: { title: string; version: string; fileUrl?: string; effectiveDate?: string }): Promise<any> {
@@ -541,20 +650,16 @@ export const apiClient = {
   // AUDIT LOGS & HEALTH CHECK
   // ==========================================
   async getAuditLogs(params?: { userId?: string; action?: string; entityType?: string; page?: number; pageSize?: number }): Promise<{ items: any[]; total: number }> {
-    try {
-      const res = await http.get('/audit-logs', { params });
-      return res.data.data || { items: [], total: 0 };
-    } catch {
-      return { items: [], total: 0 };
+    const res = await http.get('/audit-logs', { params });
+    const data = res.data.data;
+    if (!data || !Array.isArray(data.items) || typeof data.total !== 'number') {
+      throw new Error('API nhật ký trả về dữ liệu không đúng định dạng.');
     }
+    return data;
   },
 
   async getSystemHealth(): Promise<any> {
-    try {
-      const res = await http.get('/health');
-      return res.data.data;
-    } catch {
-      return { status: 'down', database: 'DOWN', uptimeSeconds: 0 };
-    }
+    const res = await http.get('/health');
+    return res.data.data;
   },
 };

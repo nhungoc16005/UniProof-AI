@@ -6,6 +6,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '@prisma/client';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @ApiTags('Users')
 @Controller('users')
@@ -18,6 +19,7 @@ export class UsersController {
   @Roles(Role.ADMIN, Role.STAFF)
   @ApiOperation({ summary: 'Lấy danh sách người dùng (Admin, Cán bộ)' })
   async findAll(
+    @CurrentUser() actor: { id: string; role: Role; facultyId?: string | null },
     @Query('role') role?: Role,
     @Query('facultyId') facultyId?: string,
     @Query('classId') classId?: string,
@@ -25,13 +27,14 @@ export class UsersController {
     @Query('page') page?: number,
     @Query('pageSize') pageSize?: number,
   ) {
-    return this.usersService.findAll({ role, facultyId, classId, search, page: page ? Number(page) : 1, pageSize: pageSize ? Number(pageSize) : 50 });
+    return this.usersService.findAll({ role, facultyId, classId, search, page: page ? Number(page) : 1, pageSize: pageSize ? Number(pageSize) : 50 }, actor);
   }
 
   @Get(':id')
+  @Roles(Role.ADMIN, Role.STAFF)
   @ApiOperation({ summary: 'Xem chi tiết người dùng theo ID' })
-  async findOne(@Param('id') id: string) {
-    return this.usersService.findOne(id);
+  async findOne(@Param('id') id: string, @CurrentUser() actor: { id: string; role: Role; facultyId?: string | null }) {
+    return this.usersService.findOne(id, actor);
   }
 
   @Post('import')
@@ -49,10 +52,10 @@ export class UsersController {
   }
 
   @Patch(':id')
-  @Roles(Role.ADMIN, Role.STAFF)
-  @ApiOperation({ summary: 'Cập nhật tài khoản người dùng (Khóa/Mở, đổi tên, lớp) (Admin, Cán bộ)' })
-  async update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
-    return this.usersService.update(id, dto);
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Cập nhật tài khoản người dùng (Chỉ Admin)' })
+  async update(@Param('id') id: string, @Body() dto: UpdateUserDto, @CurrentUser() actor: { id: string; role: Role }) {
+    return this.usersService.update(id, dto, actor);
   }
 
   @Delete(':id')

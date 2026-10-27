@@ -46,7 +46,6 @@ export type AppealStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED';
 
 export type DocumentStatus = 'ACTIVE' | 'EXPIRED';
 
-export type RuleStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
 
 // =========================================================================
 // INTERFACES CHÍNH
@@ -94,10 +93,14 @@ export interface Term {
   reviewDeadline: string;
   appealDeadline: string;
   status: TermStatus;
+  workflowEnabled?: boolean;
   createdAt?: string;
 }
 
 export interface Activity {
+  termId?: string;
+  facultyId?: string;
+  criterionId?: string;
   id: string;
   name: string;
   type: ActivityType;
@@ -136,21 +139,87 @@ export interface Criterion {
   classScore?: number; // Điểm tập thể lớp đánh giá
   notes?: string;
   rolesScore?: Record<string, number>;
-  rules?: Rule[];
   regulationDocumentId?: string;
+  createdAt?: string;
+  rubricVersionId?: string | null;
+  categoryId?: string | null;
+  scoringConfig?: Record<string, any> | null;
+  assessment?: CriterionAssessment | null;
+}
+
+export interface CriterionAssessment {
+  id: string;
+  studentId: string;
+  termId: string;
+  criterionId: string;
+  selfScore?: number | null;
+  selfNote?: string | null;
+  classScore?: number | null;
+  classNote?: string | null;
+  verificationNote?: string | null;
+  verifiedData?: Record<string, any> | null;
+  suggestedScore?: number | null;
+  suggestionReason?: string | null;
+  officialScore?: number | null;
+  officialReason?: string | null;
+  status: 'NEEDS_VERIFICATION' | 'READY_FOR_REVIEW' | 'FINALIZED';
+  finalizedAt?: string | null;
+  updatedAt?: string;
+  evidences?: Array<{
+    id: string;
+    declaredActivityName?: string | null;
+    status: EvidenceStatus;
+    aiSuggestions?: AiSuggestion[];
+    reviews?: Array<{ finalScore?: number | null; reason?: string }>;
+  }>;
+}
+
+export interface RubricCategory {
+  id?: string;
+  key: string;
+  name: string;
+  maxScore: number;
+  position?: number;
+  criteria: Criterion[];
+}
+
+export interface RubricPayload {
+  rubricVersion: { id: string; version: number; status: string; source?: string; publishedAt?: string | null } | null;
+  term?: Pick<Term, 'id' | 'name' | 'status' | 'workflowEnabled' | 'appealDeadline'>;
+  handoff?: { status: string; returnReason?: string | null; revision: number } | null;
+  publication?: { revision: number; publishedAt: string } | null;
+  permissions?: { canReview: boolean; canAppeal: boolean };
+  submission?: { id: string; status: 'DRAFT' | 'SUBMITTED' | 'RETURNED'; submittedAt?: string | null; returnedAt?: string | null; returnReason?: string | null } | null;
+  termId: string;
+  categories: RubricCategory[];
+  criteria: Criterion[];
+}
+
+export interface RubricDefinition {
+  categories: Array<{
+    code: string;
+    name: string;
+    maxScore: number;
+    position: number;
+    criteria: Array<{ code: string; name: string; description: string; maxScore: number; scoringConfig: Record<string, any> }>;
+  }>;
+}
+
+export interface RubricTemplateVersionSummary {
+  id: string;
+  version: number;
+  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+  publishedAt?: string | null;
+  sourceDescription?: string | null;
+  changeNote?: string | null;
   createdAt?: string;
 }
 
-export interface Rule {
+export interface RubricTemplate {
   id: string;
+  code: string;
   name: string;
-  criterionId: string;
-  criterion?: Criterion;
-  ruleType: 'CAP_RESTRICTION' | 'PREREQUISITE' | 'EXCLUSION' | string;
-  logicJson: Record<string, any>;
-  status: RuleStatus;
-  version: number;
-  createdAt?: string;
+  versions: RubricTemplateVersionSummary[];
 }
 
 export interface EvidenceFile {
@@ -158,6 +227,8 @@ export interface EvidenceFile {
   evidenceId: string;
   fileUrl: string;
   fileType: string;
+  fileName?: string | null;
+  fileSize?: number | null;
   uploadedAt: string;
 }
 
@@ -259,17 +330,6 @@ export interface Appeal {
   createdAt?: string;
 }
 
-export interface ConductScore {
-  id: string;
-  studentId: string;
-  student?: User;
-  termId: string;
-  term?: Term;
-  totalScore: number;
-  classification?: 'XUẤT SẮC' | 'TỐT' | 'KHÁ' | 'TRUNG BÌNH' | 'YẾU';
-  finalizedAt?: string;
-}
-
 export interface Notification {
   id: string;
   userId: string;
@@ -316,6 +376,7 @@ export interface Evidence {
   activityId?: string;
   activity?: Activity;
   declaredActivityName?: string;
+  description?: string | null;
   declaredRole?: string; // PARTICIPANT, ORGANIZER, CHEERLEADER
   evidenceType: string; // GIAY_KHEN, GIAY_XAC_NHAN, VE_CHECKIN
   status: EvidenceStatus;
@@ -330,8 +391,15 @@ export interface Evidence {
 
   criterionId?: string;
   criterion?: Criterion;
+  criterionAssessment?: { criterion?: Pick<Criterion, 'id' | 'code' | 'name' | 'maxScore' | 'rubricVersionId'> | null } | null;
 
   files: EvidenceFile[];
+  aiProcessingJobs?: Array<{
+    id: string;
+    status: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'UNAVAILABLE' | 'CANCELLED';
+    error?: string | null;
+    pipelineRuns?: Array<{ id: string; status: string; modelName?: string | null; modelVersion?: string | null; startedAt: string; completedAt?: string | null; steps?: Array<{ id: string; stepKey: string; status: string }> }>;
+  }>;
   ocrResults?: OcrResult[];
   verificationResults?: VerificationResult[];
   anomalyFlags?: AnomalyFlag[];

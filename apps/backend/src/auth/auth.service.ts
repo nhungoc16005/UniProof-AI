@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../common/prisma/prisma.service';
@@ -97,13 +97,9 @@ export class AuthService {
   }
 
   async forgotPassword(email: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { email: email.trim().toLowerCase() },
-    });
-
-    // Luôn trả về thông báo an toàn, không để lộ việc email có tồn tại hay không
-    return {
-      message: 'Nếu email tồn tại trong hệ thống trường, hướng dẫn đặt lại mật khẩu đã được gửi đến hòm thư của bạn.',
-    };
+    // Không giả báo đã gửi email khi hệ thống chưa có mailer/token reset thật.
+    // Không tra cứu email để tránh làm lộ tài khoản có tồn tại hay không.
+    void email;
+    throw new ServiceUnavailableException('Chức năng gửi email đặt lại mật khẩu chưa được cấu hình. Vui lòng liên hệ quản trị viên.');
   }
 }

@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsIn, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 import { TermStatus } from '@prisma/client';
 
 export class CreateTermDto {
@@ -42,6 +42,16 @@ export class CreateTermDto {
   @IsOptional()
   @IsEnum(TermStatus)
   status?: TermStatus;
+
+  @ApiPropertyOptional({ enum: ['DEFAULT', 'TERM'], default: 'DEFAULT' })
+  @IsOptional()
+  @IsIn(['DEFAULT', 'TERM'])
+  rubricSourceType?: 'DEFAULT' | 'TERM';
+
+  @ApiPropertyOptional({ description: 'ID của kỳ nguồn khi rubricSourceType=TERM' })
+  @IsOptional()
+  @IsString()
+  sourceTermId?: string;
 }
 
 export class UpdateTermDto {

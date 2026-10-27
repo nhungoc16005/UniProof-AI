@@ -12,13 +12,17 @@ export const EvidenceList: React.FC = () => {
   const [filterTab, setFilterTab] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   const fetchEvidences = () => {
     setIsLoading(true);
+    setLoadError('');
     apiClient.getEvidences({ studentId: user.id, termId: activeTerm.id }).then((data) => {
       setEvidences(data);
-      setIsLoading(false);
-    });
+    }).catch(() => {
+      setEvidences([]);
+      setLoadError('Không tải được minh chứng từ máy chủ. Vui lòng thử lại.');
+    }).finally(() => setIsLoading(false));
   };
 
   useEffect(() => {
@@ -73,6 +77,7 @@ export const EvidenceList: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-12">
+      {loadError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{loadError}</div>}
       
       {/* 1. Header with Term info and Quick Action */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.05)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -90,10 +95,10 @@ export const EvidenceList: React.FC = () => {
 
         {activeTerm.status === 'ACTIVE' && (
           <Link
-            to="/student/evidence/new"
+            to="/student/scores"
             className="px-4 py-2.5 bg-[#1d6fc2] hover:bg-[#175ea5] active:scale-[0.99] text-white font-bold text-xs rounded-xl shadow-md shadow-blue-600/20 transition cursor-pointer shrink-0"
           >
-            Nộp minh chứng mới
+            Mở phiếu đánh giá
           </Link>
         )}
       </div>

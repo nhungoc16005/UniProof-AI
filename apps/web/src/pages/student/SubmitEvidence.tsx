@@ -17,7 +17,9 @@ export const SubmitEvidence: React.FC = () => {
 
   useEffect(() => {
     const queryParamId = new URLSearchParams(window.location.search).get('criterionId');
-    apiClient.getCriteria().then((list) => {
+    if (!activeTerm.id) return;
+    apiClient.getRubric(activeTerm.id).then((rubric) => {
+      const list = rubric.criteria;
       setCriteria(list);
       if (queryParamId && list.some((c) => c.id === queryParamId)) {
         setSelectedCriterionId(queryParamId);
@@ -25,7 +27,7 @@ export const SubmitEvidence: React.FC = () => {
         setSelectedCriterionId(list[0].id);
       }
     });
-  }, []);
+  }, [activeTerm.id]);
 
   // Form State
   const [activityName, setActivityName] = useState('');

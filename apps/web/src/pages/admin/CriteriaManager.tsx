@@ -1,407 +1,207 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../../lib/apiClient';
-import { Criterion } from '../../types';
-import { RuleEngineEditor } from './RuleEngineEditor';
-import { ListFilter, Sliders, Plus } from 'lucide-react';
+import { RubricDefinition, RubricTemplate, RubricTemplateVersionSummary, Term } from '../../types';
 
-export const CriteriaManager: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'criteria' | 'rules'>('criteria');
-  const [criteria, setCriteria] = useState<Criterion[]>([]);
-  const [showAddModal, setShowAddModal] = useState(false);
+type TermWithVersions = Term & { rubricVersions?: RubricTemplateVersionSummary[] };
+type TermRubricPayload = { term: Term; rubricVersion: any; definition: RubricDefinition | null };
 
-  // Form state
-  const [code, setCode] = useState('');
-  const [name, setName] = useState('');
-  const [desc, setDesc] = useState('');
-  const [maxScore, setMaxScore] = useState(5.0);
-  const [category, setCategory] = useState('KHUNG_I');
+const statusLabel: Record<string, string> = { DRAFT: 'Nháp', PUBLISHED: 'Đã ban hành', ARCHIVED: 'Đã lưu trữ' };
+const termStatusLabel: Record<string, string> = { UPCOMING: 'Sắp diễn ra', ACTIVE: 'Đang mở', REVIEWING: 'Đang chấm duyệt', CLOSED: 'Đã chốt sổ' };
 
-  const [loading, setLoading] = useState(false);
+const formatRubricSource = (source?: string) => {
+  if (!source) return 'Nguồn chưa ghi nhận';
+  if (source.startsWith('DUT_DEFAULT')) return `Sao chép từ bộ chuẩn ${source.replace('DUT_DEFAULT ', '')}`;
+  if (source.startsWith('Kế thừa kỳ')) return source;
+  return source;
+};
 
-  const fetchCriteria = async () => {
-    try {
-      setLoading(true);
-      const data = await apiClient.getCriteria();
-      setCriteria(data);
-    } catch (err: any) {
-      console.error('Lỗi khi tải danh sách tiêu chí:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+const RubricEditor: React.FC<{ definition: RubricDefinition; onSave: (definition: RubricDefinition, changeNote?: string) => Promise<unknown>; disabled?: boolean; showChangeNote?: boolean }> = ({ definition: initialDefinition, onSave, disabled = false, showChangeNote = false }) => {
+  const [definition, setDefinition] = useState(initialDefinition);
+  const [configTexts, setConfigTexts] = useState<Record<string, string>>({});
+  const [changeNote, setChangeNote] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
 
   useEffect(() => {
-    fetchCriteria();
-  }, []);
+    setDefinition(initialDefinition);
+  }, [initialDefinition]);
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
+  useEffect(() => {
+    const next: Record<string, string> = {};
+    definition.categories.forEach((category, categoryIndex) => category.criteria.forEach((criterion, criterionIndex) => {
+      next[`${categoryIndex}-${criterionIndex}`] = JSON.stringify(criterion.scoringConfig, null, 2);
+    }));
+    setConfigTexts(next);
+  }, [definition]);
+
+  const total = useMemo(() => definition.categories.reduce((sum, category) => sum + Number(category.maxScore || 0), 0), [definition]);
+  const changeCategory = (index: number, key: string, value: string | number) => setDefinition((current) => ({ ...current, categories: current.categories.map((category, i) => i === index ? { ...category, [key]: value } : category) }));
+  const changeCriterion = (categoryIndex: number, criterionIndex: number, key: string, value: string | number) => setDefinition((current) => ({ ...current, categories: current.categories.map((category, ci) => ci === categoryIndex ? { ...category, criteria: category.criteria.map((criterion, i) => i === criterionIndex ? { ...criterion, [key]: value } : criterion) } : category) }));
+  const removeCriterion = (categoryIndex: number, criterionIndex: number) => setDefinition((current) => ({ ...current, categories: current.categories.map((category, ci) => ci === categoryIndex ? { ...category, criteria: category.criteria.filter((_, i) => i !== criterionIndex) } : category) }));
+  const addCriterion = (categoryIndex: number) => setDefinition((current) => ({ ...current, categories: current.categories.map((category, ci) => ci === categoryIndex ? { ...category, criteria: [...category.criteria, { code: `M${category.criteria.length + 1}`, name: '', description: '', maxScore: 0, scoringConfig: { kind: 'manual_verified', requiredData: ['officialScore'] } }] } : category) }));
+  const removeCategory = (categoryIndex: number) => setDefinition((current) => ({ ...current, categories: current.categories.filter((_, i) => i !== categoryIndex) }));
+  const addCategory = () => setDefinition((current) => ({ ...current, categories: [...current.categories, { code: `KHUNG_${current.categories.length + 1}`, name: '', maxScore: 0, position: current.categories.length + 1, criteria: [] }] }));
+
+  const save = async () => {
+    setSaving(true); setError(''); setNotice('');
     try {
-      setLoading(true);
-      await apiClient.createCriterion({
-        code,
-        name,
-        description: desc,
-        minScore: 0,
-        maxScore: Number(maxScore),
-        category,
-      });
-      setShowAddModal(false);
-      setCode('');
-      setName('');
-      setDesc('');
-      await fetchCriteria();
+      const parsed = { ...definition, categories: definition.categories.map((category, ci) => ({ ...category, criteria: category.criteria.map((criterion, ki) => ({ ...criterion, scoringConfig: JSON.parse(configTexts[`${ci}-${ki}`] || '{}') })) })) };
+      await onSave(parsed, changeNote);
+      setDefinition(parsed);
+      setNotice('Đã lưu bản nháp. Các thay đổi chưa áp dụng cho kỳ cho đến khi ban hành.');
     } catch (err: any) {
-      alert('Không thể tạo tiêu chí: ' + (err.message || 'Lỗi hệ thống'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const [editingCriterion, setEditingCriterion] = useState<Criterion | null>(null);
-  const [editName, setEditName] = useState('');
-  const [editDesc, setEditDesc] = useState('');
-  const [editMaxScore, setEditMaxScore] = useState(5.0);
-  const [editCategory, setEditCategory] = useState('KHUNG_I');
-
-  const handleOpenEdit = (c: Criterion) => {
-    setEditingCriterion(c);
-    setEditName(c.name);
-    setEditDesc(c.description || '');
-    setEditMaxScore(c.maxScore);
-    setEditCategory(c.category || 'KHUNG_I');
-  };
-
-  const handleUpdate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingCriterion) return;
-    try {
-      setLoading(true);
-      await apiClient.updateCriterion(editingCriterion.id, {
-        name: editName.trim(),
-        description: editDesc.trim(),
-        maxScore: Number(editMaxScore),
-        category: editCategory,
-      });
-      setEditingCriterion(null);
-      await fetchCriteria();
-    } catch (err: any) {
-      alert('Không thể cập nhật tiêu chí: ' + (err.message || 'Lỗi hệ thống'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDelete = async (id: string, codeName: string) => {
-    if (!window.confirm(`Bạn có chắc muốn xóa tiêu chí ${codeName}? Thao tác này sẽ gỡ các liên kết quy tắc liên quan.`)) {
-      return;
-    }
-    try {
-      setLoading(true);
-      await apiClient.deleteCriterion(id);
-      await fetchCriteria();
-    } catch (err: any) {
-      alert('Không thể xóa tiêu chí: ' + (err.message || 'Lỗi hệ thống'));
-    } finally {
-      setLoading(false);
-    }
+      setError(err.response?.data?.message || err.message || 'Không lưu được. Kiểm tra cấu hình quy tắc JSON.');
+    } finally { setSaving(false); }
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Quản trị Khung Tiêu chí & Rule Engine (A03 - A04)</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Cấu hình danh mục tiêu chí, trần điểm tối đa và các luật tính điểm bậc thang độc lập.
-          </p>
-        </div>
-
-        {activeTab === 'criteria' && (
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm shadow-blue-500/20 transition"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Thêm tiêu chí mới</span>
-          </button>
-        )}
+    <div className="space-y-4">
+      <div className={`rounded-lg border p-3 text-sm ${Math.abs(total - 100) < 0.001 ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
+        Tổng điểm các khung: <strong>{total}</strong> / 100. Mỗi khung phải có tổng điểm tiêu chí bằng điểm tối đa của khung.
       </div>
-
-      {/* Tab Switcher */}
-      <div className="flex border-b border-slate-200">
-        <button
-          onClick={() => setActiveTab('criteria')}
-          className={`pb-3 px-4 font-bold text-xs border-b-2 flex items-center gap-2 transition ${
-            activeTab === 'criteria'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <ListFilter className="w-4 h-4" />
-          <span>Danh mục 16 Tiêu chí (A03)</span>
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold">
-            {criteria.length}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('rules')}
-          className={`pb-3 px-4 font-bold text-xs border-b-2 flex items-center gap-2 transition ${
-            activeTab === 'rules'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Sliders className="w-4 h-4" />
-          <span>Quy tắc khống chế & Bậc thang (A04)</span>
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">
-            Rule Engine
-          </span>
-        </button>
-      </div>
-
-      {activeTab === 'rules' ? (
-        <RuleEngineEditor />
-      ) : (
-        <>
-          <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider text-[11px]">
-              <tr>
-                <th className="py-3 px-4">Mã số</th>
-                <th className="py-3 px-4">Tên tiêu chí</th>
-                <th className="py-3 px-4">Khung quy định</th>
-                <th className="py-3 px-4">Trần điểm (Max)</th>
-                <th className="py-3 px-4">Mô tả chi tiết</th>
-                <th className="py-3 px-4 text-right">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {criteria.map((c) => (
-                <tr key={c.id} className="hover:bg-blue-50/20 transition">
-                  <td className="py-3.5 px-4 font-mono font-bold text-blue-700">{c.code}</td>
-                  <td className="py-3.5 px-4 font-bold text-slate-900">{c.name}</td>
-                  <td className="py-3.5 px-4">
-                    <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700">
-                      {c.category}
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-4 font-bold text-blue-700">
-                    +{c.maxScore} đ
-                  </td>
-                  <td className="py-3.5 px-4 text-slate-600 max-w-xs truncate" title={c.description}>
-                    {c.description}
-                  </td>
-                  <td className="py-3.5 px-4 text-right space-x-2">
-                    <button
-                      onClick={() => handleOpenEdit(c)}
-                      disabled={loading}
-                      className="text-xs font-semibold text-blue-600 hover:underline disabled:opacity-50"
-                    >
-                      Sửa
-                    </button>
-                    <button
-                      onClick={() => handleDelete(c.id, c.code)}
-                      disabled={loading}
-                      className="text-xs font-semibold text-rose-600 hover:underline disabled:opacity-50"
-                    >
-                      Xóa
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Modal Add Criterion */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b">
-              <h3 className="font-bold text-slate-900 text-sm">Thêm tiêu chí đánh giá mới</h3>
-              <button onClick={() => setShowAddModal(false)}>✕</button>
-            </div>
-
-            <form onSubmit={handleCreate} className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-medium text-slate-700 mb-1">Mã tiêu chí (VD: 3.3)</label>
-                  <input
-                    type="text"
-                    value={code}
-                    onChange={(e) => setCode(e.target.value)}
-                    className="w-full p-2 border rounded"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block font-medium text-slate-700 mb-1">Trần điểm (Max Float)</label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    value={maxScore}
-                    onChange={(e) => setMaxScore(parseFloat(e.target.value) || 0)}
-                    className="w-full p-2 border rounded"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-medium text-slate-700 mb-1">Thuộc Khung tiêu chí</label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full p-2 border rounded bg-white"
-                >
-                  <option value="KHUNG_I">Khung I: Ý thức học tập</option>
-                  <option value="KHUNG_II">Khung II: Ý thức chấp hành pháp luật & nội quy</option>
-                  <option value="KHUNG_III">Khung III: Hoạt động chính trị - xã hội, văn thể mỹ</option>
-                  <option value="KHUNG_IV">Khung IV: Phẩm chất công dân & cộng đồng</option>
-                  <option value="KHUNG_V">Khung V: Cán sự lớp & Đoàn - Hội</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-medium text-slate-700 mb-1">Tên tiêu chí</label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="VD: Tham gia các hội thảo học thuật chuyên ngành"
-                  className="w-full p-2 border rounded"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block font-medium text-slate-700 mb-1">Mô tả và điều kiện áp dụng</label>
-                <textarea
-                  rows={3}
-                  value={desc}
-                  onChange={(e) => setDesc(e.target.value)}
-                  placeholder="Nêu rõ yêu cầu về minh chứng (giấy chứng nhận có dấu, vé check-in...)"
-                  className="w-full p-2 border rounded"
-                  required
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="px-3 py-1.5 text-slate-600 hover:bg-slate-100 rounded"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm transition"
-                >
-                  Tạo tiêu chí
-                </button>
-              </div>
-            </form>
+      {definition.categories.map((category, ci) => {
+        const categorySum = category.criteria.reduce((sum, criterion) => sum + Number(criterion.maxScore || 0), 0);
+        return <section key={`${ci}-${category.code}`} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <div className="grid gap-2 border-b bg-slate-50 p-3 sm:grid-cols-[1fr_2fr_120px_auto] sm:items-end">
+            <label className="text-xs font-semibold text-slate-600">Mã khung<input disabled={disabled} value={category.code} onChange={(event) => changeCategory(ci, 'code', event.target.value)} className="mt-1 w-full rounded border px-2 py-1.5" /></label>
+            <label className="text-xs font-semibold text-slate-600">Tên khung<input disabled={disabled} value={category.name} onChange={(event) => changeCategory(ci, 'name', event.target.value)} className="mt-1 w-full rounded border px-2 py-1.5" /></label>
+            <label className="text-xs font-semibold text-slate-600">Điểm tối đa<input disabled={disabled} type="number" min="0" step="0.5" value={category.maxScore} onChange={(event) => changeCategory(ci, 'maxScore', Number(event.target.value))} className="mt-1 w-full rounded border px-2 py-1.5" /></label>
+            {!disabled && <button onClick={() => removeCategory(ci)} className="rounded border border-rose-200 px-2 py-1.5 text-xs text-rose-700">Xóa khung</button>}
+            <p className={`text-xs sm:col-span-4 ${Math.abs(categorySum - category.maxScore) < 0.001 ? 'text-emerald-700' : 'text-amber-700'}`}>Điểm tiêu chí trong khung: {categorySum} / {category.maxScore}</p>
           </div>
-        </div>
-      )}
-
-      {/* Modal Edit Criterion */}
-      {editingCriterion && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b">
-              <h3 className="font-bold text-slate-900 text-sm">Chỉnh sửa tiêu chí {editingCriterion.code}</h3>
-              <button onClick={() => setEditingCriterion(null)} className="text-slate-400 hover:text-slate-600">✕</button>
-            </div>
-
-            <form onSubmit={handleUpdate} className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-medium text-slate-700 mb-1">Mã tiêu chí</label>
-                  <input
-                    type="text"
-                    value={editingCriterion.code}
-                    disabled
-                    className="w-full p-2 border rounded bg-slate-100 text-slate-500 cursor-not-allowed"
-                  />
-                </div>
-                <div>
-                  <label className="block font-medium text-slate-700 mb-1">Trần điểm (Max Float)</label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    value={editMaxScore}
-                    onChange={(e) => setEditMaxScore(parseFloat(e.target.value) || 0)}
-                    className="w-full p-2 border rounded"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-medium text-slate-700 mb-1">Thuộc Khung tiêu chí</label>
-                <select
-                  value={editCategory}
-                  onChange={(e) => setEditCategory(e.target.value)}
-                  className="w-full p-2 border rounded bg-white"
-                >
-                  <option value="KHUNG_I">Khung I: Ý thức học tập</option>
-                  <option value="KHUNG_II">Khung II: Ý thức chấp hành pháp luật & nội quy</option>
-                  <option value="KHUNG_III">Khung III: Hoạt động chính trị - xã hội, văn thể mỹ</option>
-                  <option value="KHUNG_IV">Khung IV: Phẩm chất công dân & cộng đồng</option>
-                  <option value="KHUNG_V">Khung V: Cán sự lớp & Đoàn - Hội</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-medium text-slate-700 mb-1">Tên tiêu chí</label>
-                <input
-                  type="text"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  className="w-full p-2 border rounded"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block font-medium text-slate-700 mb-1">Mô tả và điều kiện áp dụng</label>
-                <textarea
-                  rows={3}
-                  value={editDesc}
-                  onChange={(e) => setEditDesc(e.target.value)}
-                  className="w-full p-2 border rounded"
-                  required
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setEditingCriterion(null)}
-                  className="px-3 py-1.5 text-slate-600 hover:bg-slate-100 rounded"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm transition disabled:opacity-50"
-                >
-                  {loading ? 'Đang lưu...' : 'Cập nhật'}
-                </button>
-              </div>
-            </form>
+          <div className="divide-y divide-slate-100">
+            {category.criteria.map((criterion, ki) => <article key={`${ci}-${ki}-${criterion.code}`} className="grid gap-3 p-3 lg:grid-cols-[70px_1fr_120px_auto]">
+              <label className="text-xs font-semibold text-slate-600">Mã<input disabled={disabled} value={criterion.code} onChange={(event) => changeCriterion(ci, ki, 'code', event.target.value)} className="mt-1 w-full rounded border px-2 py-1.5" /></label>
+              <label className="text-xs font-semibold text-slate-600">Tên tiêu chí<input disabled={disabled} value={criterion.name} onChange={(event) => changeCriterion(ci, ki, 'name', event.target.value)} className="mt-1 w-full rounded border px-2 py-1.5" /></label>
+              <label className="text-xs font-semibold text-slate-600">Điểm tối đa<input disabled={disabled} type="number" min="0" step="0.5" value={criterion.maxScore} onChange={(event) => changeCriterion(ci, ki, 'maxScore', Number(event.target.value))} className="mt-1 w-full rounded border px-2 py-1.5" /></label>
+              {!disabled && <button onClick={() => removeCriterion(ci, ki)} className="self-end rounded border border-rose-200 px-2 py-1.5 text-xs text-rose-700">Xóa mục</button>}
+              <label className="text-xs font-semibold text-slate-600 lg:col-span-4">Mô tả và điều kiện<textarea disabled={disabled} rows={2} value={criterion.description} onChange={(event) => changeCriterion(ci, ki, 'description', event.target.value)} className="mt-1 w-full rounded border px-2 py-1.5" /></label>
+              <details className="rounded-lg border border-slate-200 bg-slate-50 p-3 lg:col-span-4">
+                <summary className="cursor-pointer text-xs font-semibold text-slate-600">Cấu hình tính điểm nâng cao</summary>
+                <p className="mt-2 text-xs text-slate-500">Chỉ chỉnh phần này khi cần thay đổi cách Backend tính điểm. Nội dung phải là JSON hợp lệ và dùng loại quy tắc Backend hỗ trợ.</p>
+                <label className="mt-2 block text-xs font-medium text-slate-600">Cấu hình kỹ thuật<textarea disabled={disabled} rows={5} spellCheck={false} value={configTexts[`${ci}-${ki}`] ?? JSON.stringify(criterion.scoringConfig, null, 2)} onChange={(event) => setConfigTexts((current) => ({ ...current, [`${ci}-${ki}`]: event.target.value }))} className="mt-1 w-full rounded border bg-white px-2 py-1.5 font-mono text-[11px]" /></label>
+              </details>
+            </article>)}
           </div>
+          {!disabled && <div className="border-t bg-slate-50 p-2"><button onClick={() => addCriterion(ci)} className="text-xs font-semibold text-blue-700">+ Thêm tiêu chí vào khung</button></div>}
+        </section>;
+      })}
+      {!disabled && <div className="flex flex-wrap items-end justify-between gap-3">
+        <button onClick={addCategory} className="rounded-lg border border-blue-200 px-3 py-2 text-sm font-semibold text-blue-700">+ Thêm khung</button>
+        <div className="flex flex-wrap items-end gap-2">
+          {showChangeNote && <label className="text-xs font-medium text-slate-600">Ghi chú phiên bản<input value={changeNote} onChange={(event) => setChangeNote(event.target.value)} className="mt-1 block rounded border px-2 py-2" placeholder="Ví dụ: cập nhật theo quy chế mới" /></label>}
+          <button disabled={saving} onClick={save} className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Đang lưu…' : 'Lưu bản nháp'}</button>
         </div>
-      )}
-        </>
-      )}
+      </div>}
+      {error && <p role="alert" className="rounded border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
+      {notice && <p role="status" className="rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
     </div>
   );
+};
+
+export const CriteriaManager: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState<'DEFAULT' | 'TERM'>('DEFAULT');
+  const [templates, setTemplates] = useState<RubricTemplate[]>([]);
+  const [terms, setTerms] = useState<TermWithVersions[]>([]);
+  const [selectedTemplateVersionId, setSelectedTemplateVersionId] = useState('');
+  const [selectedTermId, setSelectedTermId] = useState('');
+  const [termDraftSourceType, setTermDraftSourceType] = useState<'DEFAULT' | 'TERM'>('DEFAULT');
+  const [termDraftSourceId, setTermDraftSourceId] = useState('');
+  const [templateDefinition, setTemplateDefinition] = useState<RubricDefinition | null>(null);
+  const [termRubric, setTermRubric] = useState<TermRubricPayload | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  const reloadLists = async () => {
+    const [templateList, termList] = await Promise.all([apiClient.getRubricTemplates(), apiClient.getTerms()]);
+    setTemplates(templateList); setTerms(termList as TermWithVersions[]);
+    const template = templateList[0];
+    const selectedVersion = template?.versions.find((version) => version.status === 'DRAFT') || template?.versions.find((version) => version.status === 'PUBLISHED');
+    if (selectedVersion) setSelectedTemplateVersionId(selectedVersion.id);
+    const requestedTermId = searchParams.get('termId');
+    const requestedTerm = (termList as TermWithVersions[]).find((term) => term.id === requestedTermId);
+    const termWithDraft = (termList as TermWithVersions[]).find((term) => term.rubricVersions?.some((version) => version.status === 'DRAFT'));
+    setSelectedTermId(requestedTerm?.id || termWithDraft?.id || termList[0]?.id || '');
+    if (requestedTerm) setTab('TERM');
+  };
+
+  useEffect(() => {
+    reloadLists().catch(() => setError('Không tải được bộ chuẩn/kỳ đánh giá từ Backend.')).finally(() => setLoading(false));
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!selectedTemplateVersionId) { setTemplateDefinition(null); return; }
+    apiClient.getRubricTemplateVersion(selectedTemplateVersionId).then((result: any) => setTemplateDefinition(result.definition as RubricDefinition)).catch(() => setError('Không tải được nội dung phiên bản bộ chuẩn.'));
+  }, [selectedTemplateVersionId]);
+
+  useEffect(() => {
+    if (!selectedTermId) { setTermRubric(null); return; }
+    apiClient.getTermRubric(selectedTermId).then(setTermRubric).catch(() => setError('Không tải được rubric của kỳ.'));
+  }, [selectedTermId]);
+
+  const selectedTemplateVersion = templates.flatMap((template) => template.versions).find((version) => version.id === selectedTemplateVersionId);
+  const selectedTerm = terms.find((term) => term.id === selectedTermId);
+  const run = async (fn: () => Promise<any>, success: string) => {
+    setBusy(true); setError(''); setNotice('');
+    try { const result = await fn(); await reloadLists(); if (tab === 'TERM' && selectedTermId) setTermRubric(await apiClient.getTermRubric(selectedTermId)); setNotice(success); return result; }
+    catch (err: any) { setError(err.response?.data?.message || err.message || 'Không thực hiện được thao tác.'); }
+    finally { setBusy(false); }
+  };
+
+  const createTemplateDraft = async () => {
+    const created = await run(() => apiClient.createRubricTemplateDraft(), 'Đã tạo bản nháp mới từ bộ chuẩn đang ban hành.');
+    if (created?.id) setSelectedTemplateVersionId(created.id);
+  };
+  const publishTemplate = () => selectedTemplateVersionId && window.confirm('Ban hành bản chuẩn này? Bộ chuẩn đang ban hành sẽ được lưu trữ; các kỳ đã tạo không đổi.') && void run(() => apiClient.publishRubricTemplateDraft(selectedTemplateVersionId), 'Đã ban hành phiên bản bộ chuẩn.');
+  const publishTerm = () => selectedTermId && window.confirm('Ban hành bộ tiêu chí cho kỳ này? Sau khi ban hành, phiên bản sẽ chỉ đọc.') && void run(() => apiClient.publishTermRubric(selectedTermId), 'Đã ban hành bộ tiêu chí của kỳ.');
+  const createTermDraft = () => selectedTermId && void run(() => apiClient.createTermRubricDraft(selectedTermId, { type: termDraftSourceType, sourceTermId: termDraftSourceType === 'TERM' ? termDraftSourceId : undefined }), 'Đã tạo bản nháp rubric cho kỳ.');
+
+  return <div className="space-y-5">
+    <header className="flex flex-wrap items-end justify-between gap-3">
+      <div><h1 className="text-xl font-bold text-slate-900">Bộ tiêu chí đánh giá</h1><p className="mt-1 text-sm text-slate-600">Bộ chuẩn là mẫu; mỗi kỳ dùng một bản sao độc lập. Sửa mẫu không làm đổi lịch sử các kỳ.</p></div>
+      <Link to="/admin/terms" className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white">Quản lý kỳ đánh giá</Link>
+    </header>
+
+    <div className="flex gap-2 border-b border-slate-200">
+      <button onClick={() => setTab('DEFAULT')} className={`px-4 py-2 text-sm font-semibold ${tab === 'DEFAULT' ? 'border-b-2 border-blue-700 text-blue-800' : 'text-slate-500'}`}>Bộ chuẩn</button>
+      <button onClick={() => setTab('TERM')} className={`px-4 py-2 text-sm font-semibold ${tab === 'TERM' ? 'border-b-2 border-blue-700 text-blue-800' : 'text-slate-500'}`}>Theo kỳ</button>
+    </div>
+    {error && <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</div>}
+    {notice && <div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</div>}
+    {loading ? <div className="rounded-xl border bg-white p-8 text-center text-sm text-slate-500">Đang tải cấu hình…</div> : tab === 'DEFAULT' ? <>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white p-4">
+        <label className="text-sm font-semibold text-slate-700">Phiên bản bộ chuẩn<select value={selectedTemplateVersionId} onChange={(event) => setSelectedTemplateVersionId(event.target.value)} className="mt-1 block min-w-64 rounded-lg border border-slate-300 bg-white px-3 py-2">
+          {templates.flatMap((template) => template.versions.map((version) => <option key={version.id} value={version.id}>{template.name} · v{version.version} · {statusLabel[version.status]}</option>))}
+        </select></label>
+        <div className="flex gap-2">
+          {selectedTemplateVersion?.status === 'PUBLISHED' && <button disabled={busy || templates[0]?.versions.some((version) => version.status === 'DRAFT')} onClick={createTemplateDraft} className="rounded-lg border border-blue-200 px-3 py-2 text-sm font-semibold text-blue-700 disabled:opacity-50">Tạo bản nháp từ bản chuẩn</button>}
+          {selectedTemplateVersion?.status === 'DRAFT' && <button disabled={busy} onClick={publishTemplate} className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">Ban hành bộ chuẩn</button>}
+        </div>
+      </div>
+      {selectedTemplateVersion && <div className="rounded-lg border bg-white px-4 py-3 text-sm text-slate-700">Trạng thái: <strong>{statusLabel[selectedTemplateVersion.status]}</strong>{selectedTemplateVersion.sourceDescription && <> · {selectedTemplateVersion.sourceDescription}</>}{selectedTemplateVersion.changeNote && <> · Ghi chú: {selectedTemplateVersion.changeNote}</>}</div>}
+      {templateDefinition && selectedTemplateVersion && <RubricEditor key={selectedTemplateVersion.id} definition={templateDefinition} disabled={selectedTemplateVersion.status !== 'DRAFT'} showChangeNote onSave={(definition, changeNote) => apiClient.saveRubricTemplateDraft(selectedTemplateVersion.id, definition, changeNote || '')} />}
+    </> : <>
+      <label className="block max-w-xl text-sm font-semibold text-slate-700">Kỳ đánh giá<select value={selectedTermId} onChange={(event) => setSelectedTermId(event.target.value)} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2">
+        {terms.map((term) => <option key={term.id} value={term.id}>{term.name} · {termStatusLabel[term.status] || term.status}</option>)}
+      </select></label>
+      {!terms.length ? <div className="rounded-xl border bg-white p-6 text-sm text-slate-600">Chưa có kỳ. Tạo kỳ mới để sao chép bộ chuẩn.</div> : !termRubric?.rubricVersion ? <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900"><p>Kỳ {selectedTerm?.name} chưa có phiên bản tiêu chí.</p>{selectedTerm?.status !== 'CLOSED' && <div className="flex flex-wrap items-end gap-2">
+        <label className="text-xs font-semibold">Nguồn<select value={termDraftSourceType} onChange={(event) => setTermDraftSourceType(event.target.value as 'DEFAULT' | 'TERM')} className="mt-1 block rounded-lg border border-amber-300 bg-white px-3 py-2"><option value="DEFAULT">Bộ chuẩn hiện tại</option><option value="TERM">Kỳ đã ban hành</option></select></label>
+        {termDraftSourceType === 'TERM' && <label className="text-xs font-semibold">Kỳ nguồn<select value={termDraftSourceId} onChange={(event) => setTermDraftSourceId(event.target.value)} className="mt-1 block min-w-56 rounded-lg border border-amber-300 bg-white px-3 py-2"><option value="">Chọn kỳ</option>{terms.filter((term) => term.id !== selectedTermId && term.rubricVersions?.some((version) => version.status === 'PUBLISHED')).map((term) => <option key={term.id} value={term.id}>{term.name} · {term.code}</option>)}</select></label>}
+        <button disabled={busy || (termDraftSourceType === 'TERM' && !termDraftSourceId)} onClick={createTermDraft} className="rounded-lg bg-amber-800 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Tạo bản nháp</button>
+      </div>}</div> : <>
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white p-4 text-sm">
+          <div><strong>Phiên bản {termRubric.rubricVersion.version}</strong> · {formatRubricSource(termRubric.rubricVersion.source)} · {termRubric.rubricVersion.categories?.flatMap((category: any) => category.criteria).length || 0} tiêu chí</div>
+          <span className={`rounded-full px-3 py-1 font-semibold ${termRubric.rubricVersion.status === 'PUBLISHED' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{statusLabel[termRubric.rubricVersion.status]}</span>
+        </div>
+        {termRubric.definition && <RubricEditor key={termRubric.rubricVersion.id} definition={termRubric.definition} disabled={termRubric.rubricVersion.status !== 'DRAFT' || selectedTerm?.status === 'CLOSED'} showChangeNote onSave={(definition, changeNote) => apiClient.saveTermRubricDraft(selectedTermId, definition, changeNote)} />}
+        {termRubric.rubricVersion.status === 'DRAFT' && selectedTerm?.status !== 'CLOSED' && <button disabled={busy} onClick={publishTerm} className="rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">Ban hành bộ tiêu chí cho kỳ</button>}
+        {selectedTerm?.status === 'CLOSED' && <p className="text-sm text-slate-600">Kỳ đã chốt nên phiên bản chỉ được xem.</p>}
+      </>}
+    </>}
+  </div>;
 };

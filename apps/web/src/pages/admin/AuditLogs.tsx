@@ -71,9 +71,9 @@ export const AuditLogs: React.FC = () => {
       {/* 1. Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Nhật ký Kiểm toán & Truy vết Hệ thống (A10)</h1>
+          <h1 className="text-xl font-bold text-slate-900">Nhật ký hệ thống</h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Ghi nhận toàn bộ thao tác phê duyệt, chỉnh sửa điểm, đổi mật khẩu và cập nhật quy chế từ Real Database.
+            Tra cứu các thao tác đã được hệ thống ghi nhận theo người thực hiện và thời gian.
           </p>
         </div>
 

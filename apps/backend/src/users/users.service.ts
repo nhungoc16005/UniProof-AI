@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
 import { Role } from '@prisma/client';
@@ -8,14 +8,27 @@ import * as bcrypt from 'bcryptjs';
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(params: { role?: Role; facultyId?: string; classId?: string; search?: string; page?: number; pageSize?: number }) {
+  async findAll(params: { role?: Role; facultyId?: string; classId?: string; search?: string; page?: number; pageSize?: number }, actor: { id: string; role: Role; facultyId?: string | null }) {
     const { role, facultyId, classId, search, page = 1, pageSize = 50 } = params;
     const skip = (page - 1) * pageSize;
 
     const where: any = {};
-    if (role) where.role = role;
+    if (actor.role === Role.STAFF) {
+      if (!actor.facultyId) throw new ForbiddenException('Tài khoản cán bộ chưa được gán Khoa phụ trách');
+      if (facultyId && facultyId !== actor.facultyId) throw new ForbiddenException('Không được tra cứu dữ liệu ngoài Khoa phụ trách');
+      if (role && role !== Role.STUDENT) throw new ForbiddenException('Cán bộ chỉ được tra cứu danh sách sinh viên');
+      where.role = Role.STUDENT;
+      where.class = { facultyId: actor.facultyId };
+      if (classId) {
+        const studentClass = await this.prisma.class.findFirst({ where: { id: classId, facultyId: actor.facultyId }, select: { id: true } });
+        if (!studentClass) throw new ForbiddenException('Lớp không thuộc Khoa phụ trách');
+        where.classId = classId;
+      }
+    } else if (role) {
+      where.role = role;
+    }
 
-    if (facultyId) {
+    if (actor.role !== Role.STAFF && facultyId) {
       if (role === Role.STAFF) {
         where.facultyId = facultyId;
       } else if (role === Role.STUDENT) {
@@ -28,7 +41,7 @@ export class UsersService {
       }
     }
 
-    if (classId) where.classId = classId;
+    if (classId && actor.role !== Role.STAFF) where.classId = classId;
 
     if (search) {
       const searchConditions = [
@@ -81,7 +94,7 @@ export class UsersService {
     return { items, total, page, pageSize };
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, actor: { id: string; role: Role; facultyId?: string | null }) {
     const user = await this.prisma.user.findUnique({
       where: { id },
       include: {
@@ -91,6 +104,9 @@ export class UsersService {
     });
 
     if (!user) throw new NotFoundException('Không tìm thấy người dùng');
+    if (actor.role === Role.STAFF && (user.role !== Role.STUDENT || !actor.facultyId || user.class?.facultyId !== actor.facultyId)) {
+      throw new ForbiddenException('Bạn chỉ được xem sinh viên thuộc Khoa phụ trách');
+    }
     const { password, ...safeUser } = user;
     return safeUser;
   }
@@ -132,7 +148,8 @@ export class UsersService {
     return safeUser;
   }
 
-  async update(id: string, dto: UpdateUserDto) {
+  async update(id: string, dto: UpdateUserDto, actor: { id: string; role: Role }) {
+    if (actor.role !== Role.ADMIN) throw new ForbiddenException('Chỉ Admin được quản lý tài khoản người dùng');
     const existing = await this.prisma.user.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Không tìm thấy người dùng');
 
@@ -172,19 +189,8 @@ export class UsersService {
 
     if (!existing) throw new NotFoundException('Không tìm thấy người dùng');
 
-    // Clean up related data safely
-    await this.prisma.$transaction([
-      this.prisma.conductScore.deleteMany({ where: { studentId: id } }),
-      this.prisma.notification.deleteMany({ where: { userId: id } }),
-      this.prisma.auditLog.deleteMany({ where: { userId: id } }),
-      this.prisma.appeal.deleteMany({ where: { studentId: id } }),
-      this.prisma.review.deleteMany({ where: { reviewerId: id } }),
-      this.prisma.evidenceFile.deleteMany({ where: { evidence: { studentId: id } } }),
-      this.prisma.evidence.deleteMany({ where: { studentId: id } }),
-      this.prisma.user.delete({ where: { id } }),
-    ]);
-
-    return { success: true, message: 'Đã xóa người dùng thành công' };
+    // Accounts with decisions must retain their audit and assessment history.
+    return this.prisma.user.update({ where: { id }, data: { isActive: false }, select: { id: true, fullName: true, isActive: true } });
   }
 
   async bulkImport(dto: { users: any[] }) {

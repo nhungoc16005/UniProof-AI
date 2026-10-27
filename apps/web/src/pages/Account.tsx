@@ -99,14 +99,14 @@ export const Account: React.FC = () => {
             <div>
               <span className="text-slate-400 block font-medium">Đơn vị / Khoa</span>
               <span className="text-slate-900 font-semibold text-sm">
-                {user.faculty?.name || 'Khoa Công nghệ Thông tin'}
+                {user.faculty?.name || 'Chưa cập nhật'}
               </span>
             </div>
             {user.studentCode && (
               <div>
                 <span className="text-slate-400 block font-medium">Lớp sinh hoạt</span>
                 <span className="text-slate-900 font-semibold text-sm">
-                  {user.class?.name || user.class?.code || '21TCLC_DT1'}
+                  {user.class?.name || user.class?.code || 'Chưa cập nhật'}
                 </span>
               </div>
             )}

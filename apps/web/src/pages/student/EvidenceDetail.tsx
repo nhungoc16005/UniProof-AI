@@ -69,6 +69,14 @@ export const EvidenceDetail: React.FC = () => {
   const ocr = evidence.ocrResults?.[0];
   const verif = evidence.verificationResults?.[0];
   const ai = evidence.aiSuggestions?.[0];
+  const aiJob = evidence.aiProcessingJobs?.[0];
+  const aiStatus = aiJob?.status === 'QUEUED' || aiJob?.status === 'PROCESSING'
+    ? 'Đang xử lý'
+    : aiJob?.status === 'COMPLETED' && ai
+      ? 'Đã có phân tích tham khảo'
+      : aiJob?.status === 'UNAVAILABLE' || aiJob?.status === 'FAILED' || aiJob?.status === 'CANCELLED'
+        ? 'AI không khả dụng · hồ sơ chờ cán bộ xử lý'
+        : 'Chưa chạy phân tích AI';
   const review = evidence.reviews?.[0];
 
   const handleAppealSubmit = async (e: React.FormEvent) => {
@@ -78,7 +86,7 @@ export const EvidenceDetail: React.FC = () => {
       await apiClient.createAppeal({
         evidenceId: evidence.id,
         reason: appealReason.trim(),
-        desiredScore: evidence.aiSuggestions?.[0]?.suggestedScore ?? 5.0,
+        desiredScore: evidence.aiSuggestions?.[0]?.suggestedScore,
       });
       setAppealSuccess(true);
       setTimeout(() => {
@@ -201,6 +209,10 @@ export const EvidenceDetail: React.FC = () => {
         <Stepper currentStatus={evidence.status} />
       </div>
 
+      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-700">
+        <strong>Phân tích AI:</strong> {aiStatus}. Kết quả AI chỉ tham khảo; cán bộ xác minh và quyết định điểm chính thức.
+      </div>
+
       {/* 3. Main Split View: Left = File Document, Right = Verification & Extraction */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
@@ -211,7 +223,7 @@ export const EvidenceDetail: React.FC = () => {
               <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
                 Minh chứng gốc tải lên
               </span>
-              <span className="text-[11px] text-slate-500 font-medium">1 tệp ảnh</span>
+              <span className="text-[11px] text-slate-500 font-medium">{evidence.files.length} tệp</span>
             </div>
 
             <div className="border border-slate-200 rounded-lg overflow-hidden bg-slate-900/5 aspect-[4/3] flex items-center justify-center relative group">
@@ -243,13 +255,11 @@ export const EvidenceDetail: React.FC = () => {
           <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-600 space-y-1">
             <div className="flex justify-between">
               <span className="text-slate-400">Định dạng:</span>
-              <span className="font-semibold text-slate-800">JPEG (2.4 MB)</span>
+              <span className="font-semibold text-slate-800">{evidence.files[0]?.fileType || 'Chưa có tệp'}{evidence.files[0]?.fileSize ? ` · ${(evidence.files[0].fileSize / (1024 * 1024)).toFixed(2)} MB` : ''}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Mã kiểm tra toàn vẹn:</span>
-              <span className="font-mono text-[11px] text-slate-600 truncate max-w-[200px]">
-                sha256:8f2a...c01e
-              </span>
+              <span className="font-mono text-[11px] text-slate-500">Chưa có mã băm tệp trong hệ thống</span>
             </div>
           </div>
         </div>
@@ -260,18 +270,18 @@ export const EvidenceDetail: React.FC = () => {
           {/* Block Điểm số (Nguyên tắc 2: Tách biệt điểm đề xuất vs chính thức) */}
           <ScoreDisplay
             score={review?.finalScore}
-            maxScore={10}
-            isOfficial={evidence.status === 'APPROVED'}
+            maxScore={evidence.criterion?.maxScore || evidence.criterionAssessment?.criterion?.maxScore || 0}
+            isOfficial={evidence.status === 'APPROVED' && review?.finalScore != null}
             proposedScore={ai?.suggestedScore}
-            approvedBy={review?.reviewer?.fullName || 'ThS. Trần Thị Mai (Cán bộ Khoa)'}
+            approvedBy={review?.reviewer?.fullName}
             approvedDate={review ? new Date(review.createdAt).toLocaleDateString('vi-VN') : undefined}
             onExplainClick={() => setShowExplainModal(true)}
           />
 
           {/* Block Xác minh 2 câu hỏi độc lập (Nguyên tắc 3) */}
           <TwoQuestionsVerification
-            activityExists={verif?.activityExistsVerified || false}
-            studentParticipation={verif?.studentParticipationVerified || false}
+            activityExists={verif ? verif.activityExistsVerified : null}
+            studentParticipation={verif ? verif.studentParticipationVerified : null}
             sourceDesc={verif?.sourceDescription}
           />
 
@@ -290,7 +300,7 @@ export const EvidenceDetail: React.FC = () => {
                 <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
                   Dữ liệu trích xuất tự động (OCR)
                 </span>
-                <ConfidenceBar score={ocr?.confidenceScore || 0.9} isOfficer={false} />
+                {ocr ? <ConfidenceBar score={ocr.confidenceScore ?? 0} isOfficer={false} /> : <span className="text-[11px] text-slate-500">Chưa có kết quả OCR</span>}
               </div>
               <button
                 onClick={() => setShowOcrEditModal(true)}
@@ -304,11 +314,11 @@ export const EvidenceDetail: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div>
                 <span className="text-slate-400 block font-medium">Họ tên sinh viên</span>
-                <span className="text-slate-900 font-bold">{ocr?.studentNameExtracted || 'Nguyễn Văn An'}</span>
+                <span className="text-slate-900 font-bold">{ocr?.studentNameExtracted || 'Chưa có dữ liệu trích xuất'}</span>
               </div>
               <div>
                 <span className="text-slate-400 block font-medium">Mã số sinh viên (MSSV)</span>
-                <span className="text-slate-900 font-semibold">{ocr?.studentCodeExtracted || '102210001'}</span>
+                <span className="text-slate-900 font-semibold">{ocr?.studentCodeExtracted || 'Chưa có dữ liệu trích xuất'}</span>
               </div>
               <div>
                 <span className="text-slate-400 block font-medium">Hoạt động trích xuất</span>
@@ -316,15 +326,15 @@ export const EvidenceDetail: React.FC = () => {
               </div>
               <div>
                 <span className="text-slate-400 block font-medium">Đơn vị tổ chức</span>
-                <span className="text-slate-900 font-semibold">{ocr?.organizerExtracted || 'Thành đoàn Đà Nẵng'}</span>
+                <span className="text-slate-900 font-semibold">{ocr?.organizerExtracted || 'Chưa có dữ liệu trích xuất'}</span>
               </div>
               <div>
                 <span className="text-slate-400 block font-medium">Ngày ghi trên chứng nhận</span>
-                <span className="text-slate-900 font-semibold">{ocr?.dateExtracted || '12/09/2026'}</span>
+                <span className="text-slate-900 font-semibold">{ocr?.dateExtracted || 'Chưa có dữ liệu trích xuất'}</span>
               </div>
               <div>
                 <span className="text-slate-400 block font-medium">Mức xác minh đạt được</span>
-                <VerificationBadge level={verif?.verificationLevel || 2} isOfficer={false} />
+                {verif ? <VerificationBadge level={verif.verificationLevel} isOfficer={false} /> : <span className="text-slate-500">Chưa có kết quả xác minh</span>}
               </div>
             </div>
           </div>
@@ -361,12 +371,9 @@ export const EvidenceDetail: React.FC = () => {
 
             <div className="text-xs text-slate-700 space-y-3 leading-relaxed">
               <p>
-                <strong>Lý do AI đề xuất:</strong> {ai?.reasoning || 'Hồ sơ có giấy chứng nhận hợp lệ.'}
+                <strong>Lý do AI đề xuất:</strong> {ai?.reasoning || 'Chưa có phân tích AI cho hồ sơ này.'}
               </p>
-              <div className="p-3 bg-sky-50 rounded-lg border border-sky-200">
-                <strong className="text-sky-900 block mb-1">Căn cứ Quy chế ĐRL (v2025.1):</strong>
-                <span>Điều 5 · Khoản 2 · Trang 4: "Sinh viên đạt giải thưởng các cuộc thi học thuật, sáng tạo khởi nghiệp cấp Thành phố trở lên được cộng từ 3 đến 5 điểm vào Tiêu chí 1.2."</span>
-              </div>
+              <p className="text-slate-500">Điểm AI (nếu có) chỉ để tham khảo. Cán bộ xác minh hồ sơ và chốt điểm tại tiêu chí trong phiếu đánh giá.</p>
             </div>
 
             <div className="flex justify-end pt-2">

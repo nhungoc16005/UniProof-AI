@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { CreateActivityDto, AddParticipantDto } from './dto/activity.dto';
 import { ActivityType, Role } from '@prisma/client';
@@ -7,8 +7,10 @@ import { ActivityType, Role } from '@prisma/client';
 export class ActivitiesService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(type?: ActivityType, search?: string) {
+  async findAll(actor: any, type?: ActivityType, search?: string, termId?: string) {
     const where: any = {};
+    if (actor.role === Role.STAFF) { if (!actor.facultyId) throw new ForbiddenException('Chưa được phân công Khoa'); where.AND = [{ OR: [{ facultyId: actor.facultyId }, { facultyId: null }] }]; }
+    if (termId) where.termId = termId;
     if (type) where.type = type;
     if (search) {
       where.OR = [
@@ -26,11 +28,12 @@ export class ActivitiesService {
     });
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, actor: any) {
     const activity = await this.prisma.activity.findUnique({
       where: { id },
       include: {
         participants: {
+          where: actor.role === Role.STUDENT ? { studentId: actor.id } : actor.role === Role.STAFF ? { student: { class: { facultyId: actor.facultyId || '__none__' } } } : {},
           include: {
             student: {
               select: {
@@ -49,9 +52,15 @@ export class ActivitiesService {
     return activity;
   }
 
-  async create(dto: CreateActivityDto) {
+  async create(dto: CreateActivityDto, actor: any) {
+    if (actor.role === Role.STAFF && !actor.facultyId) throw new ForbiddenException('Chưa được phân công Khoa');
+    if (!dto.termId) throw new BadRequestException('Cần chọn kỳ cho hoạt động');
+    const term = await this.prisma.term.findUniqueOrThrow({ where: { id: dto.termId } });
+    if (term.status === 'CLOSED') throw new BadRequestException('Kỳ đã chốt');
+    if (dto.criterionId && !await this.prisma.criterion.count({ where: { id: dto.criterionId, rubricVersion: { termId: dto.termId, status: 'PUBLISHED' } } })) throw new BadRequestException('Tiêu chí không thuộc kỳ');
     return this.prisma.activity.create({
       data: {
+        termId: dto.termId, criterionId: dto.criterionId, facultyId: actor.facultyId || null, createdById: actor.id,
         name: dto.name,
         type: dto.type,
         organizer: dto.organizer,
@@ -63,13 +72,15 @@ export class ActivitiesService {
     });
   }
 
-  async addParticipant(activityId: string, dto: AddParticipantDto) {
+  async addParticipant(activityId: string, dto: AddParticipantDto, actor: any) {
+    await this.assertManage(activityId, actor);
     const activity = await this.prisma.activity.findUnique({ where: { id: activityId } });
     if (!activity) throw new NotFoundException('Không tìm thấy hoạt động');
 
     const student = await this.prisma.user.findUnique({
       where: { studentCode: dto.studentCode.trim() },
     });
+    if (student && actor.role === Role.STAFF) { const cls = student.classId ? await this.prisma.class.findUnique({ where: { id: student.classId } }) : null; if (cls?.facultyId !== actor.facultyId) throw new ForbiddenException('Sinh viên ngoài Khoa'); }
     if (!student) throw new NotFoundException(`Không tìm thấy sinh viên có MSSV: ${dto.studentCode}`);
 
     const existing = await this.prisma.activityParticipant.findUnique({
@@ -95,12 +106,12 @@ export class ActivitiesService {
     });
   }
 
-  async getParticipants(activityId: string) {
+  async getParticipants(activityId: string, actor: any) {
     const activity = await this.prisma.activity.findUnique({ where: { id: activityId } });
     if (!activity) throw new NotFoundException('Không tìm thấy hoạt động');
 
     return this.prisma.activityParticipant.findMany({
-      where: { activityId },
+      where: { activityId, ...(actor.role === Role.STAFF ? { student: { class: { facultyId: actor.facultyId || '__none__' } } } : {}) },
       include: {
         student: {
           select: {
@@ -116,7 +127,8 @@ export class ActivitiesService {
     });
   }
 
-  async update(id: string, dto: any) {
+  async update(id: string, dto: any, actor: any) {
+    await this.assertManage(id, actor);
     const activity = await this.prisma.activity.findUnique({ where: { id } });
     if (!activity) throw new NotFoundException('Không tìm thấy hoạt động');
 
@@ -133,7 +145,8 @@ export class ActivitiesService {
     });
   }
 
-  async batchAddParticipants(activityId: string, dto: { studentCodes: string[]; formRole?: string }) {
+  async batchAddParticipants(activityId: string, dto: { studentCodes: string[]; formRole?: string }, actor: any) {
+    await this.assertManage(activityId, actor);
     const activity = await this.prisma.activity.findUnique({ where: { id: activityId } });
     if (!activity) throw new NotFoundException('Không tìm thấy hoạt động');
 
@@ -141,7 +154,7 @@ export class ActivitiesService {
     if (trimmedCodes.length === 0) throw new BadRequestException('Danh sách MSSV không được để trống');
 
     const students = await this.prisma.user.findMany({
-      where: { studentCode: { in: trimmedCodes }, role: Role.STUDENT },
+      where: { studentCode: { in: trimmedCodes }, role: Role.STUDENT, ...(actor.role === Role.STAFF ? { class: { facultyId: actor.facultyId } } : {}) },
       select: { id: true, studentCode: true, fullName: true },
     });
 
@@ -200,7 +213,8 @@ export class ActivitiesService {
     };
   }
 
-  async deleteParticipant(activityId: string, participantId: string) {
+  async deleteParticipant(activityId: string, participantId: string, actor: any) {
+    await this.assertManage(activityId, actor);
     const participant = await this.prisma.activityParticipant.findUnique({
       where: { id: participantId },
     });
@@ -212,14 +226,16 @@ export class ActivitiesService {
     return { success: true, message: 'Đã xóa sinh viên khỏi danh sách điểm danh' };
   }
 
-  async delete(id: string) {
+  async delete(id: string, actor: any) {
+    await this.assertManage(id, actor);
     const activity = await this.prisma.activity.findUnique({
       where: { id },
       include: { _count: { select: { participants: true, evidences: true } } },
     });
     if (!activity) throw new NotFoundException('Không tìm thấy hoạt động');
 
-    // Clean up participants and unlink evidences safely
+    if (activity._count.evidences > 0 || activity._count.participants > 0) throw new BadRequestException('Hoạt động đã có minh chứng hoặc điểm danh; giữ lại để truy vết');
+    // Only empty activities can be removed.
     await this.prisma.$transaction([
       this.prisma.activityParticipant.deleteMany({ where: { activityId: id } }),
       this.prisma.evidence.updateMany({ where: { activityId: id }, data: { activityId: null } }),
@@ -228,4 +244,13 @@ export class ActivitiesService {
 
     return { success: true, message: 'Đã xóa hoạt động thành công' };
   }
+  private async assertManage(id: string, actor: any) {
+    const activity = await this.prisma.activity.findUniqueOrThrow({ where: { id } });
+    if (actor.role === Role.STAFF && (!actor.facultyId || activity.facultyId !== actor.facultyId)) throw new ForbiddenException('Không có quyền sửa hoạt động này');
+    if (activity.termId) {
+      const term = await this.prisma.term.findUniqueOrThrow({ where: { id: activity.termId } });
+      if (term.status === 'CLOSED') throw new BadRequestException('Kỳ đã chốt');
+    }
+  }
+
 }

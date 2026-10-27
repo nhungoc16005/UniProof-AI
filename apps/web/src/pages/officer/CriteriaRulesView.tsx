@@ -1,9 +1,25 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { apiClient } from '../../lib/apiClient';
 import { Criterion } from '../../types';
+import { useAuth } from '../../context/AuthContext';
 import { Layers, Search, BookOpen, ShieldCheck, Scale, Award } from 'lucide-react';
 
+const scoringKindLabels: Record<string, string> = {
+  manual_verified: 'Cán bộ xác minh và chốt điểm',
+  attendance_penalty: 'Điểm nền và các mức trừ chuyên cần',
+  group_penalty: 'Điểm theo mức độ hoàn thành làm việc nhóm',
+  conduct_penalty: 'Điểm nền và các mức trừ vi phạm',
+  leadership_duty: 'Điểm theo chức vụ và xác nhận tập thể',
+  academic_effort: 'Điểm theo kết quả và tiến bộ học tập',
+  verified_boolean: 'Đạt hoặc không đạt sau xác minh',
+  award_tier: 'Điểm theo mức thành tích',
+  activity_threshold: 'Điểm theo số hoạt động đã xác minh',
+  all_conditions: 'Phải đáp ứng đầy đủ các điều kiện',
+  community_activity_tier: 'Điểm theo số hoạt động và điểm quy đổi',
+};
+
 export const CriteriaRulesView: React.FC = () => {
+  const { activeTerm } = useAuth();
   const [criteria, setCriteria] = useState<Criterion[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -11,10 +27,11 @@ export const CriteriaRulesView: React.FC = () => {
 
   useEffect(() => {
     setIsLoading(true);
+    if (!activeTerm.id) return;
     apiClient
-      .getCriteria()
+      .getRubric(activeTerm.id)
       .then((data) => {
-        setCriteria(data || []);
+        setCriteria(data.criteria || []);
       })
       .catch((err) => {
         console.error('Lỗi khi tải tiêu chí:', err);
@@ -22,7 +39,7 @@ export const CriteriaRulesView: React.FC = () => {
       .finally(() => {
         setIsLoading(false);
       });
-  }, []);
+  }, [activeTerm.id]);
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -53,7 +70,7 @@ export const CriteriaRulesView: React.FC = () => {
         <div>
           <h1 className="text-xl font-bold text-slate-900">Danh mục Tiêu chí & Quy tắc Đánh giá</h1>
           <p className="text-xs text-slate-500 mt-1">
-            Quy chế đánh giá rèn luyện sinh viên theo chuẩn trường đại học — Dữ liệu thực từ Real Database.
+            Tra cứu bộ tiêu chí và quy chế áp dụng cho kỳ đánh giá đang chọn.
           </p>
         </div>
 
@@ -166,19 +183,16 @@ export const CriteriaRulesView: React.FC = () => {
                   </div>
                 )}
 
-                {/* Rules Attached */}
-                {item.rules && item.rules.length > 0 && (
+                {item.scoringConfig && typeof item.scoringConfig === 'object' && (
                   <div className="pt-2 border-t border-slate-100 space-y-1.5">
                     <div className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1">
                       <Scale className="w-3 h-3 text-slate-500" />
-                      <span>Quy tắc ràng buộc ({item.rules.length}):</span>
+                      <span>Cách tính điểm:</span>
                     </div>
-                    {item.rules.map((r: any) => (
-                      <div key={r.id || r.name} className="p-2 rounded bg-amber-50/60 border border-amber-200 text-[11px] text-amber-900">
-                        <div className="font-bold">{r.name}</div>
-                        <div className="text-[10px] text-amber-800">{r.ruleType}</div>
-                      </div>
-                    ))}
+                    <div className="p-2 rounded bg-amber-50/60 border border-amber-200 text-[11px] text-amber-900">
+                      <div className="font-bold">{scoringKindLabels[String(item.scoringConfig.kind)] || 'Tính theo cấu hình rubric của kỳ'}</div>
+                      <div className="mt-0.5 text-[10px] text-amber-800">Backend tính điểm đề xuất từ dữ liệu đã xác minh; cán bộ chịu trách nhiệm chốt điểm chính thức.</div>
+                    </div>
                   </div>
                 )}
               </div>

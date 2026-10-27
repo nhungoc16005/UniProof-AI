@@ -16,8 +16,8 @@ export class ReviewsController {
   constructor(private reviewsService: ReviewsService) {}
 
   @Get('reviews/queue')
-  @Roles(Role.ADMIN, Role.STAFF)
-  @ApiOperation({ summary: 'Lấy hàng đợi hồ sơ cần xét duyệt (Cán bộ Khoa, Admin)' })
+  @Roles(Role.STAFF)
+  @ApiOperation({ summary: 'Lấy hàng đợi hồ sơ cần xét duyệt (Cán bộ Khoa)' })
   async getQueue(
     @CurrentUser() officer: any,
     @Query('status') status?: string,
@@ -40,21 +40,21 @@ export class ReviewsController {
   }
 
   @Post('evidence/:id/claim')
-  @Roles(Role.ADMIN, Role.STAFF)
+  @Roles(Role.STAFF)
   @ApiOperation({ summary: 'Khóa hồ sơ để bắt đầu duyệt (Chống xung đột 409 Conflict)' })
   async claimEvidence(@Param('id') id: string, @CurrentUser() officer: any) {
     return this.reviewsService.claimEvidence(id, officer);
   }
 
   @Post('evidence/:id/release')
-  @Roles(Role.ADMIN, Role.STAFF)
+  @Roles(Role.STAFF)
   @ApiOperation({ summary: 'Mở khóa hồ sơ khi cán bộ thoát hoặc hoàn thành' })
   async releaseEvidence(@Param('id') id: string, @CurrentUser() officer: any) {
     return this.reviewsService.releaseEvidence(id, officer);
   }
 
   @Post('evidence/:id/review')
-  @Roles(Role.ADMIN, Role.STAFF)
+  @Roles(Role.STAFF)
   @ApiOperation({ summary: 'Ra quyết định phê duyệt/sửa điểm/từ chối/yêu cầu bổ sung' })
   async submitDecision(
     @Param('id') id: string,

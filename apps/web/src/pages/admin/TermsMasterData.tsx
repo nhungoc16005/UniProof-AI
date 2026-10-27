@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Term, Faculty, Class } from '../../types';
+import { useNavigate } from 'react-router-dom';
+import { Term } from '../../types';
 import { apiClient } from '../../lib/apiClient';
 import {
   Plus,
@@ -14,18 +15,17 @@ import {
 } from 'lucide-react';
 
 export const TermsMasterData: React.FC = () => {
-  const [terms, setTerms] = useState<Term[]>([]);
-  const [faculties, setFaculties] = useState<Faculty[]>([]);
-  const [classes, setClasses] = useState<Class[]>([]);
+  const navigate = useNavigate();
+  const [terms, setTerms] = useState<Array<Term & { rubricVersions?: Array<{ id: string; version: number; status: string }> }>>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'TERMS' | 'FACULTIES' | 'CLASSES'>('TERMS');
+  const activeTab = 'TERMS';
 
   // Load master data
   const loadTerms = async () => {
     try {
       setIsLoading(true);
       const data = await apiClient.getTerms();
-      setTerms(data);
+      setTerms(data as Array<Term & { rubricVersions?: Array<{ id: string; version: number; status: string }> }>);
     } catch (err) {
       console.error('Lỗi tải danh sách học kỳ', err);
     } finally {
@@ -33,22 +33,9 @@ export const TermsMasterData: React.FC = () => {
     }
   };
 
-  const loadFacultiesAndClasses = async () => {
-    try {
-      const [facList, classList] = await Promise.all([
-        apiClient.getFaculties(),
-        apiClient.getClasses(),
-      ]);
-      setFaculties(facList);
-      setClasses(classList);
-    } catch (err) {
-      console.error('Lỗi tải dữ liệu Khoa và Lớp', err);
-    }
-  };
 
   useEffect(() => {
     loadTerms();
-    loadFacultiesAndClasses();
   }, []);
 
   // Format ngày tháng sạch sẽ
@@ -72,13 +59,7 @@ export const TermsMasterData: React.FC = () => {
       );
     }
 
-    const now = new Date();
-    const startDate = term.startDate ? new Date(term.startDate) : null;
-    const subDeadline = term.submissionDeadline ? new Date(term.submissionDeadline) : null;
-    const revDeadline = term.reviewDeadline ? new Date(term.reviewDeadline) : null;
-    const appDeadline = term.appealDeadline ? new Date(term.appealDeadline) : null;
-
-    if (startDate && now < startDate) {
+    if (term.status === 'UPCOMING') {
       return (
         <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-700">
           <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
@@ -86,6 +67,20 @@ export const TermsMasterData: React.FC = () => {
         </span>
       );
     }
+
+    if (term.status === 'REVIEWING') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-700">
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+          <span>Đang chấm duyệt</span>
+        </span>
+      );
+    }
+
+    const now = new Date();
+    const subDeadline = term.submissionDeadline ? new Date(term.submissionDeadline) : null;
+    const revDeadline = term.reviewDeadline ? new Date(term.reviewDeadline) : null;
+    const appDeadline = term.appealDeadline ? new Date(term.appealDeadline) : null;
 
     if (subDeadline && now <= subDeadline) {
       return (
@@ -130,6 +125,8 @@ export const TermsMasterData: React.FC = () => {
   const [formSubmissionDeadline, setFormSubmissionDeadline] = useState('');
   const [formReviewDeadline, setFormReviewDeadline] = useState('');
   const [formAppealDeadline, setFormAppealDeadline] = useState('');
+  const [rubricSourceType, setRubricSourceType] = useState<'DEFAULT' | 'TERM'>('DEFAULT');
+  const [sourceTermId, setSourceTermId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const initDefaultDates = () => {
@@ -154,6 +151,8 @@ export const TermsMasterData: React.FC = () => {
   const handleOpenCreateModal = () => {
     setFormName('');
     setFormCode('');
+    setRubricSourceType('DEFAULT');
+    setSourceTermId('');
     initDefaultDates();
     setShowCreateModal(true);
   };
@@ -174,10 +173,14 @@ export const TermsMasterData: React.FC = () => {
         submissionDeadline: new Date(formSubmissionDeadline).toISOString(),
         reviewDeadline: new Date(formReviewDeadline).toISOString(),
         appealDeadline: new Date(formAppealDeadline).toISOString(),
-        status: 'ACTIVE',
+        status: 'UPCOMING',
+        rubricSourceType,
+        sourceTermId: rubricSourceType === 'TERM' ? sourceTermId : undefined,
       });
       setShowCreateModal(false);
       await loadTerms();
+      alert('Đã tạo kỳ ở trạng thái Sắp diễn ra cùng bản nháp bộ tiêu chí. Hãy kiểm tra và ban hành trong mục Tiêu chí đánh giá.');
+      navigate('/admin/criteria');
     } catch (err: any) {
       console.error('Lỗi tạo kỳ', err);
       alert(err.response?.data?.message || 'Không thể tạo kỳ đánh giá.');
@@ -245,6 +248,18 @@ export const TermsMasterData: React.FC = () => {
     }
   };
 
+  const handleActivateTerm = async (term: Term) => {
+    try {
+      await apiClient.activateTerm(term.id);
+      await loadTerms();
+      alert(`Đã mở kỳ ${term.name}.`);
+    } catch (err: any) {
+      const message = err.response?.data?.message || 'Chưa thể mở kỳ.';
+      if (message.includes('ban hành bộ tiêu chí')) navigate('/admin/criteria');
+      alert(message);
+    }
+  };
+
   // Modal Mở lại kỳ
   const [reopeningTerm, setReopeningTerm] = useState<Term | null>(null);
   const [reopenReason, setReopenReason] = useState('Mở lại kỳ đánh giá theo quyết định hội đồng');
@@ -266,11 +281,11 @@ export const TermsMasterData: React.FC = () => {
   };
 
   return (
-    <div className="space-y-5 max-w-7xl mx-auto">
+    <div className="space-y-5">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-lg font-bold text-slate-900 tracking-tight">Kỳ Đánh Giá & Dữ Liệu Nền</h1>
+          <h1 className="text-lg font-bold text-slate-900 tracking-tight">Kỳ đánh giá</h1>
           <p className="text-xs text-slate-500 mt-0.5">
             Quản trị thời hạn nộp hồ sơ, chấm điểm và chốt sổ điểm rèn luyện toàn trường.
           </p>
@@ -282,40 +297,6 @@ export const TermsMasterData: React.FC = () => {
         >
           <Plus className="w-3.5 h-3.5" />
           <span>Tạo kỳ mới</span>
-        </button>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex items-center gap-6 border-b border-slate-200 text-xs">
-        <button
-          onClick={() => setActiveTab('TERMS')}
-          className={`pb-2.5 font-semibold transition border-b-2 -mb-px ${
-            activeTab === 'TERMS'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          Kỳ đánh giá ({terms.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('FACULTIES')}
-          className={`pb-2.5 font-semibold transition border-b-2 -mb-px ${
-            activeTab === 'FACULTIES'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          Khoa / Viện ({faculties.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('CLASSES')}
-          className={`pb-2.5 font-semibold transition border-b-2 -mb-px ${
-            activeTab === 'CLASSES'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          Lớp sinh hoạt ({classes.length})
         </button>
       </div>
 
@@ -334,14 +315,18 @@ export const TermsMasterData: React.FC = () => {
                     <th className="py-3 px-4">Tên kỳ học</th>
                     <th className="py-3 px-4">Hạn nộp (SV)</th>
                     <th className="py-3 px-4">Hạn duyệt (CB)</th>
-                    <th className="py-3 px-4">Hạn khiếu nại</th>
-                    <th className="py-3 px-4">Trạng thái</th>
+                    <th className="py-3 px-4">Hạn phúc khảo</th>
+                    <th className="py-3 px-4">Trạng thái kỳ</th>
+                    <th className="py-3 px-4">Bộ tiêu chí</th>
                     <th className="py-3 px-4 text-right">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {terms.map((t) => {
                     const isClosed = t.status === 'CLOSED';
+                    const rubricStatus = t.rubricVersions?.some((version) => version.status === 'PUBLISHED')
+                      ? 'PUBLISHED'
+                      : t.rubricVersions?.some((version) => version.status === 'DRAFT') ? 'DRAFT' : 'NONE';
                     return (
                       <tr key={t.id} className="hover:bg-slate-50/60 transition">
                         {/* Tên kỳ */}
@@ -360,7 +345,7 @@ export const TermsMasterData: React.FC = () => {
                           {formatDate(t.reviewDeadline)}
                         </td>
 
-                        {/* Hạn khiếu nại */}
+                        {/* Hạn phúc khảo */}
                         <td className="py-3 px-4 text-slate-600">
                           {formatDate(t.appealDeadline)}
                         </td>
@@ -370,10 +355,20 @@ export const TermsMasterData: React.FC = () => {
                           {getStatusBadge(t)}
                         </td>
 
+                        <td className="py-3 px-4">
+                          <div className={`inline-flex rounded-full px-2 py-1 text-[11px] font-semibold ${rubricStatus === 'PUBLISHED' ? 'bg-emerald-50 text-emerald-700' : rubricStatus === 'DRAFT' ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+                            {rubricStatus === 'PUBLISHED' ? 'Đã ban hành' : rubricStatus === 'DRAFT' ? 'Bản nháp' : 'Chưa thiết lập'}
+                          </div>
+                          <button onClick={() => navigate(`/admin/criteria?termId=${encodeURIComponent(t.id)}`)} className="ml-2 text-[11px] font-semibold text-blue-700 hover:underline">
+                            {rubricStatus === 'PUBLISHED' ? 'Xem' : 'Thiết lập'}
+                          </button>
+                        </td>
+
                         {/* Thao tác */}
                         <td className="py-3 px-4 text-right">
                           <div className="inline-flex items-center gap-3">
                             <button
+                              disabled={isClosed}
                               onClick={() => handleOpenEditModal(t)}
                               className="text-slate-600 hover:text-blue-600 font-medium text-[11px] transition inline-flex items-center gap-1 cursor-pointer"
                             >
@@ -381,26 +376,15 @@ export const TermsMasterData: React.FC = () => {
                               <span>Sửa hạn</span>
                             </button>
 
-                            {isClosed ? (
-                              <button
-                                onClick={() => {
-                                  setReopeningTerm(t);
-                                  setReopenReason('Mở lại kỳ đánh giá theo quyết định hội đồng');
-                                }}
-                                className="text-blue-600 hover:text-blue-800 font-medium text-[11px] transition inline-flex items-center gap-1 cursor-pointer"
-                              >
-                                <Unlock className="w-3 h-3" />
-                                <span>Mở lại</span>
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => setClosingTerm(t)}
-                                className="text-rose-600 hover:text-rose-800 font-medium text-[11px] transition inline-flex items-center gap-1 cursor-pointer"
-                              >
-                                <Lock className="w-3 h-3" />
-                                <span>Chốt sổ</span>
+                            {t.status === 'UPCOMING' && (
+                              <button onClick={() => handleActivateTerm(t)} className="text-emerald-700 hover:text-emerald-900 font-medium text-[11px] transition inline-flex items-center gap-1 cursor-pointer">
+                                <Unlock className="w-3 h-3" /><span>Mở kỳ</span>
                               </button>
                             )}
+
+                            {!isClosed && t.status === 'REVIEWING' && <button onClick={() => setClosingTerm(t)} className="text-rose-700 text-xs font-semibold">Chốt chính thức</button>}
+                            {t.workflowEnabled && t.status !== 'UPCOMING' && <button onClick={() => navigate('/admin?termId=' + t.id)} className="text-blue-700 text-xs font-semibold">Tiếp nhận & công bố</button>}
+                            {isClosed && <span className="text-xs text-slate-500">Chỉ xem</span>}
                           </div>
                         </td>
                       </tr>
@@ -410,50 +394,6 @@ export const TermsMasterData: React.FC = () => {
               </table>
             </div>
           )}
-        </div>
-      )}
-
-      {/* Content FACULTIES */}
-      {activeTab === 'FACULTIES' && (
-        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {faculties.map((f) => {
-              const classCount = classes.filter((c) => c.facultyId === f.id).length;
-              return (
-                <div key={f.id} className="p-3.5 bg-slate-50/70 border border-slate-200/80 rounded-lg space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-[11px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
-                      {f.code}
-                    </span>
-                    <span className="text-[11px] text-slate-500 font-medium">
-                      {classCount} lớp
-                    </span>
-                  </div>
-                  <div className="font-medium text-xs text-slate-800 pt-1">
-                    {f.name}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Content CLASSES */}
-      {activeTab === 'CLASSES' && (
-        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
-          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5">
-            {classes.map((c) => (
-              <div key={c.id} className="p-2.5 bg-slate-50/70 border border-slate-200/80 rounded-lg text-center">
-                <span className="font-mono font-bold text-xs text-slate-800 block">
-                  {c.code}
-                </span>
-                <span className="text-[10px] text-slate-500 block truncate mt-0.5">
-                  {c.cohort || c.name}
-                </span>
-              </div>
-            ))}
-          </div>
         </div>
       )}
 
@@ -496,6 +436,21 @@ export const TermsMasterData: React.FC = () => {
                 />
               </div>
 
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">Nguồn bộ tiêu chí *</label>
+                <select value={rubricSourceType} onChange={(event) => setRubricSourceType(event.target.value as 'DEFAULT' | 'TERM')} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">
+                  <option value="DEFAULT">Bộ chuẩn hiện tại (khuyến nghị)</option>
+                  <option value="TERM">Sao chép từ một kỳ đã ban hành</option>
+                </select>
+                {rubricSourceType === 'TERM' && (
+                  <select required value={sourceTermId} onChange={(event) => setSourceTermId(event.target.value)} className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">
+                    <option value="">Chọn kỳ nguồn</option>
+                    {(terms as Array<Term & { rubricVersions?: Array<{ status: string }> }>).filter((term) => term.rubricVersions?.some((version) => version.status === 'PUBLISHED')).map((term) => <option key={term.id} value={term.id}>{term.name} · {term.code}</option>)}
+                  </select>
+                )}
+                <p className="mt-1 text-[11px] text-slate-500">Kỳ mới được tạo ở trạng thái Sắp diễn ra. Bộ tiêu chí sẽ là bản nháp đến khi quản trị viên ban hành.</p>
+              </div>
+
               <div className="grid grid-cols-2 gap-2.5 pt-1">
                 <div>
                   <label className="block font-medium text-slate-700 mb-1">Ngày bắt đầu</label>
@@ -531,7 +486,7 @@ export const TermsMasterData: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block font-medium text-slate-700 mb-1">Hạn khiếu nại</label>
+                  <label className="block font-medium text-slate-700 mb-1">Hạn phúc khảo</label>
                   <input
                     type="date"
                     required
@@ -602,7 +557,7 @@ export const TermsMasterData: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-medium text-slate-700 mb-1">Hạn khiếu nại</label>
+                <label className="block font-medium text-slate-700 mb-1">Hạn phúc khảo</label>
                 <input
                   type="date"
                   value={editAppealDeadline}

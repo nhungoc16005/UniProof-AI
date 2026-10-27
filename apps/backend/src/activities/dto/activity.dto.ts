@@ -3,6 +3,8 @@ import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { ActivityType } from '@prisma/client';
 
 export class CreateActivityDto {
+  @IsOptional() @IsString() termId?: string;
+  @IsOptional() @IsString() criterionId?: string;
   @ApiProperty({ example: 'Ngày hội Hiến máu Nhân đạo ĐHBK 2026' })
   @IsString()
   @IsNotEmpty()

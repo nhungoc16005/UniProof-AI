@@ -12,11 +12,14 @@ import { AppealsModule } from './appeals/appeals.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ReportsModule } from './reports/reports.module';
 import { AuditLogModule } from './audit-log/audit-log.module';
+import { AssessmentsModule } from './assessments/assessments.module';
+import { WorkflowModule } from './evaluation-workflow/workflow.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
+    WorkflowModule,
     AuthModule,
     UsersModule,
     CriteriaModule,
@@ -28,6 +31,7 @@ import { AuditLogModule } from './audit-log/audit-log.module';
     NotificationsModule,
     ReportsModule,
     AuditLogModule,
+    AssessmentsModule,
   ],
 })
 export class AppModule {}

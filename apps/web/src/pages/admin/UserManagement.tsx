@@ -93,34 +93,8 @@ export const UserManagement: React.FC = () => {
 
   // Tải file Excel mẫu chuẩn ĐHBK Đà Nẵng
   const handleDownloadTemplate = () => {
-    const templateData = [
-      {
-        'Mã sinh viên': '102210001',
-        'Họ và tên': 'Nguyễn Văn An',
-        'Email': 'an.nv@sv.dut.udn.vn',
-        'Mã lớp': '21TCLC_DT1',
-        'Mã khoa': 'CNTT',
-        'Vai trò': 'STUDENT',
-      },
-      {
-        'Mã sinh viên': '102210002',
-        'Họ và tên': 'Trần Thị Bình',
-        'Email': 'binh.tt@sv.dut.udn.vn',
-        'Mã lớp': '21TCLC_DT1',
-        'Mã khoa': 'CNTT',
-        'Vai trò': 'STUDENT',
-      },
-      {
-        'Mã sinh viên': '102210003',
-        'Họ và tên': 'Lê Hoàng Cường',
-        'Email': 'cuong.lh@sv.dut.udn.vn',
-        'Mã lớp': '22TCLC_KHDL',
-        'Mã khoa': 'CNTT',
-        'Vai trò': 'STUDENT',
-      },
-    ];
-
-    const ws = XLSX.utils.json_to_sheet(templateData);
+    const headers = ['Mã sinh viên', 'Họ và tên', 'Email', 'Mã lớp', 'Mã khoa', 'Vai trò'];
+    const ws = XLSX.utils.aoa_to_sheet([headers]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Mau_SinhVien');
     XLSX.writeFile(wb, 'Mau_Import_SinhVien_EduPoint.xlsx');
@@ -319,13 +293,13 @@ export const UserManagement: React.FC = () => {
 
   // Delete User
   const handleDeleteUser = async (userToDelete: User) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa tài khoản "${userToDelete.fullName}" (${userToDelete.email})?\nLưu ý: Hành động này sẽ xóa dữ liệu liên quan và không thể hoàn tác.`)) {
+    if (!window.confirm(`Bạn có chắc chắn muốn khóa tài khoản "${userToDelete.fullName}" (${userToDelete.email})?\nLưu ý: Tài khoản sẽ bị khóa; lịch sử đánh giá được giữ lại.`)) {
       return;
     }
     try {
-      await apiClient.deleteUser(userToDelete.id);
+      await apiClient.updateUser(userToDelete.id, { isActive: false });
       setUsers(prev => prev.filter(u => u.id !== userToDelete.id));
-      alert('Đã xóa người dùng thành công.');
+      alert('Đã khóa tài khoản và giữ nguyên lịch sử.');
     } catch (err: any) {
       console.error('Lỗi xóa người dùng', err);
       alert(err.response?.data?.message || 'Không thể xóa người dùng này.');
@@ -528,7 +502,7 @@ export const UserManagement: React.FC = () => {
   };
 
   const handleDeleteFaculty = async (fac: Faculty) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa Khoa "${fac.name}" (${fac.code})?\nLưu ý: Chỉ xóa được khi Khoa không còn Lớp và Cán bộ.`)) {
+    if (!window.confirm(`Bạn có chắc chắn muốn khóa Khoa "${fac.name}" (${fac.code})?\nLưu ý: Chỉ xóa được khi Khoa không còn Lớp và Cán bộ.`)) {
       return;
     }
     try {
@@ -620,10 +594,10 @@ export const UserManagement: React.FC = () => {
         <div>
           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-[#1d6fc2] mb-1.5 border border-blue-200/50">
             <School className="w-3.5 h-3.5" />
-            <span>Phòng Công tác Sinh viên · Quản trị Hệ thống Cấp Trường (A02)</span>
+            <span>Phòng Công tác Sinh viên</span>
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-            Quản trị Cơ cấu Khoa, Lớp & Người dùng
+            Tài khoản & đơn vị
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
             Cơ cấu tổ chức trường cấp: Khoa $\rightarrow$ Lớp sinh hoạt $\rightarrow$ Sinh viên & Cán bộ phụ trách.

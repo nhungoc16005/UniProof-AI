@@ -1,11 +1,12 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EvidenceService } from './evidence.service';
-import { CreateEvidenceDto, UploadFileDto } from './dto/evidence.dto';
+import { CreateEvidenceDto, UploadEvidenceFileDto, UploadFileDto } from './dto/evidence.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { EvidenceStatus } from '@prisma/client';
+import { EvidenceStatus, Role } from '@prisma/client';
+import { Roles } from '../common/decorators/roles.decorator';
 
 @ApiTags('Evidence')
 @Controller('evidence')
@@ -15,6 +16,7 @@ export class EvidenceController {
   constructor(private evidenceService: EvidenceService) {}
 
   @Get()
+  @Roles(Role.STUDENT, Role.STAFF, Role.ADMIN)
   @ApiOperation({ summary: 'Lấy danh sách hồ sơ minh chứng (Lọc theo kỳ, lớp, trạng thái, tìm kiếm)' })
   async findAll(
     @CurrentUser() user: any,
@@ -40,30 +42,35 @@ export class EvidenceController {
   }
 
   @Get(':id')
+  @Roles(Role.STUDENT, Role.STAFF, Role.ADMIN)
   @ApiOperation({ summary: 'Xem chi tiết hồ sơ minh chứng' })
   async findOne(@Param('id') id: string, @CurrentUser() user: any) {
     return this.evidenceService.findOne(id, user);
   }
 
   @Post()
+  @Roles(Role.STUDENT)
   @ApiOperation({ summary: 'Tạo hồ sơ minh chứng mới (Sinh viên)' })
   async create(@CurrentUser('id') studentId: string, @Body() dto: CreateEvidenceDto) {
     return this.evidenceService.create(studentId, dto);
   }
 
   @Post(':id/submit')
+  @Roles(Role.STUDENT)
   @ApiOperation({ summary: 'Nộp hồ sơ xét duyệt chính thức' })
   async submit(@Param('id') id: string, @CurrentUser('id') studentId: string) {
     return this.evidenceService.submit(id, studentId);
   }
 
   @Post(':id/withdraw')
+  @Roles(Role.STUDENT)
   @ApiOperation({ summary: 'Rút hồ sơ minh chứng đã nộp' })
   async withdraw(@Param('id') id: string, @CurrentUser('id') studentId: string) {
     return this.evidenceService.withdraw(id, studentId);
   }
 
   @Post(':id/files')
+  @Roles(Role.STUDENT)
   @ApiOperation({ summary: 'Thêm file minh chứng vào hồ sơ' })
   async addFile(
     @Param('id') id: string,
@@ -73,7 +80,22 @@ export class EvidenceController {
     return this.evidenceService.addFile(id, studentId, dto);
   }
 
+  @Post(':id/files/upload')
+  @Roles(Role.STUDENT)
+  @ApiOperation({ summary: 'Tải tệp nháp lên kho Supabase Storage' })
+  async uploadDraftFile(@Param('id') id: string, @CurrentUser('id') studentId: string, @Body() dto: UploadEvidenceFileDto) {
+    return this.evidenceService.uploadDraftFile(id, studentId, dto);
+  }
+
+  @Delete(':id/files/:fileId')
+  @Roles(Role.STUDENT)
+  @ApiOperation({ summary: 'Xóa một tệp khỏi hồ sơ minh chứng nháp' })
+  async deleteDraftFile(@Param('id') id: string, @Param('fileId') fileId: string, @CurrentUser('id') studentId: string) {
+    return this.evidenceService.deleteDraftFile(id, fileId, studentId);
+  }
+
   @Patch(':id')
+  @Roles(Role.STUDENT)
   @ApiOperation({ summary: 'Chỉnh sửa thông tin hồ sơ minh chứng (khi chưa phê duyệt)' })
   async update(
     @Param('id') id: string,
@@ -84,6 +106,7 @@ export class EvidenceController {
   }
 
   @Delete(':id')
+  @Roles(Role.STUDENT)
   @ApiOperation({ summary: 'Xóa hồ sơ minh chứng (khi chưa được phê duyệt chính thức)' })
   async deleteEvidence(@Param('id') id: string, @CurrentUser() user: any) {
     return this.evidenceService.deleteEvidence(id, user);

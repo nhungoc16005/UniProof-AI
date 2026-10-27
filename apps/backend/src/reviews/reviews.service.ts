@@ -1,11 +1,12 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { WorkflowService } from '../evaluation-workflow/workflow.service';
 import { ReviewDecisionDto } from './dto/review.dto';
 import { EvidenceStatus, ReviewDecision, Role, TermStatus } from '@prisma/client';
 
 @Injectable()
 export class ReviewsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private workflow: WorkflowService) {}
 
   // ==========================================
   // REVIEW QUEUE (OFFICER)
@@ -24,6 +25,10 @@ export class ReviewsService {
   ) {
     const { status, termId, classId, search, sortOrder = 'asc', page = 1, pageSize = 20 } = params;
     const skip = (page - 1) * pageSize;
+
+    if (officer.role === Role.STAFF && !officer.facultyId) {
+      throw new ForbiddenException('Tài khoản cán bộ chưa được gán Khoa phụ trách');
+    }
 
     const where: any = {};
 
@@ -82,24 +87,7 @@ export class ReviewsService {
           },
           term: { select: { id: true, code: true, name: true, status: true } },
           activity: { select: { id: true, name: true } },
-          files: true,
           lockedBy: { select: { id: true, fullName: true } },
-          verificationResults: {
-            take: 1,
-            orderBy: { createdAt: 'desc' },
-          },
-          aiSuggestions: {
-            take: 1,
-            orderBy: { createdAt: 'desc' },
-          },
-          anomalyFlags: true,
-          reviews: {
-            include: {
-              reviewer: { select: { fullName: true } },
-              criterion: { select: { code: true, name: true } },
-            },
-            orderBy: { createdAt: 'desc' },
-          },
         },
       }),
       this.prisma.evidence.count({ where }),
@@ -114,10 +102,11 @@ export class ReviewsService {
   async claimEvidence(evidenceId: string, officer: any) {
     const evidence = await this.prisma.evidence.findUnique({
       where: { id: evidenceId },
-      include: { lockedBy: true },
+      include: { lockedBy: true, student: { select: { class: { select: { facultyId: true } } } } },
     });
 
     if (!evidence) throw new NotFoundException('Không tìm thấy hồ sơ minh chứng');
+    this.assertFacultyScope(officer, evidence.student.class?.facultyId);
 
     const now = new Date();
     const LOCK_TIMEOUT_MS = 15 * 60 * 1000; // 15 phút
@@ -154,11 +143,12 @@ export class ReviewsService {
   // RELEASE LOCK
   // ==========================================
   async releaseEvidence(evidenceId: string, officer: any) {
-    const evidence = await this.prisma.evidence.findUnique({ where: { id: evidenceId } });
+    const evidence = await this.prisma.evidence.findUnique({ where: { id: evidenceId }, include: { student: { select: { class: { select: { facultyId: true } } } } } });
     if (!evidence) throw new NotFoundException('Không tìm thấy hồ sơ');
+    this.assertFacultyScope(officer, evidence.student.class?.facultyId);
 
-    // Chỉ người giữ lock hoặc Admin mới được mở khóa
-    if (evidence.lockedById && evidence.lockedById !== officer.id && officer.role !== Role.ADMIN) {
+    // Chỉ người đang giữ khóa được mở khóa.
+    if (evidence.lockedById && evidence.lockedById !== officer.id) {
       throw new ForbiddenException('Bạn không phải người đang giữ khóa hồ sơ này');
     }
 
@@ -181,14 +171,26 @@ export class ReviewsService {
     });
 
     if (!evidence) throw new NotFoundException('Không tìm thấy hồ sơ minh chứng');
+    const studentFaculty = await this.prisma.user.findUnique({ where: { id: evidence.studentId }, select: { class: { select: { facultyId: true } } } });
+    this.assertFacultyScope(officer, studentFaculty?.class?.facultyId);
     if (evidence.term.status === TermStatus.CLOSED) {
       throw new BadRequestException('Kỳ học đã chốt sổ điểm, không thể thay đổi kết quả đánh giá');
     }
+    const versionedRubric = await this.prisma.rubricVersion.findFirst({ where: { termId: evidence.termId, status: 'PUBLISHED' }, select: { id: true } });
+    if (dto.action === ReviewDecision.SCORE_ADJUSTED || dto.approvedPoints != null) {
+      throw new BadRequestException('Minh chứng chỉ được xác minh tại đây; điểm chính thức phải được chốt ở tiêu chí trong phiếu đánh giá sinh viên.');
+    }
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.workflow.edit(officer, evidence.studentId, evidence.termId, async (tx) => {
+      const current = await tx.evidence.findUniqueOrThrow({ where: { id: evidenceId } });
+      if (current.version !== evidence.version || current.status !== evidence.status) throw new ConflictException('Minh chứng đã thay đổi, hãy tải lại');
+      if (versionedRubric) {
+        const submitted = await tx.assessmentSubmission.count({ where: { studentId: evidence.studentId, termId: evidence.termId, status: 'SUBMITTED' } });
+        if (!submitted || ['DRAFT', 'WITHDRAWN'].includes(current.status)) throw new BadRequestException('Minh chứng chưa được nộp để xét duyệt');
+      }
       let newEvidenceStatus: EvidenceStatus = EvidenceStatus.NEEDS_HUMAN_REVIEW;
 
-      if (dto.action === ReviewDecision.APPROVED || dto.action === ReviewDecision.SCORE_ADJUSTED) {
+      if (dto.action === ReviewDecision.APPROVED) {
         newEvidenceStatus = EvidenceStatus.APPROVED;
       } else if (dto.action === ReviewDecision.REJECTED) {
         newEvidenceStatus = EvidenceStatus.REJECTED;
@@ -203,7 +205,7 @@ export class ReviewsService {
           reviewerId: officer.id,
           decision: dto.action,
           criterionId: dto.criterionId || null,
-          finalScore: dto.approvedPoints !== undefined ? dto.approvedPoints : null,
+          finalScore: null,
           rejectBasis: dto.rejectBasis || null,
           reason: dto.comment,
         },
@@ -221,48 +223,7 @@ export class ReviewsService {
         });
       }
 
-      // 3. Nếu APPROVED hoặc SCORE_ADJUSTED -> Cập nhật bảng tổng hợp điểm ConductScore
-      if (dto.action === ReviewDecision.APPROVED || dto.action === ReviewDecision.SCORE_ADJUSTED) {
-        const pointsToAdd = dto.approvedPoints || 0;
-
-        const currentScore = await tx.conductScore.findUnique({
-          where: {
-            studentId_termId: {
-              studentId: evidence.studentId,
-              termId: evidence.termId,
-            },
-          },
-        });
-
-        const newTotal = Math.min(100.0, (currentScore?.totalScore || 0) + pointsToAdd);
-
-        let classification = 'YẾU';
-        if (newTotal >= 90) classification = 'XUẤT SẮC';
-        else if (newTotal >= 80) classification = 'TỐT';
-        else if (newTotal >= 65) classification = 'KHÁ';
-        else if (newTotal >= 50) classification = 'TRUNG BÌNH';
-
-        await tx.conductScore.upsert({
-          where: {
-            studentId_termId: {
-              studentId: evidence.studentId,
-              termId: evidence.termId,
-            },
-          },
-          update: {
-            totalScore: newTotal,
-            classification,
-          },
-          create: {
-            studentId: evidence.studentId,
-            termId: evidence.termId,
-            totalScore: newTotal,
-            classification,
-          },
-        });
-      }
-
-      // 4. Cập nhật Evidence & giải phóng Lock
+      // 3. Cập nhật Evidence & giải phóng Lock. Xác minh minh chứng không ghi điểm.
       const updatedEvidence = await tx.evidence.update({
         where: { id: evidenceId },
         data: {
@@ -275,6 +236,17 @@ export class ReviewsService {
           supplementRequests: true,
         },
       });
+
+      // Any changed evidence invalidates the linked criterion calculation.
+      if (evidence.criterionAssessmentId) await tx.criterionAssessment.update({ where: { id: evidence.criterionAssessmentId }, data: { status: 'NEEDS_VERIFICATION', suggestedScore: null, suggestionReason: null, officialScore: null, officialReason: null, finalizedAt: null, finalReviewerId: null } });
+      await tx.auditLog.create({ data: {
+        userId: officer.id,
+        action: `EVIDENCE_${dto.action}`,
+        entityType: 'Evidence',
+        entityId: evidenceId,
+        oldValue: { status: evidence.status },
+        newValue: { status: newEvidenceStatus, criterionId: dto.criterionId || null, finalScore: null, reason: dto.comment || null },
+      } });
 
       // 5. Tự động gửi thông báo cho Sinh viên
       await tx.notification.create({
@@ -289,5 +261,11 @@ export class ReviewsService {
 
       return updatedEvidence;
     });
+  }
+
+  private assertFacultyScope(officer: any, studentFacultyId?: string | null) {
+    if (officer.role === Role.STAFF && (!officer.facultyId || officer.facultyId !== studentFacultyId)) {
+      throw new ForbiddenException('Bạn chỉ được xử lý hồ sơ sinh viên thuộc Khoa phụ trách');
+    }
   }
 }

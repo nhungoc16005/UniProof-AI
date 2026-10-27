@@ -15,25 +15,34 @@ import {
   Calendar,
   Clock,
   AlertCircle,
-  Lock,
   Sparkles,
 } from 'lucide-react';
 
-import { calculateStudentConductScore } from '../../lib/ruleEngine';
 
 export const StudentDashboard: React.FC = () => {
   const { user, activeTerm } = useAuth();
   const [evidences, setEvidences] = useState<Evidence[]>([]);
+  const [scoreSummary, setScoreSummary] = useState<any>(null);
+  const [assessmentSubmission, setAssessmentSubmission] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [showScoreModal, setShowScoreModal] = useState(false);
 
   useEffect(() => {
-    if (user?.id) {
-      apiClient.getEvidences({ studentId: user.id, termId: activeTerm.id }).then((data) => {
-        setEvidences(data);
-        setIsLoading(false);
-      });
-    }
+    if (!user?.id || !activeTerm.id) return;
+    setIsLoading(true);
+    setLoadError('');
+    Promise.all([
+      apiClient.getEvidences({ studentId: user.id, termId: activeTerm.id }),
+      apiClient.getConductDashboard(activeTerm.id),
+      apiClient.getMyAssessments(activeTerm.id),
+    ]).then(([evidenceList, summary, rubric]) => {
+      setEvidences(evidenceList);
+      setScoreSummary(summary);
+      setAssessmentSubmission(rubric.submission);
+    }).catch(() => {
+      setLoadError('Không tải được dữ liệu điểm và minh chứng từ máy chủ. Vui lòng thử lại.');
+    }).finally(() => setIsLoading(false));
   }, [user?.id, activeTerm.id]);
 
   // Kiểm tra thời hạn nộp điểm rèn luyện
@@ -59,13 +68,18 @@ export const StudentDashboard: React.FC = () => {
     }
   }, [activeTerm]);
 
-  // Rule Engine Calculations (Bậc thang & khống chế trần từng khung)
-  const { categorySummaries, totalAiScore, totalOfficialScore } = useMemo(() => {
-    return calculateStudentConductScore(evidences);
-  }, [evidences]);
-
-  const officialScore = totalOfficialScore;
-  const pendingScore = Math.max(0, +(totalAiScore - totalOfficialScore).toFixed(1));
+  // Điểm và phân bổ theo khung chỉ lấy từ Backend; FE không tự quyết định điểm.
+  const isOfficialScore = scoreSummary?.officialScore !== null && scoreSummary?.officialScore !== undefined;
+  const displayedScore = Number(scoreSummary?.officialScore ?? scoreSummary?.scoreInProgress ?? 0);
+  const totalRubricCriteria = (scoreSummary?.categories || []).reduce((total: number, category: any) => total + (category.criteria?.length || 0), 0);
+  const hasConfirmedScore = isOfficialScore || (scoreSummary?.status === 'IN_PROGRESS' && Number(scoreSummary.pendingCriteriaCount) < totalRubricCriteria);
+  const categorySummaries: { category: string; name: string; score: number; maxScore: number; hasScore: boolean }[] = (scoreSummary?.categories || []).map((category: any) => ({
+    category: category.key,
+    name: category.name,
+    hasScore: isOfficialScore || category.criteria?.some((criterion: any) => criterion.assessment?.status === 'FINALIZED'),
+    score: isOfficialScore || category.criteria?.some((criterion: any) => criterion.assessment?.status === 'FINALIZED') ? Number(category.score ?? 0) : 0,
+    maxScore: Number(category.maxScore ?? 0),
+  }));
 
   const approvedEvidences = useMemo(() => {
     return evidences.filter((e) => e.status === 'APPROVED');
@@ -85,60 +99,17 @@ export const StudentDashboard: React.FC = () => {
     return evidences.filter((e) => e.status === 'NEEDS_SUPPLEMENT');
   }, [evidences]);
 
-  // Milestone Rank Calculation
   const rankInfo = useMemo(() => {
-    const s = officialScore;
-    if (s >= 90) {
-      return {
-        currentRank: 'Xuất sắc',
-        currentRankColor: 'text-purple-600 bg-purple-50 border-purple-200',
-        nextRank: null,
-        pointsNeeded: 0,
-        pct: 100,
-      };
-    }
-    if (s >= 80) {
-      return {
-        currentRank: 'Tốt',
-        currentRankColor: 'text-blue-600 bg-blue-50 border-blue-200',
-        nextRank: 'Xuất sắc',
-        nextScore: 90,
-        pointsNeeded: +(90 - s).toFixed(1),
-        pct: 80 + ((s - 80) / 10) * 20,
-      };
-    }
-    if (s >= 65) {
-      return {
-        currentRank: 'Khá',
-        currentRankColor: 'text-emerald-700 bg-emerald-50 border-emerald-200',
-        nextRank: 'Tốt',
-        nextScore: 80,
-        pointsNeeded: +(80 - s).toFixed(1),
-        pct: 65 + ((s - 65) / 15) * 15,
-      };
-    }
-    if (s >= 50) {
-      return {
-        currentRank: 'Trung bình',
-        currentRankColor: 'text-amber-700 bg-amber-50 border-amber-200',
-        nextRank: 'Khá',
-        nextScore: 65,
-        pointsNeeded: +(65 - s).toFixed(1),
-        pct: 50 + ((s - 50) / 15) * 15,
-      };
-    }
     return {
-      currentRank: 'Yếu / Kém',
-      currentRankColor: 'text-rose-700 bg-rose-50 border-rose-200',
-      nextRank: 'Trung bình',
-      nextScore: 50,
-      pointsNeeded: +(50 - s).toFixed(1),
-      pct: (s / 50) * 50,
+      currentRank: !scoreSummary?.classification || scoreSummary.classification === 'CHUA_XEP_LOAI' ? 'Chưa xếp loại' : scoreSummary.classification,
+      currentRankColor: 'text-slate-700 bg-slate-50 border-slate-200',
+      pct: hasConfirmedScore ? Math.min(100, Math.max(0, displayedScore)) : 0,
     };
-  }, [officialScore]);
+  }, [displayedScore, hasConfirmedScore, isOfficialScore, scoreSummary]);
 
   return (
-    <div className="space-y-6 pb-12 font-sans">
+      <div className="space-y-6 pb-12 font-sans">
+      {loadError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{loadError}</div>}
       {/* 1. Hero Banner: Thông tin động & Lối tắt nhanh */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-7 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.05)] flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative overflow-hidden">
         <div className="space-y-2 max-w-xl z-10">
@@ -150,32 +121,18 @@ export const StudentDashboard: React.FC = () => {
             Xin chào, {user?.fullName || 'Sinh viên'}
           </h1>
           <p className="text-xs text-slate-500 leading-relaxed">
-            Mã sinh viên: <strong className="text-slate-800 font-bold">{user?.studentCode || 'Chưa cập nhật'}</strong> · {user?.faculty?.name || (user?.class as any)?.faculty?.name || 'Khoa Công nghệ Thông tin'} · Lớp {(user?.class as any)?.code || (user?.class as any)?.name || '21TCLC_DT1'}
+            Mã sinh viên: <strong className="text-slate-800 font-bold">{user?.studentCode || 'Chưa cập nhật'}</strong> · {user?.faculty?.name || (user?.class as any)?.faculty?.name || 'Chưa cập nhật'} · Lớp {(user?.class as any)?.code || (user?.class as any)?.name || 'Chưa cập nhật'}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto z-10">
           <Link
-            to="/student/criteria"
+            to="/student/scores"
             className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-[#1d6fc2] hover:bg-[#175ea5] active:scale-[0.99] text-white font-bold text-xs rounded-xl shadow-md shadow-blue-600/20 transition cursor-pointer"
           >
             <FileText className="w-3.5 h-3.5" />
-            <span>Phiếu tự đánh giá</span>
+            <span>Chấm điểm & nộp minh chứng</span>
           </Link>
-
-          {isSubmissionOpen ? (
-            <Link
-              to="/student/evidence/new"
-              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-blue-50 hover:bg-blue-100 active:scale-[0.99] text-[#1d6fc2] font-bold text-xs rounded-xl border border-blue-200 transition cursor-pointer"
-            >
-              <span>+ Nộp minh chứng</span>
-            </Link>
-          ) : (
-            <div className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-slate-100 text-slate-400 font-bold text-xs rounded-xl border border-slate-200 cursor-not-allowed">
-              <Lock className="w-3.5 h-3.5 text-slate-400" />
-              <span>Đã khóa nộp</span>
-            </div>
-          )}
 
           <button
             onClick={() => setShowScoreModal(true)}
@@ -186,6 +143,19 @@ export const StudentDashboard: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {assessmentSubmission && (
+        <div className={`rounded-xl border p-4 text-sm ${assessmentSubmission.status === 'RETURNED' ? 'border-orange-200 bg-orange-50 text-orange-900' : assessmentSubmission.status === 'SUBMITTED' ? 'border-blue-200 bg-blue-50 text-blue-900' : 'border-slate-200 bg-white text-slate-700'}`}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <strong>{assessmentSubmission.status === 'SUBMITTED' ? 'Phiếu đang chờ cán bộ xử lý' : assessmentSubmission.status === 'RETURNED' ? 'Phiếu cần chỉnh sửa' : 'Phiếu tự đánh giá'}</strong>
+              {assessmentSubmission.status === 'RETURNED' && assessmentSubmission.returnReason && <p className="mt-1">Lý do: {assessmentSubmission.returnReason}</p>}
+              {assessmentSubmission.status === 'SUBMITTED' && assessmentSubmission.submittedAt && <p className="mt-1">Đã nộp {new Date(assessmentSubmission.submittedAt).toLocaleString('vi-VN')}</p>}
+            </div>
+            {assessmentSubmission.status === 'RETURNED' && <Link to="/student/scores" className="rounded-lg bg-orange-700 px-3 py-2 text-xs font-bold text-white">Chỉnh sửa phiếu</Link>}
+          </div>
+        </div>
+      )}
 
       {/* 2. Thống Kê Nhanh Hồ Sơ & Hạn Chót (Quick Status Cards) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
@@ -223,7 +193,7 @@ export const StudentDashboard: React.FC = () => {
             {approvedEvidences.length} <span className="text-xs font-normal text-slate-400">hồ sơ</span>
           </div>
           <p className="text-[11px] text-slate-500">
-            Ghi nhận: <strong className="text-emerald-700 font-bold">{officialScore} điểm</strong>
+            {isOfficialScore ? <>Điểm chính thức: <strong className="text-emerald-700 font-bold">{displayedScore} điểm</strong></> : hasConfirmedScore ? <>Tổng điểm tiêu chí đã chốt tạm thời: <strong className="text-slate-700 font-bold">{displayedScore} điểm · chưa chốt</strong></> : 'Chưa có điểm tiêu chí được xác nhận'}
           </p>
         </div>
 
@@ -236,9 +206,7 @@ export const StudentDashboard: React.FC = () => {
           <div className="text-lg font-black text-blue-900 font-mono">
             {pendingEvidences.length} <span className="text-xs font-normal text-slate-400">hồ sơ</span>
           </div>
-          <p className="text-[11px] text-slate-500">
-            Dự kiến: <strong className="text-[#1d6fc2] font-bold">+{pendingScore} điểm</strong>
-          </p>
+            <p className="text-[11px] text-slate-500">Điểm chỉ được cập nhật sau quyết định chính thức.</p>
         </div>
 
         {/* Card 4: Cần bổ sung */}
@@ -294,14 +262,14 @@ export const StudentDashboard: React.FC = () => {
               Lộ trình xếp loại rèn luyện
             </span>
             <span className="text-[11px] text-slate-500">
-              Quy chế Đánh giá Kết quả Rèn luyện Sinh viên theo khung 100 điểm
+              Điểm và xếp loại được cung cấp bởi hệ thống.
             </span>
           </div>
 
           <div className="flex items-center gap-2">
             <span className="text-xs text-slate-500">Xếp loại hiện tại:</span>
             <span className={`px-2.5 py-0.5 rounded-full text-xs font-extrabold border ${rankInfo.currentRankColor}`}>
-              {rankInfo.currentRank} ({officialScore} đ)
+              {isOfficialScore ? `${rankInfo.currentRank} (${displayedScore} đ)` : 'Chưa có kết quả chính thức'}
             </span>
           </div>
         </div>
@@ -316,52 +284,20 @@ export const StudentDashboard: React.FC = () => {
             />
           </div>
 
-          {/* Milestone points */}
-          <div className="relative w-full flex justify-between text-[11px] mt-2 text-slate-400 font-semibold">
-            <div className="text-left">
-              <span className="block font-bold text-slate-700">0</span>
-              <span className="text-[10px]">Kém</span>
-            </div>
-            <div className="text-center">
-              <span className="block font-bold text-slate-700">50</span>
-              <span className="text-[10px]">Trung bình</span>
-            </div>
-            <div className="text-center">
-              <span className="block font-bold text-slate-700">65</span>
-              <span className="text-[10px]">Khá</span>
-            </div>
-            <div className="text-center">
-              <span className="block font-bold text-slate-700">80</span>
-              <span className="text-[10px]">Tốt</span>
-            </div>
-            <div className="text-right">
-              <span className="block font-bold text-[#1d6fc2]">90</span>
-              <span className="text-[10px] text-[#1d6fc2] font-bold">Xuất sắc</span>
-            </div>
-          </div>
+          <p className="mt-2 text-right text-xs text-slate-500">{hasConfirmedScore ? `${displayedScore} / 100 điểm${isOfficialScore ? '' : ' · tổng tạm tính, chưa phải điểm chính thức'}` : 'Chưa có điểm tiêu chí được xác nhận'}</p>
         </div>
 
         {/* Motivational Callout */}
         <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
           <p className="text-blue-900 leading-relaxed">
-            {rankInfo.nextRank ? (
-              <>
-                Bạn hiện đang đạt mức <strong className="font-bold">{rankInfo.currentRank}</strong> ({officialScore} điểm). 
-                Chỉ cần tích lũy thêm <strong className="font-bold text-[#1d6fc2] underline">{rankInfo.pointsNeeded} điểm</strong> nữa 
-                để chính thức thăng hạng lên danh hiệu <strong className="font-bold text-[#1d6fc2]">{rankInfo.nextRank} ({rankInfo.nextScore} điểm)</strong>!
-              </>
-            ) : (
-              <>
-                Chúc mừng bạn đã xuất sắc đạt ngưỡng điểm tối đa của danh hiệu <strong className="font-bold text-purple-700">Xuất sắc (≥ 90 điểm)</strong> trong học kỳ này!
-              </>
-            )}
+            Xếp loại hiện tại: <strong className="font-bold">{rankInfo.currentRank}</strong>. Thông tin được lấy từ Backend.
           </p>
 
           <Link
-            to="/student/criteria"
+            to="/student/scores"
             className="px-3.5 py-1.5 bg-[#1d6fc2] hover:bg-[#175ea5] text-white font-bold rounded-lg shrink-0 transition shadow-xs text-center inline-flex items-center gap-1.5"
           >
-            <span>Mở Phiếu tự đánh giá</span>
+            <span>Chấm điểm & nộp minh chứng</span>
             <ChevronRight className="w-3.5 h-3.5" />
           </Link>
         </div>
@@ -373,20 +309,20 @@ export const StudentDashboard: React.FC = () => {
         {/* Left Column: Radial Score Gauge & Rank (Col 5) */}
         <div className="lg:col-span-5 bg-white border border-slate-200/90 rounded-2xl p-6 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.05)] flex flex-col items-center justify-center">
           <ScoreGauge
-            score={officialScore}
-            pendingScore={pendingScore}
+            score={displayedScore}
+            classification={rankInfo.currentRank}
             maxScore={100}
-            targetRank="Xuất sắc"
-            targetScore={90}
+            isOfficial={isOfficialScore}
+            hasScore={hasConfirmedScore}
           />
 
           <div className="w-full grid grid-cols-2 gap-3 mt-6 pt-5 border-t border-slate-100 text-center">
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70">
               <span className="text-[10px] text-slate-400 font-bold uppercase block tracking-wider">
-                Điểm chính thức
+                {isOfficialScore ? 'Điểm chính thức' : 'Điểm đang tính'}
               </span>
               <span className="text-xl font-black text-slate-900 mt-0.5 block">
-                {officialScore} đ
+                {isOfficialScore ? `${displayedScore} đ` : hasConfirmedScore ? `${displayedScore} đ · tạm tính` : 'Chưa có dữ liệu điểm'}
               </span>
             </div>
 
@@ -395,7 +331,7 @@ export const StudentDashboard: React.FC = () => {
                 Đang chờ duyệt
               </span>
               <span className="text-xl font-black text-blue-900 mt-0.5 block">
-                +{pendingScore} đ
+                {pendingEvidences.length} hồ sơ
               </span>
             </div>
           </div>
@@ -407,15 +343,15 @@ export const StudentDashboard: React.FC = () => {
             <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">
               Tiến độ theo 5 khung tiêu chí
             </span>
-            <Link to="/student/criteria" className="text-xs text-[#1d6fc2] hover:underline font-semibold">
-              Chi tiết khung điểm
+            <Link to="/student/scores" className="text-xs text-[#1d6fc2] hover:underline font-semibold">
+              Xem bảng điểm
             </Link>
           </div>
 
           <div className="space-y-4">
             {categorySummaries.map((c) => {
-              const pct = Math.round((c.officialScore / c.maxScore) * 100);
-              const isCapped = c.officialScore >= c.maxScore;
+              const pct = Math.round((c.score / c.maxScore) * 100);
+              const isCapped = isOfficialScore && c.score >= c.maxScore;
               return (
                 <div key={c.category} className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
@@ -429,13 +365,8 @@ export const StudentDashboard: React.FC = () => {
                         </span>
                       )}
                     </div>
-                    <span className="font-mono text-slate-500">
-                      <strong className={`font-bold ${isCapped ? 'text-amber-800' : 'text-slate-900'}`}>{c.officialScore}</strong> / {c.maxScore} đ
-                      {c.aiScore > c.officialScore && (
-                        <span className="text-[#1d6fc2] ml-1.5 text-[11px] font-semibold">
-                          (Dự kiến: {c.aiScore}đ)
-                        </span>
-                      )}
+                <span className="font-mono text-slate-500">
+                      <strong className={`font-bold ${isCapped ? 'text-amber-800' : 'text-slate-900'}`}>{c.hasScore ? c.score : '—'}</strong> / {c.maxScore} đ
                     </span>
                   </div>
                   <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
@@ -455,10 +386,8 @@ export const StudentDashboard: React.FC = () => {
           </div>
 
           <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
-            <span className="text-slate-500">Mục tiêu đạt loại Xuất sắc (≥ 90 điểm):</span>
-            <span className="font-bold text-slate-900">
-              {officialScore >= 90 ? 'Đã đạt' : `Còn thiếu ${(90 - officialScore).toFixed(1)} điểm`}
-            </span>
+            <span className="text-slate-500">Xếp loại hiện tại</span>
+            <span className="font-bold text-slate-900">{rankInfo.currentRank}</span>
           </div>
         </div>
 
@@ -484,10 +413,10 @@ export const StudentDashboard: React.FC = () => {
               <p className="text-[11px] text-slate-400">Hãy nộp giấy chứng nhận, giấy khen hoặc xác nhận hoạt động để tích lũy điểm.</p>
               <div className="pt-2">
                 <Link
-                  to="/student/evidence/new"
+                  to="/student/scores"
                   className="inline-block px-4 py-2 bg-[#1d6fc2] hover:bg-[#175ea5] text-white font-bold text-xs rounded-xl shadow-sm transition"
                 >
-                  Nộp minh chứng ngay
+                  Mở phiếu chấm điểm & nộp minh chứng
                 </Link>
               </div>
             </div>
@@ -568,16 +497,16 @@ export const StudentDashboard: React.FC = () => {
                 </div>
                 <div>
                   <span className="text-slate-400 block font-medium">Mã số sinh viên (MSSV)</span>
-                  <span className="text-slate-900 font-semibold text-xs">{user?.studentCode || '102210001'}</span>
+                  <span className="text-slate-900 font-semibold text-xs">{user?.studentCode || 'Chưa cập nhật'}</span>
                 </div>
                 <div>
                   <span className="text-slate-400 block font-medium">Lớp sinh hoạt / Khoa</span>
-                  <span className="text-slate-900 font-semibold text-xs">21TCLC_DT1 · CNTT</span>
+                  <span className="text-slate-900 font-semibold text-xs">{(user?.class as any)?.code || 'Chưa cập nhật'} · {user?.faculty?.name || 'Chưa cập nhật'}</span>
                 </div>
                 <div className="sm:text-right">
-                  <span className="text-slate-400 block font-medium">Tổng điểm chính thức</span>
-                  <span className="text-emerald-700 font-black text-sm">
-                    {officialScore} / 100 ({rankInfo.currentRank})
+                  <span className="text-slate-400 block font-medium">{isOfficialScore ? 'Tổng điểm chính thức' : 'Tổng điểm tạm tính'}</span>
+                  <span className={`${isOfficialScore ? 'text-emerald-700' : 'text-slate-700'} font-black text-sm`}>
+                    {hasConfirmedScore ? `${displayedScore} / 100` : 'Chưa có điểm'} ({isOfficialScore ? rankInfo.currentRank : 'Chưa xếp loại'})
                   </span>
                 </div>
               </div>
@@ -593,9 +522,9 @@ export const StudentDashboard: React.FC = () => {
                       <span className="font-bold text-slate-800">{cat.name}</span>
                       <div className="flex items-center gap-2">
                         <span className="font-mono font-bold text-slate-900">
-                          {cat.officialScore} / {cat.maxScore} đ
+                          {cat.hasScore ? `${cat.score} / ${cat.maxScore} đ` : `— / ${cat.maxScore} đ`}
                         </span>
-                        {cat.officialScore >= cat.maxScore && (
+                        {isOfficialScore && cat.score >= cat.maxScore && (
                           <span className="text-[10px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded">
                             Đạt trần
                           </span>
@@ -605,7 +534,7 @@ export const StudentDashboard: React.FC = () => {
                     <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-[#1d6fc2] rounded-full"
-                        style={{ width: `${Math.min(100, (cat.officialScore / cat.maxScore) * 100)}%` }}
+                        style={{ width: `${Math.min(100, (cat.score / cat.maxScore) * 100)}%` }}
                       />
                     </div>
                   </div>

@@ -41,7 +41,7 @@ export class AuditLogService {
     return {
       status: dbStatus === 'UP' ? 'healthy' : 'unhealthy',
       database: dbStatus,
-      aiService: 'DISABLED (Core Manual Mode)',
+      aiService: process.env.AI_PIPELINE_URL ? 'CONFIGURED_NOT_CHECKED' : 'NOT_CONFIGURED',
       uptimeSeconds: Math.floor(process.uptime()),
       timestamp: new Date().toISOString(),
     };

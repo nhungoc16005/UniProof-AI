@@ -20,10 +20,11 @@ export class AppealsController {
   async findAll(
     @CurrentUser() user: any,
     @Query('status') status?: AppealStatus,
+    @Query('termId') termId?: string,
     @Query('page') page?: number,
     @Query('pageSize') pageSize?: number,
   ) {
-    return this.appealsService.findAll(user, { status, page: page ? Number(page) : 1, pageSize: pageSize ? Number(pageSize) : 20 });
+    return this.appealsService.findAll(user, { termId, status, page: page ? Number(page) : 1, pageSize: pageSize ? Number(pageSize) : 20 });
   }
 
   @Post()

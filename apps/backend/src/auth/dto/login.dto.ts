@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
 
 export class LoginDto {
   @ApiProperty({ example: 'sv1.cntt@sv.dut.udn.vn', description: 'Email trường cấp' })
@@ -10,6 +10,5 @@ export class LoginDto {
   @ApiProperty({ example: 'Student@123', description: 'Mật khẩu tài khoản' })
   @IsString()
   @IsNotEmpty({ message: 'Mật khẩu không được để trống' })
-  @MinLength(6, { message: 'Mật khẩu tối thiểu 6 ký tự' })
   password: string;
 }

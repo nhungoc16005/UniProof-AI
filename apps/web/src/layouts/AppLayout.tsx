@@ -16,19 +16,37 @@ export const AppLayout: React.FC = () => {
   const navigate = useNavigate();
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notificationLoadError, setNotificationLoadError] = useState(false);
   const [showNotifMenu, setShowNotifMenu] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    apiClient.getNotifications().then(setNotifications);
-  }, []);
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      apiClient.getNotifications().then((items) => {
+        if (cancelled) return;
+        setNotifications(items);
+        setNotificationLoadError(false);
+      }).catch(() => {
+        if (!cancelled) setNotificationLoadError(true);
+      });
+    }, 750);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [user?.id]);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   const handleMarkAllRead = async () => {
-    await apiClient.markAllNotificationsAsRead();
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    try {
+      await apiClient.markAllNotificationsAsRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    } catch {
+      window.alert('Không thể cập nhật thông báo. Vui lòng thử lại.');
+    }
   };
 
   const handleLogout = () => {
@@ -37,32 +55,31 @@ export const AppLayout: React.FC = () => {
     navigate('/login');
   };
 
-  // Grouped Navigation per role
-  // Grouped Navigation per role (Streamlined & Non-fragmented)
+  // Điều hướng Web theo vai trò; chỉ đưa các luồng Core đã có API vào menu.
   const navGroups: NavGroup[] = useMemo(() => {
     if (!user) return [];
 
     if (user.role === 'STAFF') {
       return [
         {
-          title: 'ĐIỀU HÀNH & XÉT DUYỆT',
+          title: 'CÔNG VIỆC',
           items: [
-            { label: 'Bảng điều hành', path: '/officer' },
-            { label: 'Hàng đợi xét duyệt', path: '/officer/queue' },
-            { label: 'Xử lý khiếu nại', path: '/officer/appeals' },
+            { label: 'Tổng quan', path: '/officer' },
+            { label: 'Minh chứng', path: '/officer/queue' },
+            { label: 'Phúc khảo', path: '/officer/appeals' },
           ],
         },
         {
-          title: 'QUẢN LÝ ĐIỂM & HOẠT ĐỘNG',
+          title: 'DỮ LIỆU',
           items: [
-            { label: 'Điểm rèn luyện theo Lớp', path: '/officer/students' },
-            { label: 'Hoạt động & Điểm danh', path: '/officer/activities' },
+            { label: 'Hoạt động & điểm danh', path: '/officer/activities' },
+            { label: 'Phiếu rèn luyện', path: '/officer/students' },
           ],
         },
         {
-          title: 'HỖ TRỢ & QUY CHẾ',
+          title: 'TRA CỨU',
           items: [
-            { label: 'Trợ lý Hỏi đáp Quy chế AI', path: '/regulations/ask' },
+            { label: 'Tiêu chí & quy chế', path: '/officer/criteria' },
           ],
         },
       ];
@@ -71,51 +88,48 @@ export const AppLayout: React.FC = () => {
     if (user.role === 'ADMIN') {
       return [
         {
-          title: 'HỆ THỐNG & NGƯỜI DÙNG',
+          title: 'QUẢN LÝ',
           items: [
-            { label: 'Bảng điều hành', path: '/admin' },
-            { label: 'Quản lý người dùng', path: '/admin/users' },
+            { label: 'Tổng quan', path: '/admin' },
+            { label: 'Tài khoản & đơn vị', path: '/admin/users' },
             { label: 'Kỳ đánh giá', path: '/admin/terms' },
           ],
         },
         {
-          title: 'TIÊU CHÍ & LUẬT ĐIỂM',
+          title: 'QUY ĐỊNH',
           items: [
-            { label: 'Tiêu chí & Rule Engine', path: '/admin/criteria' },
-            { label: 'Knowledge Base (RAG)', path: '/admin/knowledge-base' },
+            { label: 'Bộ tiêu chí', path: '/admin/criteria' },
+            { label: 'Tài liệu quy chế', path: '/admin/knowledge-base' },
           ],
         },
         {
-          title: 'AI & AN TOÀN HỆ THỐNG',
+          title: 'HỆ THỐNG',
           items: [
-            { label: 'Trung tâm AI (A07 - A09)', path: '/admin/ai-center' },
-            { label: 'Giám sát & Kiểm toán (A10 - A11)', path: '/admin/monitoring' },
+            { label: 'Giám sát & nhật ký', path: '/admin/monitoring' },
           ],
         },
       ];
     }
 
-    // Default: STUDENT (Tinh gọn & Chuẩn nghiệp vụ ĐHBK)
     return [
       {
-        title: 'TỔNG QUAN',
+        title: 'HỌC KỲ HIỆN TẠI',
         items: [
-          { label: 'Bảng điều khiển & Điểm số', path: '/student' },
+          { label: 'Tổng quan', path: '/student' },
+          { label: 'Chấm điểm rèn luyện', path: '/student/scores' },
         ],
       },
       {
-        title: 'ĐÁNH GIÁ RÈN LUYỆN',
+        title: 'HỒ SƠ & KẾT QUẢ',
         items: [
-          { label: 'Phiếu tự đánh giá', path: '/student/criteria' },
-          { label: 'Nộp minh chứng mới', path: '/student/evidence/new' },
-          { label: 'Danh sách hồ sơ minh chứng', path: '/student/evidence' },
-          { label: 'Khiếu nại điểm', path: '/student/appeals' },
+          { label: 'Minh chứng của tôi', path: '/student/evidence' },
+          { label: 'Phúc khảo', path: '/student/appeals' },
         ],
       },
       {
-        title: 'HỖ TRỢ & QUY CHẾ',
+        title: 'TRA CỨU',
         items: [
-          { label: 'Trợ lý Hỏi đáp Quy chế AI', path: '/regulations/ask' },
+          { label: 'Hỗ trợ', path: '/regulations/ask' },
         ],
       },
     ];
@@ -129,35 +143,35 @@ export const AppLayout: React.FC = () => {
     if (p.startsWith('/student')) {
       crumbs.push({ label: 'Sinh viên', path: '/student' });
       if (p === '/student') return crumbs;
-      if (p === '/student/evidence') crumbs.push({ label: 'Danh sách minh chứng' });
+      if (p === '/student/evidence') crumbs.push({ label: 'Minh chứng của tôi' });
       else if (p === '/student/evidence/new') crumbs.push({ label: 'Danh sách minh chứng', path: '/student/evidence' }, { label: 'Nộp minh chứng mới' });
       else if (p.includes('/supplement')) crumbs.push({ label: 'Danh sách minh chứng', path: '/student/evidence' }, { label: 'Bổ sung hồ sơ' });
       else if (p.startsWith('/student/evidence/')) crumbs.push({ label: 'Danh sách minh chứng', path: '/student/evidence' }, { label: 'Chi tiết hồ sơ' });
-      else if (p === '/student/scores') crumbs.push({ label: 'Bảng điểm chi tiết' });
-      else if (p === '/student/what-can-i-claim') crumbs.push({ label: 'Phiếu tự đánh giá', path: '/student/criteria' });
-      else if (p === '/student/criteria') crumbs.push({ label: 'Phiếu tự đánh giá' });
+      else if (p === '/student/scores') crumbs.push({ label: 'Chấm điểm rèn luyện' });
+      else if (p === '/student/what-can-i-claim') crumbs.push({ label: 'Chấm điểm rèn luyện', path: '/student/scores' });
+      else if (p === '/student/criteria') crumbs.push({ label: 'Chấm điểm rèn luyện', path: '/student/scores' });
       else if (p === '/student/appeals') crumbs.push({ label: 'Khiếu nại điểm' });
     } else if (p.startsWith('/officer')) {
       crumbs.push({ label: 'Cán bộ', path: '/officer' });
       if (p === '/officer') return crumbs;
-      if (p === '/officer/queue') crumbs.push({ label: 'Hàng đợi xét duyệt' });
-      else if (p.startsWith('/officer/review/')) crumbs.push({ label: 'Hàng đợi xét duyệt', path: '/officer/queue' }, { label: 'Thẩm định hồ sơ' });
-      else if (p === '/officer/appeals') crumbs.push({ label: 'Xử lý khiếu nại' });
-      else if (p === '/officer/students') crumbs.push({ label: 'Điểm rèn luyện theo Lớp' });
-      else if (p === '/officer/activities' || p === '/officer/external-activities') crumbs.push({ label: 'Hoạt động & Điểm danh' });
+      if (p === '/officer/queue') crumbs.push({ label: 'Minh chứng' });
+      else if (p.startsWith('/officer/review/')) crumbs.push({ label: 'Minh chứng', path: '/officer/queue' }, { label: 'Chi tiết hồ sơ' });
+      else if (p === '/officer/appeals') crumbs.push({ label: 'Phúc khảo' });
+      else if (p === '/officer/students') crumbs.push({ label: 'Phiếu rèn luyện' });
+      else if (p === '/officer/activities' || p === '/officer/external-activities') crumbs.push({ label: 'Hoạt động & điểm danh' });
       else if (p === '/officer/criteria') crumbs.push({ label: 'Tiêu chí & Quy tắc' });
       else if (p === '/officer/reports') crumbs.push({ label: 'Điểm rèn luyện theo Lớp', path: '/officer/students' });
     } else if (p.startsWith('/admin')) {
       crumbs.push({ label: 'Quản trị hệ thống', path: '/admin' });
       if (p === '/admin') return crumbs;
-      if (p === '/admin/users') crumbs.push({ label: 'Quản lý người dùng' });
+      if (p === '/admin/users') crumbs.push({ label: 'Tài khoản & đơn vị' });
       else if (p === '/admin/terms') crumbs.push({ label: 'Kỳ đánh giá' });
-      else if (p === '/admin/criteria' || p === '/admin/rules') crumbs.push({ label: 'Tiêu chí & Rule Engine' });
-      else if (p === '/admin/knowledge-base') crumbs.push({ label: 'Knowledge Base (RAG)' });
+      else if (p === '/admin/criteria' || p === '/admin/rules') crumbs.push({ label: 'Bộ tiêu chí' });
+      else if (p === '/admin/knowledge-base') crumbs.push({ label: 'Tài liệu quy chế' });
       else if (p === '/admin/ai-center' || p === '/admin/ai-config' || p === '/admin/ground-truth' || p === '/admin/ai-evaluation') crumbs.push({ label: 'Trung tâm AI' });
       else if (p === '/admin/monitoring' || p === '/admin/audit-logs' || p === '/admin/health') crumbs.push({ label: 'Giám sát & Kiểm toán' });
     } else if (p.startsWith('/regulations')) {
-      crumbs.push({ label: 'Hỏi đáp quy chế AI' });
+      crumbs.push({ label: 'Hỗ trợ quy chế' });
     } else if (p === '/account') {
       crumbs.push({ label: 'Hồ sơ & Tài khoản' });
     }
@@ -165,12 +179,19 @@ export const AppLayout: React.FC = () => {
     return crumbs;
   }, [location.pathname]);
 
+  const isNavItemActive = (path: string) => {
+    if (path === '/student/evidence') {
+      return location.pathname === path || (location.pathname.startsWith(`${path}/`) && !location.pathname.startsWith(`${path}/new`));
+    }
+    return location.pathname === path || (!['/student', '/officer', '/admin'].includes(path) && location.pathname.startsWith(`${path}/`));
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-[#fafbfc] text-slate-900 font-sans antialiased">
       
       {/* 1. TOPBAR HEADER (Glassmorphism & Deep Subtle Shadow) */}
       <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200/80 shadow-[0_1px_3px_0_rgba(0,0,0,0.02)] transition-all">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-15 flex items-center justify-between gap-4 py-2.5">
+        <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 h-15 flex items-center justify-between gap-4 py-2.5">
           
           {/* Logo & Mobile Menu Button */}
           <div className="flex items-center gap-3">
@@ -208,7 +229,12 @@ export const AppLayout: React.FC = () => {
                 value={activeTerm?.id}
                 onChange={(e) => {
                   const t = terms.find((item) => item.id === e.target.value);
-                  if (t) switchTerm(t);
+                  if (t) {
+                    switchTerm(t);
+                    const params = new URLSearchParams(location.search);
+                    params.set('termId', t.id);
+                    navigate({ pathname: location.pathname, search: params.toString() });
+                  }
                 }}
                 className="bg-transparent border-none text-slate-900 font-bold focus:outline-none cursor-pointer text-xs max-w-[125px] sm:max-w-none truncate"
                 title="Chọn kỳ học đánh giá"
@@ -220,8 +246,8 @@ export const AppLayout: React.FC = () => {
                     </option>
                   ))
                 ) : (
-                  <option value={activeTerm?.id || ''}>
-                    {activeTerm?.name || 'Học kỳ 1 (2026-2027)'}
+                  <option value="" disabled>
+                    {activeTerm?.name || 'Chưa có kỳ đánh giá'}
                   </option>
                 )}
               </select>
@@ -267,7 +293,11 @@ export const AppLayout: React.FC = () => {
                     </button>
                   </div>
                   <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto mt-1">
-                    {notifications.map((n) => (
+                    {notificationLoadError ? (
+                      <div className="p-4 text-xs text-rose-700">Không tải được thông báo từ máy chủ.</div>
+                    ) : notifications.length === 0 ? (
+                      <div className="p-4 text-xs text-slate-500">Chưa có thông báo.</div>
+                    ) : notifications.map((n) => (
                       <div
                         key={n.id}
                         className={`p-2.5 rounded-xl text-xs transition cursor-pointer ${
@@ -336,7 +366,7 @@ export const AppLayout: React.FC = () => {
       </header>
 
       {/* 2. BODY LAYOUT: CATEGORIZED SIDEBAR + MAIN CONTENT */}
-      <div className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex gap-8">
+      <div className="flex-1 max-w-[1800px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex gap-8">
         
         {/* Desktop Sidebar: Clean Grouped Navigation */}
         <aside className="hidden lg:block w-60 shrink-0">
@@ -349,7 +379,7 @@ export const AppLayout: React.FC = () => {
                 </div>
                 <div className="space-y-0.5">
                   {group.items.map((item) => {
-                    const isActive = location.pathname === item.path;
+                    const isActive = isNavItemActive(item.path);
 
                     return (
                       <Link
@@ -413,8 +443,8 @@ export const AppLayout: React.FC = () => {
                       </option>
                     ))
                   ) : (
-                    <option value={activeTerm?.id || ''}>
-                      {activeTerm?.name || 'Học kỳ 1 (2026-2027)'}
+                    <option value="" disabled>
+                      {activeTerm?.name || 'Chưa có kỳ đánh giá'}
                     </option>
                   )}
                 </select>
@@ -426,7 +456,7 @@ export const AppLayout: React.FC = () => {
                       {group.title}
                     </div>
                     {group.items.map((item) => {
-                      const isActive = location.pathname === item.path;
+                      const isActive = isNavItemActive(item.path);
                       return (
                         <Link
                           key={item.path}

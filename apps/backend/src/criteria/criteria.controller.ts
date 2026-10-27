@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { CriteriaService } from './criteria.service';
 import { CreateTermDto, UpdateTermDto, CreateCriterionDto, UpdateCriterionDto } from './dto/criteria.dto';
@@ -16,8 +16,80 @@ export class CriteriaController {
   // --- CRITERIA ---
   @Get('criteria')
   @ApiOperation({ summary: 'Lấy cây tiêu chí đánh giá ĐRL (16 mục ĐHBK Đà Nẵng)' })
-  async getCriteria() {
-    return this.criteriaService.getCriteria();
+  async getCriteria(@Query('termId') termId?: string) {
+    return this.criteriaService.getCriteria(termId);
+  }
+
+  @Get('rubric-templates')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  async getRubricTemplates() {
+    return this.criteriaService.getRubricTemplates();
+  }
+
+  @Get('rubric-templates/:versionId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  async getRubricTemplateVersion(@Param('versionId') versionId: string) {
+    return this.criteriaService.getRubricTemplateVersion(versionId);
+  }
+
+  @Post('rubric-templates/draft')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  async createRubricTemplateDraft() {
+    return this.criteriaService.createRubricTemplateDraft();
+  }
+
+  @Put('rubric-templates/:versionId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  async updateRubricTemplateDraft(@Param('versionId') versionId: string, @Body() body: { definition: unknown; changeNote?: string }) {
+    return this.criteriaService.updateRubricTemplateDraft(versionId, body.definition, body.changeNote);
+  }
+
+  @Post('rubric-templates/:versionId/publish')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  async publishRubricTemplateDraft(@Param('versionId') versionId: string) {
+    return this.criteriaService.publishRubricTemplateDraft(versionId);
+  }
+
+  @Get('terms/:id/rubric')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  async getTermRubric(@Param('id') id: string) {
+    return this.criteriaService.getTermRubric(id);
+  }
+
+  @Post('terms/:id/rubric/draft')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN)
+  async createTermRubricDraft(@Param('id') id: string, @Body() body: { type: 'DEFAULT' | 'TERM'; sourceTermId?: string }) {
+    return this.criteriaService.createTermRubricDraft(id, body);
+  }
+
+  @Put('terms/:id/rubric')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  async updateTermRubricDraft(@Param('id') id: string, @Body() body: { definition: unknown; changeNote?: string }) {
+    return this.criteriaService.updateTermRubricDraft(id, body.definition, body.changeNote);
+  }
+
+  @Post('terms/:id/rubric/publish')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  async publishTermRubric(@Param('id') id: string) {
+    return this.criteriaService.publishTermRubric(id);
   }
 
   @Post('criteria')
@@ -83,8 +155,17 @@ export class CriteriaController {
   @Roles(Role.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Chốt kỳ đánh giá - không cho sửa hoặc nộp thêm (Admin)' })
-  async closeTerm(@Param('id') id: string) {
-    return this.criteriaService.closeTerm(id);
+  async closeTerm(@Param('id') id: string, @CurrentUser() actor: any) {
+    return this.criteriaService.closeTerm(id, actor);
+  }
+
+  @Post('terms/:id/activate')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Mở kỳ sau khi rubric đã được ban hành' })
+  async activateTerm(@Param('id') id: string) {
+    return this.criteriaService.activateTerm(id);
   }
 
   @Post('terms/:id/reopen')
@@ -138,7 +219,7 @@ export class CriteriaController {
 
   @Post('classes')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.STAFF)
+  @Roles(Role.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Tạo Lớp sinh hoạt mới (Admin, Cán bộ)' })
   async createClass(@Body() dto: { code: string; name?: string; cohort: string; facultyId: string }) {
@@ -147,7 +228,7 @@ export class CriteriaController {
 
   @Patch('classes/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.STAFF)
+  @Roles(Role.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Cập nhật Lớp sinh hoạt (Admin, Cán bộ)' })
   async updateClass(@Param('id') id: string, @Body() dto: { code?: string; name?: string; cohort?: string; facultyId?: string }) {
@@ -156,7 +237,7 @@ export class CriteriaController {
 
   @Delete('classes/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.STAFF)
+  @Roles(Role.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Xóa Lớp sinh hoạt (Admin, Cán bộ)' })
   async deleteClass(@Param('id') id: string) {

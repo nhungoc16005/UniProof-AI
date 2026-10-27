@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Activity } from '../../types';
+import { useAuth } from '../../context/AuthContext';
+import { Activity, Criterion } from '../../types';
 import { apiClient } from '../../lib/apiClient';
 import {
   Plus,
@@ -38,6 +39,11 @@ interface ParticipantItem {
 }
 
 export const InternalActivities: React.FC = () => {
+  const { activeTerm } = useAuth();
+  const [criterionId, setCriterionId] = useState('');
+  const [criteria, setCriteria] = useState<Criterion[]>([]);
+  const [loadError, setLoadError] = useState('');
+  useEffect(() => { apiClient.getRubric(activeTerm.id).then(r => setCriteria(r.categories.flatMap(c => c.criteria))).catch(() => setLoadError('Không tải được tiêu chí kỳ này.')); }, [activeTerm.id]);
   const [activeTab, setActiveTab] = useState<'INTERNAL' | 'EXTERNAL'>('INTERNAL');
   const [activities, setActivities] = useState<Activity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -90,9 +96,10 @@ export const InternalActivities: React.FC = () => {
   const loadActivities = async () => {
     try {
       setIsLoading(true);
-      const data = await apiClient.getActivities({ type: activeTab });
+      const data = await apiClient.getActivities({ type: activeTab, termId: activeTerm.id });
       setActivities(data);
     } catch (err) {
+      setLoadError('Không tải được hoạt động của kỳ.');
       console.error('Không thể tải danh sách hoạt động', err);
     } finally {
       setIsLoading(false);
@@ -101,7 +108,7 @@ export const InternalActivities: React.FC = () => {
 
   useEffect(() => {
     loadActivities();
-  }, [activeTab]);
+  }, [activeTab, activeTerm.id]);
 
   const loadParticipants = async (actId: string) => {
     try {
@@ -137,6 +144,7 @@ export const InternalActivities: React.FC = () => {
     try {
       setIsCreating(true);
       const created = await apiClient.createActivity({
+        termId: activeTerm.id, criterionId: criterionId || undefined,
         name: newName.trim(),
         type: newType,
         organizer: newOrg.trim(),
@@ -342,7 +350,7 @@ export const InternalActivities: React.FC = () => {
       {/* 1. Header Toolbar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Quản lý Hoạt động & Điểm danh</h1>
+          <h1 className="text-xl font-bold text-slate-900">Hoạt động & điểm danh</h1>{loadError && <p role="alert" className="text-sm text-rose-700">{loadError}</p>}<p className="text-xs text-slate-500">{activeTerm.name} · Danh sách tham gia là nguồn đối chiếu; việc khai báo hoạt động chưa xác nhận sinh viên đã tham gia.</p>
           <p className="text-xs text-slate-500 mt-1">
             Trung tâm đối chiếu dữ liệu hoạt động nội bộ và nguồn đối tác ngoài trường trên cơ sở dữ liệu thật.
           </p>
@@ -372,7 +380,7 @@ export const InternalActivities: React.FC = () => {
             {activeTab === 'INTERNAL' ? 'Hoạt động nội bộ đang mở' : 'Hoạt động ngoài trường'}
           </div>
           <div className="text-2xl font-black text-slate-900">{activities.length}</div>
-          <div className="text-[11px] text-slate-400 mt-0.5">Lưu trữ trên Real Database</div>
+          <div className="text-[11px] text-slate-400 mt-0.5">Lưu trữ trên hệ thống</div>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
@@ -603,7 +611,7 @@ export const InternalActivities: React.FC = () => {
                     <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
                     <span>Import điểm danh hàng loạt bằng danh sách MSSV</span>
                   </span>
-                  <span className="text-[11px] text-slate-500">Đối chiếu trực tiếp Real Database</span>
+                  <span className="text-[11px] text-slate-500">Đối chiếu trực tiếp hệ thống</span>
                 </div>
 
                 <form onSubmit={handleBatchAddAttendance} className="space-y-3">
@@ -825,6 +833,7 @@ export const InternalActivities: React.FC = () => {
                 </div>
               </div>
 
+              <label className="block text-xs font-semibold">Tiêu chí liên quan<select value={criterionId} onChange={e => setCriterionId(e.target.value)} className="mt-1 mb-3 w-full rounded-lg border p-2"><option value="">Chưa liên kết tiêu chí</option>{criteria.map(c => <option key={c.id} value={c.id}>{c.code}. {c.name}</option>)}</select></label>
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Tên hoạt động</label>
                 <input

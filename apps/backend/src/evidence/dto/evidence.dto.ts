@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateEvidenceDto {
   @ApiPropertyOptional({ description: 'ID Kỳ học (mặc định lấy kỳ ACTIVE)' })
@@ -16,6 +16,11 @@ export class CreateEvidenceDto {
   @IsString()
   @IsNotEmpty()
   declaredActivityName: string;
+
+  @ApiPropertyOptional({ example: 'Giấy xác nhận tham gia chương trình tình nguyện do Đoàn trường cấp.' })
+  @IsOptional()
+  @IsString()
+  description?: string;
 
   @ApiPropertyOptional({ example: 'THAM_GIA_CHINH' })
   @IsOptional()
@@ -42,6 +47,11 @@ export class CreateEvidenceDto {
   @IsString()
   criterionId?: string;
 
+  @ApiPropertyOptional({ description: 'Lưu hồ sơ nháp cùng phiếu sinh viên' })
+  @IsOptional()
+  @IsBoolean()
+  draft?: boolean;
+
   @ApiPropertyOptional({ description: 'Danh sách URL file minh chứng' })
   @IsOptional()
   fileUrls?: string[];
@@ -57,4 +67,21 @@ export class UploadFileDto {
   @IsString()
   @IsNotEmpty()
   fileType: string;
+}
+
+export class UploadEvidenceFileDto {
+  @ApiProperty({ example: 'minh-chung-hoat-dong.pdf' })
+  @IsString()
+  @IsNotEmpty()
+  fileName: string;
+
+  @ApiProperty({ example: 'application/pdf' })
+  @IsString()
+  @IsNotEmpty()
+  fileType: string;
+
+  @ApiProperty({ description: 'Data URL từ file sinh viên chọn; Backend đưa lên Supabase Storage' })
+  @IsString()
+  @IsNotEmpty()
+  fileData: string;
 }

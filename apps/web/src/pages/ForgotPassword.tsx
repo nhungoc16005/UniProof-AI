@@ -1,22 +1,25 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Mail, ArrowLeft, ArrowRight, CheckCircle2, ShieldCheck, KeyRound } from 'lucide-react';
+import { Mail, ArrowLeft, ArrowRight, CheckCircle2, KeyRound, AlertCircle } from 'lucide-react';
 
 export const ForgotPassword: React.FC = () => {
   const { forgotPassword } = useAuth();
   const [email, setEmail] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) return;
 
     setIsLoading(true);
-    await forgotPassword(email);
+    setErrorMessage('');
+    const result = await forgotPassword(email);
     setIsLoading(false);
-    setIsSubmitted(true);
+    if (result.success) setIsSubmitted(true);
+    else setErrorMessage(result.message);
   };
 
   return (
@@ -41,23 +44,7 @@ export const ForgotPassword: React.FC = () => {
                 <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
                 <span>Yêu cầu đã được ghi nhận!</span>
               </div>
-              <p className="leading-relaxed">
-                Nếu email <strong>{email}</strong> tồn tại trong hệ thống, chúng tôi đã gửi đường dẫn đặt lại mật khẩu đến hộp thư của bạn. Vui lòng kiểm tra hộp thư đến (Inbox) hoặc thư rác (Spam).
-              </p>
-            </div>
-
-            {/* Demo Link to simulate receiving email */}
-            <div className="p-3 bg-sky-50 border border-sky-200 rounded-lg text-xs space-y-2">
-              <span className="font-semibold text-sky-900 block text-[11px]">
-                Trải nghiệm thử nghiệm (Demo Link):
-              </span>
-              <Link
-                to="/reset-password?token=demo-token-123"
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-sky-700 hover:text-sky-900 hover:underline"
-              >
-                <span>Mở link đặt lại mật khẩu mẫu trong email</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
+              <p className="leading-relaxed">{`Nếu email ${email} tồn tại trong hệ thống, yêu cầu sẽ được xử lý theo cấu hình hiện tại.`}</p>
             </div>
 
             <div className="pt-2 text-center">
@@ -72,6 +59,12 @@ export const ForgotPassword: React.FC = () => {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
+            {errorMessage && (
+              <div role="alert" className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
                 Email trường cấp (@dut.udn.vn)

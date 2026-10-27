@@ -53,8 +53,8 @@ export const KnowledgeBase: React.FC = () => {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !version.trim()) {
-      alert('Vui lòng nhập tiêu đề văn bản và số hiệu/phiên bản');
+    if (!title.trim() || !version.trim() || !/^https?:\/\//i.test(fileUrl.trim())) {
+      alert('Nhập tiêu đề, số hiệu/phiên bản và URL tài liệu hợp lệ');
       return;
     }
 
@@ -63,7 +63,7 @@ export const KnowledgeBase: React.FC = () => {
       await apiClient.createRegulation({
         title: title.trim(),
         version: version.trim(),
-        fileUrl: fileUrl.trim() || '/docs/quy-che.pdf',
+        fileUrl: fileUrl.trim(),
         effectiveDate: effectiveDate || new Date().toISOString(),
       });
 
@@ -106,9 +106,9 @@ export const KnowledgeBase: React.FC = () => {
       {/* 1. Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Quản lý Knowledge Base Quy chế (A06)</h1>
+          <h1 className="text-xl font-bold text-slate-900">Tài liệu quy chế</h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Kho tài liệu văn bản gốc phục vụ Chatbot RAG tra cứu điều khoản và trích dẫn căn cứ tự động từ Real Database.
+            Quản lý tài liệu nguồn và thời gian hiệu lực. Lập chỉ mục AI chưa được cấu hình; tài liệu được dùng để tra cứu thủ công.
           </p>
         </div>
 

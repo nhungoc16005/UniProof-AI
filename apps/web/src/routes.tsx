@@ -20,7 +20,6 @@ import { SubmitEvidence } from './pages/student/SubmitEvidence';
 import { EvidenceList } from './pages/student/EvidenceList';
 import { EvidenceDetail } from './pages/student/EvidenceDetail';
 import { SupplementEvidence } from './pages/student/SupplementEvidence';
-import { CriteriaView } from './pages/student/CriteriaView';
 import { Appeals } from './pages/student/Appeals';
 import { ScoreReport } from './pages/student/ScoreReport';
 
@@ -32,6 +31,7 @@ import { InternalActivities } from './pages/officer/InternalActivities';
 import { ExternalActivities } from './pages/officer/ExternalActivities';
 import { AppealsResolution } from './pages/officer/AppealsResolution';
 import { StudentLookup } from './pages/officer/StudentLookup';
+import { StudentAssessment } from './pages/officer/StudentAssessment';
 import { OfficerReports } from './pages/officer/Reports';
 import { CriteriaRulesView } from './pages/officer/CriteriaRulesView';
 
@@ -40,15 +40,8 @@ import { AdminDashboard } from './pages/admin/Dashboard';
 import { UserManagement } from './pages/admin/UserManagement';
 import { TermsMasterData } from './pages/admin/TermsMasterData';
 import { CriteriaManager } from './pages/admin/CriteriaManager';
-import { RuleEngineEditor } from './pages/admin/RuleEngineEditor';
 import { KnowledgeBase } from './pages/admin/KnowledgeBase';
-import { AiCenter } from './pages/admin/AiCenter';
-import { AiConfig } from './pages/admin/AiConfig';
-import { GroundTruth } from './pages/admin/GroundTruth';
-import { AiEvaluation } from './pages/admin/AiEvaluation';
 import { Monitoring } from './pages/admin/Monitoring';
-import { AuditLogs } from './pages/admin/AuditLogs';
-import { SystemHealth } from './pages/admin/SystemHealth';
 
 // Redirect root theo vai trò hiện tại
 const RootRedirect: React.FC = () => {
@@ -93,12 +86,12 @@ export const AppRoutes: React.FC = () => {
         >
           <Route index element={<StudentDashboard />} />
           <Route path="evidence" element={<EvidenceList />} />
-          <Route path="evidence/new" element={<SubmitEvidence />} />
+          <Route path="evidence/new" element={<Navigate to="/student/scores" replace />} />
           <Route path="evidence/:id" element={<EvidenceDetail />} />
           <Route path="evidence/:id/supplement" element={<SupplementEvidence />} />
-          <Route path="criteria" element={<CriteriaView />} />
+          <Route path="criteria" element={<Navigate to="/student/scores" replace />} />
           <Route path="appeals" element={<Appeals />} />
-          <Route path="what-can-i-claim" element={<Navigate to="/student/criteria" replace />} />
+          <Route path="what-can-i-claim" element={<Navigate to="/student/scores" replace />} />
           <Route path="scores" element={<ScoreReport />} />
         </Route>
 
@@ -106,7 +99,7 @@ export const AppRoutes: React.FC = () => {
         <Route
           path="officer"
           element={
-            <ProtectedRoute allowedRoles={['STAFF', 'ADMIN']}>
+            <ProtectedRoute allowedRoles={['STAFF']}>
               <Outlet />
             </ProtectedRoute>
           }
@@ -119,6 +112,7 @@ export const AppRoutes: React.FC = () => {
           <Route path="appeals" element={<AppealsResolution />} />
           <Route path="criteria" element={<CriteriaRulesView />} />
           <Route path="students" element={<StudentLookup />} />
+          <Route path="students/:studentId/assessment" element={<StudentAssessment />} />
           <Route path="reports" element={<Navigate to="/officer/students" replace />} />
         </Route>
 
@@ -133,14 +127,15 @@ export const AppRoutes: React.FC = () => {
         >
           <Route index element={<AdminDashboard />} />
           <Route path="users" element={<UserManagement />} />
+          <Route path="results/:studentId" element={<StudentAssessment />} />
           <Route path="terms" element={<TermsMasterData />} />
           <Route path="criteria" element={<CriteriaManager />} />
           <Route path="rules" element={<Navigate to="/admin/criteria" replace />} />
           <Route path="knowledge-base" element={<KnowledgeBase />} />
-          <Route path="ai-center" element={<AiCenter />} />
-          <Route path="ai-config" element={<Navigate to="/admin/ai-center" replace />} />
-          <Route path="ground-truth" element={<Navigate to="/admin/ai-center" replace />} />
-          <Route path="ai-evaluation" element={<Navigate to="/admin/ai-center" replace />} />
+          <Route path="ai-center" element={<Navigate to="/admin" replace />} />
+          <Route path="ai-config" element={<Navigate to="/admin" replace />} />
+          <Route path="ground-truth" element={<Navigate to="/admin" replace />} />
+          <Route path="ai-evaluation" element={<Navigate to="/admin" replace />} />
           <Route path="monitoring" element={<Monitoring />} />
           <Route path="audit-logs" element={<Navigate to="/admin/monitoring" replace />} />
           <Route path="health" element={<Navigate to="/admin/monitoring" replace />} />

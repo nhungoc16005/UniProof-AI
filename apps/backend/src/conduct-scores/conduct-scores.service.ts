@@ -1,12 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { WorkflowService } from '../evaluation-workflow/workflow.service';
 import { EvidenceStatus, TermStatus } from '@prisma/client';
 
 @Injectable()
 export class ConductScoresService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private workflow: WorkflowService) {}
 
-  async getDashboard(studentId: string, termId?: string) {
+  async getDashboard(studentId: string, termId?: string, staffView = false) {
     // 1. Xác định kỳ học
     let activeTermId = termId;
     if (!activeTermId) {
@@ -28,91 +29,88 @@ export class ConductScoresService {
       };
     }
 
-    // 2. Lấy điểm chính thức đã chốt
-    const conductScore = await this.prisma.conductScore.findUnique({
-      where: {
-        studentId_termId: {
-          studentId,
-          termId: activeTermId,
-        },
-      },
+    const rubricVersion = await this.prisma.rubricVersion.findFirst({
+      where: { termId: activeTermId, status: 'PUBLISHED' },
+      include: { categories: { orderBy: { position: 'asc' }, include: { criteria: { orderBy: { code: 'asc' } } } } },
+      orderBy: { version: 'desc' },
     });
-
-    // 3. Lấy các hồ sơ đã APPROVED trong kỳ để phân bổ theo 5 nhóm tiêu chí
-    const approvedEvidences = await this.prisma.evidence.findMany({
-      where: {
-        studentId,
-        termId: activeTermId,
-        status: EvidenceStatus.APPROVED,
-      },
-      include: {
-        reviews: {
-          where: { decision: 'APPROVED' },
+    const term = await this.prisma.term.findUnique({ where: { id: activeTermId } });
+    if (rubricVersion && term?.workflowEnabled && !staffView) {
+      const publication = await this.workflow.publication(studentId, activeTermId);
+      const published = publication?.snapshot as any;
+      return {
+        termId: activeTermId, rubricVersion: { id: rubricVersion.id, version: rubricVersion.version },
+        officialScore: published?.totalScore ?? null, scoreInProgress: null,
+        classification: published?.classification ?? 'CHƯA CÔNG BỐ',
+        status: publication ? term.status === 'CLOSED' ? 'FINAL' : 'PROVISIONAL' : 'NOT_PUBLISHED',
+        publication: publication ? { revision: publication.revision, publishedAt: publication.publishedAt } : null,
+        appealDeadline: term.appealDeadline,
+        categories: published?.categories ?? rubricVersion.categories.map(c => ({ key: c.code, name: c.name, maxScore: c.maxScore, score: null, criteria: c.criteria })),
+        recentEvidences: [],
+      };
+    }
+    if (rubricVersion) {
+      const [assessments, recentEvidences] = await Promise.all([
+        this.prisma.criterionAssessment.findMany({
+          where: { studentId, termId: activeTermId, criterion: { rubricVersionId: rubricVersion.id } },
           include: { criterion: true },
-          take: 1,
-          orderBy: { createdAt: 'desc' },
-        },
-      },
-    });
-
-    // 4. Lấy các hồ sơ đang chờ duyệt
-    const pendingEvidences = await this.prisma.evidence.findMany({
-      where: {
-        studentId,
+        }),
+        this.prisma.evidence.findMany({
+          where: { studentId, termId: activeTermId },
+          orderBy: { submittedAt: 'desc' },
+          take: 5,
+          include: { reviews: { orderBy: { createdAt: 'desc' }, take: 1 } },
+        }),
+      ]);
+      const byCriterion = new Map(assessments.map((assessment) => [assessment.criterionId, assessment]));
+      let totalScore = 0;
+      let finalizedCount = 0;
+      const categories = rubricVersion.categories.map((category) => {
+        let score = 0;
+        const criteria = category.criteria.map((criterion) => {
+          const assessment = byCriterion.get(criterion.id) || null;
+          if (assessment?.status === 'FINALIZED' && assessment.officialScore !== null) {
+            score += assessment.officialScore;
+            finalizedCount++;
+          }
+          return { ...criterion, assessment };
+        });
+        score = Math.min(category.maxScore, score);
+        totalScore += score;
+        return { key: category.code, name: category.name, score, maxScore: category.maxScore, criteria };
+      });
+      totalScore = Math.min(100, totalScore);
+      const totalCriteria = rubricVersion.categories.reduce((sum, category) => sum + category.criteria.length, 0);
+      const isComplete = totalCriteria > 0 && finalizedCount === totalCriteria;
+      return {
         termId: activeTermId,
-        status: {
-          in: [
-            EvidenceStatus.NEEDS_HUMAN_REVIEW,
-            EvidenceStatus.PROCESSING,
-            EvidenceStatus.PLAUSIBLE,
-            EvidenceStatus.NEEDS_SUPPLEMENT,
-          ],
-        },
-      },
-    });
-
-    // Gom điểm theo 5 Khung tiêu chí ĐHBK Đà Nẵng
-    const categoryScores: Record<string, { name: string; score: number; maxScore: number }> = {
-      KHUNG_I: { name: 'Ý thức học tập', score: 0, maxScore: 20 },
-      KHUNG_II: { name: 'Chấp hành nội quy, quy chế', score: 0, maxScore: 25 },
-      KHUNG_III: { name: 'Hoạt động chính trị, XH, VH, TT', score: 0, maxScore: 20 },
-      KHUNG_IV: { name: 'Phẩm chất công dân, cộng đồng', score: 0, maxScore: 25 },
-      KHUNG_V: { name: 'Hoạt động lớp, đoàn thể', score: 0, maxScore: 10 },
-    };
-
-    for (const ev of approvedEvidences) {
-      const review = ev.reviews[0];
-      if (review && review.criterion && review.finalScore) {
-        const cat = review.criterion.category || 'KHUNG_I';
-        if (categoryScores[cat]) {
-          categoryScores[cat].score = Math.min(
-            categoryScores[cat].maxScore,
-            categoryScores[cat].score + review.finalScore,
-          );
-        }
-      }
+        rubricVersion: { id: rubricVersion.id, version: rubricVersion.version },
+        officialScore: isComplete ? totalScore : null,
+        scoreInProgress: totalScore,
+        pendingCriteriaCount: totalCriteria - finalizedCount,
+        status: isComplete ? 'READY_TO_CLOSE' : 'IN_PROGRESS',
+        classification: isComplete
+          ? totalScore >= 90 ? 'XUẤT SẮC' : totalScore >= 80 ? 'TỐT' : totalScore >= 65 ? 'KHÁ' : totalScore >= 50 ? 'TRUNG BÌNH' : 'YẾU'
+          : 'CHƯA XẾP LOẠI',
+        categories,
+        recentEvidences,
+      };
     }
 
-    const officialScore = conductScore?.totalScore || 0;
-    const classification = conductScore?.classification || (officialScore >= 80 ? 'TỐT' : officialScore >= 65 ? 'KHÁ' : officialScore >= 50 ? 'TRUNG BÌNH' : 'YẾU');
-
+    // Kỳ không có rubric phiên bản không có nguồn điểm chính thức hợp lệ.
     return {
       termId: activeTermId,
-      officialScore,
-      pendingCount: pendingEvidences.length,
-      classification,
-      categories: Object.entries(categoryScores).map(([key, val]) => ({
-        key,
-        name: val.name,
-        score: val.score,
-        maxScore: val.maxScore,
-      })),
-      recentEvidences: approvedEvidences.slice(0, 5),
+      officialScore: null,
+      scoreInProgress: null,
+      classification: 'CHƯA_XẾP_LOẠI',
+      status: 'NO_RUBRIC',
+      categories: [],
+      recentEvidences: [],
     };
   }
 
   async getScoreByStudent(studentId: string, termId?: string) {
-    return this.getDashboard(studentId, termId);
+    return this.getDashboard(studentId, termId, true);
   }
 
   async traceEvidenceScore(evidenceId: string) {
@@ -193,94 +191,91 @@ export class ConductScoresService {
     // 4. Lấy dữ liệu điểm và minh chứng của từng sinh viên trong kỳ này
     const studentIds = students.map((s) => s.id);
 
-    const [conductScores, evidences] = await Promise.all([
-      activeTermId
-        ? this.prisma.conductScore.findMany({
-            where: {
-              studentId: { in: studentIds },
-              termId: activeTermId,
-            },
-          })
-        : [],
-      activeTermId
-        ? this.prisma.evidence.findMany({
-            where: {
-              studentId: { in: studentIds },
-              termId: activeTermId,
-            },
-            include: {
-              reviews: {
-                where: { decision: 'APPROVED' },
-                take: 1,
-              },
-              aiSuggestions: {
-                take: 1,
-              },
-            },
-          })
-        : [],
-    ]);
+    const rubricVersion = activeTermId ? await this.prisma.rubricVersion.findFirst({
+      where: { termId: activeTermId, status: 'PUBLISHED' },
+      include: { categories: { include: { criteria: true } } },
+      orderBy: { version: 'desc' },
+    }) : null;
+    if (rubricVersion && activeTermId) {
+      const [assessments, submissions, evidenceRows] = await Promise.all([
+        this.prisma.criterionAssessment.findMany({ where: { studentId: { in: studentIds }, termId: activeTermId, criterion: { rubricVersionId: rubricVersion.id } } }),
+        this.prisma.assessmentSubmission.findMany({ where: { studentId: { in: studentIds }, termId: activeTermId, rubricVersionId: rubricVersion.id } }),
+        this.prisma.evidence.findMany({ where: { studentId: { in: studentIds }, termId: activeTermId }, select: { id: true, studentId: true, status: true } }),
+      ]);
+      const totalCriteria = rubricVersion.categories.reduce((sum, category) => sum + category.criteria.length, 0);
+      const scores = students.map((student) => {
+        const studentAssessments = assessments.filter((assessment) => assessment.studentId === student.id);
+        const finalized = studentAssessments.filter((assessment) => assessment.status === 'FINALIZED' && assessment.officialScore !== null);
+        const submission = submissions.find((item) => item.studentId === student.id);
+        const studentEvidence = evidenceRows.filter((item) => item.studentId === student.id);
+        const approvedCount = studentEvidence.filter((item) => item.status === EvidenceStatus.APPROVED).length;
+        const pendingCount = studentEvidence.filter((item) => [EvidenceStatus.NEEDS_HUMAN_REVIEW, EvidenceStatus.PROCESSING, EvidenceStatus.PLAUSIBLE].some((status) => status === item.status)).length;
+        const supplementCount = studentEvidence.filter((item) => item.status === EvidenceStatus.NEEDS_SUPPLEMENT).length;
+        const rejectedCount = studentEvidence.filter((item) => item.status === EvidenceStatus.REJECTED).length;
+        const partialScore = Math.min(100, rubricVersion.categories.reduce((sum, category) =>
+          sum + Math.min(category.maxScore, finalized.filter(a => category.criteria.some(c => c.id === a.criterionId)).reduce((n, a) => n + (a.officialScore ?? 0), 0)), 0));
+        const complete = totalCriteria > 0 && finalized.length === totalCriteria;
+        const officialScore = complete ? partialScore : null;
+        const classification = complete
+          ? officialScore! >= 90 ? 'Xuất sắc' : officialScore! >= 80 ? 'Tốt' : officialScore! >= 65 ? 'Khá' : officialScore! >= 50 ? 'Trung bình' : 'Yếu'
+          : submission?.status === 'SUBMITTED' ? 'Đã nộp · chờ chốt' : submission?.status === 'RETURNED' ? 'Cần chỉnh sửa' : 'Chưa nộp';
+        return {
+          id: student.id, fullName: student.fullName, studentCode: student.studentCode || 'N/A', email: student.email,
+          officialScore, partialFinalizedScore: partialScore, classification,
+          submissionStatus: submission?.status || 'DRAFT', finalizedCriteriaCount: finalized.length, totalCriteria,
+          submittedCount: studentEvidence.length, approvedCount, pendingCount, supplementCount, rejectedCount,
+        };
+      });
+      const completed = scores.filter((student) => student.officialScore !== null);
+      const submitted = scores.filter((student) => student.submissionStatus === 'SUBMITTED' || student.submissionStatus === 'RETURNED');
+      return {
+        class: classObj, term: termObj,
+        summary: {
+          totalStudents: students.length, evaluatedCount: submitted.length,
+          finalizedCriteriaCount: assessments.filter((item) => item.status === 'FINALIZED').length,
+          totalCriteriaCount: students.length * totalCriteria,
+          completedScoreCount: completed.length,
+          avgScore: completed.length ? +(completed.reduce((sum, item) => sum + (item.officialScore || 0), 0) / completed.length).toFixed(1) : null,
+          pendingCount: evidenceRows.filter((item) => [EvidenceStatus.NEEDS_HUMAN_REVIEW, EvidenceStatus.PROCESSING, EvidenceStatus.PLAUSIBLE].some((status) => status === item.status)).length,
+          excellentCount: completed.filter((item) => item.classification === 'Xuất sắc').length,
+          goodCount: completed.filter((item) => item.classification === 'Tốt').length,
+          fairCount: completed.filter((item) => item.classification === 'Khá').length,
+          averageCount: completed.filter((item) => item.classification === 'Trung bình').length,
+          weakCount: completed.filter((item) => item.classification === 'Yếu').length,
+          notSubmittedCount: scores.filter((item) => item.submissionStatus === 'DRAFT').length,
+        },
+        students: scores,
+      };
+    }
 
-    // Map điểm và phân loại từng em
     const studentScores = students.map((s) => {
-      const sScoreRecord = conductScores.find((cs) => cs.studentId === s.id);
-      const sEvidences = evidences.filter((e) => e.studentId === s.id);
-
-      const approvedEvs = sEvidences.filter((e) => e.status === EvidenceStatus.APPROVED);
-      const pendingEvs = sEvidences.filter((e) => 
-        e.status === EvidenceStatus.NEEDS_HUMAN_REVIEW || 
-        e.status === EvidenceStatus.PROCESSING || 
-        e.status === EvidenceStatus.PLAUSIBLE
-      );
-      const supplementEvs = sEvidences.filter((e) => e.status === EvidenceStatus.NEEDS_SUPPLEMENT);
-      const rejectedEvs = sEvidences.filter((e) => e.status === EvidenceStatus.REJECTED);
-
-      let officialScore = sScoreRecord ? sScoreRecord.totalScore : 0;
-      if (!sScoreRecord && approvedEvs.length > 0) {
-        officialScore = approvedEvs.reduce((sum, e) => sum + (e.reviews[0]?.finalScore || e.aiSuggestions[0]?.suggestedScore || 0), 0);
-        officialScore = Math.min(100, +officialScore.toFixed(1));
-      }
-
-      const pendingScore = pendingEvs.reduce((sum, e) => sum + (e.aiSuggestions[0]?.suggestedScore || 0), 0);
-
-      let classification = 'Chưa nộp';
-      if (sEvidences.length > 0 || officialScore > 0) {
-        if (officialScore >= 90) classification = 'Xuất sắc';
-        else if (officialScore >= 80) classification = 'Tốt';
-        else if (officialScore >= 65) classification = 'Khá';
-        else if (officialScore >= 50) classification = 'Trung bình';
-        else classification = 'Yếu';
-      }
-
       return {
         id: s.id,
         fullName: s.fullName,
         studentCode: s.studentCode || 'N/A',
         email: s.email,
-        officialScore,
-        pendingScore: +pendingScore.toFixed(1),
-        classification,
-        submittedCount: sEvidences.length,
-        approvedCount: approvedEvs.length,
-        pendingCount: pendingEvs.length,
-        supplementCount: supplementEvs.length,
-        rejectedCount: rejectedEvs.length,
+        officialScore: null,
+        pendingScore: null,
+        classification: 'Chưa có rubric',
+        submittedCount: 0,
+        approvedCount: 0,
+        pendingCount: 0,
+        supplementCount: 0,
+        rejectedCount: 0,
       };
     });
 
     // Thống kê phân bố lớp
     const summary = {
       totalStudents: students.length,
-      evaluatedCount: studentScores.filter((s) => s.submittedCount > 0 || s.officialScore > 0).length,
-      excellentCount: studentScores.filter((s) => s.classification === 'Xuất sắc').length,
-      goodCount: studentScores.filter((s) => s.classification === 'Tốt').length,
-      fairCount: studentScores.filter((s) => s.classification === 'Khá').length,
-      averageCount: studentScores.filter((s) => s.classification === 'Trung bình').length,
-      weakCount: studentScores.filter((s) => s.classification === 'Yếu').length,
-      notSubmittedCount: studentScores.filter((s) => s.classification === 'Chưa nộp').length,
-      avgScore: studentScores.length > 0
-        ? +(studentScores.reduce((sum, s) => sum + s.officialScore, 0) / studentScores.length).toFixed(1)
-        : 0,
+      evaluatedCount: 0,
+      excellentCount: 0,
+      goodCount: 0,
+      fairCount: 0,
+      averageCount: 0,
+      weakCount: 0,
+      notSubmittedCount: studentScores.length,
+      avgScore: null,
     };
 
     return {
