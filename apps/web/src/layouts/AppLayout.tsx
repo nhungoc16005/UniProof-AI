@@ -4,6 +4,7 @@ import { Bell, Calendar, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiClient } from '../lib/apiClient';
 import { Notification } from '../types';
+import { roleNavigation, currentNavigation, navigationHref } from '../lib/roleNavigation';
 
 interface NavGroup {
   title: string;
@@ -20,6 +21,17 @@ export const AppLayout: React.FC = () => {
   const [showNotifMenu, setShowNotifMenu] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const selectedTermId = new URLSearchParams(location.search).get('termId') || activeTerm?.id;
+  const [workCounts, setWorkCounts] = useState<{ key: string; evidence: number; appeals: number } | null>(null);
+  const countsKey = user?.id + ':' + selectedTermId + ':' + location.pathname;
+  useEffect(() => {
+    let cancelled = false;
+    if (user?.role !== 'STAFF' || !selectedTermId) return;
+    apiClient.getKpiSummary(selectedTermId).then(data => {
+      if (!cancelled) setWorkCounts({ key: countsKey, evidence: data.pendingEvidences, appeals: data.pendingAppeals });
+    }).catch(() => { if (!cancelled) setWorkCounts(null); });
+    return () => { cancelled = true; };
+  }, [countsKey, user?.role]);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,60 +71,7 @@ export const AppLayout: React.FC = () => {
   const navGroups: NavGroup[] = useMemo(() => {
     if (!user) return [];
 
-    if (user.role === 'STAFF') {
-      return [
-        {
-          title: 'CÔNG VIỆC',
-          items: [
-            { label: 'Tổng quan', path: '/officer' },
-            { label: 'Minh chứng', path: '/officer/queue' },
-            { label: 'Phúc khảo', path: '/officer/appeals' },
-          ],
-        },
-        {
-          title: 'DỮ LIỆU',
-          items: [
-            { label: 'Hoạt động & điểm danh', path: '/officer/activities' },
-            { label: 'Phiếu rèn luyện', path: '/officer/students' },
-            { label: 'Báo cáo Khoa', path: '/officer/reports' },
-          ],
-        },
-        {
-          title: 'TRA CỨU',
-          items: [
-            { label: 'Tiêu chí & quy chế', path: '/officer/criteria' },
-          ],
-        },
-      ];
-    }
-
-    if (user.role === 'ADMIN') {
-      return [
-        {
-          title: 'QUẢN LÝ',
-          items: [
-            { label: 'Tổng quan', path: '/admin' },
-            { label: 'Tiếp nhận & công bố', path: '/admin/results' },
-            { label: 'Báo cáo toàn trường', path: '/admin/reports' },
-            { label: 'Tài khoản & đơn vị', path: '/admin/users' },
-            { label: 'Kỳ đánh giá', path: '/admin/terms' },
-          ],
-        },
-        {
-          title: 'QUY ĐỊNH',
-          items: [
-            { label: 'Bộ tiêu chí', path: '/admin/criteria' },
-            { label: 'Tài liệu quy chế', path: '/admin/knowledge-base' },
-          ],
-        },
-        {
-          title: 'HỆ THỐNG',
-          items: [
-            { label: 'Giám sát & nhật ký', path: '/admin/monitoring' },
-          ],
-        },
-      ];
-    }
+    if (roleNavigation[user.role]) return [{ title: user.role === 'STAFF' ? 'CÁN BỘ KHOA' : 'ADMIN / CTSV', items: roleNavigation[user.role] }];
 
     return [
       {
@@ -132,15 +91,23 @@ export const AppLayout: React.FC = () => {
       {
         title: 'TRA CỨU',
         items: [
-          { label: 'Hỗ trợ', path: '/regulations/ask' },
+          { label: 'Hỗ trợ quy chế', path: '/regulations/ask' },
         ],
       },
     ];
   }, [user]);
 
+  const currentSection = currentNavigation(user?.role || '', location.pathname);
+  const sectionHref = (path: string) => navigationHref(path, location.search, activeTerm?.id, location.pathname);
+
   // Dynamic Breadcrumb resolver
   const breadcrumbs = useMemo(() => {
     const p = location.pathname;
+    if (currentSection) {
+      const roleLabel = user?.role === 'ADMIN' ? 'Admin/CTSV' : 'Cán bộ Khoa';
+      const tab = currentSection.tabs?.find(t => p === t.path || p.startsWith(t.path + '/')) || (p.startsWith('/officer/review/') ? currentSection.tabs?.find(t => t.path === '/officer/queue') : currentSection.tabs?.[0]);
+      return [{ label: roleLabel, path: user?.role === 'ADMIN' ? '/admin' : '/officer' }, { label: currentSection.label, path: sectionHref(currentSection.path) }, ...(tab ? [{ label: tab.label, path: sectionHref(tab.path) }] : []), ...(/\/(assessment|review\/[^/]+|evidence\/[^/]+)$/.test(p) || /^\/admin\/results\/[^/]+$/.test(p) ? [{ label: 'Chi tiết hồ sơ' }] : [])];
+    }
     const crumbs: { label: string; path?: string }[] = [];
 
     if (p.startsWith('/student')) {
@@ -157,13 +124,13 @@ export const AppLayout: React.FC = () => {
     } else if (p.startsWith('/officer')) {
       crumbs.push({ label: 'Cán bộ', path: '/officer' });
       if (p === '/officer') return crumbs;
-      if (p === '/officer/queue') crumbs.push({ label: 'Minh chứng' });
+      if (p === '/officer/evaluations') crumbs.push({ label: 'Xử lý đánh giá theo lớp' });
+      else if (p === '/officer/queue') crumbs.push({ label: 'Minh chứng' });
       else if (p.startsWith('/officer/review/')) crumbs.push({ label: 'Minh chứng', path: '/officer/queue' }, { label: 'Chi tiết hồ sơ' });
       else if (p === '/officer/appeals') crumbs.push({ label: 'Phúc khảo' });
       else if (p === '/officer/students') crumbs.push({ label: 'Phiếu rèn luyện' });
       else if (p === '/officer/activities' || p === '/officer/external-activities') crumbs.push({ label: 'Hoạt động & điểm danh' });
-      else if (p === '/officer/criteria') crumbs.push({ label: 'Tiêu chí & Quy tắc' });
-      else if (p === '/officer/reports') crumbs.push({ label: 'Báo cáo Khoa' });
+      else if (p === '/officer/criteria') crumbs.push({ label: 'Tiêu chí & quy chế' });
     } else if (p.startsWith('/admin')) {
       crumbs.push({ label: 'Quản trị hệ thống', path: '/admin' });
       if (p === '/admin') return crumbs;
@@ -180,9 +147,10 @@ export const AppLayout: React.FC = () => {
     }
 
     return crumbs;
-  }, [location.pathname]);
+  }, [location.pathname, location.search, user?.role, activeTerm?.id]);
 
   const isNavItemActive = (path: string) => {
+    if (roleNavigation[user?.role || '']) return currentSection?.path === path;
     if (path === '/student/evidence') {
       return location.pathname === path || (location.pathname.startsWith(`${path}/`) && !location.pathname.startsWith(`${path}/new`));
     }
@@ -190,32 +158,32 @@ export const AppLayout: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#fafbfc] text-slate-900 font-sans antialiased">
+    <div className="min-h-screen flex flex-col bg-[#FAFAFA] text-[#0A0A0A] font-sans antialiased">
       
-      {/* 1. TOPBAR HEADER (Glassmorphism & Deep Subtle Shadow) */}
-      <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200/80 shadow-[0_1px_3px_0_rgba(0,0,0,0.02)] transition-all">
-        <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 h-15 flex items-center justify-between gap-4 py-2.5">
+      {/* 1. TOPBAR HEADER (Genesis Precision Header) */}
+      <header className="sticky top-0 z-40 bg-[#FFFFFF] border-b border-[#E8E8EC] transition-all">
+        <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between gap-4">
           
           {/* Logo & Mobile Menu Button */}
           <div className="flex items-center gap-3">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 text-xs font-semibold"
+              className="lg:hidden p-1.5 rounded-[6px] text-[#6B6B6B] hover:text-[#0A0A0A] hover:bg-[#FAFAFA] text-xs font-semibold border border-[#E8E8EC]"
             >
               {mobileMenuOpen ? 'Đóng' : 'Menu'}
             </button>
 
-            <Link to="/" className="flex items-center gap-2.5">
+            <Link to="/" className="flex items-center gap-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1D6FC2] rounded-[6px]">
               <img
                 src="/dut-logo.png"
                 alt="Logo Đại học Bách Khoa"
-                className="w-9 h-9 object-contain shrink-0"
+                className="w-8 h-8 object-contain shrink-0"
               />
               <div className="flex flex-col">
-                <span className="text-base font-extrabold tracking-tight text-slate-900 leading-tight">
-                  Edu<span className="text-[#1d6fc2]">Point</span>
+                <span className="text-base font-bold font-heading tracking-tight text-[#0A0A0A] leading-none">
+                  Edu<span className="text-[#1D6FC2]">Point</span>
                 </span>
-                <span className="text-[10px] font-medium text-slate-500 hidden sm:block">
+                <span className="text-[10px] text-[#6B6B6B] hidden sm:block mt-0.5">
                   Đại học Bách Khoa – ĐH Đà Nẵng
                 </span>
               </div>
@@ -226,17 +194,17 @@ export const AppLayout: React.FC = () => {
           <div className="flex items-center gap-2 sm:gap-3">
             
             {/* Term Selector */}
-            <div className="flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200/90 rounded-xl text-xs font-medium text-slate-700 shadow-xs transition">
-              <Calendar className="w-3.5 h-3.5 text-[#1d6fc2] shrink-0" />
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#FFFFFF] hover:bg-[#FAFAFA] border border-[#E8E8EC] rounded-[6px] text-xs font-medium text-[#0A0A0A] transition">
+              <Calendar className="w-3.5 h-3.5 text-[#1D6FC2] shrink-0" />
               <select
-                value={activeTerm?.id}
+                value={user?.role === 'STUDENT' ? activeTerm?.id : selectedTermId}
                 onChange={(e) => {
                   const t = terms.find((item) => item.id === e.target.value);
                   if (t) {
                     switchTerm(t);
                     const params = new URLSearchParams(location.search);
                     params.set('termId', t.id);
-                    ['classId','facultyId','state','status','q','page','returnTo','jobPage','jobStatus'].forEach(key => params.delete(key));
+                    ['classId','facultyId','state','status','filter','q','page','returnTo','jobPage','jobStatus'].forEach(key => params.delete(key));
                     let pathname = location.pathname;
                     if (/^\/officer\/students\/[^/]+\/assessment$/.test(pathname)) pathname = '/officer/students';
                     else if (pathname.startsWith('/officer/review/')) pathname = '/officer/queue';
@@ -245,7 +213,7 @@ export const AppLayout: React.FC = () => {
                     navigate({ pathname, search: params.toString() });
                   }
                 }}
-                className="bg-transparent border-none text-slate-900 font-bold focus:outline-none cursor-pointer text-xs max-w-[125px] sm:max-w-none truncate"
+                className="bg-transparent border-none text-[#0A0A0A] font-semibold focus:outline-none cursor-pointer text-xs max-w-[125px] sm:max-w-none truncate"
                 title="Chọn kỳ học đánh giá"
               >
                 {terms.length > 0 ? (
@@ -262,9 +230,9 @@ export const AppLayout: React.FC = () => {
               </select>
             </div>
 
-            {/* User Official Role Badge */}
-            <div className="hidden sm:flex items-center px-3 py-1 rounded-xl text-xs font-semibold bg-blue-50 text-[#1d6fc2] border border-blue-200/60 shadow-sm">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#1d6fc2] mr-1.5 animate-pulse"></span>
+            {/* User Official Role Badge (No continuous pulse) */}
+            <div className="hidden sm:flex items-center px-2.5 py-1 rounded-[6px] text-xs font-medium bg-[#F0F6FC] text-[#1D6FC2] border border-[#C2DBF2]">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#1D6FC2] mr-1.5"></span>
               {user?.role === 'STUDENT' ? 'Sinh viên' : user?.role === 'STAFF' ? 'Cán bộ Khoa' : 'Quản trị viên'}
             </div>
 
@@ -275,13 +243,13 @@ export const AppLayout: React.FC = () => {
                   setShowNotifMenu(!showNotifMenu);
                   setShowUserDropdown(false);
                 }}
-                className="relative p-2 text-slate-600 hover:text-[#1d6fc2] hover:bg-blue-50/70 rounded-xl transition focus:outline-none flex items-center justify-center"
+                className="relative p-2 text-[#6B6B6B] hover:text-[#1D6FC2] hover:bg-[#F0F6FC] rounded-[6px] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1D6FC2] flex items-center justify-center border border-transparent hover:border-[#E8E8EC]"
                 title="Thông báo"
                 aria-label="Thông báo"
               >
-                <Bell className="w-5 h-5" />
+                <Bell className="w-4 h-4" />
                 {unreadCount > 0 && (
-                  <span className="absolute 0 top-0.5 right-0.5 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full bg-rose-600 text-white text-[10px] font-bold shadow-xs">
+                  <span className="absolute top-0.5 right-0.5 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full bg-[#EF4444] text-white text-[10px] font-bold">
                     {unreadCount}
                   </span>
                 )}
@@ -289,28 +257,28 @@ export const AppLayout: React.FC = () => {
 
               {/* Notification Dropdown */}
               {showNotifMenu && (
-                <div className="absolute right-0 mt-2 w-80 bg-white border border-slate-200 rounded-2xl shadow-xl shadow-slate-900/10 z-50 p-3 animate-in fade-in zoom-in-95 duration-150">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                    <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                <div className="absolute right-0 mt-2 w-80 bg-[#FFFFFF] border border-[#E8E8EC] rounded-[8px] shadow-lg z-50 p-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-[#E8E8EC]">
+                    <span className="text-xs font-bold font-heading text-[#0A0A0A] uppercase tracking-wider">
                       Thông báo ({unreadCount})
                     </span>
                     <button
                       onClick={handleMarkAllRead}
-                      className="text-[11px] text-[#1d6fc2] hover:underline font-medium"
+                      className="text-[11px] text-[#1D6FC2] hover:text-[#175A9E] hover:underline font-medium"
                     >
                       Đánh dấu đã đọc
                     </button>
                   </div>
-                  <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto mt-1">
+                  <div className="divide-y divide-[#E8E8EC] max-h-72 overflow-y-auto mt-1 scrollbar-thin">
                     {notificationLoadError ? (
-                      <div className="p-4 text-xs text-rose-700">Không tải được thông báo từ máy chủ.</div>
+                      <div className="p-4 text-xs text-[#DC2626]">Không tải được thông báo từ máy chủ.</div>
                     ) : notifications.length === 0 ? (
-                      <div className="p-4 text-xs text-slate-500">Chưa có thông báo.</div>
+                      <div className="p-4 text-xs text-[#6B6B6B]">Chưa có thông báo.</div>
                     ) : notifications.map((n) => (
                       <div
                         key={n.id}
-                        className={`p-2.5 rounded-xl text-xs transition cursor-pointer ${
-                          n.isRead ? 'bg-white opacity-70' : 'bg-slate-50 font-medium'
+                        className={`p-2.5 rounded-[6px] text-xs transition cursor-pointer ${
+                          n.isRead ? 'bg-[#FFFFFF] opacity-75' : 'bg-[#F0F6FC] font-medium'
                         }`}
                         onClick={() => {
                           setShowNotifMenu(false);
@@ -318,8 +286,8 @@ export const AppLayout: React.FC = () => {
                           if (user?.role === 'STAFF') navigate('/officer/queue');
                         }}
                       >
-                        <div className="font-semibold text-slate-900">{n.title}</div>
-                        <div className="text-slate-500 text-[11px] mt-0.5">{n.content}</div>
+                        <div className="font-semibold text-[#0A0A0A]">{n.title}</div>
+                        <div className="text-[#6B6B6B] text-[11px] mt-0.5">{n.content}</div>
                       </div>
                     ))}
                   </div>
@@ -328,41 +296,41 @@ export const AppLayout: React.FC = () => {
             </div>
 
             {/* User Profile & Menu */}
-            <div className="relative border-l border-slate-200 pl-2">
+            <div className="relative border-l border-[#E8E8EC] pl-2">
               <button
                 onClick={() => {
                   setShowUserDropdown(!showUserDropdown);
                   setShowNotifMenu(false);
                 }}
-                className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-100 transition focus:outline-none"
+                className="flex items-center gap-2 px-2 py-1 rounded-[6px] hover:bg-[#FAFAFA] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1D6FC2]"
               >
-                <div className="w-7 h-7 rounded-full bg-[#1d6fc2] text-white flex items-center justify-center font-bold text-xs shadow-sm shadow-blue-500/20">
+                <div className="w-7 h-7 rounded-full bg-[#1D6FC2] text-white flex items-center justify-center font-bold text-xs">
                   {user?.fullName ? user.fullName.split(' ').pop()?.[0] : 'U'}
                 </div>
-                <span className="text-xs font-semibold text-slate-900 hidden sm:inline">
+                <span className="text-xs font-semibold text-[#0A0A0A] hidden sm:inline">
                   {user?.fullName}
                 </span>
               </button>
 
               {/* Dropdown Menu */}
               {showUserDropdown && (
-                <div className="absolute right-0 mt-2 w-52 bg-white border border-slate-200 rounded-2xl shadow-xl shadow-slate-900/10 z-50 p-1.5 space-y-1 text-xs animate-in fade-in zoom-in-95 duration-150">
-                  <div className="p-2.5 border-b border-slate-100">
-                    <div className="font-bold text-slate-900 truncate">{user?.fullName}</div>
-                    <div className="text-[11px] text-slate-500 truncate">{user?.email}</div>
+                <div className="absolute right-0 mt-2 w-52 bg-[#FFFFFF] border border-[#E8E8EC] rounded-[8px] shadow-lg z-50 p-1.5 space-y-1 text-xs">
+                  <div className="p-2.5 border-b border-[#E8E8EC]">
+                    <div className="font-bold text-[#0A0A0A] truncate">{user?.fullName}</div>
+                    <div className="text-[11px] text-[#6B6B6B] truncate">{user?.email}</div>
                   </div>
 
                   <Link
                     to="/account"
                     onClick={() => setShowUserDropdown(false)}
-                    className="block px-3 py-2 text-slate-700 hover:bg-blue-50/70 hover:text-[#1d6fc2] rounded-xl transition font-medium"
+                    className="block px-3 py-2 text-[#0A0A0A] hover:bg-[#F0F6FC] hover:text-[#1D6FC2] rounded-[6px] transition font-medium"
                   >
                     Hồ sơ & Tài khoản
                   </Link>
 
                   <button
                     onClick={handleLogout}
-                    className="w-full text-left px-3 py-2 text-rose-600 hover:bg-rose-50 rounded-xl transition font-semibold"
+                    className="w-full text-left px-3 py-2 text-[#EF4444] hover:bg-[#FEF2F2] rounded-[6px] transition font-semibold"
                   >
                     Đăng xuất
                   </button>
@@ -375,15 +343,15 @@ export const AppLayout: React.FC = () => {
       </header>
 
       {/* 2. BODY LAYOUT: CATEGORIZED SIDEBAR + MAIN CONTENT */}
-      <div className="flex-1 max-w-[1800px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex gap-8">
+      <div className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex gap-6 lg:gap-8">
         
-        {/* Desktop Sidebar: Clean Grouped Navigation */}
-        <aside className="hidden lg:block w-60 shrink-0">
+        {/* Desktop Sidebar: Genesis Style */}
+        <aside className="hidden lg:block w-56 shrink-0">
           <nav className="sticky top-20 space-y-5">
             
             {navGroups.map((group, gIdx) => (
               <div key={gIdx} className="space-y-1">
-                <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                <div className="px-3 py-1 text-[11px] font-bold font-heading text-[#9C9C9C] uppercase tracking-wider">
                   {group.title}
                 </div>
                 <div className="space-y-0.5">
@@ -393,11 +361,11 @@ export const AppLayout: React.FC = () => {
                     return (
                       <Link
                         key={item.path}
-                        to={item.path}
-                        className={`block px-3 py-2 rounded-xl text-xs transition duration-150 ${
+                        to={sectionHref(item.path)}
+                        className={`block px-3 py-2 rounded-[6px] text-xs transition-colors duration-150 ${
                           isActive
-                            ? 'bg-[#1d6fc2] text-white font-bold shadow-sm shadow-blue-600/20'
-                            : 'text-slate-600 hover:text-[#1d6fc2] hover:bg-blue-50/70 font-medium'
+                            ? 'bg-[#E1EDF9] text-[#1D6FC2] font-semibold border-l-2 border-[#1D6FC2]'
+                            : 'text-[#6B6B6B] hover:text-[#0A0A0A] hover:bg-[#FFFFFF] font-medium'
                         }`}
                       >
                         {item.label}
@@ -408,10 +376,10 @@ export const AppLayout: React.FC = () => {
               </div>
             ))}
 
-            <div className="pt-2 border-t border-slate-200">
+            <div className="pt-2 border-t border-[#E8E8EC]">
               <button
                 onClick={handleLogout}
-                className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition"
+                className="w-full text-left px-3 py-2 text-xs font-semibold text-[#6B6B6B] hover:text-[#EF4444] hover:bg-[#FEF2F2] rounded-[6px] transition"
               >
                 Đăng xuất
               </button>
@@ -422,19 +390,19 @@ export const AppLayout: React.FC = () => {
         {/* Mobile Navigation Drawer */}
         {mobileMenuOpen && (
           <div className="fixed inset-0 z-50 lg:hidden flex">
-            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs" onClick={() => setMobileMenuOpen(false)} />
-            <div className="relative w-64 bg-white h-full p-4 flex flex-col shadow-2xl z-10 space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 font-bold text-sm text-slate-900">
+            <div className="fixed inset-0 bg-[#0A0A0A]/30 backdrop-blur-xs" onClick={() => setMobileMenuOpen(false)} />
+            <div className="relative w-64 bg-[#FFFFFF] h-full p-4 flex flex-col shadow-xl z-10 space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-[#E8E8EC] font-bold text-sm text-[#0A0A0A]">
                 <span>Menu Điều hướng</span>
-                <button onClick={() => setMobileMenuOpen(false)} className="text-slate-400 hover:text-slate-700 p-1 rounded-md">
+                <button onClick={() => setMobileMenuOpen(false)} className="text-[#6B6B6B] hover:text-[#0A0A0A] p-1 rounded-[6px]">
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
               {/* Mobile Term Selector */}
-              <div className="p-2.5 bg-slate-50 border border-slate-200/90 rounded-xl space-y-1">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Calendar className="w-3 h-3 text-[#1d6fc2]" />
+              <div className="p-2.5 bg-[#FAFAFA] border border-[#E8E8EC] rounded-[8px] space-y-1">
+                <div className="text-[10px] font-bold text-[#9C9C9C] uppercase tracking-wider flex items-center gap-1.5">
+                  <Calendar className="w-3 h-3 text-[#1D6FC2]" />
                   <span>Kỳ đánh giá</span>
                 </div>
                 <select
@@ -443,7 +411,7 @@ export const AppLayout: React.FC = () => {
                     const t = terms.find((item) => item.id === e.target.value);
                     if (t) switchTerm(t);
                   }}
-                  className="w-full bg-white border border-slate-200 text-slate-900 font-semibold rounded-lg px-2 py-1.5 text-xs focus:outline-none"
+                  className="w-full bg-[#FFFFFF] border border-[#E8E8EC] text-[#0A0A0A] font-semibold rounded-[6px] px-2 py-1.5 text-xs focus:outline-none"
                 >
                   {terms.length > 0 ? (
                     terms.map((t) => (
@@ -461,7 +429,7 @@ export const AppLayout: React.FC = () => {
               <nav className="space-y-4 overflow-y-auto flex-1">
                 {navGroups.map((group, gIdx) => (
                   <div key={gIdx} className="space-y-1">
-                    <div className="px-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    <div className="px-2 text-[10px] font-bold font-heading text-[#9C9C9C] uppercase tracking-wider">
                       {group.title}
                     </div>
                     {group.items.map((item) => {
@@ -469,12 +437,12 @@ export const AppLayout: React.FC = () => {
                       return (
                         <Link
                           key={item.path}
-                          to={item.path}
+                          to={sectionHref(item.path)}
                           onClick={() => setMobileMenuOpen(false)}
-                          className={`block px-3 py-2 rounded-xl text-xs transition ${
+                          className={`block px-3 py-2 rounded-[6px] text-xs transition ${
                             isActive
-                              ? 'bg-[#1d6fc2] text-white font-bold shadow-sm'
-                              : 'text-slate-700 font-medium hover:text-[#1d6fc2]'
+                              ? 'bg-[#E1EDF9] text-[#1D6FC2] font-semibold border-l-2 border-[#1D6FC2]'
+                              : 'text-[#6B6B6B] font-medium hover:text-[#0A0A0A]'
                           }`}
                         >
                           {item.label}
@@ -484,13 +452,13 @@ export const AppLayout: React.FC = () => {
                   </div>
                 ))}
               </nav>
-              <div className="pt-3 border-t border-slate-200">
+              <div className="pt-3 border-t border-[#E8E8EC]">
                 <button
                   onClick={() => {
                     setMobileMenuOpen(false);
                     handleLogout();
                   }}
-                  className="w-full py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl text-left px-3"
+                  className="w-full py-2 text-xs font-semibold text-[#EF4444] hover:bg-[#FEF2F2] rounded-[6px] text-left px-3"
                 >
                   Đăng xuất
                 </button>
@@ -503,18 +471,18 @@ export const AppLayout: React.FC = () => {
         <main className="flex-1 min-w-0">
           {/* Elegant Breadcrumb Navigation */}
           {breadcrumbs.length > 0 && (
-            <nav className="mb-4 flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
+            <nav aria-label="Đường dẫn trang" className="mb-4 flex items-center gap-1.5 text-xs text-[#6B6B6B]">
               {breadcrumbs.map((crumb, idx) => {
                 const isLast = idx === breadcrumbs.length - 1;
                 return (
                   <React.Fragment key={idx}>
-                    {idx > 0 && <span className="text-slate-300">/</span>}
+                    {idx > 0 && <span className="text-[#9C9C9C]">/</span>}
                     {crumb.path && !isLast ? (
-                      <Link to={crumb.path} className="hover:text-[#1d6fc2] transition">
+                      <Link to={crumb.path} className="hover:text-[#1D6FC2] transition">
                         {crumb.label}
                       </Link>
                     ) : (
-                      <span className="text-slate-700 font-semibold">{crumb.label}</span>
+                      <span className="text-[#0A0A0A] font-semibold">{crumb.label}</span>
                     )}
                   </React.Fragment>
                 );
@@ -522,6 +490,17 @@ export const AppLayout: React.FC = () => {
             </nav>
           )}
 
+          {currentSection?.tabs && <section className="mb-6 space-y-3" aria-label={currentSection.label}>
+            <p className="text-sm text-[#6B6B6B]">{currentSection.description}</p>
+            <nav aria-label="Các mục chức năng" className="flex gap-1 overflow-x-auto border-b border-[#E8E8EC]">
+              {currentSection.tabs.map((tab, index) => {
+                const exactTab = currentSection.tabs?.find(t => location.pathname === t.path || location.pathname.startsWith(t.path + '/')) || (location.pathname.startsWith('/officer/review/') ? currentSection.tabs?.[1] : undefined);
+                const selected = exactTab ? exactTab.path === tab.path : index === 0;
+                const count = workCounts?.key === countsKey ? tab.path === '/officer/queue' ? workCounts.evidence : tab.path === '/officer/appeals' ? workCounts.appeals : undefined : undefined;
+                return <Link key={tab.path} to={sectionHref(tab.path)} aria-current={selected ? 'page' : undefined} className={'shrink-0 border-b-2 px-4 py-3 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1D6FC2] ' + (selected ? 'border-[#1D6FC2] text-[#1D6FC2]' : 'border-transparent text-[#6B6B6B] hover:text-[#0A0A0A]')}>{tab.label}{typeof count === 'number' && <span className="ml-2 rounded-full bg-[#F4F4F6] px-2 py-0.5 text-xs" aria-label={count + ' việc chờ'}>{count}</span>}</Link>;
+              })}
+            </nav>
+          </section>}
           <Outlet />
         </main>
       </div>

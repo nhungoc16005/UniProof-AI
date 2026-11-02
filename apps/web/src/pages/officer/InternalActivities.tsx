@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Activity, Criterion } from '../../types';
 import { apiClient } from '../../lib/apiClient';
@@ -39,12 +40,15 @@ interface ParticipantItem {
 }
 
 export const InternalActivities: React.FC = () => {
-  const { activeTerm } = useAuth();
+  const { activeTerm: defaultTerm, terms } = useAuth();
+  const [activityParams] = useSearchParams();
+  const requestedTerm = activityParams.get('termId');
+  const activeTerm = terms.find(term => term.id === requestedTerm) || (requestedTerm ? { ...defaultTerm, id: requestedTerm } : defaultTerm);
   const [criterionId, setCriterionId] = useState('');
   const [criteria, setCriteria] = useState<Criterion[]>([]);
   const [loadError, setLoadError] = useState('');
   useEffect(() => { apiClient.getRubric(activeTerm.id).then(r => setCriteria(r.categories.flatMap(c => c.criteria))).catch(() => setLoadError('Không tải được tiêu chí kỳ này.')); }, [activeTerm.id]);
-  const [activeTab, setActiveTab] = useState<'INTERNAL' | 'EXTERNAL'>('INTERNAL');
+  const activeTab = activityParams.get('type') === 'EXTERNAL' ? 'EXTERNAL' : 'INTERNAL';
   const [activities, setActivities] = useState<Activity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -93,21 +97,28 @@ export const InternalActivities: React.FC = () => {
     notFoundCodes?: string[];
   } | null>(null);
 
-  const loadActivities = async () => {
+  const loadActivities = async (isCancelled: () => boolean) => {
     try {
       setIsLoading(true);
+      setActivities([]);
+      setLoadError('');
       const data = await apiClient.getActivities({ type: activeTab, termId: activeTerm.id });
-      setActivities(data);
+      if (!isCancelled()) setActivities(data);
     } catch (err) {
-      setLoadError('Không tải được hoạt động của kỳ.');
+      if (!isCancelled()) setLoadError('Không tải được hoạt động của kỳ.');
       console.error('Không thể tải danh sách hoạt động', err);
     } finally {
-      setIsLoading(false);
+      if (!isCancelled()) setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadActivities();
+    let cancelled = false;
+    void loadActivities(() => cancelled);
+    setShowAttendanceModal(false);
+    setShowAddModal(false);
+    setShowEditModal(false);
+    return () => { cancelled = true; };
   }, [activeTab, activeTerm.id]);
 
   const loadParticipants = async (actId: string) => {
@@ -415,8 +426,9 @@ export const InternalActivities: React.FC = () => {
       {/* 3. Tab Switcher & Search Bar */}
       <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <button
-            onClick={() => setActiveTab('INTERNAL')}
+          <Link
+            to={'/officer/activities?' + new URLSearchParams({ termId: activeTerm.id, type: 'INTERNAL' }).toString()}
+            aria-current={activeTab === 'INTERNAL' ? 'page' : undefined}
             className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
               activeTab === 'INTERNAL'
                 ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
@@ -425,10 +437,11 @@ export const InternalActivities: React.FC = () => {
           >
             <Building className="w-3.5 h-3.5" />
             <span>Hoạt động nội bộ</span>
-          </button>
+          </Link>
 
-          <button
-            onClick={() => setActiveTab('EXTERNAL')}
+          <Link
+            to={'/officer/activities?' + new URLSearchParams({ termId: activeTerm.id, type: 'EXTERNAL' }).toString()}
+            aria-current={activeTab === 'EXTERNAL' ? 'page' : undefined}
             className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
               activeTab === 'EXTERNAL'
                 ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20'
@@ -437,7 +450,7 @@ export const InternalActivities: React.FC = () => {
           >
             <Globe className="w-3.5 h-3.5" />
             <span>Nguồn ngoài trường & Đơn vị đối tác</span>
-          </button>
+          </Link>
         </div>
 
         <div className="relative w-full sm:w-80">

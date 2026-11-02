@@ -232,12 +232,29 @@ export const TermsMasterData: React.FC = () => {
   // Modal Chốt sổ
   const [closingTerm, setClosingTerm] = useState<Term | null>(null);
   const [isClosing, setIsClosing] = useState(false);
+  const [closePolicy, setClosePolicy] = useState<{ canClose: boolean; closeBlockers: string[] } | null>(null);
+  const [closePolicyError, setClosePolicyError] = useState('');
+  const [policyReload, setPolicyReload] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    setClosePolicy(null);
+    setClosePolicyError('');
+    if (!closingTerm?.workflowEnabled) return;
+    apiClient.getPublicationConditions(closingTerm.id).then(policy => {
+      if (!cancelled) setClosePolicy(policy);
+    }).catch(() => {
+      if (!cancelled) setClosePolicyError('Không tải được điều kiện chốt kỳ. Vui lòng thử lại.');
+    });
+    return () => { cancelled = true; };
+  }, [closingTerm?.id, policyReload]);
 
   const handleConfirmClose = async () => {
     if (!closingTerm) return;
+    if (closingTerm.workflowEnabled && !closePolicy?.canClose) return;
     try {
       setIsClosing(true);
-      await apiClient.closeTerm(closingTerm.id);
+      if (closingTerm.workflowEnabled) await apiClient.closeWorkflowTerm(closingTerm.id);
+      else await apiClient.closeTerm(closingTerm.id);
       setClosingTerm(null);
       await loadTerms();
     } catch (err: any) {
@@ -598,11 +615,14 @@ export const TermsMasterData: React.FC = () => {
               <div>
                 <h3 className="font-semibold text-slate-900 text-sm">Chốt Sổ Kỳ Đánh Giá?</h3>
                 <p className="text-xs text-slate-500 mt-1">
-                  Toàn bộ điểm rèn luyện của <strong>{closingTerm.name}</strong> sẽ được đóng băng chính thức để bàn giao sang Phòng Đào tạo.
+                  Kỳ <strong>{closingTerm.name}</strong> sẽ được chốt chính thức và khóa thay đổi kết quả.
                 </p>
               </div>
             </div>
 
+            {closingTerm.workflowEnabled && <div className="text-xs" role="status">
+              {closePolicyError ? <p role="alert">{closePolicyError} <button onClick={() => setPolicyReload(n => n + 1)} className="underline">Thử lại</button></p> : !closePolicy ? 'Đang kiểm tra điều kiện chốt kỳ…' : closePolicy.canClose ? 'Kỳ đánh giá đủ điều kiện chốt.' : <ul className="list-disc pl-4 text-amber-800">{closePolicy.closeBlockers.map(reason => <li key={reason}>{reason}</li>)}</ul>}
+            </div>}
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 text-xs">
               <button
                 type="button"
@@ -615,7 +635,7 @@ export const TermsMasterData: React.FC = () => {
               <button
                 type="button"
                 onClick={handleConfirmClose}
-                disabled={isClosing}
+                disabled={isClosing || Boolean(closingTerm.workflowEnabled && !closePolicy?.canClose)}
                 className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-medium rounded-lg transition"
               >
                 {isClosing ? 'Đang chốt...' : 'Xác nhận Chốt sổ'}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { Routes, Route, Navigate, Outlet, useSearchParams } from 'react-router-dom';
 import { AppLayout } from './layouts/AppLayout';
 import { useAuth } from './context/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -32,8 +32,8 @@ import { ExternalActivities } from './pages/officer/ExternalActivities';
 import { AppealsResolution } from './pages/officer/AppealsResolution';
 import { StudentLookup } from './pages/officer/StudentLookup';
 import { StudentAssessment } from './pages/officer/StudentAssessment';
-import { OfficerReports } from './pages/officer/Reports';
 import { CriteriaRulesView } from './pages/officer/CriteriaRulesView';
+import { EvaluationsByClass } from './pages/officer/EvaluationsByClass';
 
 // Admin pages (A01 - A11)
 import { AdminDashboard } from './pages/admin/Dashboard';
@@ -53,6 +53,12 @@ const RootRedirect: React.FC = () => {
   if (user.role === 'STAFF') return <Navigate to="/officer" replace />;
   if (user.role === 'ADMIN') return <Navigate to="/admin" replace />;
   return <Navigate to="/student" replace />;
+};
+
+const OfficerReportsRedirect: React.FC = () => {
+  const [params] = useSearchParams();
+  const search = params.toString();
+  return <Navigate to={`/officer${search ? `?${search}` : ''}#ket-qua`} replace />;
 };
 
 export const AppRoutes: React.FC = () => {
@@ -108,6 +114,7 @@ export const AppRoutes: React.FC = () => {
           }
         >
           <Route index element={<OfficerDashboard />} />
+          <Route path="evaluations" element={<EvaluationsByClass />} />
           <Route path="queue" element={<ReviewQueue />} />
           <Route path="review/:id" element={<ReviewDetail />} />
           <Route path="activities" element={<InternalActivities />} />
@@ -116,8 +123,8 @@ export const AppRoutes: React.FC = () => {
           <Route path="criteria" element={<CriteriaRulesView />} />
           <Route path="students" element={<StudentLookup />} />
           <Route path="students/:studentId/assessment" element={<StudentAssessment />} />
-          <Route path="reports" element={<ResultReports />} />
-          <Route path="students/legacy" element={<ResultReports />} />
+          <Route path="reports" element={<OfficerReportsRedirect />} />
+          <Route path="students/legacy" element={<OfficerReportsRedirect />} />
         </Route>
 
         {/* Phân hệ Quản trị viên (Admin) */}

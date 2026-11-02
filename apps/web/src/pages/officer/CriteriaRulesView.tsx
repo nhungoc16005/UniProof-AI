@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { apiClient } from '../../lib/apiClient';
 import { Criterion } from '../../types';
 import { useAuth } from '../../context/AuthContext';
@@ -19,26 +20,32 @@ const scoringKindLabels: Record<string, string> = {
 };
 
 export const CriteriaRulesView: React.FC = () => {
-  const { activeTerm } = useAuth();
+  const { activeTerm: defaultTerm, terms } = useAuth();
+  const [params] = useSearchParams();
+  const requestedTerm = params.get('termId');
+  const activeTerm = terms.find(term => term.id === requestedTerm) || (requestedTerm ? { ...defaultTerm, id: requestedTerm } : defaultTerm);
   const [criteria, setCriteria] = useState<Criterion[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
 
   useEffect(() => {
+    let cancelled = false;
     setIsLoading(true);
-    if (!activeTerm.id) return;
+    setCriteria([]);
+    if (!activeTerm.id) { setIsLoading(false); return; }
     apiClient
       .getRubric(activeTerm.id)
       .then((data) => {
-        setCriteria(data.criteria || []);
+        if (!cancelled) setCriteria(data.criteria || []);
       })
       .catch((err) => {
         console.error('Lỗi khi tải tiêu chí:', err);
       })
       .finally(() => {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       });
+    return () => { cancelled = true; };
   }, [activeTerm.id]);
 
   const categories = useMemo(() => {

@@ -20,7 +20,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, isOfficer = fa
         return {
           label: 'Đang xử lý',
           classes: 'bg-sky-50 text-sky-800 border-sky-200',
-          dot: 'bg-sky-500 animate-pulse',
+          dot: 'bg-sky-500',
         };
       case 'VERIFIED':
         return {
@@ -36,13 +36,13 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, isOfficer = fa
         };
       case 'NEEDS_SUPPLEMENT':
         return {
-          label: 'Cần bổ sung',
+          label: 'Chờ sinh viên bổ sung',
           classes: 'bg-amber-50 text-amber-900 border-amber-200',
           dot: 'bg-amber-500',
         };
       case 'NEEDS_HUMAN_REVIEW':
         return {
-          label: 'Cần xem xét',
+          label: 'Chờ Khoa xác minh',
           classes: 'bg-indigo-50 text-indigo-900 border-indigo-200',
           dot: 'bg-indigo-500',
         };
@@ -54,13 +54,13 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, isOfficer = fa
         };
       case 'APPROVED':
         return {
-          label: 'Đã duyệt',
+          label: 'Hợp lệ',
           classes: 'bg-emerald-600 text-white border-transparent font-medium',
           dot: 'bg-white',
         };
       case 'REJECTED':
         return {
-          label: 'Bị từ chối',
+          label: 'Từ chối',
           classes: 'bg-rose-600 text-white border-transparent font-medium',
           dot: 'bg-white',
         };

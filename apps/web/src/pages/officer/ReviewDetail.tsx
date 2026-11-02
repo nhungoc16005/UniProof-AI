@@ -173,14 +173,14 @@ export const ReviewDetail: React.FC = () => {
     <div className="space-y-5 pb-28 relative">
       {!canReview && <p className="rounded-xl bg-slate-100 p-3 text-sm text-slate-700">Hồ sơ chỉ được xem: đã có quyết định, chưa nộp hoặc phiếu/kỳ đã khóa.</p>}
       {loadError && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{loadError}</p>}
-      <Link className="inline-block text-sm font-semibold text-blue-700" to={`/officer/students/${evidence.studentId}/assessment?termId=${evidence.termId}`}>Mở phiếu rèn luyện của sinh viên →</Link>
+      <Link className="inline-block text-sm font-semibold text-blue-700" to={`/officer/students/${evidence.studentId}/assessment?termId=${evidence.termId}&returnTo=${encodeURIComponent(backTo)}`}>Mở phiếu rèn luyện của sinh viên →</Link>
       
       {/* 1. Header Toolbar */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Link
-              to="/officer/queue"
+              to={backTo}
               className="text-xs font-semibold text-slate-500 hover:text-slate-900"
             >
               ← Hàng đợi

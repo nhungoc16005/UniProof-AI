@@ -1,53 +1,65 @@
 import React from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { AiJobs } from '../../components/AiJobs';
 import { AuditLogs } from './AuditLogs';
 import { SystemHealth } from './SystemHealth';
-import { ShieldCheck, Activity } from 'lucide-react';
+import { PageHeader } from '../../components/shared/PageHeader';
+import { ShieldCheck, Activity, Cpu } from 'lucide-react';
 
 export const Monitoring: React.FC = () => {
-  const [params,setParams] = useSearchParams();
-  const activeTab = params.get('tab') || 'audit';
-  const setActiveTab = (tab: string) => setParams(p => { const n=new URLSearchParams(p); n.set('tab',tab); return n; });
+  const [params, setParams] = useSearchParams();
+  const activeTab = ['audit', 'health', 'jobs'].includes(params.get('tab') || '') ? params.get('tab')! : 'audit';
+
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-xl font-bold text-slate-900">Giám sát & nhật ký</h1>
-        <p className="text-xs text-slate-500 mt-0.5">
-          Theo dõi lịch sử xử lý, kết nối dữ liệu và trạng thái dịch vụ.
-        </p>
-      </div>
+      <PageHeader
+        title="Giám sát & nhật ký"
+        description="Theo dõi lịch sử xử lý, nhật ký kiểm toán hệ thống, kết nối dữ liệu và trạng thái dịch vụ."
+      />
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-200">
-        <button
-          onClick={() => setActiveTab('audit')}
-          className={`pb-3 px-4 font-bold text-xs border-b-2 flex items-center gap-2 transition ${
+      <div className="flex overflow-x-auto border-b border-[#E8E8EC] [&>a]:shrink-0">
+        <Link
+          to={'/admin/monitoring?' + new URLSearchParams({ ...(params.get('termId') ? { termId: params.get('termId')! } : {}), tab: 'audit' }).toString()}
+          aria-current={activeTab === 'audit' ? 'page' : undefined}
+          className={`inline-flex items-center gap-1.5 px-4 py-3 text-xs font-semibold transition-colors border-b-2 -mb-[1px] ${
             activeTab === 'audit'
-              ? 'border-sky-600 text-sky-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'border-[#1D6FC2] text-[#1D6FC2]'
+              : 'border-transparent text-[#6B6B6B] hover:text-[#0A0A0A]'
           }`}
         >
-          <ShieldCheck className="w-4 h-4" />
+          <ShieldCheck className="h-4 w-4" />
           <span>Nhật ký xử lý</span>
-        </button>
+        </Link>
 
-        <button
-          onClick={() => setActiveTab('health')}
-          className={`pb-3 px-4 font-bold text-xs border-b-2 flex items-center gap-2 transition ${
+        <Link
+          to={'/admin/monitoring?' + new URLSearchParams({ ...(params.get('termId') ? { termId: params.get('termId')! } : {}), tab: 'health' }).toString()}
+          aria-current={activeTab === 'health' ? 'page' : undefined}
+          className={`inline-flex items-center gap-1.5 px-4 py-3 text-xs font-semibold transition-colors border-b-2 -mb-[1px] ${
             activeTab === 'health'
-              ? 'border-sky-600 text-sky-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'border-[#1D6FC2] text-[#1D6FC2]'
+              : 'border-transparent text-[#6B6B6B] hover:text-[#0A0A0A]'
           }`}
         >
-          <Activity className="w-4 h-4" />
+          <Activity className="h-4 w-4" />
           <span>Trạng thái dịch vụ</span>
-        </button>
+        </Link>
+
+        <Link
+          to={'/admin/monitoring?' + new URLSearchParams({ ...(params.get('termId') ? { termId: params.get('termId')! } : {}), tab: 'jobs' }).toString()}
+          aria-current={activeTab === 'jobs' ? 'page' : undefined}
+          className={`inline-flex items-center gap-1.5 px-4 py-3 text-xs font-semibold transition-colors border-b-2 -mb-[1px] ${
+            activeTab === 'jobs'
+              ? 'border-[#1D6FC2] text-[#1D6FC2]'
+              : 'border-transparent text-[#6B6B6B] hover:text-[#0A0A0A]'
+          }`}
+        >
+          <Cpu className="h-4 w-4" />
+          <span>Hàng đợi Job AI</span>
+        </Link>
       </div>
 
-      <button onClick={() => setActiveTab('jobs')} className={'rounded-lg border px-4 py-2 text-sm ' + (activeTab === 'jobs' ? 'bg-blue-50 text-blue-700' : '')}>Job AI</button>
       {/* Tab Content */}
       {activeTab === 'audit' && <AuditLogs />}
       {activeTab === 'health' && <SystemHealth />}
