@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, MinLength, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { Role } from '@prisma/client';
 
 export class CreateUserDto {
@@ -47,6 +48,7 @@ export class UpdateUserDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsBoolean()
   isActive?: boolean;
 
   @ApiPropertyOptional()
@@ -87,6 +89,7 @@ export class ImportUserRowDto {
 
   @ApiPropertyOptional({ enum: Role, example: Role.STUDENT })
   @IsOptional()
+  @IsEnum(Role)
   role?: Role;
 
   @ApiPropertyOptional({ description: 'Mã lớp (VD: 21TCLC_DT1)' })
@@ -112,6 +115,7 @@ export class ImportUserRowDto {
 
 export class BulkImportUsersDto {
   @ApiProperty({ type: [ImportUserRowDto] })
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(1000) @ValidateNested({ each: true }) @Type(() => ImportUserRowDto)
   users: ImportUserRowDto[];
 }
 

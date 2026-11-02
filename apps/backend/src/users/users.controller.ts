@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
-import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
+import { BulkImportUsersDto, CreateUserDto, UpdateUserDto } from './dto/user.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -33,22 +33,22 @@ export class UsersController {
   @Get(':id')
   @Roles(Role.ADMIN, Role.STAFF)
   @ApiOperation({ summary: 'Xem chi tiết người dùng theo ID' })
-  async findOne(@Param('id') id: string, @CurrentUser() actor: { id: string; role: Role; facultyId?: string | null }) {
-    return this.usersService.findOne(id, actor);
+  async findOne(@Param('id') id: string, @CurrentUser() actor: { id: string; role: Role; facultyId?: string | null }, @Query('termId') termId?: string) {
+    return this.usersService.findOne(id, actor, termId);
   }
 
   @Post('import')
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Import người dùng hàng loạt từ Excel / JSON (Chỉ Admin)' })
-  async bulkImport(@Body() dto: { users: any[] }) {
-    return this.usersService.bulkImport(dto);
+  async bulkImport(@Body() dto: BulkImportUsersDto, @CurrentUser('id') actorId: string) {
+    return this.usersService.bulkImport(dto, actorId);
   }
 
   @Post()
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Tạo tài khoản người dùng mới (Chỉ Admin)' })
-  async create(@Body() dto: CreateUserDto) {
-    return this.usersService.create(dto);
+  async create(@Body() dto: CreateUserDto, @CurrentUser('id') actorId: string) {
+    return this.usersService.create(dto, actorId);
   }
 
   @Patch(':id')
@@ -61,7 +61,7 @@ export class UsersController {
   @Delete(':id')
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Xóa tài khoản người dùng (Chỉ Admin)' })
-  async delete(@Param('id') id: string) {
-    return this.usersService.delete(id);
+  async delete(@Param('id') id: string, @CurrentUser() actor: { id: string; role: Role }) {
+    return this.usersService.update(id, { isActive: false }, actor);
   }
 }

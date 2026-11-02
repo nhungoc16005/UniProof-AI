@@ -92,32 +92,37 @@ export class CriteriaService {
     return version;
   }
 
-  async createRubricTemplateDraft() {
+  async createRubricTemplateDraft(actorId: string) {
     const template = await this.prisma.rubricTemplate.findUnique({ where: { code: 'DUT_DEFAULT' } });
     if (!template) throw new NotFoundException('Chưa có bộ tiêu chí chuẩn. Hãy áp dụng migration rubric trước.');
     const latestDraft = await this.prisma.rubricTemplateVersion.findFirst({ where: { templateId: template.id, status: RubricVersionStatus.DRAFT }, orderBy: { version: 'desc' } });
     if (latestDraft) throw new BadRequestException('Đã có bản nháp bộ chuẩn. Hãy tiếp tục chỉnh bản nháp đó.');
     const current = await this.prisma.rubricTemplateVersion.findFirst({ where: { templateId: template.id, status: RubricVersionStatus.PUBLISHED }, orderBy: { version: 'desc' } });
     if (!current) throw new NotFoundException('Bộ chuẩn chưa có phiên bản đã ban hành');
-    return this.prisma.rubricTemplateVersion.create({
-      data: { templateId: template.id, version: (await this.prisma.rubricTemplateVersion.aggregate({ where: { templateId: template.id }, _max: { version: true } }))._max.version! + 1, status: RubricVersionStatus.DRAFT, definition: current.definition as Prisma.InputJsonValue, sourceDescription: `Sao chép từ bộ chuẩn v${current.version}` },
-    });
+    return this.auditMaster(actorId, 'RubricTemplateVersion', null, 'RUBRIC_TEMPLATE_DRAFT_CREATED', async tx => tx.rubricTemplateVersion.create({
+      data: { templateId: template.id, version: (await tx.rubricTemplateVersion.aggregate({ where: { templateId: template.id }, _max: { version: true } }))._max.version! + 1, status: RubricVersionStatus.DRAFT, definition: current.definition as Prisma.InputJsonValue, sourceDescription: `Sao chép từ bộ chuẩn v${current.version}` },
+    }));
   }
 
-  async updateRubricTemplateDraft(versionId: string, definition: unknown, changeNote?: string) {
+  async updateRubricTemplateDraft(versionId: string, definition: unknown, actorId: string, changeNote?: string) {
     const version = await this.prisma.rubricTemplateVersion.findUnique({ where: { id: versionId } });
     if (!version) throw new NotFoundException('Không tìm thấy phiên bản bộ tiêu chí');
     if (version.status !== RubricVersionStatus.DRAFT) throw new BadRequestException('Chỉ được chỉnh sửa phiên bản Nháp');
     validateRubricDefinition(definition);
-    return this.prisma.rubricTemplateVersion.update({ where: { id: versionId }, data: { definition: definition as Prisma.InputJsonValue, changeNote: changeNote?.trim() || null } });
+    return this.auditMaster(actorId, 'RubricTemplateVersion', versionId, 'RUBRIC_TEMPLATE_UPDATED', tx => tx.rubricTemplateVersion.update({ where: { id: versionId }, data: { definition: definition as Prisma.InputJsonValue, changeNote: changeNote?.trim() || null } }));
   }
 
-  async publishRubricTemplateDraft(versionId: string) {
+  async publishRubricTemplateDraft(versionId: string, actorId: string) {
     const draft = await this.prisma.rubricTemplateVersion.findUnique({ where: { id: versionId } });
     if (!draft) throw new NotFoundException('Không tìm thấy phiên bản bộ tiêu chí');
     if (draft.status !== RubricVersionStatus.DRAFT) throw new BadRequestException('Chỉ có thể ban hành phiên bản Nháp');
     validateRubricDefinition(draft.definition);
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "RubricTemplate" WHERE "id" = ${draft.templateId} FOR UPDATE`;
+      const current = await tx.rubricTemplateVersion.findUniqueOrThrow({ where: { id: versionId } });
+      if (current.status !== 'DRAFT') throw new BadRequestException('Phiên bản đã được ban hành');
+      validateRubricDefinition(current.definition);
+      await tx.auditLog.create({ data: { userId: actorId, action: 'RUBRIC_TEMPLATE_PUBLISHED', entityType: 'RubricTemplateVersion', entityId: versionId, oldValue: { status: 'DRAFT' }, newValue: { status: 'PUBLISHED', version: current.version } } });
       await tx.rubricTemplateVersion.updateMany({ where: { templateId: draft.templateId, status: RubricVersionStatus.PUBLISHED }, data: { status: RubricVersionStatus.ARCHIVED } });
       return tx.rubricTemplateVersion.update({ where: { id: versionId }, data: { status: RubricVersionStatus.PUBLISHED, publishedAt: new Date() } });
     });
@@ -130,7 +135,7 @@ export class CriteriaService {
     return { term, rubricVersion: version, definition: version ? { categories: version.categories.map((category) => ({ code: category.code, name: category.name, maxScore: category.maxScore, position: category.position, criteria: compareCriterionCodes(category.criteria).map((criterion) => ({ code: criterion.code, name: criterion.name, description: criterion.description, maxScore: criterion.maxScore, scoringConfig: criterion.scoringConfig })) })) } : null };
   }
 
-  async createTermRubricDraft(termId: string, source: { type: 'DEFAULT' | 'TERM'; sourceTermId?: string }) {
+  async createTermRubricDraft(termId: string, source: { type: 'DEFAULT' | 'TERM'; sourceTermId?: string }, actorId: string) {
     const term = await this.prisma.term.findUnique({ where: { id: termId } });
     if (!term) throw new NotFoundException('Không tìm thấy kỳ đánh giá');
     if (term.status === TermStatus.CLOSED) throw new BadRequestException('Không thể tạo phiên bản cho kỳ đã chốt');
@@ -162,7 +167,7 @@ export class CriteriaService {
       definition = { categories: sourceVersion.categories.map((category) => ({ code: category.code, name: category.name, maxScore: category.maxScore, position: category.position, criteria: category.criteria.map((criterion) => ({ code: criterion.code, name: criterion.name, description: criterion.description, maxScore: criterion.maxScore, scoringConfig: criterion.scoringConfig })) })) };
     }
     validateRubricDefinition(definition);
-    await this.prisma.$transaction(async (tx) => this.persistTermRubricDraft(tx, termId, definition as RubricDefinition, sourceLabel, sourceTemplateVersionId, sourceTermCode));
+    await this.prisma.$transaction(async tx => { await this.workflow.lock(tx, termId); const id = await this.persistTermRubricDraft(tx, termId, definition as RubricDefinition, sourceLabel, sourceTemplateVersionId, sourceTermCode); await tx.auditLog.create({ data: { userId: actorId, action: 'TERM_RUBRIC_DRAFT_CREATED', entityType: 'RubricVersion', entityId: id, newValue: { termId, sourceLabel } } }); });
     return this.getTermRubric(termId);
   }
 
@@ -175,7 +180,7 @@ export class CriteriaService {
     return version.id;
   }
 
-  async updateTermRubricDraft(termId: string, definition: unknown, changeNote?: string) {
+  async updateTermRubricDraft(termId: string, definition: unknown, actorId: string, changeNote?: string) {
     validateRubricDefinition(definition);
     const version = await this.prisma.rubricVersion.findFirst({ where: { termId }, orderBy: { version: 'desc' } });
     if (!version) throw new NotFoundException('Kỳ này chưa có bản nháp rubric');
@@ -190,6 +195,10 @@ export class CriteriaService {
     if (assessmentCount || evidenceCount) throw new BadRequestException('Đã có đánh giá hoặc minh chứng trong kỳ; không thể thay đổi cấu trúc rubric');
     const normalized = definition as RubricDefinition;
     await this.prisma.$transaction(async (tx) => {
+      const lockedTerm = await this.workflow.lock(tx, termId);
+      const current = await tx.rubricVersion.findUniqueOrThrow({ where: { id: version.id } });
+      if (lockedTerm.status === 'CLOSED' || current.status !== 'DRAFT') throw new BadRequestException('Kỳ đã chốt hoặc rubric đã ban hành');
+      await tx.auditLog.create({ data: { userId: actorId, action: 'TERM_RUBRIC_UPDATED', entityType: 'RubricVersion', entityId: version.id, newValue: { termId, definition: definition as Prisma.InputJsonValue, changeNote: changeNote ?? null } } });
       const criterionIds = (await tx.criterion.findMany({ where: { rubricVersionId: version.id }, select: { id: true } })).map((criterion) => criterion.id);
       await tx.aiSuggestion.updateMany({ where: { criterionId: { in: criterionIds } }, data: { criterionId: null } });
       await tx.review.updateMany({ where: { criterionId: { in: criterionIds } }, data: { criterionId: null } });
@@ -204,7 +213,7 @@ export class CriteriaService {
     return this.getTermRubric(termId);
   }
 
-  async publishTermRubric(termId: string) {
+  async publishTermRubric(termId: string, actorId: string) {
     const draft = await this.prisma.rubricVersion.findFirst({ where: { termId }, orderBy: { version: 'desc' }, include: { categories: { include: { criteria: true } } } });
     if (!draft) throw new NotFoundException('Kỳ này chưa có bản nháp rubric');
     if (draft.status !== RubricVersionStatus.DRAFT) throw new BadRequestException('Chỉ có thể ban hành phiên bản Nháp');
@@ -213,7 +222,7 @@ export class CriteriaService {
     validateRubricDefinition(definition);
     const term = await this.prisma.term.findUnique({ where: { id: termId } });
     if (!term || term.status === TermStatus.CLOSED) throw new BadRequestException('Không thể ban hành rubric cho kỳ đã chốt');
-    return this.prisma.rubricVersion.update({ where: { id: draft.id }, data: { status: RubricVersionStatus.PUBLISHED, publishedAt: new Date() } });
+    return this.auditMaster(actorId, 'RubricVersion', draft.id, 'TERM_RUBRIC_PUBLISHED', tx => tx.rubricVersion.update({ where: { id: draft.id }, data: { status: RubricVersionStatus.PUBLISHED, publishedAt: new Date() } }));
   }
 
   async createCriterion(dto: CreateCriterionDto) {
@@ -234,6 +243,7 @@ export class CriteriaService {
   async updateCriterion(id: string, dto: UpdateCriterionDto) {
     const existing = await this.prisma.criterion.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Không tìm thấy tiêu chí');
+    if (existing.rubricVersionId) throw new BadRequestException('Tiêu chí thuộc rubric phiên bản; chỉ sửa bằng trình chỉnh sửa bản nháp');
 
     return this.prisma.criterion.update({
       where: { id },
@@ -244,6 +254,7 @@ export class CriteriaService {
   async deleteCriterion(id: string) {
     const crit = await this.prisma.criterion.findUnique({ where: { id } });
     if (!crit) throw new NotFoundException('Không tìm thấy tiêu chí');
+    if (crit.rubricVersionId) throw new BadRequestException('Không xóa tiêu chí thuộc rubric phiên bản');
 
     await this.prisma.$transaction([
       this.prisma.aiSuggestion.updateMany({ where: { criterionId: id }, data: { criterionId: null } }),
@@ -278,7 +289,13 @@ export class CriteriaService {
     return term;
   }
 
-  async createTerm(dto: CreateTermDto) {
+  private validateTermDates(values: { startDate: string | Date; endDate: string | Date; submissionDeadline: string | Date; reviewDeadline: string | Date; appealDeadline: string | Date }) {
+    const dates = [values.startDate, values.endDate, values.submissionDeadline, values.reviewDeadline, values.appealDeadline].map(v => new Date(v).getTime());
+    if (dates.some(v => !Number.isFinite(v)) || dates[0] > dates[1] || dates[0] > dates[2] || dates[2] > dates[3] || dates[3] > dates[4]) throw new BadRequestException('Mốc thời gian không hợp lệ: ngày bắt đầu ≤ ngày kết thúc; hạn nộp ≤ hạn chấm ≤ hạn phúc khảo');
+  }
+
+  async createTerm(dto: CreateTermDto, actorId: string) {
+    this.validateTermDates(dto);
     const existing = await this.prisma.term.findUnique({ where: { code: dto.code } });
     if (existing) throw new BadRequestException(`Kỳ học mã ${dto.code} đã tồn tại`);
     if (dto.status === TermStatus.ACTIVE || dto.status === TermStatus.REVIEWING) throw new BadRequestException('Kỳ mới phải ở trạng thái Sắp diễn ra; chỉ mở kỳ sau khi ban hành bộ tiêu chí');
@@ -316,6 +333,7 @@ export class CriteriaService {
         status: TermStatus.UPCOMING,
       } });
       await this.persistTermRubricDraft(tx, term.id, definition as RubricDefinition, sourceLabel, sourceTemplateVersionId, sourceTermCode);
+      await tx.auditLog.create({ data: { userId: actorId, action: 'TERM_CREATED', entityType: 'Term', entityId: term.id, newValue: JSON.parse(JSON.stringify(term)) } });
       return tx.term.findUnique({
         where: { id: term.id },
         include: { rubricVersions: { include: { categories: { include: { criteria: true } } } } },
@@ -323,9 +341,10 @@ export class CriteriaService {
     });
   }
 
-  async updateTerm(id: string, dto: UpdateTermDto) {
+  async updateTerm(id: string, dto: UpdateTermDto, actorId: string) {
     const existing = await this.prisma.term.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Không tìm thấy kỳ học');
+    this.validateTermDates({ ...existing, ...dto });
     if (existing.status === 'CLOSED') throw new BadRequestException('Kỳ đã chốt chỉ được xem');
     if (dto.status && dto.status !== existing.status) throw new BadRequestException('Sử dụng thao tác mở kỳ, công bố và chốt theo quy trình');
     if (dto.status === TermStatus.ACTIVE) {
@@ -337,7 +356,7 @@ export class CriteriaService {
       if (otherActiveTerm) throw new BadRequestException('Đang có kỳ khác hoạt động; hãy chuyển kỳ đó sang trạng thái phù hợp trước');
     }
 
-    return this.prisma.term.update({
+    return this.auditMaster(actorId, 'Term', id, 'TERM_UPDATED', tx => tx.term.update({
       where: { id },
       data: {
         name: dto.name,
@@ -346,7 +365,7 @@ export class CriteriaService {
         appealDeadline: dto.appealDeadline ? new Date(dto.appealDeadline) : undefined,
         status: dto.status,
       },
-    });
+    }));
   }
 
   async closeTerm(id: string, actor: any) {
@@ -356,7 +375,7 @@ export class CriteriaService {
     return this.workflow.close(actor, id);
   }
 
-  async activateTerm(id: string) {
+  async activateTerm(id: string, actorId: string) {
     const term = await this.prisma.term.findUnique({ where: { id } });
     if (!term) throw new NotFoundException('Không tìm thấy kỳ đánh giá');
     if (term.status === TermStatus.CLOSED) throw new BadRequestException('Kỳ đã chốt, không thể mở lại bằng thao tác này');
@@ -365,7 +384,11 @@ export class CriteriaService {
     const otherActiveTerm = await this.prisma.term.findFirst({ where: { status: TermStatus.ACTIVE, id: { not: id } }, select: { id: true } });
     if (otherActiveTerm) throw new BadRequestException('Đang có kỳ khác hoạt động; hãy chuyển kỳ đó sang trạng thái phù hợp trước');
     return this.prisma.$transaction(async tx => {
-      await this.workflow.lock(tx, id);
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(20261102)::text`;
+      const current = await this.workflow.lock(tx, id);
+      if (current.status !== 'UPCOMING') throw new BadRequestException('Chỉ mở kỳ đang sắp diễn ra');
+      if (await tx.term.count({ where: { status: 'ACTIVE', id: { not: id } } })) throw new BadRequestException('Đang có kỳ khác hoạt động');
+      await tx.auditLog.create({ data: { userId: actorId, action: 'TERM_ACTIVATED', entityType: 'Term', entityId: id, oldValue: { status: current.status }, newValue: { status: 'ACTIVE' } } });
       if (term.workflowEnabled) await this.workflow.initialize(tx, id);
       return tx.term.update({ where: { id }, data: { status: TermStatus.ACTIVE } });
     });
@@ -408,10 +431,27 @@ export class CriteriaService {
     });
   }
 
-  async createFaculty(dto: { code: string; name: string }) {
+  private async auditMaster<T extends { id: string }>(actorId: string, entityType: 'Faculty' | 'Class' | 'Term' | 'RegulationDocument' | 'RubricTemplateVersion' | 'RubricVersion', entityId: string | null, action: string, write: (tx: Prisma.TransactionClient) => Promise<T>) {
+    return this.prisma.$transaction(async tx => {
+      let previous: unknown = null;
+      if (entityId) {
+        const values = await tx.$queryRaw(Prisma.sql`SELECT * FROM ${Prisma.raw('"' + entityType + '"')} WHERE "id" = ${entityId} FOR UPDATE`);
+        previous = (values as any[])[0] ?? null;
+        if (['RubricTemplateVersion', 'RubricVersion'].includes(entityType) && (previous as any)?.status !== 'DRAFT') throw new BadRequestException('Chỉ được thay đổi bản nháp');
+        if (entityType === 'Term' && (previous as any)?.status === 'CLOSED') throw new BadRequestException('Kỳ đã chốt chỉ được xem');
+      }
+      const result = await write(tx);
+      const json = (value: unknown) => value == null ? Prisma.JsonNull : JSON.parse(JSON.stringify(value));
+      await tx.auditLog.create({ data: { userId: actorId, action, entityType, entityId: result.id, oldValue: json(previous), newValue: json(result) } });
+      return result;
+    });
+  }
+
+  async createFaculty(dto: { code: string; name: string }, actorId: string) {
+    if (!dto.code?.trim() || !dto.name?.trim()) throw new BadRequestException('Mã và tên Khoa không được trống');
     const existing = await this.prisma.faculty.findUnique({ where: { code: dto.code.trim().toUpperCase() } });
     if (existing) throw new BadRequestException('Mã khoa đã tồn tại');
-    return this.prisma.faculty.create({
+    return this.auditMaster(actorId, 'Faculty', null, 'FACULTY_CREATED', tx => tx.faculty.create({
       data: {
         code: dto.code.trim().toUpperCase(),
         name: dto.name.trim(),
@@ -419,13 +459,13 @@ export class CriteriaService {
       include: {
         _count: { select: { classes: true, staffs: true } },
       },
-    });
+    }));
   }
 
-  async updateFaculty(id: string, dto: { code?: string; name?: string }) {
+  async updateFaculty(id: string, dto: { code?: string; name?: string }, actorId: string) {
     const faculty = await this.prisma.faculty.findUnique({ where: { id } });
     if (!faculty) throw new NotFoundException('Không tìm thấy khoa');
-    return this.prisma.faculty.update({
+    return this.auditMaster(actorId, 'Faculty', id, 'FACULTY_UPDATED', tx => tx.faculty.update({
       where: { id },
       data: {
         code: dto.code ? dto.code.trim().toUpperCase() : undefined,
@@ -434,10 +474,10 @@ export class CriteriaService {
       include: {
         _count: { select: { classes: true, staffs: true } },
       },
-    });
+    }));
   }
 
-  async deleteFaculty(id: string) {
+  async deleteFaculty(id: string, actorId: string) {
     const faculty = await this.prisma.faculty.findUnique({
       where: { id },
       include: {
@@ -445,18 +485,19 @@ export class CriteriaService {
       },
     });
     if (!faculty) throw new NotFoundException('Không tìm thấy khoa');
-    if (faculty._count.classes > 0 || faculty._count.staffs > 0) {
+    if (faculty._count.classes > 0 || faculty._count.staffs > 0 || await this.prisma.assessmentHandoff.count({ where: { facultyId: id } })) {
       throw new BadRequestException('Không thể xóa khoa đang có lớp học hoặc cán bộ phụ trách. Vui lòng chuyển các lớp và cán bộ sang khoa khác trước.');
     }
-    return this.prisma.faculty.delete({ where: { id } });
+    return this.auditMaster(actorId, 'Faculty', id, 'FACULTY_DELETED', tx => tx.faculty.delete({ where: { id } }));
   }
 
-  async createClass(dto: { code: string; name?: string; cohort: string; facultyId: string }) {
+  async createClass(dto: { code: string; name?: string; cohort: string; facultyId: string }, actorId: string) {
+    if (!dto.code?.trim() || !dto.cohort?.trim()) throw new BadRequestException('Mã lớp và khóa không được trống');
     const existing = await this.prisma.class.findUnique({ where: { code: dto.code.trim().toUpperCase() } });
     if (existing) throw new BadRequestException('Mã lớp sinh hoạt đã tồn tại');
     const faculty = await this.prisma.faculty.findUnique({ where: { id: dto.facultyId } });
     if (!faculty) throw new NotFoundException('Khoa không tồn tại');
-    return this.prisma.class.create({
+    return this.auditMaster(actorId, 'Class', null, 'CLASS_CREATED', tx => tx.class.create({
       data: {
         code: dto.code.trim().toUpperCase(),
         name: dto.name ? dto.name.trim() : dto.code.trim().toUpperCase(),
@@ -467,13 +508,13 @@ export class CriteriaService {
         faculty: { select: { id: true, code: true, name: true } },
         _count: { select: { students: true } },
       },
-    });
+    }));
   }
 
-  async updateClass(id: string, dto: { code?: string; name?: string; cohort?: string; facultyId?: string }) {
+  async updateClass(id: string, dto: { code?: string; name?: string; cohort?: string; facultyId?: string }, actorId: string) {
     const cls = await this.prisma.class.findUnique({ where: { id } });
     if (!cls) throw new NotFoundException('Không tìm thấy lớp');
-    return this.prisma.class.update({
+    return this.auditMaster(actorId, 'Class', id, 'CLASS_UPDATED', tx => tx.class.update({
       where: { id },
       data: {
         code: dto.code ? dto.code.trim().toUpperCase() : undefined,
@@ -485,10 +526,10 @@ export class CriteriaService {
         faculty: { select: { id: true, code: true, name: true } },
         _count: { select: { students: true } },
       },
-    });
+    }));
   }
 
-  async deleteClass(id: string) {
+  async deleteClass(id: string, actorId: string) {
     const cls = await this.prisma.class.findUnique({
       where: { id },
       include: {
@@ -496,10 +537,10 @@ export class CriteriaService {
       },
     });
     if (!cls) throw new NotFoundException('Không tìm thấy lớp');
-    if (cls._count.students > 0) {
+    if (cls._count.students > 0 || await this.prisma.assessmentHandoff.count({ where: { classId: id } })) {
       throw new BadRequestException('Không thể xóa lớp sinh hoạt đang có sinh viên. Vui lòng chuyển sinh viên sang lớp khác trước.');
     }
-    return this.prisma.class.delete({ where: { id } });
+    return this.auditMaster(actorId, 'Class', id, 'CLASS_DELETED', tx => tx.class.delete({ where: { id } }));
   }
 
   // ==========================================
@@ -516,7 +557,8 @@ export class CriteriaService {
   }
 
   async createRegulation(dto: { title: string; version: string; fileUrl?: string; effectiveDate?: string; uploadedById: string }) {
-    return this.prisma.regulationDocument.create({
+    if (!dto.fileUrl?.trim()) throw new BadRequestException('Cần cung cấp đường dẫn tài liệu thật');
+    return this.auditMaster(dto.uploadedById, 'RegulationDocument', null, 'REGULATION_CREATED', tx => tx.regulationDocument.create({
       data: {
         title: dto.title.trim(),
         version: dto.version.trim(),
@@ -529,18 +571,22 @@ export class CriteriaService {
         uploadedBy: { select: { id: true, fullName: true, email: true } },
         _count: { select: { chunks: true, criteria: true } },
       },
-    });
+    }));
   }
 
-  async deleteRegulation(id: string) {
+  async setRegulationStatus(id: string, status: 'ACTIVE' | 'EXPIRED', actorId: string) {
+    return this.auditMaster(actorId, 'RegulationDocument', id, 'REGULATION_STATUS_CHANGED', tx => tx.regulationDocument.update({ where: { id }, data: { status, expiryDate: status === 'EXPIRED' ? new Date() : null } }));
+  }
+
+  async deleteRegulation(id: string, actorId: string) {
     const doc = await this.prisma.regulationDocument.findUnique({ where: { id } });
     if (!doc) throw new NotFoundException('Không tìm thấy tài liệu quy chế');
 
-    await this.prisma.$transaction([
-      this.prisma.regulationChunk.deleteMany({ where: { regulationDocumentId: id } }),
-      this.prisma.criterion.updateMany({ where: { regulationDocumentId: id }, data: { regulationDocumentId: null } }),
-      this.prisma.regulationDocument.delete({ where: { id } }),
-    ]);
+    if (await this.prisma.criterion.count({ where: { regulationDocumentId: id } })) throw new BadRequestException('Tài liệu đang là căn cứ tiêu chí; cần giữ lại để truy vết');
+    await this.auditMaster(actorId, 'RegulationDocument', id, 'REGULATION_DELETED', async tx => {
+      await tx.regulationChunk.deleteMany({ where: { regulationDocumentId: id } });
+      return tx.regulationDocument.delete({ where: { id } });
+    });
 
     return { success: true, message: 'Đã xóa tài liệu quy chế thành công' };
   }

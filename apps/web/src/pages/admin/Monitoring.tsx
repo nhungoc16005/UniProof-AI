@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { AiJobs } from '../../components/AiJobs';
 import { AuditLogs } from './AuditLogs';
 import { SystemHealth } from './SystemHealth';
 import { ShieldCheck, Activity } from 'lucide-react';
 
 export const Monitoring: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'audit' | 'health'>('audit');
+  const [params,setParams] = useSearchParams();
+  const activeTab = params.get('tab') || 'audit';
+  const setActiveTab = (tab: string) => setParams(p => { const n=new URLSearchParams(p); n.set('tab',tab); return n; });
 
   return (
     <div className="space-y-6">
@@ -43,9 +47,11 @@ export const Monitoring: React.FC = () => {
         </button>
       </div>
 
+      <button onClick={() => setActiveTab('jobs')} className={'rounded-lg border px-4 py-2 text-sm ' + (activeTab === 'jobs' ? 'bg-blue-50 text-blue-700' : '')}>Job AI</button>
       {/* Tab Content */}
       {activeTab === 'audit' && <AuditLogs />}
       {activeTab === 'health' && <SystemHealth />}
+      {activeTab === 'jobs' && <AiJobs />}
     </div>
   );
 };

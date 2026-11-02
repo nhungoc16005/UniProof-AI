@@ -383,7 +383,7 @@ export const TermsMasterData: React.FC = () => {
                             )}
 
                             {!isClosed && t.status === 'REVIEWING' && <button onClick={() => setClosingTerm(t)} className="text-rose-700 text-xs font-semibold">Chốt chính thức</button>}
-                            {t.workflowEnabled && t.status !== 'UPCOMING' && <button onClick={() => navigate('/admin?termId=' + t.id)} className="text-blue-700 text-xs font-semibold">Tiếp nhận & công bố</button>}
+                            {t.workflowEnabled && t.status !== 'UPCOMING' && <button onClick={() => navigate('/admin/results?termId=' + t.id)} className="text-blue-700 text-xs font-semibold">Tiếp nhận & công bố</button>}
                             {isClosed && <span className="text-xs text-slate-500">Chỉ xem</span>}
                           </div>
                         </td>

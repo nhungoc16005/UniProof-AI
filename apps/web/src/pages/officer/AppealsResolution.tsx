@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiClient } from '../../lib/apiClient';
@@ -6,7 +6,7 @@ export const AppealsResolution: React.FC = () => {
  const { activeTerm } = useAuth();
  const [params,setParams] = useSearchParams();
  const termId = params.get('termId') || activeTerm.id;
- const status = params.get('status') || 'PENDING';
+ const status = params.get('status') ?? 'PENDING';
  const page = Math.max(1,Number(params.get('page')) || 1);
  const [items,setItems] = useState<any[]>([]);
  const [total,setTotal] = useState(0);
@@ -15,17 +15,19 @@ export const AppealsResolution: React.FC = () => {
  const [error,setError] = useState('');
  const [loading,setLoading] = useState(false);
  const [busy,setBusy] = useState(false);
+ const requestId = useRef(0);
  const load = async () => {
+  const generation = ++requestId.current;
   setLoading(true); setError('');
   try {
    const response = await apiClient.getAppealsPage({ termId, status: status || undefined, page, pageSize: 20 });
-   setItems(response.items);
+   if (generation !== requestId.current) return; setItems(response.items);
    setTotal(response.total);
   }
-  catch (err:any) { setError(err.response?.data?.error?.message || 'Không tải được phúc khảo.'); }
-  finally { setLoading(false); }
+  catch (err:any) { if (generation !== requestId.current) return; setError(err.response?.data?.error?.message || 'Không tải được phúc khảo.'); }
+  finally { if (generation === requestId.current) setLoading(false); }
  };
- useEffect(() => { void load(); },[termId,status,page]);
+ useEffect(() => { void load(); return () => { requestId.current++; }; },[termId,status,page]);
  const resolve = async (decision: string) => {
   setBusy(true); setError('');
   try { await apiClient.resolveAppeal(opened.id,{ status: decision, resolutionNote: reason }); setOpened(null); setReason(''); await load(); }

@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EvidenceService } from './evidence.service';
-import { CreateEvidenceDto, UploadEvidenceFileDto, UploadFileDto } from './dto/evidence.dto';
+import { CreateEvidenceDto, UploadEvidenceFileDto, UploadFileDto, SubmitSupplementDto } from './dto/evidence.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -60,6 +60,12 @@ export class EvidenceController {
   @ApiOperation({ summary: 'Nộp hồ sơ xét duyệt chính thức' })
   async submit(@Param('id') id: string, @CurrentUser('id') studentId: string) {
     return this.evidenceService.submit(id, studentId);
+  }
+
+  @Post(':id/supplement')
+  @Roles(Role.STUDENT)
+  supplement(@Param('id') id: string, @CurrentUser('id') studentId: string, @Body() dto: SubmitSupplementDto) {
+    return this.evidenceService.supplement(id, studentId, dto);
   }
 
   @Post(':id/withdraw')

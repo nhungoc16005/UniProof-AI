@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ActivitiesService } from './activities.service';
-import { CreateActivityDto, AddParticipantDto } from './dto/activity.dto';
+import { CreateActivityDto, AddParticipantDto, UpdateActivityDto, BatchAttendanceDto } from './dto/activity.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -46,7 +46,7 @@ export class ActivitiesController {
   @ApiOperation({ summary: 'Điểm danh hàng loạt bằng danh sách MSSV (Cán bộ)' })
   async batchAddParticipants(
     @Param('id') id: string,
-    @Body() dto: { studentCodes: string[]; formRole?: string },
+    @Body() dto: BatchAttendanceDto,
     @CurrentUser() actor: any,
   ) {
     return this.activitiesService.batchAddParticipants(id, dto, actor);
@@ -73,7 +73,7 @@ export class ActivitiesController {
   @Patch(':id')
   @Roles(Role.ADMIN, Role.STAFF)
   @ApiOperation({ summary: 'Cập nhật hoạt động (Cán bộ, Admin)' })
-  async update(@Param('id') id: string, @Body() dto: any, @CurrentUser() actor: any) {
+  async update(@Param('id') id: string, @Body() dto: UpdateActivityDto, @CurrentUser() actor: any) {
     return this.activitiesService.update(id, dto, actor);
   }
 

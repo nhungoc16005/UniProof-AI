@@ -25,6 +25,7 @@ interface RegulationDoc {
 export const KnowledgeBase: React.FC = () => {
   const [docs, setDocs] = useState<RegulationDoc[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError,setLoadError] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -37,11 +38,11 @@ export const KnowledgeBase: React.FC = () => {
 
   const loadDocs = async () => {
     try {
-      setIsLoading(true);
+      setIsLoading(true); setLoadError('');
       const data = await apiClient.getRegulations();
       setDocs(data || []);
     } catch (err) {
-      console.error('Lỗi tải văn bản quy chế:', err);
+      setLoadError('Không tải được tài liệu quy chế. Vui lòng thử lại.');
     } finally {
       setIsLoading(false);
     }
@@ -95,6 +96,12 @@ export const KnowledgeBase: React.FC = () => {
     }
   };
 
+  const changeStatus = async (doc: RegulationDoc) => {
+    if (!window.confirm(doc.status === 'ACTIVE' ? 'Ngừng hiệu lực tài liệu? Lịch sử và liên kết tiêu chí được giữ lại.' : 'Khôi phục hiệu lực tài liệu?')) return;
+    try { await apiClient.setRegulationStatus(doc.id,doc.status === 'ACTIVE' ? 'EXPIRED' : 'ACTIVE'); await loadDocs(); }
+    catch (err: any) { window.alert(err.response?.data?.message || 'Không cập nhật được hiệu lực tài liệu.'); }
+  };
+
   const filteredDocs = docs.filter((d) => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
@@ -103,6 +110,7 @@ export const KnowledgeBase: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-12">
+      {loadError && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{loadError}<button className="ml-2 underline" onClick={() => void loadDocs()}>Thử lại</button></p>}
       {/* 1. Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
@@ -192,10 +200,11 @@ export const KnowledgeBase: React.FC = () => {
                     <td className="py-3.5 px-4">
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                         <CheckCircle className="w-3 h-3" />
-                        <span>{doc.status}</span>
+                        <span>{doc.status === 'EXPIRED' ? 'Hết hiệu lực' : new Date(doc.effectiveDate) > new Date() ? 'Chưa hiệu lực' : 'Có hiệu lực'}</span>
                       </span>
                     </td>
                     <td className="py-3.5 px-4 text-right">
+                      <button onClick={() => void changeStatus(doc)} className="mr-3 text-xs text-blue-700">{doc.status === 'ACTIVE' ? 'Ngừng hiệu lực' : 'Khôi phục'}</button>
                       <button
                         onClick={() => handleDelete(doc.id, doc.title)}
                         className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"

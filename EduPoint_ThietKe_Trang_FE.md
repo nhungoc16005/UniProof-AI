@@ -1,5 +1,8 @@
 # EduPoint — Thiết kế chi tiết các trang giao diện (FE) theo vai trò
 
+> Cập nhật 02/11/2026: [Hiện trạng triển khai và nghiệm thu Khoa/CTSV](docs/07-hien-trang-he-thong/FACULTY_ADMIN_HANDOFF_2026-11-02.md) là nguồn ưu tiên cho phạm vi Web hiện tại. AI tích hợp/nghiệm thu sau; các mục dự kiến trong tài liệu cũ không đồng nghĩa đã triển khai.
+
+
 > **Phiên bản:** 1.0 · **Ngày:** 21/09/2026 · **Stack FE:** React / Next.js
 > **Đi kèm:** `EduPoint_API_BE.md`. Mỗi trang có dòng **"API sử dụng"** ghi mã endpoint (ví dụ `EVD-06`), tra chi tiết trong file API.
 

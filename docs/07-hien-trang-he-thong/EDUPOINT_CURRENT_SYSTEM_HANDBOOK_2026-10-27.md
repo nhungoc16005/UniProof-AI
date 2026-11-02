@@ -1,5 +1,8 @@
 # EduPoint — Sổ tay hiện trạng hệ thống Web
 
+> Cập nhật 02/11/2026: [Hiện trạng triển khai và nghiệm thu Khoa/CTSV](FACULTY_ADMIN_HANDOFF_2026-11-02.md) là nguồn ưu tiên cho phạm vi Web hiện tại. AI tích hợp/nghiệm thu sau; các mục dự kiến trong tài liệu cũ không đồng nghĩa đã triển khai.
+
+
 > **Mục đích:** Đây là tài liệu bàn giao nhanh cho chủ dự án và Codex ở các phiên làm việc sau. Khi cần hiểu hệ thống hiện tại, hãy đọc file này trước rồi mới mở các file nguồn được liên kết trong từng phần.
 >
 > **Mốc đối chiếu:** 27/10/2026, nhánh `docs-current-system-handbook-20261027`, được khảo sát trực tiếp từ mã nguồn Web, Backend, Prisma schema và routes tại thời điểm tạo tài liệu.

@@ -5,8 +5,10 @@ import { PrismaService } from '../common/prisma/prisma.service';
 export class AuditLogService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(params: { userId?: string; action?: string; entityType?: string; page?: number; pageSize?: number }) {
-    const { userId, action, entityType, page = 1, pageSize = 50 } = params;
+  async findAll(params: { userId?: string; action?: string; entityType?: string; search?: string; page?: number; pageSize?: number }) {
+    const { userId, action, entityType, search } = params;
+    const page = Math.max(1, Number(params.page) || 1);
+    const pageSize = Math.max(1, Math.min(100, Number(params.pageSize) || 50));
     const skip = (page - 1) * pageSize;
 
     const where: any = {};
@@ -14,6 +16,7 @@ export class AuditLogService {
     if (action) where.action = action;
     if (entityType) where.entityType = entityType;
 
+    if (search?.trim()) where.OR = ['entityType','entityId','ipAddress','action'].map(key => ({ [key]: { contains: search.trim(), mode: 'insensitive' } })).concat([{ user: { fullName: { contains: search.trim(), mode: 'insensitive' } } } as any, { user: { email: { contains: search.trim(), mode: 'insensitive' } } } as any]);
     const [items, total] = await Promise.all([
       this.prisma.auditLog.findMany({
         where,

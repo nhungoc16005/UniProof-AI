@@ -94,11 +94,7 @@ export const ScoreReport: React.FC = () => {
     })).filter((category) => category.criteria.length > 0);
   }, [categories, search]);
 
-  const canWrite = Boolean(
-    rubric?.rubricVersion && activeTerm.status === 'ACTIVE' &&
-    rubric.submission?.status !== 'SUBMITTED' &&
-    (!activeTerm.submissionDeadline || new Date() <= new Date(activeTerm.submissionDeadline)),
-  );
+  const canWrite = Boolean(rubric?.rubricVersion && rubric.permissions?.canEdit);
   const officialScore = summary?.officialScore;
 
   const scoreValue = (criterion: Criterion) => {

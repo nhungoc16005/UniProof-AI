@@ -188,7 +188,9 @@ export interface RubricPayload {
   term?: Pick<Term, 'id' | 'name' | 'status' | 'workflowEnabled' | 'appealDeadline'>;
   handoff?: { status: string; returnReason?: string | null; revision: number } | null;
   publication?: { revision: number; publishedAt: string } | null;
-  permissions?: { canReview: boolean; canAppeal: boolean };
+  permissions?: { canReview: boolean; canAppeal: boolean; canEdit?: boolean; canSend?: boolean; sendBlockers?: string[] };
+  resultSource?: 'HANDOFF_SNAPSHOT' | 'WORKING';
+  handoffRevision?: number;
   submission?: { id: string; status: 'DRAFT' | 'SUBMITTED' | 'RETURNED'; submittedAt?: string | null; returnedAt?: string | null; returnReason?: string | null } | null;
   termId: string;
   categories: RubricCategory[];
@@ -368,6 +370,7 @@ export interface RegulationDocument {
 
 // Full Evidence object used across FE
 export interface Evidence {
+  permissions?: { canReview: boolean };
   id: string;
   studentId: string;
   student?: User;

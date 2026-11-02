@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ArrayMaxSize, ArrayMinSize, IsArray, IsString } from 'class-validator';
 import { Role } from '@prisma/client';
+import { WorkflowQueryDto } from './dto/workflow-query.dto';
 import { WorkflowActor, WorkflowService } from './workflow.service';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -13,7 +14,11 @@ class ReasonDto { @IsString() reason: string; }
 export class WorkflowController {
   constructor(private readonly workflow: WorkflowService) {}
   @Get(':termId') @Roles(Role.STAFF, Role.ADMIN)
-  list(@CurrentUser() actor: WorkflowActor, @Param('termId') termId: string, @Query('classId') classId?: string, @Query('facultyId') facultyId?: string) { return this.workflow.list(actor, termId, classId, facultyId); }
+  async list(@CurrentUser() actor: WorkflowActor, @Param('termId') termId: string, @Query() query: WorkflowQueryDto) { return { success: true, data: await this.workflow.list(actor, termId, query) }; }
+  @Get(':termId/export') @Roles(Role.STAFF, Role.ADMIN)
+  async export(@CurrentUser() actor: WorkflowActor, @Param('termId') termId: string, @Query() query: WorkflowQueryDto) { return { success: true, data: await this.workflow.export(actor, termId, query) }; }
+  @Get(':termId/conditions') @Roles(Role.ADMIN)
+  conditions(@CurrentUser() actor: WorkflowActor, @Param('termId') termId: string) { return this.workflow.conditions(actor, termId); }
   @Get(':termId/students/:studentId/history') @Roles(Role.STAFF, Role.ADMIN)
   history(@CurrentUser() actor: WorkflowActor, @Param('termId') termId: string, @Param('studentId') studentId: string) { return this.workflow.history(actor, studentId, termId); }
   @Post(':termId/send') @Roles(Role.STAFF)

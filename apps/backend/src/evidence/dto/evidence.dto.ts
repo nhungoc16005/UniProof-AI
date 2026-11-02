@@ -85,3 +85,11 @@ export class UploadEvidenceFileDto {
   @IsNotEmpty()
   fileData: string;
 }
+
+export class SubmitSupplementDto {
+  @IsOptional() @IsString() explanation?: string;
+  @IsOptional() @IsString() verificationUrl?: string;
+  @IsOptional() @IsString() fileName?: string;
+  @IsOptional() @IsString() fileType?: string;
+  @IsOptional() @IsString() fileData?: string;
+}

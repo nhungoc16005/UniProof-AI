@@ -25,6 +25,8 @@ export const SupplementEvidence: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   // Form states
+  const [selectedFile,setSelectedFile] = useState<File | null>(null);
+  const [error,setError] = useState('');
   const [supplementFile, setSupplementFile] = useState<string | null>(null);
   const [supplementFileName, setSupplementFileName] = useState('');
   const [verificationUrl, setVerificationUrl] = useState('');
@@ -36,7 +38,7 @@ export const SupplementEvidence: React.FC = () => {
       apiClient.getEvidenceById(id).then((data) => {
         setEvidence(data);
         setIsLoading(false);
-      });
+      }).catch(() => { setError('Không tải được yêu cầu bổ sung.'); setIsLoading(false); });
     }
   }, [id]);
 
@@ -63,6 +65,7 @@ export const SupplementEvidence: React.FC = () => {
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (f) {
+      setSelectedFile(f);
       setSupplementFileName(f.name);
       const url = URL.createObjectURL(f);
       setSupplementFile(url);
@@ -78,12 +81,12 @@ export const SupplementEvidence: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      // Simulate submission of supplement
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const fileData = selectedFile ? await new Promise<string>((resolve,reject) => { const reader=new FileReader(); reader.onload=()=>resolve(String(reader.result)); reader.onerror=()=>reject(new Error('Không đọc được tệp')); reader.readAsDataURL(selectedFile); }) : undefined;
+      await apiClient.supplementEvidence(evidence.id,{ explanation:studentExplanation || undefined, verificationUrl:verificationUrl || undefined, ...(fileData && selectedFile ? {fileData,fileName:selectedFile.name,fileType:selectedFile.type} : {}) });
       alert('Đã gửi bổ sung minh chứng thành công! Hồ sơ đã được chuyển lại vào hàng đợi thẩm định.');
       navigate(`/student/evidence/${evidence.id}`);
-    } catch (err) {
-      alert('Có lỗi xảy ra khi nộp bổ sung!');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Không gửi được bổ sung.');
     } finally {
       setIsSubmitting(false);
     }
@@ -92,6 +95,7 @@ export const SupplementEvidence: React.FC = () => {
   return (
     <div className="max-w-3xl mx-auto space-y-6 pb-16">
       
+      {error && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
       {/* 1. Header */}
       <div className="flex items-center gap-3 pb-3 border-b border-slate-200">
         <Link
@@ -180,7 +184,7 @@ export const SupplementEvidence: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  setSupplementFile(null);
+                  setSupplementFile(null); setSelectedFile(null);
                   setSupplementFileName('');
                 }}
                 className="text-xs text-rose-600 hover:underline"

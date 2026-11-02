@@ -74,6 +74,7 @@ export const AppLayout: React.FC = () => {
           items: [
             { label: 'Hoạt động & điểm danh', path: '/officer/activities' },
             { label: 'Phiếu rèn luyện', path: '/officer/students' },
+            { label: 'Báo cáo Khoa', path: '/officer/reports' },
           ],
         },
         {
@@ -91,6 +92,8 @@ export const AppLayout: React.FC = () => {
           title: 'QUẢN LÝ',
           items: [
             { label: 'Tổng quan', path: '/admin' },
+            { label: 'Tiếp nhận & công bố', path: '/admin/results' },
+            { label: 'Báo cáo toàn trường', path: '/admin/reports' },
             { label: 'Tài khoản & đơn vị', path: '/admin/users' },
             { label: 'Kỳ đánh giá', path: '/admin/terms' },
           ],
@@ -160,7 +163,7 @@ export const AppLayout: React.FC = () => {
       else if (p === '/officer/students') crumbs.push({ label: 'Phiếu rèn luyện' });
       else if (p === '/officer/activities' || p === '/officer/external-activities') crumbs.push({ label: 'Hoạt động & điểm danh' });
       else if (p === '/officer/criteria') crumbs.push({ label: 'Tiêu chí & Quy tắc' });
-      else if (p === '/officer/reports') crumbs.push({ label: 'Điểm rèn luyện theo Lớp', path: '/officer/students' });
+      else if (p === '/officer/reports') crumbs.push({ label: 'Báo cáo Khoa' });
     } else if (p.startsWith('/admin')) {
       crumbs.push({ label: 'Quản trị hệ thống', path: '/admin' });
       if (p === '/admin') return crumbs;
@@ -233,7 +236,13 @@ export const AppLayout: React.FC = () => {
                     switchTerm(t);
                     const params = new URLSearchParams(location.search);
                     params.set('termId', t.id);
-                    navigate({ pathname: location.pathname, search: params.toString() });
+                    ['classId','facultyId','state','status','q','page','returnTo','jobPage','jobStatus'].forEach(key => params.delete(key));
+                    let pathname = location.pathname;
+                    if (/^\/officer\/students\/[^/]+\/assessment$/.test(pathname)) pathname = '/officer/students';
+                    else if (pathname.startsWith('/officer/review/')) pathname = '/officer/queue';
+                    else if (pathname.startsWith('/admin/results/') || pathname.startsWith('/admin/evidence/')) pathname = '/admin/results';
+                    else if (/^\/student\/evidence\/[^/]+/.test(pathname)) pathname = '/student/evidence';
+                    navigate({ pathname, search: params.toString() });
                   }
                 }}
                 className="bg-transparent border-none text-slate-900 font-bold focus:outline-none cursor-pointer text-xs max-w-[125px] sm:max-w-none truncate"

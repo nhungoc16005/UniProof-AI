@@ -69,6 +69,7 @@ export const ReviewDetail: React.FC = () => {
     if (id) {
       apiClient.getEvidenceById(id).then((data) => {
         setEvidence(data);
+        setSavedSources((data?.verificationResults || []).map(v => ({ id:v.id, name:v.sourceDescription, level:v.verificationLevel, confirmedActivity:v.activityExistsVerified, confirmedStudent:v.studentParticipationVerified })));
         if (data?.aiSuggestions?.[0]?.suggestedScore) {
           setFinalScoreInput(data.aiSuggestions[0].suggestedScore);
         }
@@ -77,9 +78,12 @@ export const ReviewDetail: React.FC = () => {
     }
   }, [id]);
 
+  const canReview = evidence?.permissions?.canReview ?? false;
+
   // Global hotkeys for rapid review (A = Approve, S = Score adjust, B = Supplement, R = Reject, Esc = Cancel)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (!canReview) return;
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
         return;
@@ -104,7 +108,7 @@ export const ReviewDetail: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [evidence?.criterionAssessment?.criterion?.rubricVersionId]);
+  }, [evidence?.criterionAssessment?.criterion?.rubricVersionId, canReview]);
 
   if (isLoading) {
     return (
@@ -134,6 +138,7 @@ export const ReviewDetail: React.FC = () => {
   const boundingBoxes: BoundingBox[] = [];
 
   const handleDecisionSubmit = async (decision: ReviewDecision) => {
+    if (!canReview) return;
     if (!usesVersionedRubric && (decision === 'APPROVED' || decision === 'SCORE_ADJUSTED') && finalScoreInput === undefined) {
       alert('Cần có điểm được xác định từ căn cứ đã đối chiếu trước khi duyệt.');
       return;
@@ -147,6 +152,7 @@ export const ReviewDetail: React.FC = () => {
     try {
       await apiClient.reviewEvidence(evidence.id, {
         decision: decision,
+        expectedVersion: evidence.version,
         finalScore: !usesVersionedRubric && (decision === 'APPROVED' || decision === 'SCORE_ADJUSTED') ? finalScoreInput : undefined,
         reason: reasonInput || (decision === 'APPROVED' ? 'Đã đối chiếu khớp minh chứng hợp lệ.' : ''),
         rejectBasis: decision === 'REJECTED' ? rejectBasisInput : undefined,
@@ -156,8 +162,8 @@ export const ReviewDetail: React.FC = () => {
 
       alert(`Đã hoàn tất xử lý hồ sơ: ${decision}`);
       navigate(backTo);
-    } catch (err) {
-      alert('Có lỗi xảy ra khi lưu quyết định duyệt');
+    } catch (err: any) {
+      setLoadError(err.response?.data?.message || 'Không lưu được quyết định duyệt.');
     } finally {
       setIsSubmitting(false);
     }
@@ -165,6 +171,7 @@ export const ReviewDetail: React.FC = () => {
 
   return (
     <div className="space-y-5 pb-28 relative">
+      {!canReview && <p className="rounded-xl bg-slate-100 p-3 text-sm text-slate-700">Hồ sơ chỉ được xem: đã có quyết định, chưa nộp hoặc phiếu/kỳ đã khóa.</p>}
       {loadError && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{loadError}</p>}
       <Link className="inline-block text-sm font-semibold text-blue-700" to={`/officer/students/${evidence.studentId}/assessment?termId=${evidence.termId}`}>Mở phiếu rèn luyện của sinh viên →</Link>
       
@@ -346,32 +353,7 @@ export const ReviewDetail: React.FC = () => {
             )}
           </div>
 
-          {/* Forensics Check Strip */}
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-800 uppercase tracking-wider text-[11px]">
-                Kiểm tra an toàn số & Siêu dữ liệu ảnh
-              </span>
-              <span className="text-[10px] font-mono bg-white text-slate-700 px-2 py-0.5 rounded border border-slate-200">
-                SHA-256 HASH: OK
-              </span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2 text-[11px]">
-              <div className="p-2 bg-white rounded border border-slate-200">
-                <span className="text-slate-400 block text-[10px]">Cắt ghép (ELA)</span>
-                <span className="font-semibold text-emerald-700">Âm tính</span>
-              </div>
-              <div className="p-2 bg-white rounded border border-slate-200">
-                <span className="text-slate-400 block text-[10px]">Font chữ & Căn lề</span>
-                <span className="font-semibold text-emerald-700">Đồng nhất</span>
-              </div>
-              <div className="p-2 bg-white rounded border border-slate-200">
-                <span className="text-slate-400 block text-[10px]">Trùng lặp kho ảnh</span>
-                <span className="font-semibold text-emerald-700">Không trùng</span>
-              </div>
-            </div>
-          </div>
+          <div className="rounded-xl border bg-slate-50 p-3 text-xs text-slate-600">{evidence.anomalyFlags?.length ? evidence.anomalyFlags.map(flag => <p key={flag.id}>{flag.description}</p>) : 'Chưa ghi nhận cảnh báo bất thường. Đây không phải kết luận ảnh không bị chỉnh sửa.'}</div>
 
         </div>
 
@@ -463,6 +445,7 @@ export const ReviewDetail: React.FC = () => {
               </span>
               <button
                 type="button"
+                disabled={!canReview || isSubmitting}
                 onClick={() => setShowAddSourceDrawer(true)}
                 className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs rounded-lg transition"
               >
@@ -542,6 +525,7 @@ export const ReviewDetail: React.FC = () => {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
               <button
                 type="button"
+                disabled={!canReview || isSubmitting}
                 onClick={() => setActiveAction('APPROVED')}
                 className={`py-2 px-2 text-xs font-bold rounded-xl border transition text-center ${
                   activeAction === 'APPROVED'
@@ -554,6 +538,7 @@ export const ReviewDetail: React.FC = () => {
 
               {!usesVersionedRubric && <button
                 type="button"
+                disabled={!canReview || isSubmitting}
                 onClick={() => setActiveAction('SCORE_ADJUSTED')}
                 className={`py-2 px-2 text-xs font-bold rounded-xl border transition text-center ${
                   activeAction === 'SCORE_ADJUSTED'
@@ -566,6 +551,7 @@ export const ReviewDetail: React.FC = () => {
 
               <button
                 type="button"
+                disabled={!canReview || isSubmitting}
                 onClick={() => setActiveAction('SUPPLEMENT_REQUESTED')}
                 className={`py-2 px-2 text-xs font-bold rounded-xl border transition text-center ${
                   activeAction === 'SUPPLEMENT_REQUESTED'
@@ -578,6 +564,7 @@ export const ReviewDetail: React.FC = () => {
 
               <button
                 type="button"
+                disabled={!canReview || isSubmitting}
                 onClick={() => setActiveAction('REJECTED')}
                 className={`py-2 px-2 text-xs font-bold rounded-xl border transition text-center ${
                   activeAction === 'REJECTED'
@@ -591,7 +578,7 @@ export const ReviewDetail: React.FC = () => {
 
             {/* Action Form Submissions */}
             {activeAction === 'APPROVED' && (() => {
-              if (usesVersionedRubric) return <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-3 text-xs"><p className="text-sm text-emerald-950">Xác nhận tính hợp lệ của minh chứng. Điểm chính thức được cán bộ chốt riêng tại phiếu đánh giá tiêu chí của sinh viên.</p><button type="button" disabled={isSubmitting} onClick={() => handleDecisionSubmit('APPROVED')} className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-sm transition">Xác nhận minh chứng hợp lệ</button></div>;
+              if (usesVersionedRubric) return <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-3 text-xs"><p className="text-sm text-emerald-950">Xác nhận tính hợp lệ của minh chứng. Điểm chính thức được cán bộ chốt riêng tại phiếu đánh giá tiêu chí của sinh viên.</p><button type="button" disabled={!canReview || isSubmitting} onClick={() => handleDecisionSubmit('APPROVED')} className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-sm transition">Xác nhận minh chứng hợp lệ</button></div>;
               const appliedCriterion = evidence?.criterion || evidence?.aiSuggestions?.[0]?.criterion;
               const maxLimit = appliedCriterion?.maxScore ?? 0;
               return (
@@ -690,7 +677,7 @@ export const ReviewDetail: React.FC = () => {
                   </div>
                   <button
                     type="button"
-                    disabled={isSubmitting}
+                    disabled={!canReview || isSubmitting}
                     onClick={() => handleDecisionSubmit('SCORE_ADJUSTED')}
                     className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl shadow-sm transition"
                   >
@@ -738,7 +725,7 @@ export const ReviewDetail: React.FC = () => {
                 </div>
                 <button
                   type="button"
-                  disabled={isSubmitting}
+                  disabled={!canReview || isSubmitting}
                   onClick={() => handleDecisionSubmit('SUPPLEMENT_REQUESTED')}
                   className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-sm transition"
                 >
@@ -805,7 +792,7 @@ export const ReviewDetail: React.FC = () => {
 
                 <button
                   type="button"
-                  disabled={isSubmitting}
+                  disabled={!canReview || isSubmitting}
                   onClick={() => handleDecisionSubmit('REJECTED')}
                   className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow-sm transition"
                 >
@@ -823,25 +810,29 @@ export const ReviewDetail: React.FC = () => {
       <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 bg-white border border-slate-300 text-slate-900 px-5 py-2.5 rounded-full shadow-xl flex items-center gap-3 text-xs">
         <span className="text-slate-400 font-medium hidden sm:inline">Phê duyệt:</span>
         <button
-          onClick={() => setActiveAction('APPROVED')}
+          disabled={!canReview || isSubmitting}
+                onClick={() => setActiveAction('APPROVED')}
           className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-full transition"
         >
           [A] Duyệt
         </button>
         {!usesVersionedRubric && <button
-          onClick={() => setActiveAction('SCORE_ADJUSTED')}
+          disabled={!canReview || isSubmitting}
+                onClick={() => setActiveAction('SCORE_ADJUSTED')}
           className="px-3 py-1 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-full transition"
         >
           [S] Sửa điểm
         </button>}
         <button
-          onClick={() => setActiveAction('SUPPLEMENT_REQUESTED')}
+          disabled={!canReview || isSubmitting}
+                onClick={() => setActiveAction('SUPPLEMENT_REQUESTED')}
           className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-full transition"
         >
           [B] Bổ sung
         </button>
         <button
-          onClick={() => setActiveAction('REJECTED')}
+          disabled={!canReview || isSubmitting}
+                onClick={() => setActiveAction('REJECTED')}
           className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-full transition"
         >
           [R] Từ chối
@@ -979,27 +970,18 @@ export const ReviewDetail: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  if (!o04SourceName.trim()) {
-                    alert('Vui lòng nhập tên nguồn tài liệu xác thực!');
-                    return;
-                  }
-                  setSavedSources((prev) => [
-                    ...prev,
-                    {
-                      id: `src-${Date.now()}`,
-                      name: o04SourceName,
-                      level: o04Level,
-                      url: o04SourceUrl || undefined,
-                      confirmedActivity: o04ConfirmActivity,
-                      confirmedStudent: o04ConfirmStudent,
-                    },
-                  ]);
-                  setShowAddSourceDrawer(false);
-                  setO04SourceName('');
-                  setO04SourceUrl('');
-                  setO04Note('');
-                  alert(`Đã ghi nhận nguồn xác minh Cấp L${o04Level} thành công!`);
+                disabled={!canReview || isSubmitting}
+                onClick={async () => {
+                  if (!o04SourceName.trim() || !o04Note.trim()) { setLoadError('Cần nhập tên nguồn và ghi chú căn cứ.'); return; }
+                  setIsSubmitting(true); setLoadError('');
+                  try {
+                    await apiClient.addVerificationSource(evidence.id, { sourceName:o04SourceName, sourceUrl:o04SourceUrl || undefined, note:o04Note, level:o04Level, confirmedActivity:o04ConfirmActivity, confirmedStudent:o04Level === 4 ? false : o04ConfirmStudent });
+                    const updated = await apiClient.getEvidenceById(evidence.id);
+                    setEvidence(updated);
+                    setSavedSources((updated?.verificationResults || []).map(v=>({id:v.id,name:v.sourceDescription,level:v.verificationLevel,confirmedActivity:v.activityExistsVerified,confirmedStudent:v.studentParticipationVerified})));
+                    setShowAddSourceDrawer(false); setO04SourceName(''); setO04SourceUrl(''); setO04Note('');
+                  } catch(err: any) { setLoadError(err.response?.data?.message || 'Không lưu được nguồn xác minh.'); }
+                  finally { setIsSubmitting(false); }
                 }}
                 className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow"
               >

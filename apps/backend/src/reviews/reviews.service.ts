@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { WorkflowService } from '../evaluation-workflow/workflow.service';
-import { ReviewDecisionDto } from './dto/review.dto';
+import { ReviewDecisionDto, VerificationSourceDto } from './dto/review.dto';
 import { EvidenceStatus, ReviewDecision, Role, TermStatus } from '@prisma/client';
 
 @Injectable()
@@ -32,17 +32,7 @@ export class ReviewsService {
 
     const where: any = {};
 
-    // Cán bộ chỉ xét duyệt hồ sơ thuộc khoa phụ trách
-    const studentFilter: any = {};
-    if (officer.role === Role.STAFF && officer.facultyId) {
-      studentFilter.class = { facultyId: officer.facultyId };
-    }
-    if (classId) {
-      studentFilter.classId = classId;
-    }
-    if (Object.keys(studentFilter).length > 0) {
-      where.student = studentFilter;
-    }
+    where.AND = [await this.workflow.evidenceScope(officer, termId, classId)];
 
     if (termId) where.termId = termId;
 
@@ -106,7 +96,7 @@ export class ReviewsService {
     });
 
     if (!evidence) throw new NotFoundException('Không tìm thấy hồ sơ minh chứng');
-    this.assertFacultyScope(officer, evidence.student.class?.facultyId);
+    await this.workflow.scope(officer, evidence.studentId, evidence.termId);
 
     const now = new Date();
     const LOCK_TIMEOUT_MS = 15 * 60 * 1000; // 15 phút
@@ -126,17 +116,12 @@ export class ReviewsService {
       });
     }
 
-    // Cấp lock cho cán bộ hiện tại
-    return this.prisma.evidence.update({
-      where: { id: evidenceId },
-      data: {
-        lockedById: officer.id,
-        lockedAt: now,
-      },
-      include: {
-        lockedBy: { select: { id: true, fullName: true } },
-      },
-    });
+    const claimed = await this.workflow.edit(officer, evidence.studentId, evidence.termId, tx => tx.evidence.updateMany({
+      where: { id: evidenceId, OR: [{ lockedById: null }, { lockedById: officer.id }, { lockedAt: { lt: new Date(now.getTime() - LOCK_TIMEOUT_MS) } }] },
+      data: { lockedById: officer.id, lockedAt: now },
+    }));
+    if (!claimed.count) throw new ConflictException('Hồ sơ vừa được cán bộ khác nhận xử lý');
+    return this.prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, include: { lockedBy: { select: { id: true, fullName: true } } } });
   }
 
   // ==========================================
@@ -145,7 +130,7 @@ export class ReviewsService {
   async releaseEvidence(evidenceId: string, officer: any) {
     const evidence = await this.prisma.evidence.findUnique({ where: { id: evidenceId }, include: { student: { select: { class: { select: { facultyId: true } } } } } });
     if (!evidence) throw new NotFoundException('Không tìm thấy hồ sơ');
-    this.assertFacultyScope(officer, evidence.student.class?.facultyId);
+    await this.workflow.scope(officer, evidence.studentId, evidence.termId);
 
     // Chỉ người đang giữ khóa được mở khóa.
     if (evidence.lockedById && evidence.lockedById !== officer.id) {
@@ -171,8 +156,7 @@ export class ReviewsService {
     });
 
     if (!evidence) throw new NotFoundException('Không tìm thấy hồ sơ minh chứng');
-    const studentFaculty = await this.prisma.user.findUnique({ where: { id: evidence.studentId }, select: { class: { select: { facultyId: true } } } });
-    this.assertFacultyScope(officer, studentFaculty?.class?.facultyId);
+    await this.workflow.scope(officer, evidence.studentId, evidence.termId);
     if (evidence.term.status === TermStatus.CLOSED) {
       throw new BadRequestException('Kỳ học đã chốt sổ điểm, không thể thay đổi kết quả đánh giá');
     }
@@ -183,7 +167,13 @@ export class ReviewsService {
 
     return this.workflow.edit(officer, evidence.studentId, evidence.termId, async (tx) => {
       const current = await tx.evidence.findUniqueOrThrow({ where: { id: evidenceId } });
+      if (current.lockedById && current.lockedById !== officer.id && current.lockedAt && Date.now() - current.lockedAt.getTime() < 15 * 60 * 1000) throw new ConflictException('Hồ sơ đang được cán bộ khác xử lý');
+      if (dto.expectedVersion !== undefined && current.version !== dto.expectedVersion) throw new ConflictException('Minh chứng đã thay đổi từ lúc mở trang; hãy tải lại trước khi quyết định');
       if (current.version !== evidence.version || current.status !== evidence.status) throw new ConflictException('Minh chứng đã thay đổi, hãy tải lại');
+      if (['APPROVED', 'REJECTED', 'WITHDRAWN', 'DRAFT'].includes(current.status)) throw new BadRequestException('Minh chứng đã có quyết định hoặc chưa nộp; không được quyết định lặp');
+      if (!dto.comment?.trim()) throw new BadRequestException('Cần ghi lý do quyết định');
+      if (dto.action === 'REJECTED' && !dto.rejectBasis?.trim()) throw new BadRequestException('Cần ghi căn cứ từ chối');
+      if (dto.action === 'SUPPLEMENT_REQUESTED' && !dto.missingItem?.trim()) throw new BadRequestException('Cần ghi nội dung phải bổ sung');
       if (versionedRubric) {
         const submitted = await tx.assessmentSubmission.count({ where: { studentId: evidence.studentId, termId: evidence.termId, status: 'SUBMITTED' } });
         if (!submitted || ['DRAFT', 'WITHDRAWN'].includes(current.status)) throw new BadRequestException('Minh chứng chưa được nộp để xét duyệt');
@@ -228,6 +218,7 @@ export class ReviewsService {
         where: { id: evidenceId },
         data: {
           status: newEvidenceStatus,
+          version: { increment: 1 },
           lockedById: null,
           lockedAt: null,
         },
@@ -263,9 +254,18 @@ export class ReviewsService {
     });
   }
 
-  private assertFacultyScope(officer: any, studentFacultyId?: string | null) {
-    if (officer.role === Role.STAFF && (!officer.facultyId || officer.facultyId !== studentFacultyId)) {
-      throw new ForbiddenException('Bạn chỉ được xử lý hồ sơ sinh viên thuộc Khoa phụ trách');
-    }
+  async addSource(evidenceId: string, officer: any, dto: VerificationSourceDto) {
+    const evidence = await this.prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId } });
+    return this.workflow.edit(officer, evidence.studentId, evidence.termId, async tx => {
+      const current = await tx.evidence.findUniqueOrThrow({ where: { id: evidenceId } });
+      if (['APPROVED', 'REJECTED', 'WITHDRAWN', 'DRAFT'].includes(current.status)) throw new BadRequestException('Chỉ bổ sung nguồn khi minh chứng đang xét duyệt');
+      if (current.lockedById && current.lockedById !== officer.id && current.lockedAt && Date.now() - current.lockedAt.getTime() < 15 * 60 * 1000) throw new ConflictException('Hồ sơ đang được cán bộ khác xử lý');
+      if (dto.level === 4 && dto.confirmedStudent) throw new BadRequestException('Nguồn cấp 4 chưa xác nhận cá nhân tham gia');
+      const record = await tx.verificationResult.create({ data: { evidenceId, verificationLevel: dto.level, status: dto.confirmedActivity && dto.confirmedStudent ? 'VERIFIED' : 'PLAUSIBLE', activityExistsVerified: dto.confirmedActivity, studentParticipationVerified: dto.confirmedStudent, sourceDescription: [dto.sourceName.trim(), dto.sourceUrl?.trim(), dto.note.trim()].filter(Boolean).join('\n') } });
+      await tx.evidence.update({ where: { id: evidenceId }, data: { version: { increment: 1 } } });
+      await tx.aiProcessingJob.updateMany({ where: { evidenceId, status: { in: ['QUEUED', 'PROCESSING'] } }, data: { status: 'CANCELLED', error: 'Cán bộ đã bổ sung căn cứ xác minh', completedAt: new Date() } });
+      await tx.auditLog.create({ data: { userId: officer.id, action: 'VERIFICATION_SOURCE_ADDED', entityType: 'Evidence', entityId: evidenceId, newValue: { sourceId: record.id, level: dto.level, sourceName: dto.sourceName, sourceUrl: dto.sourceUrl ?? null, note: dto.note } } });
+      return record;
+    });
   }
 }

@@ -85,8 +85,8 @@ export const EvidenceDetail: React.FC = () => {
     try {
       await apiClient.createAppeal({
         evidenceId: evidence.id,
-        reason: appealReason.trim(),
-        desiredScore: evidence.aiSuggestions?.[0]?.suggestedScore,
+        content: appealReason.trim(),
+        requestedScore: evidence.aiSuggestions?.[0]?.suggestedScore,
       });
       setAppealSuccess(true);
       setTimeout(() => {
@@ -109,9 +109,8 @@ export const EvidenceDetail: React.FC = () => {
     }
     setIsSubmittingSupplement(true);
     try {
-      const updated = await apiClient.supplementEvidence(evidence.id, [
-        { fileUrl: supplementFileUrl, fileType: 'image/jpeg' },
-      ]);
+      await apiClient.supplementEvidence(evidence.id, { fileData: supplementFileUrl, fileName: supplementFileName, fileType: supplementFileUrl.match(/^data:([^;]+)/)?.[1] || 'image/jpeg', explanation: supplementNote || undefined });
+      const updated = await apiClient.getEvidenceById(evidence.id);
       setEvidence(updated);
       setShowSupplementModal(false);
       setSupplementFileName('');

@@ -24,6 +24,7 @@ export const AuditLogs: React.FC = () => {
   const [logs, setLogs] = useState<AuditLogItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [error,setError] = useState('');
 
   // Filters
   const [filterAction, setFilterAction] = useState<string>('ALL');
@@ -37,17 +38,18 @@ export const AuditLogs: React.FC = () => {
 
   const loadAuditLogs = async () => {
     try {
-      setIsLoading(true);
+      setIsLoading(true); setError('');
       const res = await apiClient.getAuditLogs({
         action: filterAction !== 'ALL' ? filterAction : undefined,
         entityType: filterEntityType !== 'ALL' ? filterEntityType : undefined,
         page,
         pageSize,
+        search: searchQuery || undefined,
       });
       setLogs(res.items || []);
       setTotalCount(res.total || 0);
     } catch (err) {
-      console.error('Lỗi khi tải audit logs:', err);
+      setError('Không tải được nhật ký. Vui lòng thử lại.'); setLogs([]); setTotalCount(0);
     } finally {
       setIsLoading(false);
     }
@@ -55,19 +57,13 @@ export const AuditLogs: React.FC = () => {
 
   useEffect(() => {
     loadAuditLogs();
-  }, [filterAction, filterEntityType, page]);
+  }, [filterAction, filterEntityType, page, searchQuery]);
 
-  const filteredLogs = logs.filter((log) => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    const matchUser = log.user?.fullName.toLowerCase().includes(q) || log.user?.email.toLowerCase().includes(q);
-    const matchEntity = log.entityType.toLowerCase().includes(q) || log.entityId.toLowerCase().includes(q);
-    const matchIp = log.ipAddress?.toLowerCase().includes(q);
-    return matchUser || matchEntity || matchIp;
-  });
+  const filteredLogs = logs;
 
   return (
     <div className="space-y-6 pb-12">
+      {error && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
       {/* 1. Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
@@ -100,11 +96,15 @@ export const AuditLogs: React.FC = () => {
             className="px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
             <option value="ALL">Tất cả hành động</option>
-            <option value="APPROVE">Phê duyệt (APPROVE)</option>
-            <option value="REJECT">Từ chối (REJECT)</option>
-            <option value="OVERRIDE_SCORE">Sửa điểm (OVERRIDE_SCORE)</option>
+            <option value="EVIDENCE_APPROVED">Duyệt minh chứng</option>
+            <option value="EVIDENCE_REJECTED">Từ chối minh chứng</option>
+            <option value="CRITERION_SCORE_ADJUSTED">Điều chỉnh điểm</option>
             <option value="LOGIN">Đăng nhập (LOGIN)</option>
-            <option value="EDIT_RULE">Sửa quy tắc (EDIT_RULE)</option>
+            <option value="TERM_RUBRIC_UPDATED">Sửa rubric nháp</option>
+            <option value="FACULTY_RESULT_SENT">Khoa gửi CTSV</option>
+            <option value="PROVISIONAL_RESULTS_PUBLISHED">Công bố kết quả</option>
+            <option value="TERM_FINALIZED">Chốt kỳ</option>
+            <option value="USER_UPDATED">Cập nhật tài khoản</option>
           </select>
 
           {/* Entity Filter */}
@@ -122,6 +122,9 @@ export const AuditLogs: React.FC = () => {
             <option value="User">Người dùng (User)</option>
             <option value="Criterion">Tiêu chí (Criterion)</option>
             <option value="Term">Học kỳ (Term)</option>
+            <option value="AssessmentWorkflow">Bàn giao & công bố</option>
+            <option value="CriterionAssessment">Đánh giá tiêu chí</option>
+            <option value="RubricVersion">Rubric của kỳ</option>
           </select>
         </div>
 
@@ -130,7 +133,7 @@ export const AuditLogs: React.FC = () => {
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
             placeholder="Tìm theo người thực hiện, IP, ID..."
             className="w-full pl-9 pr-3.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
           />

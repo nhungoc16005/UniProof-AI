@@ -1,189 +1,59 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
-import { EvidenceStatus, TermStatus } from '@prisma/client';
+import { WorkflowActor, WorkflowService } from '../evaluation-workflow/workflow.service';
+import { WorkflowQueryDto } from '../evaluation-workflow/dto/workflow-query.dto';
+import { classification } from '../evaluation-workflow/evaluation-policy';
 
 @Injectable()
 export class ReportsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private workflow: WorkflowService) {}
 
-  async getKpiSummary(termId?: string) {
-    let targetTermId = termId;
-    if (!targetTermId) {
-      const activeTerm = await this.prisma.term.findFirst({ where: { status: TermStatus.ACTIVE } });
-      targetTermId = activeTerm?.id;
-    }
-
-    const whereTerm = targetTermId ? { termId: targetTermId } : {};
-    const rubricVersion = targetTermId ? await this.prisma.rubricVersion.findFirst({ where: { termId: targetTermId, status: 'PUBLISHED' }, include: { _count: { select: { criteria: true } } }, orderBy: { version: 'desc' } }) : null;
-
-    const [totalStudents, totalEvidences, approvedEvidences, pendingEvidences, rejectedEvidences, submittedStudents, returnedStudents, finalizedCriteria] =
-      await Promise.all([
-        this.prisma.user.count({ where: { role: 'STUDENT', isActive: true } }),
-        this.prisma.evidence.count({ where: whereTerm }),
-        this.prisma.evidence.count({ where: { ...whereTerm, status: EvidenceStatus.APPROVED } }),
-        this.prisma.evidence.count({
-          where: {
-            ...whereTerm,
-            status: { in: [EvidenceStatus.NEEDS_HUMAN_REVIEW, EvidenceStatus.PROCESSING, EvidenceStatus.PLAUSIBLE] },
-          },
-        }),
-        this.prisma.evidence.count({ where: { ...whereTerm, status: EvidenceStatus.REJECTED } }),
-        targetTermId ? this.prisma.assessmentSubmission.count({ where: { termId: targetTermId, status: 'SUBMITTED' } }) : 0,
-        targetTermId ? this.prisma.assessmentSubmission.count({ where: { termId: targetTermId, status: 'RETURNED' } }) : 0,
-        targetTermId ? this.prisma.criterionAssessment.count({ where: { termId: targetTermId, status: 'FINALIZED', ...(rubricVersion ? { criterion: { rubricVersionId: rubricVersion.id } } : {}) } }) : 0,
-      ]);
-
-    const reviewRate = totalEvidences > 0 ? Math.round(((approvedEvidences + rejectedEvidences) / totalEvidences) * 100) : 0;
-
-    return {
-      totalStudents,
-      totalEvidences,
-      approvedEvidences,
-      pendingEvidences,
-      rejectedEvidences,
-      reviewRate,
-      submittedStudents,
-      returnedStudents,
-      finalizedCriteria,
-      totalCriteria: rubricVersion ? totalStudents * rubricVersion._count.criteria : 0,
-      termId: targetTermId ?? null,
-      updatedAt: new Date().toISOString(),
-    };
+  private async data(actor: WorkflowActor, termId?: string, query: WorkflowQueryDto = new WorkflowQueryDto()) {
+    const term = termId ? await this.prisma.term.findUnique({ where: { id: termId } }) : await this.prisma.term.findFirst({ orderBy: [{ startDate: 'desc' }] });
+    if (!term) throw new NotFoundException('Chưa có kỳ đánh giá');
+    return this.workflow.list(actor, term.id, query, true);
   }
 
-  async getDistribution(termId?: string, facultyId?: string) {
-    let targetTermId = termId;
-    if (!targetTermId) {
-      const activeTerm = await this.prisma.term.findFirst({ where: { status: TermStatus.ACTIVE } });
-      targetTermId = activeTerm?.id;
-    }
-
-    const rubricVersion = targetTermId ? await this.prisma.rubricVersion.findFirst({
-      where: { termId: targetTermId, status: 'PUBLISHED' },
-      include: { categories: { include: { criteria: true } } },
-      orderBy: { version: 'desc' },
-    }) : null;
-    if (rubricVersion && targetTermId) {
-      const students = await this.prisma.user.findMany({
-        where: { role: 'STUDENT', isActive: true, ...(facultyId ? { class: { facultyId } } : {}) },
-        select: { id: true },
-      });
-      const assessments = await this.prisma.criterionAssessment.findMany({
-        where: { termId: targetTermId, studentId: { in: students.map((student) => student.id) }, status: 'FINALIZED', criterion: { rubricVersionId: rubricVersion.id } },
-        include: { criterion: { include: { rubricCategory: true } } },
-      });
-      const totalCriteria = rubricVersion.categories.reduce((sum, category) => sum + category.criteria.length, 0);
-      const byStudent = new Map<string, typeof assessments>();
-      for (const assessment of assessments) byStudent.set(assessment.studentId, [...(byStudent.get(assessment.studentId) || []), assessment]);
-      const totals: number[] = [];
-      for (const studentAssessments of byStudent.values()) {
-        if (totalCriteria === 0 || studentAssessments.length !== totalCriteria) continue;
-        const categoryTotals = new Map<string, number>();
-        for (const assessment of studentAssessments) {
-          const categoryId = assessment.criterion.categoryId;
-          categoryTotals.set(categoryId, (categoryTotals.get(categoryId) || 0) + (assessment.officialScore || 0));
-        }
-        totals.push(Math.min(100, rubricVersion.categories.reduce((sum, category) => sum + Math.min(category.maxScore, categoryTotals.get(category.id) || 0), 0)));
-      }
-      const counts = { XUAT_SAC: 0, TOT: 0, KHA: 0, TRUNG_BINH: 0, YEU: 0 };
-      for (const score of totals) {
-        if (score >= 90) counts.XUAT_SAC++;
-        else if (score >= 80) counts.TOT++;
-        else if (score >= 65) counts.KHA++;
-        else if (score >= 50) counts.TRUNG_BINH++;
-        else counts.YEU++;
-      }
-      return { totalEvaluated: totals.length, pendingStudents: students.length - totals.length, distribution: counts, termId: targetTermId, rubricVersionId: rubricVersion.id, updatedAt: new Date().toISOString() };
-    }
-
-    const pendingStudents = await this.prisma.user.count({
-      where: { role: 'STUDENT', isActive: true, ...(facultyId ? { class: { facultyId } } : {}) },
+  async results(actor: WorkflowActor, termId?: string, query: WorkflowQueryDto = new WorkflowQueryDto(), unpaged = false) {
+    const data = await this.data(actor, termId, query);
+    const publications = await this.prisma.assessmentPublication.findMany({ where: { termId: data.term.id, studentId: { in: data.items.map(r => r.studentId) } }, orderBy: { revision: 'desc' } });
+    const latest = new Map<string, typeof publications[number]>();
+    for (const p of publications) if (!latest.has(p.studentId)) latest.set(p.studentId, p);
+    const items = await Promise.all(data.items.map(async row => {
+      const publication = latest.get(row.studentId);
+      const published = publication?.snapshot as { totalScore?: number } | undefined;
+      const legacy = !data.term.workflowEnabled && row.rubricVersionId ? await this.workflow.snapshot(this.prisma, row.studentId, data.term.id, row.rubricVersionId) : null;
+      const officialScore = published?.totalScore ?? (legacy?.complete ? legacy.totalScore : null);
+      return { ...row, officialScore, classification: officialScore === null ? 'Chưa công bố' : classification(officialScore), publicationRevision: publication?.revision ?? null, source: publication ? 'PUBLICATION' : legacy?.complete ? 'LEGACY_RUBRIC' : 'UNPUBLISHED' };
+    }));
+    const completed = items.filter(r => r.officialScore !== null);
+    const distribution = { XUAT_SAC: 0, TOT: 0, KHA: 0, TRUNG_BINH: 0, YEU: 0 };
+    for (const row of completed) { const n = row.officialScore!; distribution[n >= 90 ? 'XUAT_SAC' : n >= 80 ? 'TOT' : n >= 65 ? 'KHA' : n >= 50 ? 'TRUNG_BINH' : 'YEU']++; }
+    const classProgress = [...new Set(items.map(r => r.classId))].map(id => {
+      const rows = items.filter(r => r.classId === id);
+      const scored = rows.filter(r => r.officialScore !== null);
+      return { id, code: rows[0]?.class?.code, total: rows.length, completed: scored.length, pending: rows.length - scored.length, average: scored.length ? Number((scored.reduce((n,r) => n + r.officialScore!, 0) / scored.length).toFixed(2)) : null };
     });
-    return {
-      totalEvaluated: 0,
-      pendingStudents,
-      distribution: { XUAT_SAC: 0, TOT: 0, KHA: 0, TRUNG_BINH: 0, YEU: 0 },
-      termId: targetTermId ?? null,
-      rubricVersionId: null,
-      updatedAt: new Date().toISOString(),
-    };
+    return { ...data, classProgress, items: unpaged ? items : items.slice((data.page - 1) * data.pageSize, data.page * data.pageSize), source: data.term.workflowEnabled ? 'LATEST_PUBLICATION' : 'LEGACY_RUBRIC', totalEvaluated: completed.length, pendingStudents: items.length - completed.length, averageScore: completed.length ? Number((completed.reduce((n,r) => n + r.officialScore!, 0) / completed.length).toFixed(2)) : null, distribution };
   }
 
-  async getFacultyProgress(termId?: string) {
-    let targetTermId = termId;
-    if (!targetTermId) {
-      const activeTerm = await this.prisma.term.findFirst({ where: { status: TermStatus.ACTIVE } });
-      targetTermId = activeTerm?.id;
-    }
+  async getKpiSummary(actor: WorkflowActor, termId?: string) {
+    const data = await this.data(actor, termId);
+    const evidence = await this.prisma.evidence.groupBy({ by: ['status'], where: { termId: data.term.id, studentId: { in: data.items.map(r => r.studentId) } }, _count: { _all: true } });
+    const count = (states: string[]) => evidence.filter(e => states.includes(e.status)).reduce((n,e) => n + e._count._all, 0);
+    const totalEvidences = count(evidence.map(e => e.status));
+    const approvedEvidences = count(['APPROVED']);
+    const rejectedEvidences = count(['REJECTED']);
+    return { ...data.summary, totalStudents: data.total, totalEvidences, approvedEvidences, rejectedEvidences, pendingEvidences: data.items.reduce((n,r) => n + r.pendingEvidence, 0), reviewRate: totalEvidences ? Math.round(100 * (approvedEvidences + rejectedEvidences) / totalEvidences) : 0, submittedStudents: data.items.filter(r => r.submissionStatus === 'SUBMITTED').length, returnedStudents: data.summary.returned, finalizedCriteria: data.items.reduce((n,r) => n + r.finalizedCriteria, 0), totalCriteria: data.items.reduce((n,r) => n + r.totalCriteria, 0), termId: data.term.id, updatedAt: data.updatedAt };
+  }
 
-    const rubricVersion = targetTermId ? await this.prisma.rubricVersion.findFirst({ where: { termId: targetTermId, status: 'PUBLISHED' }, select: { id: true }, orderBy: { version: 'desc' } }) : null;
+  async getDistribution(actor: WorkflowActor, termId?: string, facultyId?: string) {
+    const { distribution, totalEvaluated, pendingStudents, averageScore, term, source, updatedAt } = await this.results(actor, termId, Object.assign(new WorkflowQueryDto(), { facultyId }));
+    return { distribution, totalEvaluated, pendingStudents, averageScore, termId: term.id, source, updatedAt };
+  }
 
-    const faculties = await this.prisma.faculty.findMany({
-      include: {
-        classes: {
-          select: { id: true },
-        },
-      },
-      orderBy: { name: 'asc' },
-    });
-
-    const results = await Promise.all(
-      faculties.map(async (fac) => {
-        const classIds = fac.classes.map((c) => c.id);
-
-        const [totalStudents, totalEvidences, approvedEvidences, submittedStudents, returnedStudents, finalizedCriteria] = await Promise.all([
-          this.prisma.user.count({
-            where: {
-              role: 'STUDENT',
-              classId: { in: classIds },
-              isActive: true,
-            },
-          }),
-          targetTermId
-            ? this.prisma.evidence.count({
-                where: {
-                  termId: targetTermId,
-                  student: { classId: { in: classIds } },
-                },
-              })
-            : 0,
-          targetTermId
-            ? this.prisma.evidence.count({
-                where: {
-                  termId: targetTermId,
-                  student: { classId: { in: classIds } },
-                  status: EvidenceStatus.APPROVED,
-                },
-              })
-            : 0,
-          targetTermId ? this.prisma.assessmentSubmission.count({ where: { termId: targetTermId, status: 'SUBMITTED', student: { classId: { in: classIds } } } }) : 0,
-          targetTermId ? this.prisma.assessmentSubmission.count({ where: { termId: targetTermId, status: 'RETURNED', student: { classId: { in: classIds } } } }) : 0,
-          targetTermId ? this.prisma.criterionAssessment.count({ where: { termId: targetTermId, status: 'FINALIZED', student: { classId: { in: classIds } }, ...(targetTermId && rubricVersion ? { criterion: { rubricVersionId: rubricVersion.id } } : {}) } }) : 0,
-        ]);
-
-        const approvedRate = totalEvidences > 0 ? Math.round((approvedEvidences / totalEvidences) * 100) : 0;
-        const submissionRate = totalStudents > 0 ? Math.round(((submittedStudents + returnedStudents) / totalStudents) * 100) : 0;
-        const status = submissionRate >= 80 ? 'Đã nộp phần lớn' : submittedStudents + returnedStudents > 0 ? 'Đang tiếp nhận phiếu' : 'Chưa có phiếu';
-
-        return {
-          id: fac.id,
-          code: fac.code,
-          name: fac.name,
-          totalStudents,
-          submittedCount: totalEvidences,
-          approvedCount: approvedEvidences,
-          approvedRate: `${approvedRate}%`,
-          submittedStudents,
-          returnedStudents,
-          finalizedCriteria,
-          termId: targetTermId ?? null,
-          updatedAt: new Date().toISOString(),
-          status,
-          submissionRate: `${submissionRate}%`,
-        };
-      }),
-    );
-
-    return results;
+  async getFacultyProgress(actor: WorkflowActor, termId?: string) {
+    const data = await this.data(actor, termId);
+    return data.facultyProgress.map(f => ({ ...f, totalStudents: f.total, submittedStudents: data.items.filter(r => r.facultyId === f.id && r.submissionStatus === 'SUBMITTED').length, termId: data.term.id, updatedAt: data.updatedAt }));
   }
 }

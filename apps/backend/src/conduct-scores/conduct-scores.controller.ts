@@ -37,7 +37,7 @@ export class ConductScoresController {
   async getClassScores(@Param('classId') classId: string, @CurrentUser() actor: any, @Query('termId') termId?: string) {
     const cls = await this.prisma.class.findUniqueOrThrow({ where: { id: classId } });
     if (actor.role === Role.STAFF && (!actor.facultyId || actor.facultyId !== cls.facultyId)) throw new ForbiddenException('Lớp nằm ngoài Khoa phụ trách');
-    return this.scoresService.getClassScores(classId, termId);
+    return this.scoresService.getClassScores(classId, termId, actor);
   }
 
   @Get(':studentId')

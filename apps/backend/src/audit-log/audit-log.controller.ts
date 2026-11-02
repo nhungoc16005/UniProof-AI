@@ -20,13 +20,16 @@ export class AuditLogController {
     @Query('userId') userId?: string,
     @Query('action') action?: string,
     @Query('entityType') entityType?: string,
+    @Query('search') search?: string,
     @Query('page') page?: number,
     @Query('pageSize') pageSize?: number,
   ) {
-    return this.auditLogService.findAll({ userId, action, entityType, page: page ? Number(page) : 1, pageSize: pageSize ? Number(pageSize) : 50 });
+    return this.auditLogService.findAll({ userId, action, entityType, search, page: page ? Number(page) : 1, pageSize: pageSize ? Number(pageSize) : 50 });
   }
 
   @Get('health')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Kiểm tra trạng thái hoạt động hệ thống (Health Check)' })
   async checkHealth() {
     return this.auditLogService.checkHealth();

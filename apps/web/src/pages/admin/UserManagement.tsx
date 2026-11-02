@@ -40,6 +40,8 @@ export const UserManagement: React.FC = () => {
   const [faculties, setFaculties] = useState<Faculty[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError,setLoadError] = useState('');
+  const [userPage,setUserPage] = useState(1);
 
   // View Mode: 'HIERARCHY' (Cây Card phân cấp Khoa -> Lớp -> SV) hoặc 'FLAT' (Bảng tìm kiếm toàn trường)
   const [viewMode, setViewMode] = useState<'HIERARCHY' | 'FLAT'>('HIERARCHY');
@@ -54,6 +56,8 @@ export const UserManagement: React.FC = () => {
   const [selectedClass, setSelectedClass] = useState<string>('ALL');
   const [selectedRole, setSelectedRole] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
+
+  useEffect(() => { setUserPage(1); }, [selectedFaculty,selectedClass,selectedRole,searchTerm]);
 
   // Modals State
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -180,9 +184,9 @@ export const UserManagement: React.FC = () => {
   // Load initial master data
   const loadMasterData = async () => {
     try {
-      setIsLoading(true);
+      setIsLoading(true); setLoadError('');
       const [uList, fList, cList] = await Promise.all([
-        apiClient.getUsers(),
+        apiClient.getAllUsers(),
         apiClient.getFaculties(),
         apiClient.getClasses(),
       ]);
@@ -190,7 +194,7 @@ export const UserManagement: React.FC = () => {
       setFaculties(fList);
       setClasses(cList);
     } catch (err) {
-      console.error('Lỗi tải dữ liệu người dùng và cơ cấu trường', err);
+      setLoadError('Không tải được đầy đủ tài khoản và đơn vị. Vui lòng thử lại.');
     } finally {
       setIsLoading(false);
     }
@@ -1097,6 +1101,7 @@ export const UserManagement: React.FC = () => {
       {/* ========================================================================= */}
       {/* 4. VIEW MODE: FLAT TABLE SEARCH (TRA CỨU TOÀN TRƯỜNG CHUẨN PIXEL-PERFECT) */}
       {/* ========================================================================= */}
+      {loadError && <p role="alert" className="rounded-lg bg-rose-50 p-4 text-sm text-rose-800">{loadError} <button className="underline" onClick={() => void loadMasterData()}>Thử lại</button></p>}
       {viewMode === 'FLAT' && (
         <div className="space-y-4">
           
@@ -1217,7 +1222,7 @@ export const UserManagement: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredUsers.map((u) => {
+                  {filteredUsers.slice((userPage-1)*25,userPage*25).map((u) => {
                     const facultyName = u.faculty?.name || u.class?.faculty?.name || 'Toàn trường';
                     return (
                       <tr key={u.id} className="hover:bg-slate-50/60 transition">
@@ -1311,6 +1316,7 @@ export const UserManagement: React.FC = () => {
                 </tbody>
               </table>
 
+              <div className="flex justify-end gap-3 p-3 text-sm"><button disabled={userPage<=1} onClick={()=>setUserPage(p=>p-1)}>Trước</button><span>Trang {userPage}/{Math.max(1,Math.ceil(filteredUsers.length/25))} · {filteredUsers.length} tài khoản</span><button disabled={userPage*25>=filteredUsers.length} onClick={()=>setUserPage(p=>p+1)}>Tiếp</button></div>
               {filteredUsers.length === 0 && (
                 <div className="p-8 text-center text-xs text-slate-400">
                   Không tìm thấy người dùng nào phù hợp với điều kiện tìm kiếm.

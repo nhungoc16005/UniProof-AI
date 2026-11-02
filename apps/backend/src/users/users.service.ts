@@ -2,11 +2,12 @@ import { Injectable, BadRequestException, ForbiddenException, NotFoundException 
 import { PrismaService } from '../common/prisma/prisma.service';
 import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
 import { Role } from '@prisma/client';
+import { WorkflowService } from '../evaluation-workflow/workflow.service';
 import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private workflow: WorkflowService) {}
 
   async findAll(params: { role?: Role; facultyId?: string; classId?: string; search?: string; page?: number; pageSize?: number }, actor: { id: string; role: Role; facultyId?: string | null }) {
     const { role, facultyId, classId, search, page = 1, pageSize = 50 } = params;
@@ -94,7 +95,7 @@ export class UsersService {
     return { items, total, page, pageSize };
   }
 
-  async findOne(id: string, actor: { id: string; role: Role; facultyId?: string | null }) {
+  async findOne(id: string, actor: { id: string; role: Role; facultyId?: string | null }, termId?: string) {
     const user = await this.prisma.user.findUnique({
       where: { id },
       include: {
@@ -104,14 +105,12 @@ export class UsersService {
     });
 
     if (!user) throw new NotFoundException('Không tìm thấy người dùng');
-    if (actor.role === Role.STAFF && (user.role !== Role.STUDENT || !actor.facultyId || user.class?.facultyId !== actor.facultyId)) {
-      throw new ForbiddenException('Bạn chỉ được xem sinh viên thuộc Khoa phụ trách');
-    }
+    if (actor.role === Role.STAFF) await this.workflow.scope(actor, id, termId);
     const { password, ...safeUser } = user;
     return safeUser;
   }
 
-  async create(dto: CreateUserDto) {
+  async create(dto: CreateUserDto, actorId: string) {
     const existing = await this.prisma.user.findFirst({
       where: {
         OR: [
@@ -128,7 +127,8 @@ export class UsersService {
     const defaultPass = dto.password || (dto.role === Role.STUDENT ? 'Student@123' : dto.role === Role.STAFF ? 'Officer@123' : 'Admin@123');
     const hashedPassword = await bcrypt.hash(defaultPass, 10);
 
-    const user = await this.prisma.user.create({
+    const user = await this.prisma.$transaction(async tx => {
+    const user = await tx.user.create({
       data: {
         email: dto.email.trim().toLowerCase(),
         password: hashedPassword,
@@ -144,6 +144,9 @@ export class UsersService {
       },
     });
 
+    await tx.auditLog.create({ data: { userId: actorId, action: 'USER_CREATED', entityType: 'User', entityId: user.id, newValue: { fullName: user.fullName, email: user.email, role: user.role, classId: user.classId, facultyId: user.facultyId } } });
+    return user;
+    });
     const { password, ...safeUser } = user;
     return safeUser;
   }
@@ -153,7 +156,9 @@ export class UsersService {
     const existing = await this.prisma.user.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Không tìm thấy người dùng');
 
-    const updated = await this.prisma.user.update({
+    if (dto.isActive === false && id === actor.id) throw new BadRequestException('Không tự khóa tài khoản đang sử dụng');
+    const updated = await this.prisma.$transaction(async tx => {
+      const updated = await tx.user.update({
       where: { id },
       data: {
         fullName: dto.fullName !== undefined ? dto.fullName.trim() : undefined,
@@ -169,6 +174,10 @@ export class UsersService {
       },
     });
 
+      const visible = (u: typeof existing) => ({ fullName: u.fullName, email: u.email, studentCode: u.studentCode, classId: u.classId, facultyId: u.facultyId, isActive: u.isActive });
+      await tx.auditLog.create({ data: { userId: actor.id, action: 'USER_UPDATED', entityType: 'User', entityId: id, oldValue: visible(existing), newValue: visible(updated) } });
+      return updated;
+    });
     const { password, ...safeUser } = updated;
     return safeUser;
   }
@@ -193,7 +202,7 @@ export class UsersService {
     return this.prisma.user.update({ where: { id }, data: { isActive: false }, select: { id: true, fullName: true, isActive: true } });
   }
 
-  async bulkImport(dto: { users: any[] }) {
+  async bulkImport(dto: { users: any[] }, actorId: string) {
     if (!dto.users || !Array.isArray(dto.users) || dto.users.length === 0) {
       throw new BadRequestException('Danh sách người dùng import không được để trống');
     }
@@ -249,14 +258,16 @@ export class UsersService {
       }
 
       try {
+        await this.prisma.$transaction(async tx => {
         // Tìm xem user đã tồn tại chưa bằng email hoặc studentCode
-        let existingUser = await this.prisma.user.findUnique({ where: { email } });
+        let existingUser = await tx.user.findUnique({ where: { email } });
         if (!existingUser && studentCode) {
-          existingUser = await this.prisma.user.findFirst({ where: { studentCode } });
+          existingUser = await tx.user.findFirst({ where: { studentCode } });
         }
 
+        if (existingUser && existingUser.role !== role) throw new BadRequestException('Vai trò import khác tài khoản hiện có');
         if (existingUser) {
-          await this.prisma.user.update({
+          await tx.user.update({
             where: { id: existingUser.id },
             data: {
               fullName,
@@ -267,7 +278,7 @@ export class UsersService {
           });
           updatedCount++;
         } else {
-          await this.prisma.user.create({
+          await tx.user.create({
             data: {
               email,
               fullName,
@@ -280,6 +291,9 @@ export class UsersService {
           });
           importedCount++;
         }
+        const saved = await tx.user.findFirst({ where: { OR: [{ email }, ...(studentCode ? [{ studentCode }] : [])] } });
+        if (saved) await tx.auditLog.create({ data: { userId: actorId, action: 'USER_IMPORTED', entityType: 'User', entityId: saved.id, oldValue: existingUser ? { fullName: existingUser.fullName, classId: existingUser.classId, facultyId: existingUser.facultyId } : undefined, newValue: { email, fullName, role, classId: saved.classId, facultyId: saved.facultyId } } });
+        });
       } catch (err: any) {
         errors.push(`Dòng ${rowIdx} (${email}): ${err.message || 'Lỗi lưu dữ liệu'}`);
       }

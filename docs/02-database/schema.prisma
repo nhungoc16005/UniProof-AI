@@ -11,6 +11,7 @@ generator client {
 datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
   extensions = [vector] // pgvector cho RAG tra cứu điều khoản quy chế
 }
 
@@ -31,6 +32,7 @@ model Faculty {
   classes   Class[]
   staffs    User[]   @relation("FacultyStaffs")
   createdAt DateTime @default(now())
+  assessmentHandoffs AssessmentHandoff[]
 }
 
 model Class {
@@ -41,12 +43,14 @@ model Class {
   facultyId String
   faculty   Faculty  @relation(fields: [facultyId], references: [id])
   students  User[]   @relation("ClassStudents")
+  assessmentHandoffs AssessmentHandoff[]
   createdAt DateTime @default(now())
 }
 
 model User {
   id           String   @id @default(uuid()) // Map 1-1 với Supabase auth.users.id
   email        String   @unique              // Email trường cấp (@dut.udn.vn)
+  password     String?                       // Mật khẩu băm bcrypt cho xác thực hệ thống
   fullName     String
   role         Role
   studentCode  String?  @unique              // Mã sinh viên (chỉ có khi role = STUDENT)
@@ -61,6 +65,10 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  assessmentHandoffs AssessmentHandoff[] @relation("HandoffStudent")
+  sentHandoffs AssessmentHandoff[] @relation("HandoffSender")
+  assessmentPublications AssessmentPublication[] @relation("PublicationStudent")
+  publishedResults AssessmentPublication[] @relation("PublicationAuthor")
   evidences        Evidence[]            @relation("StudentEvidences")
   lockedEvidences  Evidence[]            @relation("OfficerLocks")
   reviews          Review[]              @relation("ReviewerReviews")
@@ -70,6 +78,11 @@ model User {
   auditLogs        AuditLog[]
   uploadedDocs     RegulationDocument[]
   participations   ActivityParticipant[]
+  criterionAssessments CriterionAssessment[] @relation("StudentCriterionAssessments")
+  recordedClassAssessments CriterionAssessment[] @relation("ClassAssessmentRecorder")
+  finalizedCriterionAssessments CriterionAssessment[] @relation("OfficialAssessmentReviewer")
+  selfAssessmentSubmissions AssessmentSubmission[] @relation("SelfAssessmentSubmissionStudent")
+  returnedAssessmentSubmissions AssessmentSubmission[] @relation("SelfAssessmentSubmissionReturner")
 }
 
 // =========================================================================
@@ -93,9 +106,16 @@ model Term {
   reviewDeadline     DateTime   // Hạn chót cán bộ duyệt
   appealDeadline     DateTime   // Hạn chót khiếu nại
   status             TermStatus @default(UPCOMING)
+  workflowEnabled    Boolean    @default(true)
   createdAt          DateTime   @default(now())
 
+  assessmentHandoffs AssessmentHandoff[]
+  assessmentPublications AssessmentPublication[]
+  appeals Appeal[]
   evidences     Evidence[]
+  rubricVersions RubricVersion[]
+  criterionAssessments CriterionAssessment[]
+  assessmentSubmissions AssessmentSubmission[]
 }
 
 enum ActivityType {
@@ -108,6 +128,10 @@ model Activity {
   name        String
   type        ActivityType
   organizer   String        // Đơn vị tổ chức
+  termId      String?
+  facultyId   String?
+  criterionId String?
+  createdById String?
   startDate   DateTime?
   endDate     DateTime?
   location    String?
@@ -169,12 +193,17 @@ model RegulationChunk {
 
 model Criterion {
   id                   String              @id @default(uuid())
-  code                 String              @unique // "3.1", "4.1"
+  code                 String              // "3.1", "4.1"
   name                 String              
   description          String              
   minScore             Float               @default(0.0)
   maxScore             Float               // Điểm trần kiểu Float
   category             String?             // "KHUNG_I" -> "KHUNG_V"
+  rubricVersionId      String?
+  rubricVersion        RubricVersion?      @relation(fields: [rubricVersionId], references: [id])
+  categoryId           String?
+  rubricCategory       RubricCategory?     @relation(fields: [categoryId], references: [id])
+  scoringConfig        Json?
   rolesScore           Json?               // {"ORGANIZER": 4.0, "PARTICIPANT": 2.0}
   regulationDocumentId String?
   regulationDocument   RegulationDocument? @relation(fields: [regulationDocumentId], references: [id])
@@ -182,6 +211,202 @@ model Criterion {
 
   aiSuggestions AiSuggestion[]
   reviews       Review[]
+  assessments   CriterionAssessment[]
+
+  @@unique([rubricVersionId, code])
+  @@index([rubricVersionId, category])
+}
+
+enum RubricVersionStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model RubricVersion {
+  id          String              @id @default(uuid())
+  termId      String
+  term        Term                @relation(fields: [termId], references: [id])
+  version     Int                 @default(1)
+  status      RubricVersionStatus @default(DRAFT)
+  source      String              @default("DUT_OFFICIAL_RUBRIC")
+  publishedAt DateTime?
+  createdAt   DateTime            @default(now())
+  changeNote  String?
+  sourceTemplateVersionId String?
+  sourceTemplateVersion RubricTemplateVersion? @relation(fields: [sourceTemplateVersionId], references: [id])
+  sourceTermCode String?
+
+  assessmentHandoffs AssessmentHandoff[]
+  assessmentPublications AssessmentPublication[]
+  categories RubricCategory[]
+  criteria   Criterion[]
+  assessmentSubmissions AssessmentSubmission[]
+
+  @@unique([termId, version])
+  @@index([termId, status])
+  @@index([sourceTemplateVersionId])
+}
+
+model RubricTemplate {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  name      String
+  createdAt DateTime @default(now())
+  versions  RubricTemplateVersion[]
+}
+
+model RubricTemplateVersion {
+  id              String              @id @default(uuid())
+  templateId      String
+  template        RubricTemplate      @relation(fields: [templateId], references: [id])
+  version         Int
+  status          RubricVersionStatus @default(DRAFT)
+  definition      Json
+  sourceDescription String?
+  changeNote      String?
+  createdAt       DateTime            @default(now())
+  publishedAt     DateTime?
+  usedByTerms     RubricVersion[]
+
+  @@unique([templateId, version])
+  @@index([templateId, status])
+}
+
+model RubricCategory {
+  id              String        @id @default(uuid())
+  rubricVersionId String
+  rubricVersion   RubricVersion @relation(fields: [rubricVersionId], references: [id])
+  code            String
+  name            String
+  maxScore        Float
+  position        Int
+  criteria        Criterion[]
+
+  @@unique([rubricVersionId, code])
+  @@index([rubricVersionId, position])
+}
+
+enum CriterionAssessmentStatus {
+  NEEDS_VERIFICATION
+  READY_FOR_REVIEW
+  FINALIZED
+}
+
+enum AssessmentSubmissionStatus {
+  DRAFT
+  SUBMITTED
+  RETURNED
+}
+
+model AssessmentSubmission {
+  id              String                    @id @default(uuid())
+  studentId       String
+  student         User                      @relation("SelfAssessmentSubmissionStudent", fields: [studentId], references: [id])
+  termId          String
+  term            Term                      @relation(fields: [termId], references: [id])
+  rubricVersionId String
+  rubricVersion   RubricVersion             @relation(fields: [rubricVersionId], references: [id])
+  status          AssessmentSubmissionStatus @default(DRAFT)
+  submittedAt     DateTime?
+  returnedAt      DateTime?
+  returnReason    String?
+  returnedById    String?
+  returnedBy      User?                     @relation("SelfAssessmentSubmissionReturner", fields: [returnedById], references: [id])
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+
+  @@unique([studentId, termId, rubricVersionId])
+  @@index([termId, status])
+}
+
+enum AssessmentHandoffStatus {
+  WORKING
+  SENT
+  RETURNED
+  EXCLUDED
+}
+
+// Enrollment and faculty assignment are snapshotted when the term opens.
+model AssessmentHandoff {
+  id                  String   @id @default(uuid())
+  studentId           String
+  termId              String
+  rubricVersionId     String
+  classId             String
+  facultyId           String
+  status              AssessmentHandoffStatus @default(WORKING)
+  sentById            String?
+  sentAt              DateTime?
+  returnReason        String?
+  notSubmittedReason  String?
+  snapshot            Json?
+  revision            Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  student User @relation("HandoffStudent", fields: [studentId], references: [id], onDelete: Restrict)
+  term Term @relation(fields: [termId], references: [id], onDelete: Restrict)
+  rubricVersion RubricVersion @relation(fields: [rubricVersionId], references: [id], onDelete: Restrict)
+  class Class @relation(fields: [classId], references: [id], onDelete: Restrict)
+  faculty Faculty @relation(fields: [facultyId], references: [id], onDelete: Restrict)
+  sentBy User? @relation("HandoffSender", fields: [sentById], references: [id], onDelete: Restrict)
+
+  @@unique([studentId, termId])
+  @@index([termId, facultyId, classId, status])
+}
+
+// Append-only publication; later corrections create another version.
+model AssessmentPublication {
+  id              String   @id @default(uuid())
+  studentId       String
+  termId          String
+  rubricVersionId String
+  revision        Int
+  snapshot        Json
+  publishedById   String
+  publishedAt     DateTime @default(now())
+
+  student User @relation("PublicationStudent", fields: [studentId], references: [id], onDelete: Restrict)
+  term Term @relation(fields: [termId], references: [id], onDelete: Restrict)
+  rubricVersion RubricVersion @relation(fields: [rubricVersionId], references: [id], onDelete: Restrict)
+  publishedBy User @relation("PublicationAuthor", fields: [publishedById], references: [id], onDelete: Restrict)
+
+  @@unique([studentId, termId, revision])
+  @@index([termId, studentId, publishedAt])
+}
+
+model CriterionAssessment {
+  id               String                    @id @default(uuid())
+  studentId        String
+  student          User                      @relation("StudentCriterionAssessments", fields: [studentId], references: [id])
+  termId           String
+  term             Term                      @relation(fields: [termId], references: [id])
+  criterionId      String
+  criterion        Criterion                 @relation(fields: [criterionId], references: [id])
+  selfScore        Float?
+  selfNote         String?
+  classScore       Float?
+  classNote        String?
+  classEvaluatorId String?
+  classEvaluator   User?                     @relation("ClassAssessmentRecorder", fields: [classEvaluatorId], references: [id])
+  verifiedData     Json?
+  verificationNote String?
+  suggestedScore   Float?
+  suggestionReason String?
+  officialScore    Float?
+  officialReason   String?
+  finalReviewerId  String?
+  finalReviewer    User?                     @relation("OfficialAssessmentReviewer", fields: [finalReviewerId], references: [id])
+  status           CriterionAssessmentStatus @default(NEEDS_VERIFICATION)
+  finalizedAt      DateTime?
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+  evidences        Evidence[]
+  appeals Appeal[]
+
+  @@unique([studentId, termId, criterionId])
+  @@index([studentId, termId, status])
 }
 
 // =========================================================================
@@ -208,9 +433,12 @@ model Evidence {
   student              User           @relation("StudentEvidences", fields: [studentId], references: [id])
   termId               String
   term                 Term           @relation(fields: [termId], references: [id])
+  criterionAssessmentId String?
+  criterionAssessment   CriterionAssessment? @relation(fields: [criterionAssessmentId], references: [id])
   activityId           String?        
   activity             Activity?      @relation(fields: [activityId], references: [id])
   declaredActivityName String?        
+  description          String?
   declaredRole         String?        // "PARTICIPANT", "ORGANIZER", "CHEERLEADER"
   evidenceType         String         // GIAY_KHEN, GIAY_XAC_NHAN, VE_CHECKIN
   status               EvidenceStatus @default(PROCESSING)
@@ -225,6 +453,8 @@ model Evidence {
   version              Int            @default(1) // Optimistic Locking chống xung đột ghi đè
 
   files               EvidenceFile[]
+  aiProcessingJobs    AiProcessingJob[]
+  aiPipelineRuns      AiPipelineRun[]
   ocrResults          OcrResult[]
   verificationResults VerificationResult[]
   anomalyFlags        AnomalyFlag[]
@@ -235,6 +465,7 @@ model Evidence {
   notifications       Notification[]
 
   @@index([studentId, termId, status])
+  @@index([criterionAssessmentId])
 }
 
 model EvidenceFile {
@@ -243,9 +474,77 @@ model EvidenceFile {
   evidence   Evidence   @relation(fields: [evidenceId], references: [id])
   fileUrl    String     
   fileType   String     
+  fileName   String?
+  fileSize   Int?
   uploadedAt DateTime   @default(now())
 
   ocrResults OcrResult[]
+}
+
+enum AiProcessingJobStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+  UNAVAILABLE
+  CANCELLED
+}
+
+model AiProcessingJob {
+  id          String                @id @default(uuid())
+  evidenceId  String
+  evidence    Evidence              @relation(fields: [evidenceId], references: [id])
+  status      AiProcessingJobStatus @default(QUEUED)
+  attempts    Int                   @default(0)
+  error       String?
+  createdAt   DateTime              @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+  pipelineRuns AiPipelineRun[]
+
+  @@index([status, createdAt])
+  @@index([status, startedAt])
+  @@index([evidenceId, createdAt])
+}
+
+model AiPipelineRun {
+  id                String          @id @default(uuid())
+  jobId             String
+  job               AiProcessingJob @relation(fields: [jobId], references: [id])
+  evidenceId        String
+  evidence          Evidence        @relation(fields: [evidenceId], references: [id])
+  attempt           Int
+  status            String
+  inputVersion      Int
+  inputHash         String
+  rubricVersionId   String?
+  modelName         String?
+  modelVersion      String?
+  configVersion     String?
+  output             Json?
+  error              String?
+  startedAt          DateTime        @default(now())
+  completedAt        DateTime?
+  steps              AiPipelineStep[]
+
+  @@unique([jobId, attempt])
+  @@index([evidenceId, startedAt])
+  @@index([status, startedAt])
+}
+
+model AiPipelineStep {
+  id          String        @id @default(uuid())
+  runId       String
+  run         AiPipelineRun @relation(fields: [runId], references: [id])
+  stepKey     String
+  status      String
+  inputHash   String?
+  output      Json?
+  error       String?
+  startedAt   DateTime      @default(now())
+  completedAt DateTime?
+
+  @@index([runId, startedAt])
 }
 
 // =========================================================================
@@ -385,8 +684,12 @@ enum AppealStatus {
 
 model Appeal {
   id             String       @id @default(uuid())
-  evidenceId     String
-  evidence       Evidence     @relation(fields: [evidenceId], references: [id])
+  evidenceId     String?
+  evidence       Evidence?    @relation(fields: [evidenceId], references: [id], onDelete: Restrict)
+  termId         String?
+  criterionAssessmentId String?
+  publicationRevision Int?
+  previousEvidenceStatus EvidenceStatus?
   studentId      String
   student        User         @relation("StudentAppeals", fields: [studentId], references: [id])
   content        String       // Giải trình của sinh viên
@@ -400,6 +703,11 @@ model Appeal {
   adjustedScore  Float?       // Điểm sau khi giải quyết khiếu nại
   resolvedAt     DateTime?
   createdAt      DateTime     @default(now())
+
+  term Term? @relation(fields: [termId], references: [id], onDelete: Restrict)
+  criterionAssessment CriterionAssessment? @relation(fields: [criterionAssessmentId], references: [id], onDelete: Restrict)
+
+  @@index([termId, status])
 }
 
 // =========================================================================
@@ -419,6 +727,7 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   @@index([entityType, entityId])
+  @@index([createdAt])
 }
 
 model Notification {

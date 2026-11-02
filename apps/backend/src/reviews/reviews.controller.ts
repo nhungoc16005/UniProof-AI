@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ReviewsService } from './reviews.service';
-import { ReviewDecisionDto } from './dto/review.dto';
+import { ReviewDecisionDto, VerificationSourceDto } from './dto/review.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -62,5 +62,10 @@ export class ReviewsController {
     @Body() dto: ReviewDecisionDto,
   ) {
     return this.reviewsService.submitDecision(id, officer, dto);
+  }
+  @Post('evidence/:id/verification-sources')
+  @Roles(Role.STAFF)
+  addSource(@Param('id') id: string, @CurrentUser() officer: any, @Body() dto: VerificationSourceDto) {
+    return this.reviewsService.addSource(id, officer, dto);
   }
 }

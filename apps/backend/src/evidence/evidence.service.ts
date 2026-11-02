@@ -1,12 +1,13 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
-import { CreateEvidenceDto, UploadEvidenceFileDto, UploadFileDto } from './dto/evidence.dto';
+import { CreateEvidenceDto, UploadEvidenceFileDto, UploadFileDto, SubmitSupplementDto } from './dto/evidence.dto';
 import { EvidenceStatus, Role, TermStatus } from '@prisma/client';
+import { WorkflowService } from '../evaluation-workflow/workflow.service';
 import { randomUUID } from 'crypto';
 
 @Injectable()
 export class EvidenceService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private workflow: WorkflowService) {}
 
   async findAll(
     user: any,
@@ -26,25 +27,8 @@ export class EvidenceService {
 
     const where: any = {};
 
-    // Phân quyền dữ liệu
-    if (user.role === Role.STUDENT) {
-      where.studentId = user.id;
-    } else if (user.role === Role.STAFF) {
-      // Cán bộ chỉ xem hồ sơ của sinh viên thuộc khoa mình
-      if (!user.facultyId) throw new ForbiddenException('Tài khoản cán bộ chưa được gán Khoa phụ trách');
-      const studentFilter: any = {};
-      studentFilter.class = { facultyId: user.facultyId };
-      if (classId) {
-        studentFilter.classId = classId;
-      }
-      if (Object.keys(studentFilter).length > 0) {
-        where.student = studentFilter;
-      }
-      if (params.studentId) where.studentId = params.studentId;
-    } else {
-      if (classId) where.student = { classId };
-      if (params.studentId) where.studentId = params.studentId;
-    }
+    where.AND = [await this.workflow.evidenceScope(user, termId, classId)];
+    if (params.studentId && user.role !== Role.STUDENT) where.studentId = params.studentId;
 
     if (termId) where.termId = termId;
     if (status) where.status = status;
@@ -117,7 +101,7 @@ export class EvidenceService {
         term: true,
         aiSuggestions: { orderBy: { createdAt: 'desc' }, take: 1 },
         ocrResults: { orderBy: { createdAt: 'desc' }, take: 1 },
-        verificationResults: { orderBy: { createdAt: 'desc' }, take: 1 },
+        verificationResults: { orderBy: { createdAt: 'desc' } },
         anomalyFlags: true,
         activity: {
           include: {
@@ -151,19 +135,18 @@ export class EvidenceService {
 
     if (!evidence) throw new NotFoundException('Không tìm thấy hồ sơ minh chứng');
 
-    // Kiểm tra quyền truy cập (Sinh viên không xem được của người khác)
-    if (user.role === Role.STUDENT && evidence.studentId !== user.id) {
-      throw new ForbiddenException('Bạn không có quyền truy cập hồ sơ này');
-    }
-    if (user.role === Role.STAFF && (!user.facultyId || evidence.student.class?.facultyId !== user.facultyId)) {
-      throw new ForbiddenException('Bạn chỉ được xem hồ sơ sinh viên thuộc Khoa phụ trách');
-    }
+    await this.workflow.scope(user, evidence.studentId, evidence.termId);
 
+    const [handoff, submitted] = await Promise.all([
+      this.prisma.assessmentHandoff.findUnique({ where: { studentId_termId: { studentId: evidence.studentId, termId: evidence.termId } } }),
+      this.prisma.assessmentSubmission.count({ where: { studentId: evidence.studentId, termId: evidence.termId, status: 'SUBMITTED' } }),
+    ]);
+    const canReview = user.role === Role.STAFF && ['ACTIVE','REVIEWING'].includes(evidence.term.status) && !['DRAFT','WITHDRAWN','APPROVED','REJECTED'].includes(evidence.status) && !['SENT','EXCLUDED'].includes(handoff?.status ?? '') && (!evidence.term.workflowEnabled || !!handoff && submitted > 0);
     const signed = await this.withSignedFiles(evidence);
     const latestRun = evidence.aiProcessingJobs?.[0]?.pipelineRuns?.[0];
     const currentRubric = evidence.criterionAssessment?.criterion?.rubricVersionId;
     const aiIsCurrent = latestRun?.status === 'COMPLETED' && latestRun.inputVersion === evidence.version && latestRun.rubricVersionId === currentRubric;
-    return { ...signed, aiSuggestions: aiIsCurrent ? signed.aiSuggestions : [], aiAnalysisStatus: latestRun && !aiIsCurrent && latestRun.status === 'COMPLETED' ? 'STALE' : latestRun?.status ?? 'NOT_STARTED' };
+    return { ...signed, permissions: { canReview }, aiSuggestions: aiIsCurrent ? signed.aiSuggestions : [], aiAnalysisStatus: latestRun && !aiIsCurrent && latestRun.status === 'COMPLETED' ? 'STALE' : latestRun?.status ?? 'NOT_STARTED' };
   }
 
   private async withSignedFiles<T extends { files?: Array<{ fileUrl: string }> }>(value: T): Promise<T> {
@@ -203,11 +186,11 @@ export class EvidenceService {
       termId = activeTerm.id;
     } else {
       const term = await this.prisma.term.findUnique({ where: { id: termId } });
-      if (!term || term.status !== TermStatus.ACTIVE || new Date() > term.submissionDeadline) {
-        throw new BadRequestException(term?.status === TermStatus.UPCOMING ? 'Kỳ học chưa mở nhận hồ sơ' : 'Kỳ học này hiện không nhận hồ sơ mới');
-      }
+      if (!term) throw new NotFoundException('Không tìm thấy kỳ');
+      await this.prisma.$transaction(tx => this.workflow.assertStudentEditable(tx, studentId, termId));
     }
 
+    if (dto.fileUrls?.some(url => typeof url !== 'string' || url.startsWith('evidence/') && !url.startsWith(`evidence/${studentId}/${termId}/`))) throw new BadRequestException('Tệp không thuộc sinh viên và kỳ này');
     // 2. Tìm Tiêu chí nếu sinh viên có chọn
     let targetCriterion = null;
     if (dto.criterionId) {
@@ -235,7 +218,7 @@ export class EvidenceService {
     }
 
     // 3. Tạo Evidence
-    return this.prisma.$transaction(async (tx) => {
+    return this.workflow.studentEdit(studentId, termId, async (tx) => {
       let criterionAssessmentId: string | undefined;
       if (targetCriterion?.rubricVersionId) {
         const assessment = await tx.criterionAssessment.upsert({
@@ -257,7 +240,7 @@ export class EvidenceService {
         declaredRole: dto.declaredRole || 'THAM_GIA_CHINH',
         evidenceType: dto.evidenceType,
         participationDate: dto.participationDate ? new Date(dto.participationDate) : new Date(),
-        status: dto.draft ? EvidenceStatus.DRAFT : EvidenceStatus.NEEDS_HUMAN_REVIEW,
+        status: publishedVersion || dto.draft ? EvidenceStatus.DRAFT : EvidenceStatus.NEEDS_HUMAN_REVIEW,
         files: dto.fileUrls && dto.fileUrls.length > 0
           ? {
               create: dto.fileUrls.map((url) => ({
@@ -285,7 +268,8 @@ export class EvidenceService {
 
     if (!evidence) throw new NotFoundException('Không tìm thấy hồ sơ');
     if (evidence.studentId !== studentId) throw new ForbiddenException('Không có quyền thao tác');
-    if (evidence.term.status === TermStatus.CLOSED) throw new BadRequestException('Kỳ học đã đóng');
+    if (evidence.term.workflowEnabled) throw new BadRequestException('Nộp minh chứng cùng phiếu rèn luyện; không nộp riêng bằng thao tác này');
+    await this.ensureEvidenceEditable(id, studentId);
 
     if (evidence.files.length === 0) {
       throw new BadRequestException('Hồ sơ phải có ít nhất 1 file minh chứng đính kèm');
@@ -300,6 +284,51 @@ export class EvidenceService {
     });
   }
 
+  async supplement(id: string, studentId: string, dto: SubmitSupplementDto) {
+    const evidence = await this.prisma.evidence.findUniqueOrThrow({ where: { id } });
+    if (evidence.studentId !== studentId) throw new ForbiddenException('Không sở hữu minh chứng');
+    if (!dto.fileData && !dto.explanation?.trim() && !dto.verificationUrl?.trim()) throw new BadRequestException('Cần tệp, liên kết hoặc giải trình bổ sung');
+    if (dto.verificationUrl && !/^https?:\/\//i.test(dto.verificationUrl)) throw new BadRequestException('Liên kết xác minh phải dùng HTTP hoặc HTTPS');
+    const validate = async (tx: import('@prisma/client').Prisma.TransactionClient) => {
+      const term = await this.workflow.lock(tx, evidence.termId);
+      const current = await tx.evidence.findUniqueOrThrow({ where: { id } });
+      const request = await tx.supplementRequest.findFirst({ where: { evidenceId: id, resolvedAt: null }, orderBy: { createdAt: 'desc' } });
+      const handoff = await tx.assessmentHandoff.findUnique({ where: { studentId_termId: { studentId, termId: evidence.termId } } });
+      if (!['ACTIVE','REVIEWING'].includes(term.status) || current.status !== 'NEEDS_SUPPLEMENT' || !request || new Date() > (request.deadline ?? term.reviewDeadline) || ['SENT','EXCLUDED'].includes(handoff?.status ?? '')) throw new BadRequestException('Hồ sơ không nhận bổ sung hoặc đã quá hạn');
+      return current;
+    };
+    await this.prisma.$transaction(validate);
+    let storage: { fileUrl: string; fileType: string; fileName: string; fileSize: number } | null = null;
+    let cleanup: (() => Promise<unknown>) | undefined;
+    if (dto.fileData) {
+      const match = dto.fileData.match(/^data:([^;,]+);base64,([A-Za-z0-9+/=]+)$/);
+      if (!match || !dto.fileName || !dto.fileType || !['application/pdf','image/jpeg','image/png','image/webp'].includes(dto.fileType)) throw new BadRequestException('Chỉ nhận PDF hoặc ảnh JPEG/PNG/WebP có tên tệp');
+      const buffer = Buffer.from(match[2], 'base64');
+      if (!buffer.length || buffer.length > 8 * 1024 * 1024) throw new BadRequestException('Tệp phải nhỏ hơn 8 MB');
+      const { baseUrl, key, bucket } = this.getStorageConfig();
+      const safeName = dto.fileName.normalize('NFKD').replace(/[^a-zA-Z0-9._-]+/g, '-').slice(-100);
+      const objectKey = `${studentId}/${evidence.termId}/${id}/${randomUUID()}-${safeName}`;
+      const objectUrl = `${baseUrl}/storage/v1/object/${encodeURIComponent(bucket)}/${objectKey.split('/').map(encodeURIComponent).join('/')}`;
+      const response = await fetch(objectUrl, { method: 'POST', headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': dto.fileType, 'x-upsert': 'false' }, body: buffer });
+      if (!response.ok) throw new ServiceUnavailableException('Không tải được tệp bổ sung lên Supabase Storage');
+      storage = { fileUrl: `evidence/${objectKey}`, fileType: dto.fileType, fileName: dto.fileName, fileSize: buffer.length };
+      cleanup = () => fetch(objectUrl, { method: 'DELETE', headers: { apikey: key, Authorization: `Bearer ${key}` } });
+    }
+    try {
+      return await this.prisma.$transaction(async tx => {
+        const current = await validate(tx);
+        if (storage) await tx.evidenceFile.create({ data: { evidenceId: id, ...storage } });
+        await tx.supplementRequest.updateMany({ where: { evidenceId: id, resolvedAt: null }, data: { resolvedAt: new Date() } });
+        await tx.aiProcessingJob.updateMany({ where: { evidenceId: id, status: { in: ['QUEUED','PROCESSING'] } }, data: { status: 'CANCELLED', error: 'Sinh viên đã bổ sung phiên bản mới', completedAt: new Date() } });
+        await tx.evidence.update({ where: { id }, data: { status: 'PROCESSING', version: { increment: 1 }, lockedById: null, lockedAt: null, description: [current.description, dto.explanation?.trim(), dto.verificationUrl?.trim()].filter(Boolean).join('\n') } });
+        if (current.criterionAssessmentId) await tx.criterionAssessment.update({ where: { id: current.criterionAssessmentId }, data: { status: 'NEEDS_VERIFICATION', officialScore: null, officialReason: null, finalReviewerId: null, finalizedAt: null, suggestedScore: null, suggestionReason: null } });
+        await tx.aiProcessingJob.create({ data: { evidenceId: id } });
+        await tx.auditLog.create({ data: { userId: studentId, action: 'EVIDENCE_SUPPLEMENTED', entityType: 'Evidence', entityId: id, newValue: { studentId, termId: evidence.termId, version: current.version + 1, explanation: dto.explanation ?? null, verificationUrl: dto.verificationUrl ?? null } } });
+        return { submitted: true, version: current.version + 1 };
+      });
+    } catch (err) { if (cleanup) await cleanup().catch(() => undefined); throw err; }
+  }
+
   async withdraw(id: string, studentId: string) {
     const evidence = await this.prisma.evidence.findUnique({ where: { id } });
     if (!evidence) throw new NotFoundException('Không tìm thấy hồ sơ');
@@ -308,11 +337,11 @@ export class EvidenceService {
     if (evidence.status === EvidenceStatus.APPROVED) {
       throw new BadRequestException('Hồ sơ đã được phê duyệt, không thể tự ý rút. Vui lòng gửi khiếu nại.');
     }
+    await this.ensureEvidenceEditable(id, studentId);
 
-    return this.prisma.evidence.update({
-      where: { id },
-      data: { status: EvidenceStatus.WITHDRAWN },
-    });
+    return this.workflow.studentEdit(studentId, evidence.termId, tx => tx.evidence.update({
+      where: { id }, data: { status: EvidenceStatus.WITHDRAWN, version: { increment: 1 } },
+    }));
   }
 
   async addFile(id: string, studentId: string, dto: UploadFileDto) {
@@ -320,13 +349,15 @@ export class EvidenceService {
     if (!evidence) throw new NotFoundException('Không tìm thấy hồ sơ');
     if (evidence.studentId !== studentId) throw new ForbiddenException('Không có quyền thao tác');
 
-    return this.prisma.evidenceFile.create({
+    await this.ensureEvidenceEditable(id, studentId);
+    if (!dto.fileUrl.startsWith(`evidence/${studentId}/${evidence.termId}/${id}/`)) throw new BadRequestException('Tệp phải được tải lên kho minh chứng của hồ sơ này');
+    return this.workflow.studentEdit(studentId, evidence.termId, tx => tx.evidenceFile.create({
       data: {
         evidenceId: id,
         fileUrl: dto.fileUrl,
         fileType: dto.fileType,
       },
-    });
+    }));
   }
 
   async uploadDraftFile(id: string, studentId: string, dto: UploadEvidenceFileDto) {
@@ -334,7 +365,7 @@ export class EvidenceService {
     if (!evidence) throw new NotFoundException('Không tìm thấy hồ sơ minh chứng');
     if (evidence.studentId !== studentId) throw new ForbiddenException('Không có quyền thao tác');
     if (evidence.status !== EvidenceStatus.DRAFT) throw new BadRequestException('Chỉ có thể thêm tệp khi hồ sơ còn là bản nháp');
-    if (evidence.term.status !== TermStatus.ACTIVE || new Date() > evidence.term.submissionDeadline) throw new BadRequestException('Kỳ này không nhận thêm minh chứng');
+    await this.ensureEvidenceEditable(id, studentId);
     const match = dto.fileData.match(/^data:([^;,]+);base64,([A-Za-z0-9+/=]+)$/);
     if (!match) throw new BadRequestException('Tệp gửi lên không đúng định dạng');
     const buffer = Buffer.from(match[2], 'base64');
@@ -347,7 +378,7 @@ export class EvidenceService {
     });
     if (!response.ok) throw new ServiceUnavailableException('Tải tệp minh chứng lên Supabase Storage thất bại');
     try {
-      const file = await this.prisma.evidenceFile.create({ data: { evidenceId: id, fileUrl: `evidence/${objectKey}`, fileType: dto.fileType, fileName: dto.fileName, fileSize: buffer.length } });
+      const file = await this.workflow.studentEdit(studentId, evidence.termId, tx => tx.evidenceFile.create({ data: { evidenceId: id, fileUrl: `evidence/${objectKey}`, fileType: dto.fileType, fileName: dto.fileName, fileSize: buffer.length } }));
       return { ...file, fileUrl: await this.getFileUrl(file.fileUrl) };
     } catch (error) {
       await fetch(`${baseUrl}/storage/v1/object/${encodeURIComponent(bucket)}/${objectKey.split('/').map(encodeURIComponent).join('/')}`, { method: 'DELETE', headers: { apikey: key, Authorization: `Bearer ${key}` } }).catch(() => undefined);
@@ -367,9 +398,10 @@ export class EvidenceService {
     }
     if (user.role === Role.STUDENT) await this.ensureEvidenceEditable(id, user.id);
 
-    return this.prisma.evidence.update({
+    return this.workflow.studentEdit(user.id, evidence.termId, tx => tx.evidence.update({
       where: { id },
       data: {
+        version: { increment: 1 },
         declaredActivityName: dto.declaredActivityName !== undefined ? dto.declaredActivityName.trim() : undefined,
         description: dto.description !== undefined ? dto.description.trim() || null : undefined,
         declaredRole: dto.declaredRole !== undefined ? dto.declaredRole : undefined,
@@ -380,15 +412,13 @@ export class EvidenceService {
         files: true,
         term: true,
       },
-    });
+    }));
   }
 
   private async ensureEvidenceEditable(evidenceId: string, studentId: string) {
-    const evidence = await this.prisma.evidence.findUnique({ where: { id: evidenceId }, select: { termId: true, term: { select: { status: true, submissionDeadline: true } } } });
-    if (!evidence) return;
-    if (evidence.term.status !== TermStatus.ACTIVE || new Date() > evidence.term.submissionDeadline) throw new BadRequestException('Kỳ này không nhận chỉnh sửa minh chứng');
-    const submissions = await this.prisma.assessmentSubmission.findMany({ where: { studentId, termId: evidence.termId, status: 'SUBMITTED' }, select: { id: true }, take: 1 });
-    if (submissions.length) throw new BadRequestException('Phiếu đã nộp; chỉ có thể sửa minh chứng sau khi cán bộ trả phiếu');
+    const evidence = await this.prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId } });
+    if (evidence.studentId !== studentId) throw new ForbiddenException('Không sở hữu minh chứng');
+    await this.prisma.$transaction(tx => this.workflow.assertStudentEditable(tx, studentId, evidence.termId));
   }
 
   async deleteDraftFile(id: string, fileId: string, studentId: string) {

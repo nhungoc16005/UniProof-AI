@@ -32,6 +32,7 @@ model Faculty {
   classes   Class[]
   staffs    User[]   @relation("FacultyStaffs")
   createdAt DateTime @default(now())
+  assessmentHandoffs AssessmentHandoff[]
 }
 
 model Class {
@@ -42,6 +43,7 @@ model Class {
   facultyId String
   faculty   Faculty  @relation(fields: [facultyId], references: [id])
   students  User[]   @relation("ClassStudents")
+  assessmentHandoffs AssessmentHandoff[]
   createdAt DateTime @default(now())
 }
 
@@ -63,6 +65,10 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  assessmentHandoffs AssessmentHandoff[] @relation("HandoffStudent")
+  sentHandoffs AssessmentHandoff[] @relation("HandoffSender")
+  assessmentPublications AssessmentPublication[] @relation("PublicationStudent")
+  publishedResults AssessmentPublication[] @relation("PublicationAuthor")
   evidences        Evidence[]            @relation("StudentEvidences")
   lockedEvidences  Evidence[]            @relation("OfficerLocks")
   reviews          Review[]              @relation("ReviewerReviews")
@@ -103,6 +109,9 @@ model Term {
   workflowEnabled    Boolean    @default(true)
   createdAt          DateTime   @default(now())
 
+  assessmentHandoffs AssessmentHandoff[]
+  assessmentPublications AssessmentPublication[]
+  appeals Appeal[]
   evidences     Evidence[]
   rubricVersions RubricVersion[]
   criterionAssessments CriterionAssessment[]
@@ -228,6 +237,8 @@ model RubricVersion {
   sourceTemplateVersion RubricTemplateVersion? @relation(fields: [sourceTemplateVersionId], references: [id])
   sourceTermCode String?
 
+  assessmentHandoffs AssessmentHandoff[]
+  assessmentPublications AssessmentPublication[]
   categories RubricCategory[]
   criteria   Criterion[]
   assessmentSubmissions AssessmentSubmission[]
@@ -309,6 +320,13 @@ model AssessmentSubmission {
   @@index([termId, status])
 }
 
+enum AssessmentHandoffStatus {
+  WORKING
+  SENT
+  RETURNED
+  EXCLUDED
+}
+
 // Enrollment and faculty assignment are snapshotted when the term opens.
 model AssessmentHandoff {
   id                  String   @id @default(uuid())
@@ -317,7 +335,7 @@ model AssessmentHandoff {
   rubricVersionId     String
   classId             String
   facultyId           String
-  status              String   @default("WORKING")
+  status              AssessmentHandoffStatus @default(WORKING)
   sentById            String?
   sentAt              DateTime?
   returnReason        String?
@@ -326,6 +344,13 @@ model AssessmentHandoff {
   revision            Int      @default(0)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+
+  student User @relation("HandoffStudent", fields: [studentId], references: [id], onDelete: Restrict)
+  term Term @relation(fields: [termId], references: [id], onDelete: Restrict)
+  rubricVersion RubricVersion @relation(fields: [rubricVersionId], references: [id], onDelete: Restrict)
+  class Class @relation(fields: [classId], references: [id], onDelete: Restrict)
+  faculty Faculty @relation(fields: [facultyId], references: [id], onDelete: Restrict)
+  sentBy User? @relation("HandoffSender", fields: [sentById], references: [id], onDelete: Restrict)
 
   @@unique([studentId, termId])
   @@index([termId, facultyId, classId, status])
@@ -341,6 +366,11 @@ model AssessmentPublication {
   snapshot        Json
   publishedById   String
   publishedAt     DateTime @default(now())
+
+  student User @relation("PublicationStudent", fields: [studentId], references: [id], onDelete: Restrict)
+  term Term @relation(fields: [termId], references: [id], onDelete: Restrict)
+  rubricVersion RubricVersion @relation(fields: [rubricVersionId], references: [id], onDelete: Restrict)
+  publishedBy User @relation("PublicationAuthor", fields: [publishedById], references: [id], onDelete: Restrict)
 
   @@unique([studentId, termId, revision])
   @@index([termId, studentId, publishedAt])
@@ -373,6 +403,7 @@ model CriterionAssessment {
   createdAt        DateTime                  @default(now())
   updatedAt        DateTime                  @updatedAt
   evidences        Evidence[]
+  appeals Appeal[]
 
   @@unique([studentId, termId, criterionId])
   @@index([studentId, termId, status])
@@ -472,6 +503,7 @@ model AiProcessingJob {
   pipelineRuns AiPipelineRun[]
 
   @@index([status, createdAt])
+  @@index([status, startedAt])
   @@index([evidenceId, createdAt])
 }
 
@@ -653,7 +685,7 @@ enum AppealStatus {
 model Appeal {
   id             String       @id @default(uuid())
   evidenceId     String?
-  evidence       Evidence?    @relation(fields: [evidenceId], references: [id])
+  evidence       Evidence?    @relation(fields: [evidenceId], references: [id], onDelete: Restrict)
   termId         String?
   criterionAssessmentId String?
   publicationRevision Int?
@@ -671,6 +703,9 @@ model Appeal {
   adjustedScore  Float?       // Điểm sau khi giải quyết khiếu nại
   resolvedAt     DateTime?
   createdAt      DateTime     @default(now())
+
+  term Term? @relation(fields: [termId], references: [id], onDelete: Restrict)
+  criterionAssessment CriterionAssessment? @relation(fields: [criterionAssessmentId], references: [id], onDelete: Restrict)
 
   @@index([termId, status])
 }
@@ -692,6 +727,7 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   @@index([entityType, entityId])
+  @@index([createdAt])
 }
 
 model Notification {

@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsIn, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsDateString, IsEnum, IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, IsUrl } from 'class-validator';
 import { TermStatus } from '@prisma/client';
 
 export class CreateTermDto {
@@ -122,4 +122,34 @@ export class UpdateCriterionDto {
   @IsOptional()
   @IsNumber()
   maxScore?: number;
+}
+
+export class FacultyDto {
+  @IsString() @IsNotEmpty() code: string;
+  @IsString() @IsNotEmpty() name: string;
+}
+export class UpdateFacultyDto {
+  @IsOptional() @IsString() @IsNotEmpty() code?: string;
+  @IsOptional() @IsString() @IsNotEmpty() name?: string;
+}
+export class ClassDto {
+  @IsString() @IsNotEmpty() code: string;
+  @IsOptional() @IsString() name?: string;
+  @IsString() @IsNotEmpty() cohort: string;
+  @IsString() @IsNotEmpty() facultyId: string;
+}
+export class UpdateClassDto {
+  @IsOptional() @IsString() @IsNotEmpty() code?: string;
+  @IsOptional() @IsString() @IsNotEmpty() name?: string;
+  @IsOptional() @IsString() @IsNotEmpty() cohort?: string;
+  @IsOptional() @IsString() @IsNotEmpty() facultyId?: string;
+}
+export class RegulationDto {
+  @IsString() @IsNotEmpty() title: string;
+  @IsString() @IsNotEmpty() version: string;
+  @IsString() @IsNotEmpty() @IsUrl({ protocols: ['http','https'], require_protocol: true }) fileUrl: string;
+  @IsOptional() @IsDateString() effectiveDate?: string;
+}
+export class RegulationStatusDto {
+  @IsIn(['ACTIVE','EXPIRED']) status: 'ACTIVE' | 'EXPIRED';
 }

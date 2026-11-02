@@ -1,5 +1,8 @@
 # 📋 Master Traceability Matrix & Feature Specifications — EduPoint
 
+> Cập nhật 02/11/2026: [Hiện trạng triển khai và nghiệm thu Khoa/CTSV](../07-hien-trang-he-thong/FACULTY_ADMIN_HANDOFF_2026-11-02.md) là nguồn ưu tiên cho phạm vi Web hiện tại. AI tích hợp/nghiệm thu sau; các mục dự kiến trong tài liệu cũ không đồng nghĩa đã triển khai.
+
+
 > **Hệ sinh thái Đặc tả Kỹ thuật Hệ thống Đánh giá Điểm Rèn luyện EduPoint**
 > 
 > Bản đặc tả chuẩn hóa đồng bộ 100% với:
@@ -17,8 +20,8 @@
    - Các thư mục `common/`, `student/`, `officer/`, `admin/` chứa **UI Feature Specs** (đặc tả tính năng có tương tác người dùng).
    - Thư mục `ai-pipeline/` chứa `FS-AI01`: **System & Technical Specification** (đặc tả tiến trình nền bất đồng bộ qua BullMQ Worker, PhoBERT, Claude, Google Vision, không phải màn hình UI).
 4. **Mô hình 3 Vai trò (RBAC)**:
-   - **`STUDENT` (Sinh viên)**: Mobile App (React Native / Expo).
-   - **`OFFICER` (Cán bộ Khoa / CTSV)**: Web Desktop-first (React + Vite).
+   - **`STUDENT` (Sinh viên)**: Web hiện có; Mobile App (React Native / Expo) là phạm vi tiếp theo.
+   - **`STAFF` (Cán bộ Khoa)**: Web Desktop-first (React + Vite).
    - **`ADMIN` (Quản trị viên)**: Web Desktop-first. **Kiêm nhiệm**: Quản lý tiêu chí, Rule Engine, Knowledge Base RAG và toàn bộ Audit Log.
 
 ---

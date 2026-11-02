@@ -1,5 +1,8 @@
 # TÀI LIỆU CHI TIẾT CÁC THAY ĐỔI VÀ TỐI ƯU HỆ THỐNG (WORKFLOW AUDIT & CLEAN UI)
 
+> Cập nhật 02/11/2026: [Hiện trạng triển khai và nghiệm thu Khoa/CTSV](07-hien-trang-he-thong/FACULTY_ADMIN_HANDOFF_2026-11-02.md) là nguồn ưu tiên cho phạm vi Web hiện tại. AI tích hợp/nghiệm thu sau; các mục dự kiến trong tài liệu cũ không đồng nghĩa đã triển khai.
+
+
 *Thời gian cập nhật: Tháng 10/2026*  
 *Dự án: Hệ thống Quản lý và Đánh giá Điểm rèn luyện Sinh viên (EduPoint / UniProof-AI)*
 

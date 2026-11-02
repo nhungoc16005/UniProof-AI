@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../../lib/apiClient';
 import { useAuth } from '../../context/AuthContext';
@@ -16,13 +16,15 @@ export const ReviewQueue: React.FC = () => {
  const [error, setError] = useState('');
  const [loading, setLoading] = useState(false);
  const [total, setTotal] = useState(0);
+ const requestId = useRef(0);
  const load = async () => {
+  const generation = ++requestId.current;
    setLoading(true); setError('');
-   try { const response = await apiClient.getReviewQueuePage({ termId, status, search: query || undefined, classId: params.get('classId') || undefined, page, pageSize: 20 }); setItems(response.items); setTotal(response.total); }
-   catch (err: any) { setError(err.response?.data?.error?.message || 'Không tải được danh sách minh chứng'); setItems([]); }
-   finally { setLoading(false); }
+   try { const response = await apiClient.getReviewQueuePage({ termId, status, search: query || undefined, classId: params.get('classId') || undefined, page, pageSize: 20 }); if (generation !== requestId.current) return; setItems(response.items); setTotal(response.total); }
+   catch (err: any) { if (generation !== requestId.current) return; setError(err.response?.data?.error?.message || 'Không tải được danh sách minh chứng'); setItems([]); }
+   finally { if (generation === requestId.current) setLoading(false); }
  };
- useEffect(() => { void load(); }, [termId, status, page, query, params.get('classId')]);
+ useEffect(() => { void load(); return () => { requestId.current++; }; }, [termId, status, page, query, params.get('classId')]);
  useEffect(() => { setSearch(query); }, [query]);
  useEffect(() => {
    if (search === query) return;

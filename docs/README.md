@@ -1,6 +1,9 @@
 # Tài liệu dự án EduPoint
 
-**Bắt đầu tại [kế hoạch triển khai BE/FE trước, AI sau](06-ke-hoach-trien-khai/README.md).**
+> Cập nhật 02/11/2026: [Hiện trạng triển khai và nghiệm thu Khoa/CTSV](07-hien-trang-he-thong/FACULTY_ADMIN_HANDOFF_2026-11-02.md) là nguồn ưu tiên cho phạm vi Web hiện tại. AI tích hợp/nghiệm thu sau; các mục dự kiến trong tài liệu cũ không đồng nghĩa đã triển khai.
+
+
+**Bắt đầu tại [bàn giao Web Khoa/CTSV ngày 02/11/2026](07-hien-trang-he-thong/FACULTY_ADMIN_HANDOFF_2026-11-02.md).** Kế hoạch AI làm sau được giữ tại [bộ kế hoạch](06-ke-hoach-trien-khai/README.md).
 
 | Nội dung | Tài liệu |
 |---|---|
@@ -15,4 +18,4 @@
 | Feature specs theo vai trò | [Ma trận đặc tả](05-feature-specs/README.md) |
 | Database hiện có | [Prisma](02-database/schema.prisma), [SQL](02-database/schema.sql) |
 
-Các tài liệu API, spec và schema hiện có những điểm lệch nhau đã liệt kê trong khảo sát; task chuẩn hóa hợp đồng phải làm trước khi triển khai. File nghiệp vụ gốc `.docx` hiện rỗng, cần nguồn quy chế có nội dung để xác nhận điểm/chính sách chính thức.
+API hiện hành, cấu trúc repo và schema tham chiếu đã được đồng bộ trong đợt 02/11/2026. Feature specs và kế hoạch cũ vẫn chứa mục tương lai cho Mobile/AI; dùng tài liệu bàn giao để phân biệt phần đã triển khai và backlog. Không coi một trang có file/spec là bằng chứng đã có backend hoặc đã nghiệm thu.

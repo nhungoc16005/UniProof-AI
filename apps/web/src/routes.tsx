@@ -41,6 +41,9 @@ import { UserManagement } from './pages/admin/UserManagement';
 import { TermsMasterData } from './pages/admin/TermsMasterData';
 import { CriteriaManager } from './pages/admin/CriteriaManager';
 import { KnowledgeBase } from './pages/admin/KnowledgeBase';
+import { EvidenceInspection } from './components/EvidenceInspection';
+import { ResultsReception } from './pages/admin/ResultsReception';
+import { ResultReports } from './components/ResultReports';
 import { Monitoring } from './pages/admin/Monitoring';
 
 // Redirect root theo vai trò hiện tại
@@ -113,7 +116,8 @@ export const AppRoutes: React.FC = () => {
           <Route path="criteria" element={<CriteriaRulesView />} />
           <Route path="students" element={<StudentLookup />} />
           <Route path="students/:studentId/assessment" element={<StudentAssessment />} />
-          <Route path="reports" element={<Navigate to="/officer/students" replace />} />
+          <Route path="reports" element={<ResultReports />} />
+          <Route path="students/legacy" element={<ResultReports />} />
         </Route>
 
         {/* Phân hệ Quản trị viên (Admin) */}
@@ -127,6 +131,10 @@ export const AppRoutes: React.FC = () => {
         >
           <Route index element={<AdminDashboard />} />
           <Route path="users" element={<UserManagement />} />
+          <Route path="results" element={<ResultsReception />} />
+          <Route path="evidence/:id" element={<EvidenceInspection />} />
+          <Route path="reports" element={<ResultReports admin />} />
+          <Route path="historical-results" element={<ResultReports admin />} />
           <Route path="results/:studentId" element={<StudentAssessment />} />
           <Route path="terms" element={<TermsMasterData />} />
           <Route path="criteria" element={<CriteriaManager />} />

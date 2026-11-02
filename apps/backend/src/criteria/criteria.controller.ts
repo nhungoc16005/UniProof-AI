@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Patch, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { CriteriaService } from './criteria.service';
-import { CreateTermDto, UpdateTermDto, CreateCriterionDto, UpdateCriterionDto } from './dto/criteria.dto';
+import { CreateTermDto, UpdateTermDto, CreateCriterionDto, UpdateCriterionDto, FacultyDto, UpdateFacultyDto, ClassDto, UpdateClassDto, RegulationDto, RegulationStatusDto } from './dto/criteria.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -40,24 +40,24 @@ export class CriteriaController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
   @ApiBearerAuth()
-  async createRubricTemplateDraft() {
-    return this.criteriaService.createRubricTemplateDraft();
+  async createRubricTemplateDraft(@CurrentUser('id') actorId: string) {
+    return this.criteriaService.createRubricTemplateDraft(actorId);
   }
 
   @Put('rubric-templates/:versionId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
   @ApiBearerAuth()
-  async updateRubricTemplateDraft(@Param('versionId') versionId: string, @Body() body: { definition: unknown; changeNote?: string }) {
-    return this.criteriaService.updateRubricTemplateDraft(versionId, body.definition, body.changeNote);
+  async updateRubricTemplateDraft(@Param('versionId') versionId: string, @Body() body: { definition: unknown; changeNote?: string }, @CurrentUser('id') actorId: string) {
+    return this.criteriaService.updateRubricTemplateDraft(versionId, body.definition, actorId, body.changeNote);
   }
 
   @Post('rubric-templates/:versionId/publish')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
   @ApiBearerAuth()
-  async publishRubricTemplateDraft(@Param('versionId') versionId: string) {
-    return this.criteriaService.publishRubricTemplateDraft(versionId);
+  async publishRubricTemplateDraft(@Param('versionId') versionId: string, @CurrentUser('id') actorId: string) {
+    return this.criteriaService.publishRubricTemplateDraft(versionId, actorId);
   }
 
   @Get('terms/:id/rubric')
@@ -72,24 +72,24 @@ export class CriteriaController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth()
   @Roles(Role.ADMIN)
-  async createTermRubricDraft(@Param('id') id: string, @Body() body: { type: 'DEFAULT' | 'TERM'; sourceTermId?: string }) {
-    return this.criteriaService.createTermRubricDraft(id, body);
+  async createTermRubricDraft(@Param('id') id: string, @Body() body: { type: 'DEFAULT' | 'TERM'; sourceTermId?: string }, @CurrentUser('id') actorId: string) {
+    return this.criteriaService.createTermRubricDraft(id, body, actorId);
   }
 
   @Put('terms/:id/rubric')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
   @ApiBearerAuth()
-  async updateTermRubricDraft(@Param('id') id: string, @Body() body: { definition: unknown; changeNote?: string }) {
-    return this.criteriaService.updateTermRubricDraft(id, body.definition, body.changeNote);
+  async updateTermRubricDraft(@Param('id') id: string, @Body() body: { definition: unknown; changeNote?: string }, @CurrentUser('id') actorId: string) {
+    return this.criteriaService.updateTermRubricDraft(id, body.definition, actorId, body.changeNote);
   }
 
   @Post('terms/:id/rubric/publish')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
   @ApiBearerAuth()
-  async publishTermRubric(@Param('id') id: string) {
-    return this.criteriaService.publishTermRubric(id);
+  async publishTermRubric(@Param('id') id: string, @CurrentUser('id') actorId: string) {
+    return this.criteriaService.publishTermRubric(id, actorId);
   }
 
   @Post('criteria')
@@ -137,8 +137,8 @@ export class CriteriaController {
   @Roles(Role.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Tạo kỳ đánh giá mới (Admin)' })
-  async createTerm(@Body() dto: CreateTermDto) {
-    return this.criteriaService.createTerm(dto);
+  async createTerm(@Body() dto: CreateTermDto, @CurrentUser('id') actorId: string) {
+    return this.criteriaService.createTerm(dto, actorId);
   }
 
   @Patch('terms/:id')
@@ -146,8 +146,8 @@ export class CriteriaController {
   @Roles(Role.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Cập nhật thời hạn kỳ đánh giá (Admin)' })
-  async updateTerm(@Param('id') id: string, @Body() dto: UpdateTermDto) {
-    return this.criteriaService.updateTerm(id, dto);
+  async updateTerm(@Param('id') id: string, @Body() dto: UpdateTermDto, @CurrentUser('id') actorId: string) {
+    return this.criteriaService.updateTerm(id, dto, actorId);
   }
 
   @Post('terms/:id/close')
@@ -164,8 +164,8 @@ export class CriteriaController {
   @Roles(Role.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Mở kỳ sau khi rubric đã được ban hành' })
-  async activateTerm(@Param('id') id: string) {
-    return this.criteriaService.activateTerm(id);
+  async activateTerm(@Param('id') id: string, @CurrentUser('id') actorId: string) {
+    return this.criteriaService.activateTerm(id, actorId);
   }
 
   @Post('terms/:id/reopen')
@@ -189,8 +189,8 @@ export class CriteriaController {
   @Roles(Role.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Tạo Khoa mới (Admin)' })
-  async createFaculty(@Body() dto: { code: string; name: string }) {
-    return this.criteriaService.createFaculty(dto);
+  async createFaculty(@Body() dto: FacultyDto, @CurrentUser('id') actorId: string) {
+    return this.criteriaService.createFaculty(dto, actorId);
   }
 
   @Patch('faculties/:id')
@@ -198,8 +198,8 @@ export class CriteriaController {
   @Roles(Role.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Cập nhật thông tin Khoa (Admin)' })
-  async updateFaculty(@Param('id') id: string, @Body() dto: { code?: string; name?: string }) {
-    return this.criteriaService.updateFaculty(id, dto);
+  async updateFaculty(@Param('id') id: string, @Body() dto: UpdateFacultyDto, @CurrentUser('id') actorId: string) {
+    return this.criteriaService.updateFaculty(id, dto, actorId);
   }
 
   @Delete('faculties/:id')
@@ -207,8 +207,8 @@ export class CriteriaController {
   @Roles(Role.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Xóa Khoa (Admin)' })
-  async deleteFaculty(@Param('id') id: string) {
-    return this.criteriaService.deleteFaculty(id);
+  async deleteFaculty(@Param('id') id: string, @CurrentUser('id') actorId: string) {
+    return this.criteriaService.deleteFaculty(id, actorId);
   }
 
   @Get('classes')
@@ -222,8 +222,8 @@ export class CriteriaController {
   @Roles(Role.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Tạo Lớp sinh hoạt mới (Admin, Cán bộ)' })
-  async createClass(@Body() dto: { code: string; name?: string; cohort: string; facultyId: string }) {
-    return this.criteriaService.createClass(dto);
+  async createClass(@Body() dto: ClassDto, @CurrentUser('id') actorId: string) {
+    return this.criteriaService.createClass(dto, actorId);
   }
 
   @Patch('classes/:id')
@@ -231,8 +231,8 @@ export class CriteriaController {
   @Roles(Role.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Cập nhật Lớp sinh hoạt (Admin, Cán bộ)' })
-  async updateClass(@Param('id') id: string, @Body() dto: { code?: string; name?: string; cohort?: string; facultyId?: string }) {
-    return this.criteriaService.updateClass(id, dto);
+  async updateClass(@Param('id') id: string, @Body() dto: UpdateClassDto, @CurrentUser('id') actorId: string) {
+    return this.criteriaService.updateClass(id, dto, actorId);
   }
 
   @Delete('classes/:id')
@@ -240,8 +240,8 @@ export class CriteriaController {
   @Roles(Role.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Xóa Lớp sinh hoạt (Admin, Cán bộ)' })
-  async deleteClass(@Param('id') id: string) {
-    return this.criteriaService.deleteClass(id);
+  async deleteClass(@Param('id') id: string, @CurrentUser('id') actorId: string) {
+    return this.criteriaService.deleteClass(id, actorId);
   }
 
   // --- REGULATION DOCUMENTS (KNOWLEDGE BASE) ---
@@ -258,9 +258,16 @@ export class CriteriaController {
   @ApiOperation({ summary: 'Tải lên / Tạo mới tài liệu quy chế (Admin)' })
   async createRegulation(
     @CurrentUser('id') userId: string,
-    @Body() dto: { title: string; version: string; fileUrl?: string; effectiveDate?: string },
+    @Body() dto: RegulationDto,
   ) {
     return this.criteriaService.createRegulation({ ...dto, uploadedById: userId });
+  }
+
+  @Patch('regulations/:id/status')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async setRegulationStatus(@Param('id') id: string, @Body() dto: RegulationStatusDto, @CurrentUser('id') actorId: string) {
+    return this.criteriaService.setRegulationStatus(id, dto.status, actorId);
   }
 
   @Delete('regulations/:id')
@@ -268,7 +275,7 @@ export class CriteriaController {
   @Roles(Role.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Xóa tài liệu quy chế (Admin)' })
-  async deleteRegulation(@Param('id') id: string) {
-    return this.criteriaService.deleteRegulation(id);
+  async deleteRegulation(@Param('id') id: string, @CurrentUser('id') actorId: string) {
+    return this.criteriaService.deleteRegulation(id, actorId);
   }
 }

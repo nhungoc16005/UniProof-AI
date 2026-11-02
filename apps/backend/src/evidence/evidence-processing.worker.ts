@@ -26,6 +26,7 @@ export class EvidenceProcessingWorker implements OnModuleInit, OnModuleDestroy {
     if (this.running) return;
     this.running = true;
     try {
+      await this.recoverInterruptedJobs();
       const job = await this.prisma.aiProcessingJob.findFirst({ where: { status: AiProcessingJobStatus.QUEUED }, orderBy: { createdAt: 'asc' } });
       if (!job) return;
       const claimed = await this.prisma.aiProcessingJob.updateMany({ where: { id: job.id, status: AiProcessingJobStatus.QUEUED }, data: { status: AiProcessingJobStatus.PROCESSING, startedAt: new Date(), attempts: { increment: 1 } } });
@@ -37,6 +38,25 @@ export class EvidenceProcessingWorker implements OnModuleInit, OnModuleDestroy {
     } finally {
       this.running = false;
     }
+  }
+
+  // A lease outlives the external request timeout. Recovery is safe across processes:
+  // term lock + compare-and-swap ensure only one worker recovers a given attempt.
+  private async recoverInterruptedJobs() {
+    const timeout = Number(process.env.AI_PIPELINE_TIMEOUT_MS || 60000);
+    const leaseMs = Math.max(300000, (Number.isFinite(timeout) ? timeout : 60000) + 120000);
+    const cutoff = new Date(Date.now() - leaseMs);
+    const stale = await this.prisma.aiProcessingJob.findMany({ where: { status: 'PROCESSING', startedAt: { lt: cutoff } }, take: 20, include: { evidence: { select: { termId: true } } } });
+    for (const job of stale) await this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT "id" FROM "Term" WHERE "id" = ${job.evidence.termId} FOR UPDATE`;
+      const changed = await tx.aiProcessingJob.updateMany({ where: { id: job.id, status: 'PROCESSING', attempts: job.attempts, startedAt: { lt: cutoff } }, data: { status: job.attempts < 3 ? 'QUEUED' : 'FAILED', error: 'Lượt xử lý bị gián đoạn hoặc hết thời gian giữ việc', completedAt: job.attempts < 3 ? null : new Date() } });
+      if (!changed.count) return;
+      const runs = await tx.aiPipelineRun.findMany({ where: { jobId: job.id, attempt: job.attempts, status: 'PROCESSING' }, select: { id: true } });
+      await tx.aiPipelineStep.updateMany({ where: { runId: { in: runs.map(r => r.id) }, status: { in: ['PENDING', 'PROCESSING'] } }, data: { status: 'CANCELLED', error: 'Lượt xử lý bị gián đoạn', completedAt: new Date() } });
+      await tx.aiPipelineRun.updateMany({ where: { id: { in: runs.map(r => r.id) } }, data: { status: 'CANCELLED', error: 'Lượt xử lý bị gián đoạn', completedAt: new Date() } });
+      const term = await tx.term.findUnique({ where: { id: job.evidence.termId } });
+      if (job.attempts >= 3 && term && ['ACTIVE', 'REVIEWING'].includes(term.status)) await tx.evidence.updateMany({ where: { id: job.evidenceId, status: 'PROCESSING' }, data: { status: 'NEEDS_HUMAN_REVIEW' } });
+    });
   }
 
   private async processClaimed(jobId: string) {
@@ -153,33 +173,38 @@ export class EvidenceProcessingWorker implements OnModuleInit, OnModuleDestroy {
   private async acceptResult(
     tx: Prisma.TransactionClient,
     job: { id: string; evidenceId: string; evidence: { studentId: string; termId: string } },
-    run: { id: string; inputVersion: number; rubricVersionId: string | null },
+    run: { id: string; attempt?: number; inputVersion: number; rubricVersionId: string | null },
     stepId: string,
   ) {
     await tx.$queryRaw`SELECT "id" FROM "Term" WHERE "id" = ${job.evidence.termId} FOR UPDATE`;
     const evidence = await tx.evidence.findUniqueOrThrow({ where: { id: job.evidenceId }, include: { term: true, criterionAssessment: { include: { criterion: true } } } });
-    const currentJob = await tx.aiProcessingJob.findUnique({ where: { id: job.id }, select: { status: true } });
+    const currentJob = await tx.aiProcessingJob.findUnique({ where: { id: job.id }, select: { status: true, attempts: true } });
     const submission = run.rubricVersionId ? await tx.assessmentSubmission.findUnique({ where: { studentId_termId_rubricVersionId: { studentId: job.evidence.studentId, termId: job.evidence.termId, rubricVersionId: run.rubricVersionId } } }) : null;
     const handoff = await tx.assessmentHandoff.findUnique({ where: { studentId_termId: { studentId: job.evidence.studentId, termId: job.evidence.termId } } });
-    if (currentJob?.status === 'PROCESSING' && submission?.status === 'SUBMITTED'
+    if (currentJob?.status === 'PROCESSING' && (run.attempt === undefined || currentJob.attempts === run.attempt) && submission?.status === 'SUBMITTED'
       && evidence.version === run.inputVersion
       && evidence.criterionAssessment?.criterion.rubricVersionId === run.rubricVersionId
       && ['ACTIVE', 'REVIEWING'].includes(evidence.term.status)
       && !['SENT', 'EXCLUDED'].includes(handoff?.status ?? '')
       && ['PROCESSING', 'PLAUSIBLE', 'VERIFIED', 'NEEDS_HUMAN_REVIEW'].includes(evidence.status)) return true;
     const error = 'Hồ sơ đã thay đổi, đã có quyết định hoặc đã khóa; không áp dụng kết quả AI.';
-    await tx.aiProcessingJob.updateMany({ where: { id: job.id, status: 'PROCESSING' }, data: { status: 'CANCELLED', error, completedAt: new Date() } });
+    await tx.aiProcessingJob.updateMany({ where: { id: job.id, status: 'PROCESSING', ...(run.attempt === undefined ? {} : { attempts: run.attempt }) }, data: { status: 'CANCELLED', error, completedAt: new Date() } });
     await tx.aiPipelineRun.update({ where: { id: run.id }, data: { status: 'CANCELLED', error, completedAt: new Date() } });
     await tx.aiPipelineStep.update({ where: { id: stepId }, data: { status: 'CANCELLED', error, completedAt: new Date() } });
     return false;
   }
 
   private async isStillSubmitted(jobId: string, studentId: string, termId: string, rubricVersionId?: string) {
-    if (!rubricVersionId) return false;
+    if (!rubricVersionId) {
+      await this.prisma.aiProcessingJob.updateMany({ where: { id: jobId, status: 'PROCESSING' }, data: { status: 'CANCELLED', error: 'Minh chứng không có tiêu chí thuộc rubric', completedAt: new Date() } });
+      return false;
+    }
     const [currentJob, submission] = await Promise.all([
       this.prisma.aiProcessingJob.findUnique({ where: { id: jobId }, select: { status: true } }),
       this.prisma.assessmentSubmission.findUnique({ where: { studentId_termId_rubricVersionId: { studentId, termId, rubricVersionId } }, select: { status: true } }),
     ]);
-    return currentJob?.status === AiProcessingJobStatus.PROCESSING && submission?.status === 'SUBMITTED';
+    const valid = currentJob?.status === AiProcessingJobStatus.PROCESSING && submission?.status === 'SUBMITTED';
+    if (!valid) await this.prisma.aiProcessingJob.updateMany({ where: { id: jobId, status: 'PROCESSING' }, data: { status: 'CANCELLED', error: 'Phiếu chưa nộp hoặc đã được trả lại', completedAt: new Date() } });
+    return valid;
   }
 }

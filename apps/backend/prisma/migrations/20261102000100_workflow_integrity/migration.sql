@@ -1,0 +1,22 @@
+-- No score changes or roster backfill. Stop on invalid status/orphan references;
+-- fix the reported source records rather than silently deleting historical data.
+BEGIN;
+CREATE TYPE "AssessmentHandoffStatus" AS ENUM ('WORKING', 'SENT', 'RETURNED', 'EXCLUDED');
+ALTER TABLE "AssessmentHandoff" ALTER COLUMN "status" DROP DEFAULT;
+ALTER TABLE "AssessmentHandoff" ALTER COLUMN "status" TYPE "AssessmentHandoffStatus" USING "status"::"AssessmentHandoffStatus";
+ALTER TABLE "AssessmentHandoff" ALTER COLUMN "status" SET DEFAULT 'WORKING';
+ALTER TABLE "AssessmentHandoff" ADD CONSTRAINT "AssessmentHandoff_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "AssessmentHandoff" ADD CONSTRAINT "AssessmentHandoff_termId_fkey" FOREIGN KEY ("termId") REFERENCES "Term"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "AssessmentHandoff" ADD CONSTRAINT "AssessmentHandoff_rubricVersionId_fkey" FOREIGN KEY ("rubricVersionId") REFERENCES "RubricVersion"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "AssessmentHandoff" ADD CONSTRAINT "AssessmentHandoff_classId_fkey" FOREIGN KEY ("classId") REFERENCES "Class"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "AssessmentHandoff" ADD CONSTRAINT "AssessmentHandoff_facultyId_fkey" FOREIGN KEY ("facultyId") REFERENCES "Faculty"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "AssessmentHandoff" ADD CONSTRAINT "AssessmentHandoff_sentById_fkey" FOREIGN KEY ("sentById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "AssessmentPublication" ADD CONSTRAINT "AssessmentPublication_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "AssessmentPublication" ADD CONSTRAINT "AssessmentPublication_termId_fkey" FOREIGN KEY ("termId") REFERENCES "Term"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "AssessmentPublication" ADD CONSTRAINT "AssessmentPublication_rubricVersionId_fkey" FOREIGN KEY ("rubricVersionId") REFERENCES "RubricVersion"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "AssessmentPublication" ADD CONSTRAINT "AssessmentPublication_publishedById_fkey" FOREIGN KEY ("publishedById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Appeal" ADD CONSTRAINT "Appeal_termId_fkey" FOREIGN KEY ("termId") REFERENCES "Term"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Appeal" ADD CONSTRAINT "Appeal_criterionAssessmentId_fkey" FOREIGN KEY ("criterionAssessmentId") REFERENCES "CriterionAssessment"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+CREATE INDEX "AiProcessingJob_status_startedAt_idx" ON "AiProcessingJob"("status", "startedAt");
+CREATE INDEX "AuditLog_createdAt_idx" ON "AuditLog"("createdAt");
+COMMIT;

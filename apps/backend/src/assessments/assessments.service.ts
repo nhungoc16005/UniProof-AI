@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Injectable,
 import { CriterionAssessmentStatus, EvidenceStatus, Prisma, Role, TermStatus } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { WorkflowService } from '../evaluation-workflow/workflow.service';
+import { WorkflowQueryDto } from '../evaluation-workflow/dto/workflow-query.dto';
 import { evaluateRubricCriterion } from '../criteria/rubric-scoring';
 
 @Injectable()
@@ -24,11 +25,8 @@ export class AssessmentsService {
     if (term.status === TermStatus.UPCOMING) throw new BadRequestException('Kỳ đánh giá chưa được mở');
   }
 
-  private async ensureStudentSubmissionOpen(termId: string) {
-    const term = await this.prisma.term.findUnique({ where: { id: termId }, select: { status: true, submissionDeadline: true } });
-    if (!term) throw new NotFoundException('Không tìm thấy kỳ đánh giá');
-    if (term.status !== TermStatus.ACTIVE) throw new BadRequestException('Kỳ đánh giá hiện không nhận tự đánh giá');
-    if (new Date() > term.submissionDeadline) throw new BadRequestException('Đã hết hạn nộp tự đánh giá');
+  private async ensureStudentSubmissionOpen(studentId: string, termId: string) {
+    await this.prisma.$transaction(tx => this.workflow.assertStudentEditable(tx, studentId, termId));
   }
 
   private validateScore(score: number | null | undefined, maxScore: number, label: string) {
@@ -42,7 +40,7 @@ export class AssessmentsService {
     const version = await this.prisma.rubricVersion.findFirst({
       where: { termId, status: 'PUBLISHED' },
       include: {
-        term: { select: { id: true, name: true, status: true, workflowEnabled: true, appealDeadline: true } },
+        term: { select: { id: true, name: true, status: true, workflowEnabled: true, appealDeadline: true, submissionDeadline: true, reviewDeadline: true } },
         categories: {
           orderBy: { position: 'asc' },
           include: { criteria: true },
@@ -51,7 +49,7 @@ export class AssessmentsService {
       orderBy: { version: 'desc' },
     });
     if (!version) {
-      const term = await this.prisma.term.findUnique({ where: { id: termId }, select: { id: true, name: true, status: true, workflowEnabled: true, appealDeadline: true } });
+      const term = await this.prisma.term.findUnique({ where: { id: termId }, select: { id: true, name: true, status: true, workflowEnabled: true, appealDeadline: true, submissionDeadline: true, reviewDeadline: true } });
       if (!term) throw new NotFoundException('Không tìm thấy kỳ đánh giá');
       return { rubricVersion: null, term, categories: [], submission: null };
     }
@@ -71,6 +69,7 @@ export class AssessmentsService {
       publication: publication ? { revision: publication.revision, publishedAt: publication.publishedAt } : null,
       permissions: {
         canReview: staffView && version.term?.status !== 'CLOSED' && submission?.status === 'SUBMITTED' && !['SENT', 'EXCLUDED'].includes(handoff?.status ?? ''),
+        canEdit: (!version.term?.workflowEnabled || !!handoff && !['SENT','EXCLUDED'].includes(handoff.status)) && submission?.status !== 'SUBMITTED' && ((version.term?.status === 'ACTIVE' && new Date() <= version.term!.submissionDeadline) || (submission?.status === 'RETURNED' && ['ACTIVE', 'REVIEWING'].includes(version.term!.status) && new Date() <= version.term!.reviewDeadline)),
         canAppeal: !!publication && version.term?.status !== 'CLOSED' && new Date() <= version.term!.appealDeadline,
       },
       categories: version.categories.map((category) => ({
@@ -91,11 +90,11 @@ export class AssessmentsService {
   }
 
   async saveSelfAssessment(studentId: string, termId: string, criterionId: string, body: { score?: number | null; note?: string }) {
-    await this.ensureStudentSubmissionOpen(termId);
+    await this.ensureStudentSubmissionOpen(studentId, termId);
     const criterion = await this.getCriterion(termId, criterionId);
     await this.ensureSubmissionEditable(studentId, termId, criterion.rubricVersionId!);
     this.validateScore(body.score, criterion.maxScore, 'Điểm tự đánh giá');
-    const assessment = await this.prisma.criterionAssessment.upsert({
+    const assessment = await this.workflow.studentEdit(studentId, termId, tx => tx.criterionAssessment.upsert({
       where: { studentId_termId_criterionId: { studentId, termId, criterionId } },
       create: {
         studentId,
@@ -109,7 +108,7 @@ export class AssessmentsService {
         selfNote: body.note?.trim() || null,
       },
       include: { criterion: true },
-    });
+    }));
     return assessment;
   }
 
@@ -124,7 +123,7 @@ export class AssessmentsService {
   }
 
   async saveSelfAssessmentBatch(studentId: string, termId: string, scores: Array<{ criterionId: string; score: number | null }>) {
-    await this.ensureStudentSubmissionOpen(termId);
+    await this.ensureStudentSubmissionOpen(studentId, termId);
     const version = await this.prisma.rubricVersion.findFirst({ where: { termId, status: 'PUBLISHED' }, include: { criteria: true } });
     if (!version) throw new BadRequestException('Kỳ này chưa có rubric được ban hành');
     await this.ensureSubmissionEditable(studentId, termId, version.id);
@@ -134,16 +133,16 @@ export class AssessmentsService {
       if (!criterion) throw new BadRequestException(`Tiêu chí ${item.criterionId} không thuộc rubric đang áp dụng`);
       this.validateScore(item.score, criterion.maxScore, `Điểm tự đánh giá mục ${criterion.code}`);
     }
-    await this.prisma.$transaction(scores.map((item) => this.prisma.criterionAssessment.upsert({
+    await this.workflow.studentEdit(studentId, termId, async tx => { for (const item of scores) await tx.criterionAssessment.upsert({
       where: { studentId_termId_criterionId: { studentId, termId, criterionId: item.criterionId } },
       create: { studentId, termId, criterionId: item.criterionId, selfScore: item.score },
       update: { selfScore: item.score },
-    })));
+    }); });
     return this.getMine(studentId, termId);
   }
 
   async submitSelfAssessment(studentId: string, termId: string) {
-    await this.ensureStudentSubmissionOpen(termId);
+    await this.ensureStudentSubmissionOpen(studentId, termId);
     const version = await this.prisma.rubricVersion.findFirst({ where: { termId, status: 'PUBLISHED' }, include: { criteria: true } });
     if (!version) throw new BadRequestException('Kỳ này chưa có rubric được ban hành');
     await this.ensureSubmissionEditable(studentId, termId, version.id);
@@ -151,28 +150,33 @@ export class AssessmentsService {
     const incomplete = drafts.find((evidence) => evidence.files.length === 0);
     if (incomplete) throw new BadRequestException(`Minh chứng “${incomplete.declaredActivityName || 'Chưa đặt tên'}” chưa có tệp; hãy bổ sung tệp hoặc xóa hồ sơ nháp trước khi nộp phiếu`);
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.workflow.studentEdit(studentId, termId, async tx => {
+      const currentDrafts = await tx.evidence.findMany({ where: { studentId, termId, status: 'DRAFT' }, include: { files: true } });
+      if (currentDrafts.some(e => !e.files.length)) throw new BadRequestException('Có minh chứng nháp chưa có tệp');
       const submission = await tx.assessmentSubmission.upsert({
         where: { studentId_termId_rubricVersionId: { studentId, termId, rubricVersionId: version.id } },
         create: { studentId, termId, rubricVersionId: version.id, status: 'SUBMITTED', submittedAt: new Date(), returnedAt: null, returnReason: null, returnedById: null },
         update: { status: 'SUBMITTED', submittedAt: new Date(), returnedAt: null, returnReason: null, returnedById: null },
       });
-      for (const evidence of drafts) {
+      for (const evidence of currentDrafts) {
         await tx.evidence.update({ where: { id: evidence.id }, data: { status: EvidenceStatus.PROCESSING, submittedAt: new Date() } });
         await tx.aiProcessingJob.create({ data: { evidenceId: evidence.id } });
       }
-      await tx.auditLog.create({ data: { userId: studentId, action: 'ASSESSMENT_SUBMITTED', entityType: 'AssessmentSubmission', entityId: submission.id, newValue: { status: 'SUBMITTED', rubricVersionId: version.id, evidenceCount: drafts.length } } });
-      return { submission, submittedEvidenceCount: drafts.length };
+      await tx.auditLog.create({ data: { userId: studentId, action: 'ASSESSMENT_SUBMITTED', entityType: 'AssessmentSubmission', entityId: submission.id, newValue: { status: 'SUBMITTED', rubricVersionId: version.id, evidenceCount: currentDrafts.length } } });
+      return { submission, submittedEvidenceCount: currentDrafts.length };
     });
   }
 
   async returnSelfAssessment(staff: { id: string; role: Role; facultyId?: string | null }, studentId: string, termId: string, reason: string) {
-    await this.ensureStaffScope(staff, studentId);
+    await this.workflow.scope(staff, studentId, termId);
     if (!reason?.trim()) throw new BadRequestException('Cần ghi lý do trả phiếu cho sinh viên');
     const submission = await this.prisma.assessmentSubmission.findFirst({ where: { studentId, termId, status: 'SUBMITTED' } });
     if (!submission) throw new NotFoundException('Không tìm thấy phiếu đang chờ xử lý');
     const evidenceIds = (await this.prisma.evidence.findMany({ where: { studentId, termId, status: { notIn: [EvidenceStatus.APPROVED, EvidenceStatus.WITHDRAWN] } }, select: { id: true } })).map((item) => item.id);
     return this.workflow.edit(staff, studentId, termId, async (tx) => {
+      const current = await tx.assessmentSubmission.findUnique({ where: { id: submission.id } });
+      if (current?.status !== 'SUBMITTED') throw new ConflictException('Phiếu vừa thay đổi; hãy tải lại');
+      await tx.notification.create({ data: { userId: studentId, type: 'ASSESSMENT_RETURNED', title: 'Phiếu rèn luyện cần chỉnh sửa', content: reason.trim() } });
       await tx.criterionAssessment.updateMany({ where: { studentId, termId }, data: { status: 'NEEDS_VERIFICATION', officialScore: null, officialReason: null, finalReviewerId: null, finalizedAt: null, suggestedScore: null, suggestionReason: null } });
       const returned = await tx.assessmentSubmission.update({ where: { id: submission.id }, data: { status: 'RETURNED', returnedAt: new Date(), returnReason: reason.trim(), returnedById: staff.id } });
       await tx.auditLog.create({ data: { userId: staff.id, action: 'ASSESSMENT_RETURNED', entityType: 'AssessmentSubmission', entityId: returned.id, oldValue: { status: 'SUBMITTED' }, newValue: { status: 'RETURNED', reason: reason.trim(), studentId, termId } } });
@@ -196,7 +200,7 @@ export class AssessmentsService {
   }
 
   async getStudentAssessments(staff: { id: string; role: Role; facultyId?: string | null }, studentId: string, termId: string) {
-    await this.ensureStaffScope(staff, studentId);
+    await this.workflow.scope(staff, studentId, termId);
     const result = await this.getMine(studentId, termId, true);
     const assessments = await this.prisma.criterionAssessment.findMany({
       where: { studentId, termId },
@@ -213,10 +217,17 @@ export class AssessmentsService {
       },
     });
     const byCriterion = new Map(assessments.map((assessment) => [assessment.criterionId, assessment]));
+    const handoff = staff.role === Role.ADMIN ? await this.prisma.assessmentHandoff.findUnique({ where: { studentId_termId: { studentId, termId } } }) : null;
+    const sentSnapshot = handoff?.status === 'SENT' ? handoff.snapshot as any : null;
+    const readiness = result.term?.workflowEnabled && staff.role === Role.STAFF ? await this.workflow.list(staff, termId, new WorkflowQueryDto(), true) : null;
+    const row = readiness?.items.find(r => r.studentId === studentId);
+
     return {
       ...result,
-      permissions: { ...result.permissions, canReview: staff.role === 'STAFF' && result.permissions?.canReview },
-      categories: result.categories.map((category) => ({
+      permissions: { ...result.permissions, canReview: staff.role === 'STAFF' && result.permissions?.canReview, canSend: row?.ready ?? false, sendBlockers: row?.blockers ?? [] },
+      resultSource: sentSnapshot ? 'HANDOFF_SNAPSHOT' : 'WORKING',
+      handoffRevision: handoff?.revision ?? null,
+      categories: sentSnapshot ? sentSnapshot.categories.map((category: any) => ({ ...category, criteria: category.criteria.map((criterion: any) => ({ ...criterion, assessment: criterion.assessment ? { ...criterion.assessment, evidences: byCriterion.get(criterion.id)?.evidences ?? [] } : null })) })) : result.categories.map((category) => ({
         ...category,
         criteria: category.criteria.map((criterion) => ({ ...criterion, assessment: byCriterion.get(criterion.id) || null })),
       })),
@@ -230,7 +241,7 @@ export class AssessmentsService {
     criterionId: string,
     body: { score: number; note: string },
   ) {
-    await this.ensureStaffScope(staff, studentId);
+    await this.workflow.scope(staff, studentId, termId);
     await this.ensureWritable(termId);
     const criterion = await this.getCriterion(termId, criterionId);
     this.validateScore(body.score, criterion.maxScore, 'Điểm đánh giá của lớp');
@@ -252,20 +263,22 @@ export class AssessmentsService {
     criterionId: string,
     body: { data: Record<string, unknown>; note: string },
   ) {
-    await this.ensureStaffScope(staff, studentId);
+    await this.workflow.scope(staff, studentId, termId);
     await this.ensureWritable(termId);
     if (!body.note?.trim()) throw new BadRequestException('Cần ghi căn cứ xác minh');
     const criterion = await this.getCriterion(termId, criterionId);
     await this.ensureSubmittedForStaffReview(studentId, termId, criterion.rubricVersionId!);
+    return this.workflow.edit(staff, studentId, termId, async (tx) => {
+    if (!await tx.assessmentSubmission.count({ where: { studentId, termId, status: 'SUBMITTED' } })) throw new BadRequestException('Sinh viên chưa nộp phiếu');
     const config = criterion.scoringConfig as Record<string, unknown> | null;
     const verifiedData = { ...body.data };
     let hasUnresolvedEvidence = false;
     if (config && ['activity_threshold', 'community_activity_tier'].includes(String(config.kind))) {
-      const existingAssessment = await this.prisma.criterionAssessment.findUnique({
+      const existingAssessment = await tx.criterionAssessment.findUnique({
         where: { studentId_termId_criterionId: { studentId, termId, criterionId } },
         select: { id: true },
       });
-      const evidences = existingAssessment ? await this.prisma.evidence.findMany({
+      const evidences = existingAssessment ? await tx.evidence.findMany({
         where: { studentId, termId, criterionAssessmentId: existingAssessment.id },
         select: { id: true, activityId: true, declaredRole: true, status: true },
       }) : [];
@@ -281,8 +294,6 @@ export class AssessmentsService {
     const evaluation = hasUnresolvedEvidence
       ? { status: 'NEEDS_VERIFICATION' as const, suggestedScore: null, reason: 'Còn minh chứng đang chờ xử lý; điểm chỉ được tính sau khi hồ sơ liên quan được duyệt hoặc kết thúc.' }
       : computedEvaluation;
-    return this.workflow.edit(staff, studentId, termId, async (tx) => {
-    if (!await tx.assessmentSubmission.count({ where: { studentId, termId, status: 'SUBMITTED' } })) throw new BadRequestException('Sinh viên chưa nộp phiếu');
     const assessment = await tx.criterionAssessment.upsert({
       where: { studentId_termId_criterionId: { studentId, termId, criterionId } },
       create: {
@@ -319,7 +330,7 @@ export class AssessmentsService {
     criterionId: string,
     body: { score?: number; reason?: string },
   ) {
-    await this.ensureStaffScope(staff, studentId);
+    await this.workflow.scope(staff, studentId, termId);
     await this.ensureWritable(termId);
     const criterion = await this.getCriterion(termId, criterionId);
     await this.ensureSubmittedForStaffReview(studentId, termId, criterion.rubricVersionId!);

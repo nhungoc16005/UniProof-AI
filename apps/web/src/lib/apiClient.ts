@@ -79,8 +79,45 @@ export const apiClient = {
       total: Number(response.data.meta?.total ?? items.length),
     };
   },
-  async getEvaluationWorkflow(termId: string, params?: { classId?: string; facultyId?: string }) {
+  async getEvaluationWorkflow(termId: string, params?: { classId?: string; facultyId?: string; q?: string; state?: string; page?: number; pageSize?: number }) {
     return (await http.get('/evaluation-workflow/' + termId, { params })).data.data;
+  },
+  async exportEvaluationWorkflow(termId: string, params?: Record<string, unknown>) {
+    return (await http.get(`/evaluation-workflow/${termId}/export`, { params })).data.data;
+  },
+  async getPublicationConditions(termId: string) {
+    return (await http.get(`/evaluation-workflow/${termId}/conditions`)).data.data;
+  },
+  async closeWorkflowTerm(termId: string) {
+    return (await http.post(`/evaluation-workflow/${termId}/close`)).data.data;
+  },
+  async getResultReport(termId: string, params?: Record<string, unknown>) {
+    return (await http.get('/reports/results', { params: { ...params, termId } })).data.data;
+  },
+  async exportResultReport(termId: string, params?: Record<string, unknown>) {
+    return (await http.get('/reports/results/export', { params: { ...params, termId } })).data.data;
+  },
+  async getAllUsers(): Promise<User[]> {
+    const users: User[] = [];
+    for (let page = 1; ; page++) {
+      const res = await http.get('/users', { params: { page, pageSize: 100 } });
+      const items = extractArray<User>(res.data.data);
+      users.push(...items);
+      if (!items.length || users.length >= Number(res.data.meta?.total ?? users.length)) break;
+    }
+    return users;
+  },
+  async getAiJobs(params?: Record<string, unknown>) {
+    return (await http.get('/ai-jobs', { params })).data;
+  },
+  async supplementEvidence(id: string, data: { explanation?: string; verificationUrl?: string; fileData?: string; fileName?: string; fileType?: string }) {
+    return (await http.post(`/evidence/${id}/supplement`, data)).data.data;
+  },
+  async addVerificationSource(id: string, data: { sourceName: string; sourceUrl?: string; note: string; level: number; confirmedActivity: boolean; confirmedStudent: boolean }) {
+    return (await http.post(`/evidence/${id}/verification-sources`, data)).data.data;
+  },
+  async retryAiJob(id: string) {
+    return (await http.post(`/ai-jobs/${id}/retry`)).data.data;
   },
   async sendFacultyResults(termId: string, studentIds: string[]) {
     return (await http.post('/evaluation-workflow/' + termId + '/send', { studentIds })).data.data;
@@ -397,16 +434,6 @@ export const apiClient = {
     return res.data.data;
   },
 
-  async supplementEvidence(id: string, files: any[]): Promise<Evidence> {
-    for (const f of files) {
-      await http.post(`/evidence/${id}/files`, {
-        fileUrl: f.fileUrl || f.url,
-        fileType: f.fileType || f.type || 'image/png',
-      });
-    }
-    return (await http.get(`/evidence/${id}`)).data.data;
-  },
-
   async deleteEvidenceDraft(id: string): Promise<void> {
     await http.delete(`/evidence/${id}`);
   },
@@ -448,13 +475,17 @@ export const apiClient = {
   },
 
   async reviewEvidence(evidenceId: string, payload: any): Promise<Evidence> {
-    return this.submitReviewDecision(
-      evidenceId,
-      payload.decision || payload.action,
-      payload.reason || payload.comment,
-      payload.finalScore ?? payload.approvedPoints,
-      payload.criterionId
-    );
+    const res = await http.post(`/evidence/${evidenceId}/review`, {
+      action: payload.decision || payload.action,
+      comment: payload.reason || payload.comment,
+      approvedPoints: payload.finalScore ?? payload.approvedPoints,
+      criterionId: payload.criterionId,
+      rejectBasis: payload.rejectBasis,
+      missingItem: payload.missingItem,
+      supplementDeadline: payload.supplementDeadline || undefined,
+      expectedVersion: payload.expectedVersion,
+    });
+    return res.data.data;
   },
 
   async submitReviewDecision(
@@ -524,8 +555,8 @@ export const apiClient = {
     return extractArray<User>(res.data.data);
   },
 
-  async getUserById(id: string): Promise<User> {
-    const res = await http.get(`/users/${id}`);
+  async getUserById(id: string, termId?: string): Promise<User> {
+    const res = await http.get(`/users/${id}`, { params: { termId } });
     return res.data.data;
   },
 
@@ -641,6 +672,9 @@ export const apiClient = {
     return res.data.data;
   },
 
+  async setRegulationStatus(id: string, status: 'ACTIVE' | 'EXPIRED') {
+    return (await http.patch(`/regulations/${id}/status`, { status })).data.data;
+  },
   async deleteRegulation(id: string): Promise<any> {
     const res = await http.delete(`/regulations/${id}`);
     return res.data.data;
@@ -649,9 +683,10 @@ export const apiClient = {
   // ==========================================
   // AUDIT LOGS & HEALTH CHECK
   // ==========================================
-  async getAuditLogs(params?: { userId?: string; action?: string; entityType?: string; page?: number; pageSize?: number }): Promise<{ items: any[]; total: number }> {
+  async getAuditLogs(params?: { userId?: string; action?: string; entityType?: string; search?: string; page?: number; pageSize?: number }): Promise<{ items: any[]; total: number }> {
     const res = await http.get('/audit-logs', { params });
-    const data = res.data.data;
+    const raw = res.data.data;
+    const data = Array.isArray(raw) ? { items: raw, total: Number(res.data.meta?.total ?? raw.length) } : raw;
     if (!data || !Array.isArray(data.items) || typeof data.total !== 'number') {
       throw new Error('API nhật ký trả về dữ liệu không đúng định dạng.');
     }

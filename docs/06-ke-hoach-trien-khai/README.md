@@ -1,12 +1,15 @@
 # Kế hoạch triển khai EduPoint — BE/FE trước, AI tích hợp sau
 
+> Cập nhật 02/11/2026: [Hiện trạng triển khai và nghiệm thu Khoa/CTSV](../07-hien-trang-he-thong/FACULTY_ADMIN_HANDOFF_2026-11-02.md) là nguồn ưu tiên cho phạm vi Web hiện tại. AI tích hợp/nghiệm thu sau; các mục dự kiến trong tài liệu cũ không đồng nghĩa đã triển khai.
+
+
 Ngày lập: **22/09/2026**. Trạng thái: **kế hoạch triển khai, chưa phải danh sách chức năng đã hoàn thành**.
 
 ## 1. Mục tiêu và thứ tự ưu tiên
 
 Hoàn thành một hệ thống **Backend + Web cán bộ/admin + Mobile sinh viên chạy với dữ liệu thật**, hỗ trợ nộp minh chứng, xét duyệt thủ công, Rule Engine, bổ sung, khiếu nại, bảng điểm và quản trị trước khi ghép AI. Người C phát triển AI độc lập; chỉ ghép khi cả bản BE/FE và gói AI tương ứng đạt điều kiện bàn giao.
 
-**“FE” trong kế hoạch bao gồm cả `apps/web` và `apps/mobile`**, theo cấu trúc đang có. Không thêm một ứng dụng web sinh viên riêng trong phạm vi nền tảng.
+**Hiện trạng 02/11/2026:** `apps/web` đã có Student, Khoa và Admin/CTSV. Đợt hoàn thiện này ưu tiên Web; `apps/mobile` và tích hợp AI là giai đoạn tiếp theo. Các bảng phân công lịch sử bên dưới cần được đọc theo phạm vi này.
 
 | Người | Trách nhiệm chính | Thư mục sở hữu |
 |---|---|---|
