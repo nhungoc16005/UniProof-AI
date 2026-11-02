@@ -2,6 +2,8 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiClient } from '../../lib/apiClient';
+import { useStudentAssessmentAccess } from '../../hooks/useStudentAssessmentAccess';
+import { StudentAssessmentNotice } from '../../components/StudentAssessmentNotice';
 import { Evidence } from '../../types';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { ScoreGauge } from '../../components/ui/ScoreGauge';
@@ -21,52 +23,47 @@ import {
 
 export const StudentDashboard: React.FC = () => {
   const { user, activeTerm } = useAuth();
+  const access = useStudentAssessmentAccess(user?.id, activeTerm.id);
   const [evidences, setEvidences] = useState<Evidence[]>([]);
   const [scoreSummary, setScoreSummary] = useState<any>(null);
-  const [assessmentSubmission, setAssessmentSubmission] = useState<any>(null);
+
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [showScoreModal, setShowScoreModal] = useState(false);
 
   useEffect(() => {
     if (!user?.id || !activeTerm.id) return;
+    let cancelled = false;
     setIsLoading(true);
     setLoadError('');
     Promise.all([
       apiClient.getEvidences({ studentId: user.id, termId: activeTerm.id }),
       apiClient.getConductDashboard(activeTerm.id),
-      apiClient.getMyAssessments(activeTerm.id),
-    ]).then(([evidenceList, summary, rubric]) => {
+    ]).then(([evidenceList, summary]) => {
+      if (cancelled) return;
       setEvidences(evidenceList);
       setScoreSummary(summary);
-      setAssessmentSubmission(rubric.submission);
     }).catch(() => {
+      if (cancelled) return;
       setLoadError('Không tải được dữ liệu điểm và minh chứng từ máy chủ. Vui lòng thử lại.');
-    }).finally(() => setIsLoading(false));
+    }).finally(() => { if (!cancelled) setIsLoading(false); });
+    return () => { cancelled = true; };
   }, [user?.id, activeTerm.id]);
 
-  // Kiểm tra thời hạn nộp điểm rèn luyện
-  const isSubmissionOpen = useMemo(() => {
-    if (!activeTerm) return false;
-    if (activeTerm.status !== 'ACTIVE') return false;
-    if (activeTerm.submissionDeadline) {
-      return new Date() <= new Date(activeTerm.submissionDeadline);
-    }
-    return true;
-  }, [activeTerm]);
+  const isSubmissionOpen = access.canEdit;
 
   const formattedDeadline = useMemo(() => {
-    if (!activeTerm?.submissionDeadline) return 'Chưa công bố';
+    if (!access.editDeadline) return 'Chưa công bố';
     try {
-      return new Date(activeTerm.submissionDeadline).toLocaleDateString('vi-VN', {
+      return new Date(access.editDeadline).toLocaleDateString('vi-VN', {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',
       });
     } catch {
-      return activeTerm.submissionDeadline;
+      return access.editDeadline;
     }
-  }, [activeTerm]);
+  }, [access.editDeadline]);
 
   // Điểm và phân bổ theo khung chỉ lấy từ Backend; FE không tự quyết định điểm.
   const isOfficialScore = scoreSummary?.officialScore !== null && scoreSummary?.officialScore !== undefined;
@@ -131,7 +128,7 @@ export const StudentDashboard: React.FC = () => {
             className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-[#1d6fc2] hover:bg-[#175ea5] active:scale-[0.99] text-white font-bold text-xs rounded-xl shadow-md shadow-blue-600/20 transition cursor-pointer"
           >
             <FileText className="w-3.5 h-3.5" />
-            <span>Chấm điểm & nộp minh chứng</span>
+            <span>{access.canEdit ? 'Chấm điểm & nộp minh chứng' : 'Xem phiếu rèn luyện'}</span>
           </Link>
 
           <button
@@ -144,25 +141,14 @@ export const StudentDashboard: React.FC = () => {
         </div>
       </div>
 
-      {assessmentSubmission && (
-        <div className={`rounded-xl border p-4 text-sm ${assessmentSubmission.status === 'RETURNED' ? 'border-orange-200 bg-orange-50 text-orange-900' : assessmentSubmission.status === 'SUBMITTED' ? 'border-blue-200 bg-blue-50 text-blue-900' : 'border-slate-200 bg-white text-slate-700'}`}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <strong>{assessmentSubmission.status === 'SUBMITTED' ? 'Phiếu đang chờ cán bộ xử lý' : assessmentSubmission.status === 'RETURNED' ? 'Phiếu cần chỉnh sửa' : 'Phiếu tự đánh giá'}</strong>
-              {assessmentSubmission.status === 'RETURNED' && assessmentSubmission.returnReason && <p className="mt-1">Lý do: {assessmentSubmission.returnReason}</p>}
-              {assessmentSubmission.status === 'SUBMITTED' && assessmentSubmission.submittedAt && <p className="mt-1">Đã nộp {new Date(assessmentSubmission.submittedAt).toLocaleString('vi-VN')}</p>}
-            </div>
-            {assessmentSubmission.status === 'RETURNED' && <Link to="/student/scores" className="rounded-lg bg-orange-700 px-3 py-2 text-xs font-bold text-white">Chỉnh sửa phiếu</Link>}
-          </div>
-        </div>
-      )}
+      <StudentAssessmentNotice access={access} showEditLink termId={activeTerm.id} />
 
       {/* 2. Thống Kê Nhanh Hồ Sơ & Hạn Chót (Quick Status Cards) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
         {/* Card 1: Hạn chót */}
         <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-1">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Hạn chót nộp hồ sơ</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider">{access.isReturned ? 'Hạn nộp lại phiếu' : 'Hạn chót nộp hồ sơ'}</span>
             <Calendar className="w-4 h-4 text-slate-500" />
           </div>
           <div className="text-lg font-black text-slate-900 font-mono">
@@ -297,7 +283,7 @@ export const StudentDashboard: React.FC = () => {
             to="/student/scores"
             className="px-3.5 py-1.5 bg-[#1d6fc2] hover:bg-[#175ea5] text-white font-bold rounded-lg shrink-0 transition shadow-xs text-center inline-flex items-center gap-1.5"
           >
-            <span>Chấm điểm & nộp minh chứng</span>
+            <span>{access.canEdit ? 'Chấm điểm & nộp minh chứng' : 'Xem phiếu rèn luyện'}</span>
             <ChevronRight className="w-3.5 h-3.5" />
           </Link>
         </div>

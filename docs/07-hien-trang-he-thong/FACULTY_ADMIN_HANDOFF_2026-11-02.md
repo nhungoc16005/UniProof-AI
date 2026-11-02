@@ -1,5 +1,8 @@
 # Bàn giao Web Khoa và Admin/CTSV — 02/11/2026
 
+> Bổ sung UX: [Phiếu bị trả, khóa tiếp nhận và loading/empty state](UX_WEB_FINAL_CHECK_2026-11-02.md). Giữ ngoại lệ RETURNED trong REVIEWING đến hạn chấm; không thay đổi database/API.
+
+
 ## Phạm vi và trạng thái
 
 Đã triển khai đợt hoàn thiện nghiệp vụ Web trên NestJS/Prisma và React hiện có. Giữ ba role `STUDENT`, `STAFF`, `ADMIN`; Khoa là đơn vị, không thêm role Faculty. Student Web là nguồn nghiệp vụ. Mobile và việc kết nối/nghiệm thu AI không thuộc đợt này.

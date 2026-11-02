@@ -1,4 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useStudentAssessmentAccess } from '../../hooks/useStudentAssessmentAccess';
+import { StudentAssessmentNotice } from '../../components/StudentAssessmentNotice';
 import { useAuth } from '../../context/AuthContext';
 import { apiClient, API_BASE_URL } from '../../lib/apiClient';
 import { Criterion, Evidence, RubricCategory, RubricPayload } from '../../types';
@@ -17,6 +19,11 @@ const evidenceStatusLabels: Record<string, string> = {
 
 export const ScoreReport: React.FC = () => {
   const { user, activeTerm } = useAuth();
+  const access = useStudentAssessmentAccess(user?.id, activeTerm.id);
+  const pageKey = `${user?.id}:${activeTerm.id}`;
+  const currentPage = useRef(pageKey);
+  currentPage.current = pageKey;
+  const loadVersion = useRef(0);
   const [rubric, setRubric] = useState<RubricPayload | null>(null);
   const [summary, setSummary] = useState<any>(null);
   const [evidences, setEvidences] = useState<Evidence[]>([]);
@@ -35,11 +42,13 @@ export const ScoreReport: React.FC = () => {
 
   const load = async (quiet = false) => {
     if (!user?.id || !activeTerm.id) return;
-    if (!quiet) setLoading(true);
+    const version = ++loadVersion.current;
+    if (!quiet) { setLoading(true); setRubric(null); setDraftScores({}); setEvidenceCriterion(null); setEditingEvidence(null); setEvidenceFormFiles([]); }
     setLoadError('');
     let loadingStep = 'rubric và điểm tự đánh giá';
     try {
-      const rubricData = await apiClient.getMyAssessments(activeTerm.id);
+      const rubricData = await access.refresh();
+      if (!rubricData || currentPage.current !== pageKey || loadVersion.current !== version) return;
       loadingStep = 'bảng điểm';
       const scoreData = await apiClient.getConductDashboard(activeTerm.id);
       const evidenceList: Evidence[] = [];
@@ -49,6 +58,7 @@ export const ScoreReport: React.FC = () => {
         evidenceList.push(...items);
         if (items.length < 200) break;
       }
+      if (currentPage.current !== pageKey || loadVersion.current !== version) return;
       setRubric(rubricData);
       setSummary(scoreData);
       setEvidences(evidenceList);
@@ -57,8 +67,9 @@ export const ScoreReport: React.FC = () => {
       criteria.forEach((criterion) => {
         if (criterion.assessment?.selfScore != null) scores[criterion.id] = String(criterion.assessment.selfScore);
       });
-      setDraftScores(scores);
+      if (!quiet) setDraftScores(scores);
     } catch (error: any) {
+      if (currentPage.current !== pageKey || loadVersion.current !== version) return;
       const status = error.response?.status;
       const backendMessage = error.response?.data?.message || error.response?.data?.error?.message;
       if (!error.response) {
@@ -67,7 +78,7 @@ export const ScoreReport: React.FC = () => {
         setLoadError(`Không tải được ${loadingStep} từ Backend${status ? ` (HTTP ${status})` : ''}.${backendMessage ? ` ${backendMessage}` : ' Kiểm tra log Backend và migration cơ sở dữ liệu đã được áp dụng.'}`);
       }
     } finally {
-      if (!quiet) setLoading(false);
+      if (!quiet && currentPage.current === pageKey && loadVersion.current === version) setLoading(false);
     }
   };
 
@@ -94,7 +105,7 @@ export const ScoreReport: React.FC = () => {
     })).filter((category) => category.criteria.length > 0);
   }, [categories, search]);
 
-  const canWrite = Boolean(rubric?.rubricVersion && rubric.permissions?.canEdit);
+  const canWrite = Boolean(!loading && rubric?.rubricVersion && access.canEdit);
   const officialScore = summary?.officialScore;
 
   const scoreValue = (criterion: Criterion) => {
@@ -112,7 +123,7 @@ export const ScoreReport: React.FC = () => {
   );
 
   const saveAllScores = async () => {
-    if (!rubric?.categories) return;
+    if (!canWrite || !rubric?.categories) return false;
     const scores = rubric.categories.flatMap((category) => category.criteria.map((criterion) => ({
       criterionId: criterion.id,
       score: (draftScores[criterion.id] ?? '').trim() === '' ? null : Number(draftScores[criterion.id]),
@@ -128,6 +139,7 @@ export const ScoreReport: React.FC = () => {
     try {
       const updated = await apiClient.saveSelfAssessments(activeTerm.id, scores);
       setRubric(updated);
+      access.accept(updated);
       setNotice('Đã lưu toàn bộ điểm tự đánh giá. Đây chưa phải điểm chính thức.');
       return true;
     } catch (error: any) {
@@ -175,6 +187,7 @@ export const ScoreReport: React.FC = () => {
   });
 
   const saveEvidenceDraft = async () => {
+    if (!canWrite) return;
     if (!evidenceCriterion || !evidenceForm.declaredActivityName.trim()) { setLoadError('Vui lòng nhập tên hoạt động minh chứng.'); return; }
     if (evidenceFormFiles.some((file) => file.size > 8 * 1024 * 1024)) { setLoadError('Mỗi tệp minh chứng phải nhỏ hơn 8 MB.'); return; }
     setEvidenceBusy(true); setLoadError(''); setNotice('');
@@ -199,23 +212,17 @@ export const ScoreReport: React.FC = () => {
   };
 
   const removeEvidence = async (evidence: Evidence) => {
+    if (!canWrite) return;
     if (!window.confirm(`Xóa hồ sơ “${evidence.declaredActivityName || 'Minh chứng'}”?`)) return;
     try { await apiClient.deleteEvidenceDraft(evidence.id); await load(true); setNotice('Đã xóa hồ sơ minh chứng.'); }
     catch (error: any) { setLoadError(error.response?.data?.message || 'Không xóa được hồ sơ minh chứng.'); }
   };
 
   const removeEvidenceFile = async (evidence: Evidence, fileId: string) => {
+    if (!canWrite) return;
     try { await apiClient.deleteEvidenceDraftFile(evidence.id, fileId); await load(true); }
     catch (error: any) { setLoadError(error.response?.data?.message || 'Không xóa được tệp minh chứng.'); }
   };
-
-  const writeLockMessage = !rubric?.rubricVersion
-    ? 'Kỳ này chưa có rubric được ban hành.'
-    : activeTerm.status === 'CLOSED'
-      ? 'Kỳ đã chốt sổ; phiếu chỉ còn chế độ xem.'
-      : activeTerm.status !== 'ACTIVE'
-        ? 'Kỳ chưa mở nhận đánh giá.'
-        : 'Đã hết hạn nộp đánh giá và minh chứng.';
 
   return (
     <div className="space-y-6 pb-10">
@@ -227,15 +234,14 @@ export const ScoreReport: React.FC = () => {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" disabled={!canWrite || savingAll || submittingAll} onClick={() => void saveAllScores()} className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-3.5 py-2 text-sm font-semibold text-blue-800 disabled:opacity-50"><Save className="h-4 w-4" />{savingAll ? 'Đang lưu…' : 'Lưu'}</button>
-          <button type="button" disabled={!canWrite || savingAll || submittingAll} onClick={() => void submitAll()} className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-3.5 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-50"><Check className="h-4 w-4" />{submittingAll ? 'Đang nộp…' : 'Nộp phiếu'}</button>
+          <button type="button" disabled={!canWrite || savingAll || submittingAll} onClick={() => void submitAll()} className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-3.5 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-50"><Check className="h-4 w-4" />{submittingAll ? 'Đang nộp…' : access.isReturned ? 'Nộp lại phiếu' : 'Nộp phiếu'}</button>
           <button onClick={() => window.print()} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700"><Printer className="h-4 w-4" /> In phiếu</button>
         </div>
       </header>
 
-      {loadError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{loadError}</div>}
+      {loadError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{loadError}<button type="button" onClick={() => void load(!loading && !!rubric)} className="ml-2 font-semibold underline">Thử lại</button></div>}
       {notice && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</div>}
-      {!canWrite && !loading && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{rubric?.submission?.status === 'SUBMITTED' ? `Phiếu đã nộp ngày ${rubric.submission.submittedAt ? new Date(rubric.submission.submittedAt).toLocaleString('vi-VN') : ''} và đang chờ cán bộ xử lý.` : writeLockMessage}</div>}
-      {rubric?.submission?.status === 'RETURNED' && <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm text-orange-900"><strong>Cán bộ yêu cầu chỉnh sửa:</strong> {rubric.submission.returnReason || 'Vui lòng rà soát lại phiếu.'}</div>}
+      <StudentAssessmentNotice access={access} termId={activeTerm.id} onRetry={() => { if (!rubric) void load(); else void access.refresh().catch(() => undefined); }} />
 
       <section className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
         <div><span className="block text-xs text-slate-500">Sinh viên</span><strong className="text-sm text-slate-900">{user?.fullName || '—'}</strong></div>
@@ -289,19 +295,20 @@ export const ScoreReport: React.FC = () => {
             <section className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
               <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white p-4 sm:p-5"><div><p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Tiêu chí {evidenceCriterion.code} · tối đa {evidenceCriterion.maxScore} điểm</p><h2 id="evidence-modal-title" className="mt-1 text-lg font-bold text-slate-900">Quản lý minh chứng</h2><p className="mt-1 text-sm text-slate-600">{evidenceCriterion.name}</p></div><button type="button" aria-label="Đóng popup" onClick={() => { setEvidenceCriterion(null); setEditingEvidence(null); }} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button></header>
               <div className="space-y-5 p-4 sm:p-5">
+                {(!canWrite || access.error) && <StudentAssessmentNotice access={access} termId={activeTerm.id} />}
                 <div className="space-y-2"><div className="flex items-center justify-between gap-2"><h3 className="text-sm font-bold text-slate-800">Danh sách minh chứng ({evidenceFor(evidenceCriterion).length})</h3><button type="button" disabled={!canWrite} onClick={() => { setEditingEvidence(null); setEvidenceForm({ declaredActivityName: '', description: '', declaredRole: 'PARTICIPANT', evidenceType: 'GIAY_XAC_NHAN', participationDate: new Date().toISOString().slice(0, 10) }); setEvidenceFormFiles([]); }} className="inline-flex items-center gap-1 rounded-lg bg-blue-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"><FilePlus2 className="h-4 w-4" />Thêm minh chứng</button></div>
                   {evidenceFor(evidenceCriterion).length ? evidenceFor(evidenceCriterion).map((evidence, index) => <article key={evidence.id} className="rounded-xl border border-slate-200 p-3"><div className="flex flex-wrap items-start justify-between gap-2"><div><h4 className="font-semibold text-slate-900">Minh chứng {index + 1}: {evidence.declaredActivityName || 'Chưa đặt tên'}</h4><p className="mt-1 text-xs text-slate-500">{evidenceStatusLabels[evidence.status] || evidence.status} · {evidence.evidenceType} · {evidence.participationDate ? new Date(evidence.participationDate).toLocaleDateString('vi-VN') : 'Chưa có ngày'}</p>{evidence.description && <p className="mt-2 whitespace-pre-line text-sm text-slate-700">{evidence.description}</p>}</div><div className="flex gap-1"><button type="button" disabled={!canWrite || evidence.status === 'APPROVED'} onClick={() => editEvidence(evidence)} className="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-40">Sửa</button><button type="button" disabled={!canWrite || evidence.status === 'APPROVED'} onClick={() => void removeEvidence(evidence)} className="rounded-md border border-rose-200 px-2.5 py-1.5 text-xs font-semibold text-rose-700 disabled:opacity-40"><Trash2 className="h-3.5 w-3.5" /></button></div></div>
                     {evidence.files?.length > 0 && <ul className="mt-2 space-y-1">{evidence.files.map((file) => <li key={file.id} className="flex min-w-0 items-center justify-between gap-2 rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs"><a href={file.fileUrl} target="_blank" rel="noreferrer" className="min-w-0 truncate text-blue-700 hover:underline">{file.fileName || 'Tệp minh chứng'}</a><span className="shrink-0 text-slate-500">{file.fileSize ? `${(file.fileSize / 1024 / 1024).toFixed(1)} MB` : file.fileType}</span>{canWrite && evidence.status !== 'APPROVED' && <button type="button" onClick={() => void removeEvidenceFile(evidence, file.id)} className="shrink-0 text-rose-700" aria-label="Xóa tệp"><X className="h-4 w-4" /></button>}</li>)}</ul>}
                   </article>) : <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">Chưa có minh chứng cho tiêu chí này.</p>}
                 </div>
-                {canWrite && <form className="space-y-3 rounded-xl border border-blue-200 bg-blue-50/40 p-3 sm:p-4" onSubmit={(event) => { event.preventDefault(); void saveEvidenceDraft(); }}>
+                <form className="space-y-3 rounded-xl border border-blue-200 bg-blue-50/40 p-3 sm:p-4" onSubmit={(event) => { event.preventDefault(); void saveEvidenceDraft(); }}><fieldset disabled={!canWrite || evidenceBusy} className="space-y-3">
                   <div className="flex items-center justify-between"><h3 className="text-sm font-bold text-slate-900">{editingEvidence ? 'Chỉnh sửa hồ sơ' : 'Thêm hồ sơ minh chứng'}</h3>{editingEvidence && <button type="button" onClick={() => { setEditingEvidence(null); setEvidenceFormFiles([]); }} className="text-xs font-semibold text-slate-600">Hủy sửa</button>}</div>
                   <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-semibold text-slate-700">Tên hoạt động / thành tích<input required value={evidenceForm.declaredActivityName} onChange={(event) => setEvidenceForm((current) => ({ ...current, declaredActivityName: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" placeholder="Ví dụ: Ngày Chủ nhật xanh" /></label><label className="text-xs font-semibold text-slate-700">Ngày tham gia<input type="date" value={evidenceForm.participationDate} onChange={(event) => setEvidenceForm((current) => ({ ...current, participationDate: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" /></label><label className="text-xs font-semibold text-slate-700">Vai trò<select value={evidenceForm.declaredRole} onChange={(event) => setEvidenceForm((current) => ({ ...current, declaredRole: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"><option value="PARTICIPANT">Người tham gia</option><option value="ORGANIZER">Ban tổ chức / tình nguyện viên</option><option value="CHEERLEADER">Cổ vũ</option></select></label><label className="text-xs font-semibold text-slate-700">Loại minh chứng<select value={evidenceForm.evidenceType} onChange={(event) => setEvidenceForm((current) => ({ ...current, evidenceType: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"><option value="GIAY_CHUNG_NHAN">Giấy chứng nhận / bằng khen</option><option value="GIAY_XAC_NHAN">Giấy xác nhận có đóng dấu</option><option value="VE_CHECKIN">Vé điện tử / check-in QR</option><option value="DANH_SACH">Danh sách kết quả</option></select></label></div>
                   <label className="block text-xs font-semibold text-slate-700">Mô tả / căn cứ<textarea rows={3} value={evidenceForm.description} onChange={(event) => setEvidenceForm((current) => ({ ...current, description: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" placeholder="Mô tả nội dung, đơn vị xác nhận hoặc thông tin cần đối chiếu" /></label>
                   <label className="block text-xs font-semibold text-slate-700">Tệp minh chứng (có thể chọn nhiều tệp)<input type="file" multiple accept="image/*,application/pdf" onChange={(event) => setEvidenceFormFiles(Array.from(event.target.files || []))} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-2 text-xs file:mr-2 file:rounded file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:font-semibold file:text-blue-700" /><span className="mt-1 block font-normal text-slate-500">Ảnh/PDF, tối đa 8 MB mỗi tệp; lưu nháp đến khi nộp phiếu.</span></label>
                   {evidenceFormFiles.length > 0 && <p className="text-xs text-blue-800">Tệp mới: {evidenceFormFiles.map((file) => file.name).join(', ')}</p>}
                   <button type="submit" disabled={evidenceBusy} className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{evidenceBusy ? 'Đang lưu…' : 'Lưu hồ sơ nháp'}</button>
-                </form>}
+                </fieldset></form>
                 <p className="text-xs leading-5 text-slate-500">Hồ sơ nháp được lưu thật vào hệ thống. Khi bấm Nộp phiếu, các hồ sơ có tệp sẽ chuyển sang xử lý AI và hàng đợi cán bộ.</p>
               </div>
             </section>

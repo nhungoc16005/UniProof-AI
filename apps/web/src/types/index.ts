@@ -185,7 +185,7 @@ export interface RubricCategory {
 
 export interface RubricPayload {
   rubricVersion: { id: string; version: number; status: string; source?: string; publishedAt?: string | null } | null;
-  term?: Pick<Term, 'id' | 'name' | 'status' | 'workflowEnabled' | 'appealDeadline'>;
+  term?: Pick<Term, 'id' | 'name' | 'status' | 'workflowEnabled' | 'appealDeadline' | 'submissionDeadline' | 'reviewDeadline'>;
   handoff?: { status: string; returnReason?: string | null; revision: number } | null;
   publication?: { revision: number; publishedAt: string } | null;
   permissions?: { canReview: boolean; canAppeal: boolean; canEdit?: boolean; canSend?: boolean; sendBlockers?: string[] };

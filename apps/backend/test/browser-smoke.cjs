@@ -57,9 +57,9 @@ const wait = async fn => { for(let i=0;i<120;i++){const value=await fn();if(valu
     await send('Runtime.enable');await send('Page.enable');await send('Network.enable');
     await send('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
     await send('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:profile});
-    const evaluate=async expression=>(await send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true})).result?.value;
+    const evaluate=async expression=>{const value=await send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(value.exceptionDetails)throw new Error(value.exceptionDetails.exception?.description || value.exceptionDetails.text);return value.result?.value;};
     const jwt=new JwtService({secret:process.env.JWT_SECRET});let scriptId;
-    const login=async actor=>{if(scriptId)await send('Page.removeScriptToEvaluateOnNewDocument',{identifier:scriptId});const source=`localStorage.setItem('edupoint_auth_token',${JSON.stringify(jwt.sign({sub:actor.id}))});localStorage.setItem('edupoint_current_user',${JSON.stringify(JSON.stringify(actor))});localStorage.setItem('edupoint_active_term',${JSON.stringify(JSON.stringify(term))});`;scriptId=(await send('Page.addScriptToEvaluateOnNewDocument',{source})).identifier;};
+    const login=async (actor, chosenTerm = term)=>{if(scriptId)await send('Page.removeScriptToEvaluateOnNewDocument',{identifier:scriptId});const source=`localStorage.setItem('edupoint_auth_token',${JSON.stringify(jwt.sign({sub:actor.id}))});localStorage.setItem('edupoint_current_user',${JSON.stringify(JSON.stringify(actor))});localStorage.setItem('edupoint_active_term',${JSON.stringify(JSON.stringify(chosenTerm))});`;scriptId=(await send('Page.addScriptToEvaluateOnNewDocument',{source})).identifier;};
     const visit=async(route,title)=>{await send('Page.navigate',{url:origin+route});await wait(async()=>await evaluate(`document.body?.innerText.includes(${JSON.stringify(title)}) && !document.body?.innerText.includes('Đang tải')`));await pause(300);assert.equal(errors.length,0,errors.join('\n'));console.log('PASS',route);};
     await login(admin);
     for(const [route,title] of [['/admin','Tổng quan đánh giá toàn trường'],['/admin/results','Tiếp nhận & công bố'],['/admin/reports','Báo cáo toàn trường'],['/admin/users','Tài khoản'],['/admin/terms','Kỳ đánh giá'],['/admin/criteria','Bộ tiêu chí'],['/admin/knowledge-base','quy chế'],['/admin/monitoring?tab=audit','Nhật ký hệ thống'],['/admin/monitoring?tab=health','Trạng thái dịch vụ'],['/admin/results/'+student.id+'?termId='+term.id,'Phiếu rèn luyện']]) await visit(route,title);
@@ -87,6 +87,8 @@ const wait = async fn => { for(let i=0;i<120;i++){const value=await fn();if(valu
     await wait(async()=>await evaluate(`location.pathname === '/officer/students' && new URLSearchParams(location.search).get('termId') === ${JSON.stringify(otherTerm.id)}`));
     console.log('PASS switching term leaves old student detail and resets filters');
 
+
+    await require('./ux-checks.cjs')({prisma,send,evaluate,login,visit,ws,api,profile,wait,pause,sourceTerm:term,admin,staff,student});
 
     assert.deepEqual(apiFailures,[],apiFailures.join('\n'));console.log('PASS no browser runtime errors or failed API requests');
   } finally {if(ws)ws.close();if(chrome){chrome.kill();await new Promise(resolve=>chrome.once('exit',resolve));}if(vite)await vite.close();if(app)await app.close();rmSync(profile,{recursive:true,force:true});}

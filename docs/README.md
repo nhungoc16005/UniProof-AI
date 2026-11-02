@@ -7,6 +7,7 @@
 
 | Nội dung | Tài liệu |
 |---|---|
+| Chốt UX Web trước AI | [Ba điểm UX và kiểm thử](07-hien-trang-he-thong/UX_WEB_FINAL_CHECK_2026-11-02.md) |
 | Hiện trạng repo và chỗ chưa thống nhất | [Khảo sát và quyết định](06-ke-hoach-trien-khai/00-hien-trang-va-quyet-dinh.md) |
 | Task người A — Backend | [Kế hoạch riêng Backend](06-ke-hoach-trien-khai/01-ke-hoach-backend.md) |
 | Task người B — Frontend Web + Mobile | [Kế hoạch riêng Frontend](06-ke-hoach-trien-khai/02-ke-hoach-frontend.md) |

@@ -109,9 +109,24 @@ if (!url) {
       await okay(staffA,'PUT',`/assessments/students/${studentA.id}/${term.id}/return`,{reason:'Cần sinh viên rà soát phiếu'});
       await prisma.term.update({where:{id:term.id},data:{submissionDeadline:new Date(Date.now()-1000)}});
       assert.equal((await okay(studentA,'GET',`/assessments/me?termId=${term.id}`)).permissions.canEdit,true);
+      await prisma.term.update({where:{id:term.id},data:{status:'REVIEWING'}});
+      assert.equal((await okay(studentA,'GET',`/assessments/me?termId=${term.id}`)).permissions.canEdit,true);
+      assert.equal((await okay(absentA,'GET',`/assessments/me?termId=${term.id}`)).permissions.canEdit,false);
+      assert.equal((await request(absentA,'POST',`/assessments/me/save?termId=${term.id}`,{scores:[{criterionId:criterion.id,score:85}]})).status,400);
+      assert.equal((await request(absentA,'POST',`/assessments/me/submit?termId=${term.id}`)).status,400);
+      const originalReviewDeadline=term.reviewDeadline;
+      await prisma.term.update({where:{id:term.id},data:{reviewDeadline:new Date(Date.now()-1000)}});
+      assert.equal((await okay(studentA,'GET',`/assessments/me?termId=${term.id}`)).permissions.canEdit,false);
+      assert.equal((await request(studentA,'POST',`/assessments/me/save?termId=${term.id}`,{scores:[{criterionId:criterion.id,score:85}]})).status,400);
+      assert.equal((await request(studentA,'POST',`/assessments/me/submit?termId=${term.id}`)).status,400);
+      await prisma.term.update({where:{id:term.id},data:{status:'CLOSED',reviewDeadline:originalReviewDeadline}});
+      assert.equal((await okay(studentA,'GET',`/assessments/me?termId=${term.id}`)).permissions.canEdit,false);
+      assert.equal((await request(studentA,'POST',`/assessments/me/submit?termId=${term.id}`)).status,400);
+      await prisma.term.update({where:{id:term.id},data:{status:'REVIEWING'}});
+
       await okay(studentA,'POST',`/assessments/me/save?termId=${term.id}`,{scores:[{criterionId:criterion.id,score:85}]});
       await okay(studentA,'POST',`/assessments/me/submit?termId=${term.id}`);
-      await prisma.term.update({where:{id:term.id},data:{submissionDeadline:new Date(Date.now()+3600000)}});
+      await prisma.term.update({where:{id:term.id},data:{status:'ACTIVE',submissionDeadline:new Date(Date.now()+3600000)}});
       await prisma.user.update({where:{id:studentA.id},data:{classId:clsB.id}});
       assert.equal((await request(staffB,'GET',`/assessments/students/${studentA.id}?termId=${term.id}`)).status,403);
       assert.equal((await request(staffA,'GET',`/users/${studentA.id}?termId=${term.id}`)).status,200);
