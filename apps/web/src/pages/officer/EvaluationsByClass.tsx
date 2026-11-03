@@ -28,7 +28,7 @@ type QuickFilter = 'all' | 'action' | 'returned' | 'evidence' | 'ready';
 const quickFilters: Array<{ key: QuickFilter; label: string }> = [
   { key: 'all', label: 'Tất cả' },
   { key: 'action', label: 'Cần xử lý' },
-  { key: 'returned', label: 'Phiếu bị trả' },
+  { key: 'returned', label: 'CTSV trả lại' },
   { key: 'evidence', label: 'Minh chứng chờ Khoa' },
   { key: 'ready', label: 'Sẵn sàng gửi' },
 ];
@@ -175,7 +175,7 @@ export const EvaluationsByClass: React.FC = () => {
         {sources.workflow.data && sources.rows.data && (
           <>
             <section aria-label="Việc cần xử lý toàn Khoa" className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-              <StatCard label="Khoa đang chấm" value={counts.REVIEWING} subtitle="Phiếu chưa hoàn tất thẩm định" icon={FileCheck2} to={queryHref('/officer/students', { termId, state: 'REVIEWING' })} />
+              <StatCard label="Khoa đang đánh giá" value={counts.REVIEWING} subtitle="Chưa hoàn tất thẩm định" icon={FileCheck2} to={queryHref('/officer/students', { termId, state: 'REVIEWING' })} />
               <StatCard label="CTSV trả lại" value={counts.FACULTY_RETURNED} subtitle="Cần kiểm tra và hoàn thiện lại" icon={AlertTriangle} to={queryHref('/officer/students', { termId, state: 'FACULTY_RETURNED' })} />
               <StatCard label="Minh chứng chờ Khoa" value={sources.evidences.data?.total ?? '—'} subtitle="Chờ xác minh và ra quyết định" icon={ShieldCheck} to={queryHref('/officer/queue', { termId, status: 'NEEDS_HUMAN_REVIEW' })} />
               <StatCard label="Phúc khảo chờ xử lý" value={sources.appeals.data?.total ?? '—'} subtitle="Cần xem giải trình sinh viên" icon={MessageSquareWarning} to={queryHref('/officer/appeals', { termId, status: 'PENDING' })} />
@@ -183,7 +183,7 @@ export const EvaluationsByClass: React.FC = () => {
 
             {queueWarning && (
               <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                Một phần số liệu minh chứng hoặc phúc khảo chưa tải được. Tiến độ phiếu vẫn chính xác; hãy thử làm mới để hoàn thiện số liệu ưu tiên.
+                Một phần số liệu minh chứng hoặc phúc khảo chưa tải được. Tiến độ đánh giá vẫn chính xác; hãy thử làm mới để hoàn thiện số liệu ưu tiên.
               </div>
             )}
 
@@ -292,13 +292,13 @@ function ClassPanel({ cls, termId, returnTo, onClose }: { cls: ClassWorkflowSumm
   const link = (path: string, values: Record<string, string | undefined>) => queryHref(path, { termId, classId: cls.id, returnTo, ...values });
   const sections = [
     { title: 'Cần Khoa xử lý', items: [
-      { label: 'Phiếu đang chấm', value: cls.reviewing, to: link('/officer/students', { state: 'REVIEWING' }) },
-      { label: 'Phiếu CTSV trả lại', value: cls.facultyReturned, to: link('/officer/students', { state: 'FACULTY_RETURNED' }) },
+      { label: 'Đang đánh giá', value: cls.reviewing, to: link('/officer/students', { state: 'REVIEWING' }) },
+      { label: 'Kết quả CTSV trả lại', value: cls.facultyReturned, to: link('/officer/students', { state: 'FACULTY_RETURNED' }) },
       { label: 'Minh chứng chờ xác minh', value: loading || failure ? '—' : summary.NEEDS_HUMAN_REVIEW, to: link('/officer/queue', { status: 'NEEDS_HUMAN_REVIEW' }) },
       { label: 'Phúc khảo chờ xử lý', value: cls.pendingAppeals, to: link('/officer/appeals', { status: 'PENDING' }) },
     ] },
     { title: 'Đang chờ', items: [
-      { label: 'Chờ sinh viên sửa phiếu', value: cls.studentReturned, to: link('/officer/students', { state: 'STUDENT_RETURNED' }) },
+      { label: 'Chờ sinh viên chỉnh sửa', value: cls.studentReturned, to: link('/officer/students', { state: 'STUDENT_RETURNED' }) },
       { label: 'Chờ sinh viên bổ sung minh chứng', value: loading || failure ? '—' : summary.NEEDS_SUPPLEMENT, to: link('/officer/queue', { status: 'NEEDS_SUPPLEMENT' }) },
       { label: 'Minh chứng đang được hệ thống xử lý', value: loading || failure ? '—' : summary.PROCESSING, to: link('/officer/queue', { status: 'PROCESSING' }) },
     ] },
@@ -312,7 +312,7 @@ function ClassPanel({ cls, termId, returnTo, onClose }: { cls: ClassWorkflowSumm
   const priorityLink = summary.NEEDS_HUMAN_REVIEW > 0
     ? { label: 'Xem minh chứng chờ xác minh', to: link('/officer/queue', { status: 'NEEDS_HUMAN_REVIEW' }) }
     : cls.facultyReturned > 0
-    ? { label: 'Xem phiếu CTSV trả lại', to: link('/officer/students', { state: 'FACULTY_RETURNED' }) }
+    ? { label: 'Xem kết quả CTSV trả lại', to: link('/officer/students', { state: 'FACULTY_RETURNED' }) }
     : cls.pendingAppeals > 0
     ? { label: 'Xem phúc khảo chờ xử lý', to: link('/officer/appeals', { status: 'PENDING' }) }
     : null;
@@ -331,7 +331,7 @@ function ClassPanel({ cls, termId, returnTo, onClose }: { cls: ClassWorkflowSumm
           <div className="space-y-6">{sections.map(section => <section key={section.title}><h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#6B6B6B]">{section.title}</h3><div className="divide-y divide-[#E8E8EC] rounded-lg border border-[#E8E8EC]">{section.items.map(item => <Link key={item.label} to={item.to} className="flex items-center justify-between gap-3 px-3 py-3 text-sm hover:bg-[#FAFAFA]"><span>{item.label}</span><span className="inline-flex items-center gap-2"><strong className="tabular-nums">{item.value}</strong><ChevronRight className="h-3.5 w-3.5 text-[#6B6B6B]" /></span></Link>)}</div></section>)}</div>
         </div>
         <footer className="shrink-0 space-y-2 border-t border-[#E8E8EC] bg-white p-4">
-          <Link to={link('/officer/students', {})} className="flex w-full items-center justify-center rounded-md bg-[#1D6FC2] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#175A9E]">Mở phiếu của lớp</Link>
+          <Link to={link('/officer/students', {})} className="flex w-full items-center justify-center rounded-md bg-[#1D6FC2] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#175A9E]">Xem danh sách đánh giá của lớp</Link>
           {priorityLink && <Link to={priorityLink.to} className="flex w-full items-center justify-center rounded-md border border-[#C2DBF2] px-4 py-2.5 text-sm font-semibold text-[#175A9E] hover:bg-[#F0F6FC]">{priorityLink.label}</Link>}
         </footer>
       </aside>

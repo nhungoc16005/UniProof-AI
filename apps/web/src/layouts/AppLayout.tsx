@@ -128,7 +128,7 @@ export const AppLayout: React.FC = () => {
       else if (p === '/officer/queue') crumbs.push({ label: 'Minh chứng' });
       else if (p.startsWith('/officer/review/')) crumbs.push({ label: 'Minh chứng', path: '/officer/queue' }, { label: 'Chi tiết hồ sơ' });
       else if (p === '/officer/appeals') crumbs.push({ label: 'Phúc khảo' });
-      else if (p === '/officer/students') crumbs.push({ label: 'Phiếu rèn luyện' });
+      else if (p === '/officer/students') crumbs.push({ label: 'Danh sách đánh giá' });
       else if (p === '/officer/activities' || p === '/officer/external-activities') crumbs.push({ label: 'Hoạt động & điểm danh' });
       else if (p === '/officer/criteria') crumbs.push({ label: 'Tiêu chí & quy chế' });
     } else if (p.startsWith('/admin')) {

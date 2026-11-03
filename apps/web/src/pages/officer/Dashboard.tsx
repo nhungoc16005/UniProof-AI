@@ -109,7 +109,7 @@ export const OfficerDashboard: React.FC = () => {
     if (rowReady && counts.FACULTY_RETURNED)
       items.push({
         id: 'faculty-returned',
-        title: counts.FACULTY_RETURNED + ' phiếu CTSV trả Khoa',
+        title: counts.FACULTY_RETURNED + ' kết quả CTSV trả Khoa',
         subtitle: 'Kiểm tra lý do trả và hoàn thiện lại kết quả.',
         to: facultyListHref(termId, 'FACULTY_RETURNED'),
         icon: AlertTriangle,
@@ -135,7 +135,7 @@ export const OfficerDashboard: React.FC = () => {
     if (summary.ready)
       items.push({
         id: 'ready',
-        title: summary.ready + ' phiếu sẵn sàng gửi CTSV',
+        title: summary.ready + ' kết quả sẵn sàng gửi CTSV',
         subtitle: 'Kiểm tra lần cuối trước khi bàn giao.',
         to: facultyListHref(termId, 'READY'),
         icon: CheckCircle2,
@@ -143,7 +143,7 @@ export const OfficerDashboard: React.FC = () => {
     if (rowReady && counts.STUDENT_RETURNED)
       items.push({
         id: 'returned',
-        title: counts.STUDENT_RETURNED + ' phiếu chờ sinh viên sửa',
+        title: counts.STUDENT_RETURNED + ' đánh giá chờ sinh viên chỉnh sửa',
         subtitle: 'Theo dõi bổ sung và nộp lại trước hạn chấm.',
         to: facultyListHref(termId, 'STUDENT_RETURNED'),
         icon: Clock,
@@ -279,7 +279,7 @@ export const OfficerDashboard: React.FC = () => {
                     to={facultyListHref(termId)}
                   />
                   <StatCard
-                    label="Chưa nộp phiếu"
+                    label="Chưa nộp tự đánh giá"
                     value={summary.notSubmitted}
                     subtitle={percentage(summary.notSubmitted, total).toLocaleString('vi-VN') + '% sinh viên'}
                     icon={FileText}
@@ -382,7 +382,7 @@ export const OfficerDashboard: React.FC = () => {
                       />
                       {(rows.loading || kpi.loading) && (
                         <p role="status" className="text-xs text-[#6B6B6B]">
-                          Đang kiểm tra thêm phiếu bị trả và minh chứng…
+                          Đang kiểm tra thêm kết quả bị trả và minh chứng…
                         </p>
                       )}
                       {(rows.error || kpi.error) && (

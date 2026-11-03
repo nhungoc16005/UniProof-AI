@@ -19,14 +19,14 @@ export function FacultyStateChart({ counts, total, termId }: { counts: StateCoun
   return <figure aria-labelledby={id} className="space-y-4" data-testid="faculty-state-chart">
     <figcaption id={id} className="flex flex-wrap items-baseline justify-between gap-2">
       <div>
-        <h2 className="text-base font-semibold font-heading text-[#0A0A0A]">Tiến độ trạng thái phiếu</h2>
-        <p className="mt-0.5 text-xs text-[#6B6B6B]">Phân bố {countFormat(total)} phiếu rèn luyện theo từng bước thẩm định.</p>
+        <h2 className="text-base font-semibold font-heading text-[#0A0A0A]">Tiến độ xử lý đánh giá</h2>
+        <p className="mt-0.5 text-xs text-[#6B6B6B]">Phân bố {countFormat(total)} sinh viên theo từng bước thẩm định.</p>
       </div>
       <Link className={'text-xs font-semibold text-[#1D6FC2] hover:underline ' + focus} to={facultyListHref(termId)}>
-        Tất cả phiếu →
+        Xem danh sách đánh giá →
       </Link>
     </figcaption>
-    {total === 0 ? <p className="py-6 text-center text-xs text-[#6B6B6B]">Chưa có phiếu để thống kê trong kỳ này.</p> : <>
+    {total === 0 ? <p className="py-6 text-center text-xs text-[#6B6B6B]">Chưa có dữ liệu đánh giá trong kỳ này.</p> : <>
       <div className="rounded-xl bg-gradient-to-r from-[#EFF6FF] via-[#F0F7FF] to-[#E0F2FE] border border-[#BFDBFE] px-4 py-2.5 text-xs text-[#1E3A8A] flex items-center justify-between shadow-2xs">
         <span className="font-medium flex items-center gap-1.5">
           <CheckCircle2 className="w-4 h-4 text-[#1D6FC2]" />
@@ -38,7 +38,7 @@ export function FacultyStateChart({ counts, total, termId }: { counts: StateCoun
       </div>
       <ul className="space-y-2">
         {facultyStates.map(state => <li key={state.key}>
-          <Link to={facultyListHref(termId, state.key)} className={'block rounded-lg p-2 hover:bg-[#F8FAFC] border border-transparent hover:border-[#E2E8F0] transition-all ' + focus} aria-label={`${state.label}: ${counts[state.key]} phiếu, ${pct(counts[state.key], total)}. Xem danh sách.`}>
+          <Link to={facultyListHref(termId, state.key)} className={'block rounded-lg p-2 hover:bg-[#F8FAFC] border border-transparent hover:border-[#E2E8F0] transition-all ' + focus} aria-label={`${state.label}: ${counts[state.key]} sinh viên, ${pct(counts[state.key], total)}. Xem danh sách.`}>
             <div className="mb-1.5 flex items-center justify-between gap-2 text-xs">
               <span className="flex items-center gap-1.5 font-semibold text-[#0F172A]">
                 <span className="h-2.5 w-2.5 rounded-full shrink-0 shadow-2xs" style={{ backgroundColor: state.color }} />
@@ -152,7 +152,7 @@ function FacultyClassRow({ cls, termId }: { cls: FacultyClassProgress; termId: s
               key={group.key}
               to={facultyListHref(termId, group.states[0], cls.id)}
               className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold border transition-all hover:scale-102 ${group.chipBg}`}
-              title={`Xem ${cls[group.key]} phiếu ${group.label}`}
+              title={`Xem ${cls[group.key]} sinh viên ở trạng thái ${group.label}`}
             >
               <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: group.color }} />
               <span>{group.label}:</span>
@@ -180,14 +180,14 @@ export function FacultyClassChart({ classes, termId }: { classes: FacultyClassPr
     <div className="flex flex-wrap items-start justify-between gap-3">
       <figcaption id={id}>
         <h2 className="text-base font-semibold font-heading text-[#0A0A0A]">Tiến độ giữa các lớp</h2>
-        <p className="mt-1 max-w-xl text-xs text-[#6B6B6B]">Ưu tiên lớp có tỷ lệ phiếu chưa bàn giao cao; di chuột vào từng phân đoạn để xem chi tiết.</p>
+        <p className="mt-1 max-w-xl text-xs text-[#6B6B6B]">Ưu tiên lớp có tỷ lệ kết quả chưa bàn giao cao; di chuột vào từng phân đoạn để xem chi tiết.</p>
       </figcaption>
       <button type="button" aria-pressed={table} onClick={() => setTable(v => !v)} className={'rounded-md border border-[#E8E8EC] px-3 py-2 text-xs font-semibold text-[#0F172A] hover:bg-[#FAFAFA] ' + focus}>
         {table ? 'Xem dạng thanh' : 'Xem dạng bảng'}
       </button>
     </div>
     {!classes.length ? <p className="py-8 text-center text-sm text-[#6B6B6B]">Chưa có danh sách lớp trong kỳ này.</p> : table ? <div className="overflow-x-auto">
-      <table className="w-full min-w-[680px] text-left text-xs"><caption className="sr-only">Số phiếu và tiến độ bàn giao theo lớp</caption><thead><tr className="border-b bg-[#FAFAFA]">{['Lớp', 'Sĩ số', ...classGroups.map(g => g.label), 'Tỷ lệ bàn giao'].map(label => <th key={label} scope="col" className="px-2 py-3 font-medium">{label}</th>)}</tr></thead>
+      <table className="w-full min-w-[680px] text-left text-xs"><caption className="sr-only">Số sinh viên và tiến độ bàn giao theo lớp</caption><thead><tr className="border-b bg-[#FAFAFA]">{['Lớp', 'Sĩ số', ...classGroups.map(g => g.label), 'Tỷ lệ bàn giao'].map(label => <th key={label} scope="col" className="px-2 py-3 font-medium">{label}</th>)}</tr></thead>
         <tbody>{visible.map(cls => <tr key={cls.id} className="border-b border-[#E8E8EC]">
           <th scope="row" className="px-2 py-3"><Link className={'text-[#1D6FC2] ' + focus} to={facultyListHref(termId, undefined, cls.id)}>{cls.code}</Link></th><td className="px-2 py-3">{cls.total}</td>
           {classGroups.map(group => <td key={group.key} className="px-2 py-3">{group.key === 'processing' ? <details><summary className={'cursor-pointer ' + focus}>{cls.processing}</summary><div className="space-y-2 py-2">{group.states.map(state => <Link key={state} className="block text-[#1D6FC2]" to={facultyListHref(termId, state, cls.id)}>{facultyStates.find(s => s.key === state)?.label}: {cls.counts[state]}</Link>)}</div></details> : <Link className={'text-[#1D6FC2] ' + focus} to={facultyListHref(termId, group.states[0], cls.id)}>{cls[group.key]}</Link>}</td>)}
@@ -213,7 +213,7 @@ export function FacultyClassChart({ classes, termId }: { classes: FacultyClassPr
       <ul className="space-y-3">{visible.map(cls => <FacultyClassRow key={cls.id} cls={cls} termId={termId} />)}</ul>
     </>}
     {classes.length > 8 && <button type="button" aria-expanded={all} onClick={() => setAll(v => !v)} className={'rounded-md border border-[#E8E8EC] px-3 py-2 text-xs font-semibold text-[#1D6FC2] ' + focus}>{all ? 'Thu gọn (8 lớp)' : `Xem tất cả ${classes.length} lớp`}</button>}
-    {classes.length > 0 && <p className="text-[11px] leading-5 text-[#64748B]">Đã bàn giao bao gồm phiếu chờ công bố và đã công bố. Mỗi thanh thể hiện 100% sĩ số lớp.</p>}
+    {classes.length > 0 && <p className="text-[11px] leading-5 text-[#64748B]">Đã bàn giao bao gồm kết quả chờ công bố và đã công bố. Mỗi thanh thể hiện 100% sĩ số lớp.</p>}
   </figure>;
 }
 

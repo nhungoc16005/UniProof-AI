@@ -2,7 +2,7 @@
 
 ## Cấu trúc
 
-Khoa có 4 mục: Tổng quan Khoa; Xử lý đánh giá (Theo lớp, Phiếu sinh viên, Minh chứng, Phúc khảo); Hoạt động & điểm danh; Tiêu chí & quy chế.
+Khoa có 4 mục: Tổng quan Khoa; Xử lý đánh giá (Theo lớp, Danh sách đánh giá, Minh chứng, Phúc khảo); Hoạt động & điểm danh; Tiêu chí & quy chế.
 
 Admin có 5 mục: Tổng quan; Kết quả rèn luyện (Tiếp nhận & công bố, Báo cáo kết quả); Tài khoản & đơn vị; Thiết lập đánh giá (Kỳ đánh giá, Bộ tiêu chí, Văn bản quy chế); Giám sát & nhật ký.
 

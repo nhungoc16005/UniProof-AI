@@ -507,7 +507,7 @@ export const StudentAssessment: React.FC = () => {
       </div>
 
       <PageHeader
-        title={`Phiếu rèn luyện · ${student?.fullName || 'Sinh viên'}`}
+        title={`Chi tiết đánh giá · ${student?.fullName || 'Sinh viên'}`}
         description={`${student?.studentCode || '—'} · ${payload?.term?.name || activeTerm.name} · ${
           payload?.rubricVersion ? `Bộ tiêu chí phiên bản ${payload.rubricVersion.version}` : 'Chưa thiết lập bộ tiêu chí'
         }`}
@@ -602,7 +602,7 @@ export const StudentAssessment: React.FC = () => {
       {/* Tabs */}
       <div className="flex border-b border-[#E8E8EC]">
         {[
-          ['sheet', 'Phiếu đánh giá', FileText],
+          ['sheet', 'Nội dung đánh giá', FileText],
           ['evidence', `Minh chứng (${evidence.length})`, ShieldCheck],
           ...(!isAdmin ? [['appeals', 'Phúc khảo liên quan', FileText]] : []),
           ['history', `Lịch sử (${history.length})`, History],

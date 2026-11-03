@@ -228,7 +228,7 @@ export const AppealsResolution: React.FC = () => {
                           className="inline-flex items-center gap-0.5 text-xs text-[#6B6B6B] hover:text-[#0A0A0A] hover:underline"
                           to={`/officer/students/${a.studentId}/assessment?termId=${termId}&returnTo=${encodeURIComponent('/officer/appeals?' + params.toString())}`}
                         >
-                          Mở phiếu
+                          Xem chi tiết đánh giá
                           <ArrowRight className="h-3 w-3" />
                         </Link>
                       </div>

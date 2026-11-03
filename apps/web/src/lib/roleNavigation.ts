@@ -2,8 +2,8 @@ export type NavigationItem = { label: string; path: string; matches?: string[]; 
 export const roleNavigation: Record<string, NavigationItem[]> = {
   STAFF: [
     { label: 'Tổng quan Khoa', path: '/officer', matches: ['/officer', '/officer/reports', '/officer/students/legacy'] },
-    { label: 'Xử lý đánh giá', path: '/officer/evaluations', matches: ['/officer/evaluations', '/officer/students', '/officer/queue', '/officer/review', '/officer/appeals'], description: 'Theo dõi lớp, chấm phiếu, xác minh minh chứng và giải quyết phúc khảo.', tabs: [
-      { label: 'Theo lớp', path: '/officer/evaluations' }, { label: 'Phiếu sinh viên', path: '/officer/students' }, { label: 'Minh chứng', path: '/officer/queue' }, { label: 'Phúc khảo', path: '/officer/appeals' },
+    { label: 'Xử lý đánh giá', path: '/officer/evaluations', matches: ['/officer/evaluations', '/officer/students', '/officer/queue', '/officer/review', '/officer/appeals'], description: 'Theo dõi lớp, hoàn thiện đánh giá, xác minh minh chứng và giải quyết phúc khảo.', tabs: [
+      { label: 'Theo lớp', path: '/officer/evaluations' }, { label: 'Danh sách đánh giá', path: '/officer/students' }, { label: 'Minh chứng', path: '/officer/queue' }, { label: 'Phúc khảo', path: '/officer/appeals' },
     ] },
     { label: 'Hoạt động & điểm danh', path: '/officer/activities', matches: ['/officer/activities', '/officer/external-activities'] },
     { label: 'Tiêu chí & quy chế', path: '/officer/criteria' },
