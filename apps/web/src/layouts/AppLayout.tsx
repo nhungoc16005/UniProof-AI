@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Bell, Calendar, X } from 'lucide-react';
+import { Bell, Calendar, X, ChevronDown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiClient } from '../lib/apiClient';
 import { Notification } from '../types';
-import { roleNavigation, currentNavigation, navigationHref } from '../lib/roleNavigation';
+import { roleNavigation, currentNavigation, navigationHref, type NavigationItem } from '../lib/roleNavigation';
 
 interface NavGroup {
   title: string;
-  items: { label: string; path: string }[];
+  items: NavigationItem[];
 }
 
 export const AppLayout: React.FC = () => {
@@ -155,6 +155,120 @@ export const AppLayout: React.FC = () => {
       return location.pathname === path || (location.pathname.startsWith(`${path}/`) && !location.pathname.startsWith(`${path}/new`));
     }
     return location.pathname === path || (!['/student', '/officer', '/admin'].includes(path) && location.pathname.startsWith(`${path}/`));
+  };
+
+  const [openAccordions, setOpenAccordions] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (currentSection?.path) {
+      setOpenAccordions((prev) => ({ ...prev, [currentSection.path]: true }));
+    }
+  }, [currentSection?.path]);
+
+  const toggleAccordion = (path: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setOpenAccordions((prev) => ({
+      ...prev,
+      [path]: prev[path] === undefined ? currentSection?.path !== path : !prev[path],
+    }));
+  };
+
+  const renderNavItem = (item: NavigationItem, onNavigate?: () => void) => {
+    const hasTabs = Boolean(item.tabs && item.tabs.length > 0);
+    const isSectionActive = isNavItemActive(item.path);
+    const isOpen = openAccordions[item.path] ?? isSectionActive;
+
+    if (!hasTabs) {
+      return (
+        <Link
+          key={item.path}
+          to={sectionHref(item.path)}
+          onClick={onNavigate}
+          className={`flex items-center justify-between px-3 py-2 rounded-[6px] text-xs transition-colors duration-150 ${
+            isSectionActive
+              ? 'bg-[#E1EDF9] text-[#1D6FC2] font-semibold border-l-2 border-[#1D6FC2]'
+              : 'text-[#6B6B6B] hover:text-[#0A0A0A] hover:bg-[#FFFFFF] font-medium'
+          }`}
+        >
+          <span>{item.label}</span>
+          {item.path === '/officer/appeals' && Boolean(workCounts?.appeals) && (
+            <span className="rounded-full bg-rose-100 px-1.5 py-0.2 text-[10px] font-bold text-rose-700">
+              {workCounts?.appeals}
+            </span>
+          )}
+        </Link>
+      );
+    }
+
+    return (
+      <div key={item.path} className="space-y-0.5">
+        <div
+          className={`group flex items-center justify-between px-3 py-2 rounded-[6px] text-xs transition-colors duration-150 cursor-pointer select-none ${
+            isSectionActive
+              ? 'text-[#1D6FC2] font-bold bg-[#F0F6FC]'
+              : 'text-[#475569] hover:text-[#0A0A0A] hover:bg-[#FFFFFF] font-medium'
+          }`}
+          onClick={(e) => toggleAccordion(item.path, e)}
+        >
+          <Link
+            to={sectionHref(item.path)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpenAccordions((prev) => ({ ...prev, [item.path]: true }));
+              onNavigate?.();
+            }}
+            className="flex-1 truncate hover:text-[#1D6FC2]"
+          >
+            {item.label}
+          </Link>
+          <button
+            type="button"
+            onClick={(e) => toggleAccordion(item.path, e)}
+            className="p-0.5 rounded text-slate-400 group-hover:text-slate-600 hover:bg-slate-200/50 transition shrink-0"
+            aria-label={isOpen ? 'Thu gọn' : 'Mở rộng'}
+          >
+            <ChevronDown
+              className={`w-3.5 h-3.5 transition-transform duration-200 ${isOpen ? 'rotate-0' : '-rotate-90'}`}
+            />
+          </button>
+        </div>
+
+        {isOpen && (
+          <div className="ml-3 pl-2.5 border-l border-slate-200/80 space-y-0.5 py-0.5">
+            {item.tabs!.map((tab) => {
+              const isTabActive =
+                location.pathname === tab.path ||
+                (location.pathname.startsWith(tab.path + '/') && tab.path !== item.path) ||
+                (tab.path === '/officer/queue' && location.pathname.startsWith('/officer/review/'));
+              const count =
+                workCounts?.key === countsKey && tab.path === '/officer/queue'
+                  ? workCounts.evidence
+                  : undefined;
+
+              return (
+                <Link
+                  key={tab.path}
+                  to={sectionHref(tab.path)}
+                  onClick={onNavigate}
+                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-[5px] text-[11px] transition-colors ${
+                    isTabActive
+                      ? 'bg-[#E1EDF9] text-[#1D6FC2] font-semibold'
+                      : 'text-[#64748B] hover:text-[#0F172A] hover:bg-white/90 font-medium'
+                  }`}
+                >
+                  <span className="truncate">{tab.label}</span>
+                  {typeof count === 'number' && count > 0 && (
+                    <span className="rounded-full bg-blue-100 text-[#1D6FC2] px-1.5 py-0.2 text-[9px] font-bold">
+                      {count}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -358,28 +472,7 @@ export const AppLayout: React.FC = () => {
                   {group.title}
                 </div>
                 <div className="space-y-0.5">
-                  {group.items.map((item) => {
-                    const isActive = isNavItemActive(item.path);
-
-                    return (
-                      <Link
-                        key={item.path}
-                        to={sectionHref(item.path)}
-                        className={`flex items-center justify-between px-3 py-2 rounded-[6px] text-xs transition-colors duration-150 ${
-                          isActive
-                            ? 'bg-[#E1EDF9] text-[#1D6FC2] font-semibold border-l-2 border-[#1D6FC2]'
-                            : 'text-[#6B6B6B] hover:text-[#0A0A0A] hover:bg-[#FFFFFF] font-medium'
-                        }`}
-                      >
-                        <span>{item.label}</span>
-                        {item.path === '/officer/appeals' && Boolean(workCounts?.appeals) && (
-                          <span className="rounded-full bg-rose-100 px-1.5 py-0.2 text-[10px] font-bold text-rose-700">
-                            {workCounts?.appeals}
-                          </span>
-                        )}
-                      </Link>
-                    );
-                  })}
+                  {group.items.map((item) => renderNavItem(item))}
                 </div>
               </div>
             ))}
@@ -440,28 +533,11 @@ export const AppLayout: React.FC = () => {
                     <div className="px-2 text-[10px] font-bold font-heading text-[#9C9C9C] uppercase tracking-wider">
                       {group.title}
                     </div>
-                    {group.items.map((item) => {
-                      const isActive = isNavItemActive(item.path);
-                      return (
-                        <Link
-                          key={item.path}
-                          to={sectionHref(item.path)}
-                          onClick={() => setMobileMenuOpen(false)}
-                          className={`flex items-center justify-between px-3 py-2 rounded-[6px] text-xs transition ${
-                            isActive
-                              ? 'bg-[#E1EDF9] text-[#1D6FC2] font-semibold border-l-2 border-[#1D6FC2]'
-                              : 'text-[#6B6B6B] font-medium hover:text-[#0A0A0A]'
-                          }`}
-                        >
-                          <span>{item.label}</span>
-                          {item.path === '/officer/appeals' && Boolean(workCounts?.appeals) && (
-                            <span className="rounded-full bg-rose-100 px-1.5 py-0.2 text-[10px] font-bold text-rose-700">
-                              {workCounts?.appeals}
-                            </span>
-                          )}
-                        </Link>
-                      );
-                    })}
+                    <div className="space-y-0.5">
+                      {group.items.map((item) =>
+                        renderNavItem(item, () => setMobileMenuOpen(false))
+                      )}
+                    </div>
                   </div>
                 ))}
               </nav>
@@ -503,16 +579,6 @@ export const AppLayout: React.FC = () => {
             </nav>
           )}
 
-          {currentSection?.tabs && <section className="mb-5" aria-label={currentSection.label}>
-            <nav aria-label="Các mục chức năng" className="flex gap-1 overflow-x-auto border-b border-[#E8E8EC]">
-              {currentSection.tabs.map((tab, index) => {
-                const exactTab = currentSection.tabs?.find(t => location.pathname === t.path || location.pathname.startsWith(t.path + '/')) || (location.pathname.startsWith('/officer/review/') ? currentSection.tabs?.[1] : undefined);
-                const selected = exactTab ? exactTab.path === tab.path : index === 0;
-                const count = workCounts?.key === countsKey ? tab.path === '/officer/queue' ? workCounts.evidence : tab.path === '/officer/appeals' ? workCounts.appeals : undefined : undefined;
-                return <Link key={tab.path} to={sectionHref(tab.path)} aria-current={selected ? 'page' : undefined} className={'shrink-0 border-b-2 px-4 py-3 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1D6FC2] ' + (selected ? 'border-[#1D6FC2] text-[#1D6FC2]' : 'border-transparent text-[#6B6B6B] hover:text-[#0A0A0A]')}>{tab.label}{typeof count === 'number' && <span className="ml-2 rounded-full bg-[#F4F4F6] px-2 py-0.5 text-xs" aria-label={count + ' việc chờ'}>{count}</span>}</Link>;
-              })}
-            </nav>
-          </section>}
           <Outlet />
         </main>
       </div>
