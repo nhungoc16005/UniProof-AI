@@ -30,6 +30,9 @@ interface ParticipantItem {
   formRole: string | null;
   source: string | null;
   createdAt: string;
+  status: 'DRAFT' | 'CONFIRMED' | 'REVOKED';
+  confirmedAt?: string | null;
+  revokeReason?: string | null;
   student: {
     id: string;
     fullName: string;
@@ -79,6 +82,10 @@ export const InternalActivities: React.FC = () => {
   const [participants, setParticipants] = useState<ParticipantItem[]>([]);
   const [isLoadingParticipants, setIsLoadingParticipants] = useState(false);
   const [attendanceSearch, setAttendanceSearch] = useState('');
+  const [isConfirmingAttendance, setIsConfirmingAttendance] = useState(false);
+  const [revokeTarget, setRevokeTarget] = useState<ParticipantItem | null>(null);
+  const [revokeReason, setRevokeReason] = useState('');
+  const [isRevoking, setIsRevoking] = useState(false);
 
   // Single Add Attendance
   const [singleStudentCode, setSingleStudentCode] = useState('');
@@ -147,8 +154,8 @@ export const InternalActivities: React.FC = () => {
   // Create Activity Handler
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newName.trim() || !newOrg.trim()) {
-      alert('Vui lòng nhập đầy đủ Tên hoạt động và Đơn vị tổ chức');
+    if (!newName.trim() || !newOrg.trim() || !criterionId || !newDate) {
+      alert('Vui lòng nhập tên, đơn vị tổ chức, ngày diễn ra và chọn tiêu chí áp dụng');
       return;
     }
 
@@ -173,6 +180,7 @@ export const InternalActivities: React.FC = () => {
       setNewDate('');
       setNewLoc('');
       setNewDesc('');
+      setCriterionId('');
       alert('Đã tạo hoạt động thành công.');
     } catch (err: any) {
       console.error('Lỗi tạo hoạt động', err);
@@ -328,6 +336,33 @@ export const InternalActivities: React.FC = () => {
     }
   };
 
+  const handleConfirmAttendance = async () => {
+    if (!selectedActivity) return;
+    const draftIds = participants.filter(item => item.status === 'DRAFT').map(item => item.id);
+    if (!draftIds.length) return;
+    if (!window.confirm(`Xác nhận ${draftIds.length} sinh viên? Hệ thống sẽ cập nhật điểm đề xuất theo rubric và danh sách không còn được xóa trực tiếp.`)) return;
+    try {
+      setIsConfirmingAttendance(true);
+      await apiClient.confirmActivityParticipants(selectedActivity.id, draftIds);
+      await loadParticipants(selectedActivity.id);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Không thể xác nhận danh sách tham gia.');
+    } finally { setIsConfirmingAttendance(false); }
+  };
+
+  const handleRevokeAttendance = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!selectedActivity || !revokeTarget || revokeReason.trim().length < 5) return;
+    try {
+      setIsRevoking(true);
+      await apiClient.revokeActivityParticipant(selectedActivity.id, revokeTarget.id, revokeReason.trim());
+      await loadParticipants(selectedActivity.id);
+      setRevokeTarget(null); setRevokeReason('');
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Không thể thu hồi bản ghi đã xác nhận.');
+    } finally { setIsRevoking(false); }
+  };
+
   // Filtered activities by search query
   const filteredActivities = useMemo(() => {
     if (!searchQuery.trim()) return activities;
@@ -361,9 +396,16 @@ export const InternalActivities: React.FC = () => {
       {/* 1. Header Toolbar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Hoạt động & điểm danh</h1>{loadError && <p role="alert" className="text-sm text-rose-700">{loadError}</p>}<p className="text-xs text-slate-500">{activeTerm.name} · Danh sách tham gia là nguồn đối chiếu; việc khai báo hoạt động chưa xác nhận sinh viên đã tham gia.</p>
-          <p className="text-xs text-slate-500 mt-1">
-            Trung tâm đối chiếu dữ liệu hoạt động nội bộ và nguồn đối tác ngoài trường trên cơ sở dữ liệu thật.
+          <h1 className="text-xl font-bold font-heading text-[#0F172A] tracking-tight">
+            Hoạt động & điểm danh
+          </h1>
+          {loadError && (
+            <p role="alert" className="text-sm text-rose-700 mt-1">
+              {loadError}
+            </p>
+          )}
+          <p className="text-xs text-[#64748B] mt-0.5">
+            {activeTerm.name} · Quản lý và đối chiếu danh sách tham gia hoạt động rèn luyện.
           </p>
         </div>
 
@@ -768,15 +810,10 @@ export const InternalActivities: React.FC = () => {
                                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
                                   {p.formRole || 'Tham gia chính'}
                                 </span>
+                                <span className={`ml-1 px-2 py-0.5 rounded text-[10px] font-bold ${p.status === 'CONFIRMED' ? 'bg-emerald-50 text-emerald-700' : p.status === 'REVOKED' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'}`}>{p.status === 'CONFIRMED' ? 'Đã xác nhận' : p.status === 'REVOKED' ? 'Đã thu hồi' : 'Bản nháp'}</span>
                               </td>
                               <td className="py-2.5 px-3 text-right">
-                                <button
-                                  onClick={() => handleDeleteParticipant(p.id, p.student.fullName)}
-                                  className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"
-                                  title="Xóa điểm danh"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                                {p.status === 'DRAFT' ? <button onClick={() => handleDeleteParticipant(p.id, p.student.fullName)} className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition" title="Xóa bản ghi nháp"><Trash2 className="w-3.5 h-3.5" /></button> : p.status === 'CONFIRMED' ? <button onClick={() => { setRevokeTarget(p); setRevokeReason(''); }} className="p-1 text-amber-600 hover:text-rose-700 hover:bg-rose-50 rounded transition" title="Thu hồi bản ghi có lý do"><UserX className="w-3.5 h-3.5" /></button> : null}
                               </td>
                             </tr>
                           ))}
@@ -789,7 +826,8 @@ export const InternalActivities: React.FC = () => {
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex flex-wrap justify-end gap-2">
+              <button type="button" onClick={() => void handleConfirmAttendance()} disabled={isConfirmingAttendance || !participants.some(item => item.status === 'DRAFT')} className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 text-white font-bold rounded-xl text-xs transition">{isConfirmingAttendance ? 'Đang xác nhận…' : `Xác nhận danh sách (${participants.filter(item => item.status === 'DRAFT').length})`}</button>
               <button
                 onClick={() => setShowAttendanceModal(false)}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs transition"
@@ -798,6 +836,17 @@ export const InternalActivities: React.FC = () => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {revokeTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 p-4" role="dialog" aria-modal="true" aria-labelledby="revoke-attendance-title">
+          <form onSubmit={handleRevokeAttendance} className="w-full max-w-md space-y-4 rounded-2xl bg-white p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-3"><div><h2 id="revoke-attendance-title" className="font-bold text-slate-900">Thu hồi ghi nhận tham gia</h2><p className="mt-1 text-sm text-slate-600">{revokeTarget.student.studentCode} · {revokeTarget.student.fullName}</p></div><button type="button" onClick={() => setRevokeTarget(null)} aria-label="Đóng"><X className="h-5 w-5"/></button></div>
+            <label className="block text-sm font-semibold text-slate-700">Lý do thu hồi<textarea autoFocus required minLength={5} rows={4} value={revokeReason} onChange={event => setRevokeReason(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 p-3 text-sm" placeholder="Ví dụ: Danh sách ban đầu ghi nhận nhầm sinh viên"/></label>
+            <p className="text-xs text-amber-800">Hệ thống sẽ lưu lịch sử và tính lại điểm đề xuất; bản ghi không bị xóa.</p>
+            <div className="flex justify-end gap-2"><button type="button" onClick={() => setRevokeTarget(null)} className="rounded-lg border px-4 py-2 text-sm font-semibold">Hủy</button><button disabled={isRevoking || revokeReason.trim().length < 5} className="rounded-lg bg-rose-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">{isRevoking ? 'Đang thu hồi…' : 'Xác nhận thu hồi'}</button></div>
+          </form>
         </div>
       )}
 
@@ -846,7 +895,7 @@ export const InternalActivities: React.FC = () => {
                 </div>
               </div>
 
-              <label className="block text-xs font-semibold">Tiêu chí liên quan<select value={criterionId} onChange={e => setCriterionId(e.target.value)} className="mt-1 mb-3 w-full rounded-lg border p-2"><option value="">Chưa liên kết tiêu chí</option>{criteria.map(c => <option key={c.id} value={c.id}>{c.code}. {c.name}</option>)}</select></label>
+              <label className="block text-xs font-semibold">Tiêu chí áp dụng<select required value={criterionId} onChange={e => setCriterionId(e.target.value)} className="mt-1 mb-3 w-full rounded-lg border p-2"><option value="">Chọn tiêu chí hoạt động của kỳ</option>{criteria.filter(c => ['activity_threshold', 'community_activity_tier'].includes(String(c.scoringConfig?.kind))).map(c => <option key={c.id} value={c.id}>{c.code}. {c.name}</option>)}</select></label>
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Tên hoạt động</label>
                 <input
@@ -876,6 +925,7 @@ export const InternalActivities: React.FC = () => {
                   <label className="block font-bold text-slate-700 mb-1">Ngày diễn ra</label>
                   <input
                     type="date"
+                    required
                     value={newDate}
                     onChange={(e) => setNewDate(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"

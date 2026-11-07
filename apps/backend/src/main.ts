@@ -16,8 +16,9 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
 
   // Cho phép CORS từ Frontend Web
+  const configuredOrigins = (process.env.CORS_ORIGINS || '').split(',').map(value => value.trim()).filter(Boolean);
   app.enableCors({
-    origin: [
+    origin: configuredOrigins.length ? configuredOrigins : [
       'http://localhost:5173',
       'http://localhost:3000',
       'http://127.0.0.1:5173',
@@ -47,8 +48,10 @@ async function bootstrap() {
     .addBearerAuth()
     .build();
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+  if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_SWAGGER === 'true') {
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api/docs', app, document);
+  }
 
   const port = process.env.PORT || 3001;
   await app.listen(port);

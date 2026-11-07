@@ -39,6 +39,10 @@ export const ScoreReport: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [notice, setNotice] = useState('');
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [autosaving, setAutosaving] = useState(false);
+  const dirtyScores = useRef(false);
+  const [preflight, setPreflight] = useState<Awaited<ReturnType<typeof apiClient.getAssessmentPreflight>> | null>(null);
 
   const load = async (quiet = false) => {
     if (!user?.id || !activeTerm.id) return;
@@ -122,7 +126,7 @@ export const ScoreReport: React.FC = () => {
     evidence.criterion?.code === criterion.code || evidence.reviews?.some((review) => review.criterionId === criterion.id),
   );
 
-  const saveAllScores = async () => {
+  const saveAllScores = async (quiet = false) => {
     if (!canWrite || !rubric?.categories) return false;
     const scores = rubric.categories.flatMap((category) => category.criteria.map((criterion) => ({
       criterionId: criterion.id,
@@ -135,25 +139,35 @@ export const ScoreReport: React.FC = () => {
         return false;
       }
     }
-    setSavingAll(true); setLoadError(''); setNotice('');
+    if (quiet) setAutosaving(true); else setSavingAll(true);
+    setLoadError(''); if (!quiet) setNotice('');
     try {
       const updated = await apiClient.saveSelfAssessments(activeTerm.id, scores);
       setRubric(updated);
       access.accept(updated);
-      setNotice('Đã lưu toàn bộ điểm tự đánh giá. Đây chưa phải điểm chính thức.');
+      dirtyScores.current = false;
+      setLastSavedAt(new Date());
+      if (!quiet) setNotice('Đã lưu toàn bộ điểm tự đánh giá. Đây chưa phải điểm chính thức.');
       return true;
     } catch (error: any) {
       const message = error.response?.data?.message || 'Không lưu được phiếu tự đánh giá.';
       setLoadError(Array.isArray(message) ? message.join(' ') : message);
       return false;
-    } finally { setSavingAll(false); }
+    } finally { setSavingAll(false); setAutosaving(false); }
   };
 
   const submitAll = async () => {
     if (!await saveAllScores()) return;
+    try { setPreflight(await apiClient.getAssessmentPreflight(activeTerm.id)); }
+    catch (error: any) { setLoadError(error.response?.data?.error?.message || 'Không kiểm tra được điều kiện nộp phiếu.'); }
+  };
+
+  const confirmSubmit = async () => {
+    if (!preflight?.canSubmit) return;
     setSubmittingAll(true); setLoadError(''); setNotice('');
     try {
       const result = await apiClient.submitSelfAssessment(activeTerm.id);
+      setPreflight(null);
       await load(true);
       setNotice(`Đã nộp phiếu và ${result.submittedEvidenceCount} minh chứng. Phiếu hiện đang chờ xử lý.`);
     } catch (error: any) {
@@ -161,6 +175,12 @@ export const ScoreReport: React.FC = () => {
       setLoadError(Array.isArray(message) ? message.join(' ') : message);
     } finally { setSubmittingAll(false); }
   };
+
+  useEffect(() => {
+    if (!canWrite || !dirtyScores.current || savingAll || submittingAll) return;
+    const timer = window.setTimeout(() => { if (dirtyScores.current) void saveAllScores(true); }, 2000);
+    return () => window.clearTimeout(timer);
+  }, [draftScores, canWrite, savingAll, submittingAll]);
 
   const openEvidenceManager = (criterion: Criterion) => {
     setEvidenceCriterion(criterion);
@@ -243,6 +263,10 @@ export const ScoreReport: React.FC = () => {
       {notice && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</div>}
       <StudentAssessmentNotice access={access} termId={activeTerm.id} onRetry={() => { if (!rubric) void load(); else void access.refresh().catch(() => undefined); }} />
 
+      <section className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-semibold text-blue-950">Tiến độ tự đánh giá: {selfEnteredCount}/{categories.reduce((sum, category) => sum + category.criteria.length, 0)} tiêu chí</p><p className="mt-1 text-xs text-blue-800">{autosaving ? 'Đang tự động lưu…' : dirtyScores.current ? 'Có thay đổi chưa đồng bộ' : lastSavedAt ? `Đã lưu lúc ${lastSavedAt.toLocaleTimeString('vi-VN')}` : 'Hệ thống tự lưu sau 2 giây ngừng nhập'}</p></div><div className="h-2 w-full max-w-xs overflow-hidden rounded-full bg-blue-100"><div className="h-full bg-blue-700 transition-all" style={{ width: `${categories.length ? Math.round(selfEnteredCount / Math.max(1, categories.reduce((sum, category) => sum + category.criteria.length, 0)) * 100) : 0}%` }} /></div></div>
+      </section>
+
       <section className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
         <div><span className="block text-xs text-slate-500">Sinh viên</span><strong className="text-sm text-slate-900">{user?.fullName || '—'}</strong></div>
         <div><span className="block text-xs text-slate-500">MSSV</span><strong className="text-sm text-slate-900">{user?.studentCode || '—'}</strong></div>
@@ -280,7 +304,7 @@ export const ScoreReport: React.FC = () => {
                       <td className="border border-slate-300 px-1 py-2 text-center font-semibold">{criterion.code}</td>
                       <td className="border border-slate-300 px-2 py-2"><strong className="font-semibold text-slate-900">{criterion.name}</strong>{criterion.description && <p className="mt-1 whitespace-pre-line break-words text-[10px] leading-4 text-slate-600 sm:text-xs">{criterion.description}</p>}</td>
                       <td className="border border-slate-300 px-1 py-2 text-center font-semibold">{criterion.maxScore}</td>
-                      <td className="border border-slate-300 px-1 py-2 text-center"><input aria-label={`Điểm tự đánh giá tiêu chí ${criterion.code}`} type="number" min="0" max={criterion.maxScore} step="0.5" value={draftScores[criterion.id] ?? ''} disabled={!canWrite} onChange={(event) => setDraftScores((current) => ({ ...current, [criterion.id]: event.target.value }))} className="w-full min-w-0 rounded border border-slate-300 px-1 py-1.5 text-center font-semibold disabled:bg-slate-100" />{(draftScores[criterion.id] ?? '').trim() !== '' && scoreValue(criterion) === null && <span className="mt-1 block text-[9px] text-rose-600">Vượt điểm tối đa</span>}</td>
+                      <td className="border border-slate-300 px-1 py-2 text-center"><input aria-label={`Điểm tự đánh giá tiêu chí ${criterion.code}`} type="number" min="0" max={criterion.maxScore} step="0.5" value={draftScores[criterion.id] ?? ''} disabled={!canWrite} onChange={(event) => { dirtyScores.current = true; setDraftScores((current) => ({ ...current, [criterion.id]: event.target.value })); }} className="w-full min-w-0 rounded border border-slate-300 px-1 py-1.5 text-center font-semibold disabled:bg-slate-100" />{(draftScores[criterion.id] ?? '').trim() !== '' && scoreValue(criterion) === null && <span className="mt-1 block text-[9px] text-rose-600">Vượt điểm tối đa</span>}</td>
                       <td className="border border-slate-300 px-1.5 py-2"><button type="button" disabled={!canWrite} onClick={() => openEvidenceManager(criterion)} className="inline-flex w-full items-center justify-center gap-1 rounded border border-blue-200 bg-blue-50 px-1 py-2 text-[10px] font-semibold text-blue-800 disabled:opacity-50"><FilePlus2 className="h-3.5 w-3.5" />Minh chứng ({criterionEvidences.length})</button>{criterionEvidences.map((evidence) => <div key={evidence.id} className="mt-1 break-words text-[9px] leading-3 text-slate-600"><strong>{evidence.declaredActivityName || 'Hồ sơ'}</strong><br />{evidenceStatusLabels[evidence.status] || evidence.status}</div>)}</td>
                       <td className="border border-slate-300 px-1.5 py-2 text-[10px] leading-4">{criterionEvidences.length ? criterionEvidences.map((evidence) => { const suggestion = evidence.aiSuggestions?.find((item) => item.criterionId === criterion.id || item.criterion?.id === criterion.id) || evidence.aiSuggestions?.[0]; const job = evidence.aiProcessingJobs?.[0]; return <div key={evidence.id} className="mb-2 break-words border-b border-slate-100 pb-1 last:border-0"><strong className="text-violet-800">{suggestion ? `Đề xuất ${suggestion.suggestedScore ?? '—'}đ` : job?.status === 'PROCESSING' || job?.status === 'QUEUED' ? 'Đang phân tích' : job?.status === 'UNAVAILABLE' || job?.status === 'FAILED' ? 'AI chưa khả dụng · cán bộ sẽ xử lý' : evidence.status === 'PROCESSING' ? 'Đang phân tích' : 'Chưa có kết quả AI'}</strong>{suggestion?.reasoning && <p className="mt-1 line-clamp-3 text-slate-600">{suggestion.reasoning}</p>}</div>; }) : <span className="text-slate-400">Chưa có minh chứng</span>}</td>
                       <td className="border border-slate-300 px-1.5 py-2 text-[10px] leading-4">{assessment?.officialScore != null ? <><strong className="text-emerald-700">{assessment.officialScore}/{criterion.maxScore} điểm</strong>{assessment.officialReason && <p className="mt-1 break-words text-slate-600">{assessment.officialReason}</p>}</> : <><strong className="text-slate-700">{assessment?.status === 'READY_FOR_REVIEW' ? 'Chờ chốt điểm' : assessment?.status === 'NEEDS_VERIFICATION' || criterionEvidences.length ? 'Chờ xác minh' : 'Chưa đánh giá'}</strong>{assessment?.suggestedScore != null && <p className="mt-1 text-amber-800">Theo quy chế: {assessment.suggestedScore}đ</p>}</>}</td>
@@ -305,7 +329,7 @@ export const ScoreReport: React.FC = () => {
                   <div className="flex items-center justify-between"><h3 className="text-sm font-bold text-slate-900">{editingEvidence ? 'Chỉnh sửa hồ sơ' : 'Thêm hồ sơ minh chứng'}</h3>{editingEvidence && <button type="button" onClick={() => { setEditingEvidence(null); setEvidenceFormFiles([]); }} className="text-xs font-semibold text-slate-600">Hủy sửa</button>}</div>
                   <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-semibold text-slate-700">Tên hoạt động / thành tích<input required value={evidenceForm.declaredActivityName} onChange={(event) => setEvidenceForm((current) => ({ ...current, declaredActivityName: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" placeholder="Ví dụ: Ngày Chủ nhật xanh" /></label><label className="text-xs font-semibold text-slate-700">Ngày tham gia<input type="date" value={evidenceForm.participationDate} onChange={(event) => setEvidenceForm((current) => ({ ...current, participationDate: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" /></label><label className="text-xs font-semibold text-slate-700">Vai trò<select value={evidenceForm.declaredRole} onChange={(event) => setEvidenceForm((current) => ({ ...current, declaredRole: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"><option value="PARTICIPANT">Người tham gia</option><option value="ORGANIZER">Ban tổ chức / tình nguyện viên</option><option value="CHEERLEADER">Cổ vũ</option></select></label><label className="text-xs font-semibold text-slate-700">Loại minh chứng<select value={evidenceForm.evidenceType} onChange={(event) => setEvidenceForm((current) => ({ ...current, evidenceType: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"><option value="GIAY_CHUNG_NHAN">Giấy chứng nhận / bằng khen</option><option value="GIAY_XAC_NHAN">Giấy xác nhận có đóng dấu</option><option value="VE_CHECKIN">Vé điện tử / check-in QR</option><option value="DANH_SACH">Danh sách kết quả</option></select></label></div>
                   <label className="block text-xs font-semibold text-slate-700">Mô tả / căn cứ<textarea rows={3} value={evidenceForm.description} onChange={(event) => setEvidenceForm((current) => ({ ...current, description: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" placeholder="Mô tả nội dung, đơn vị xác nhận hoặc thông tin cần đối chiếu" /></label>
-                  <label className="block text-xs font-semibold text-slate-700">Tệp minh chứng (có thể chọn nhiều tệp)<input type="file" multiple accept="image/*,application/pdf" onChange={(event) => setEvidenceFormFiles(Array.from(event.target.files || []))} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-2 text-xs file:mr-2 file:rounded file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:font-semibold file:text-blue-700" /><span className="mt-1 block font-normal text-slate-500">Ảnh/PDF, tối đa 8 MB mỗi tệp; lưu nháp đến khi nộp phiếu.</span></label>
+                  <label className="block text-xs font-semibold text-slate-700">Tệp minh chứng (có thể chọn nhiều tệp)<input type="file" multiple accept="image/*,application/pdf" capture="environment" onChange={(event) => setEvidenceFormFiles(Array.from(event.target.files || []))} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-2 text-xs file:mr-2 file:rounded file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:font-semibold file:text-blue-700" /><span className="mt-1 block font-normal text-slate-500">Ảnh/PDF, tối đa 8 MB mỗi tệp; trên điện thoại có thể chụp ảnh trực tiếp.</span></label>
                   {evidenceFormFiles.length > 0 && <p className="text-xs text-blue-800">Tệp mới: {evidenceFormFiles.map((file) => file.name).join(', ')}</p>}
                   <button type="submit" disabled={evidenceBusy} className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{evidenceBusy ? 'Đang lưu…' : 'Lưu hồ sơ nháp'}</button>
                 </fieldset></form>
@@ -316,6 +340,7 @@ export const ScoreReport: React.FC = () => {
           {!filteredCategories.length && <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">Không tìm thấy tiêu chí phù hợp.</div>}
         </>
       )}
+      {preflight && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 p-4"><div role="dialog" aria-modal="true" aria-labelledby="preflight-title" className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl space-y-4"><div><h2 id="preflight-title" className="text-lg font-bold text-slate-900">Kiểm tra trước khi nộp</h2><p className="mt-1 text-sm text-slate-600">Đã hoàn thành {preflight.completedCriteria}/{preflight.totalCriteria} tiêu chí{preflight.effectiveDeadline ? ` · Hạn ${new Date(preflight.effectiveDeadline).toLocaleString('vi-VN')}` : ''}.</p></div>{preflight.blockers.length > 0 && <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800"><strong>Chưa thể nộp:</strong><ul className="mt-2 list-disc pl-5">{preflight.blockers.map(item => <li key={item}>{item}</li>)}</ul></div>}{preflight.warnings.length > 0 && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><strong>Cần lưu ý:</strong><ul className="mt-2 list-disc pl-5">{preflight.warnings.map(item => <li key={item}>{item}</li>)}</ul></div>}<div className="flex justify-end gap-2"><button type="button" onClick={() => setPreflight(null)} className="px-4 py-2 text-sm font-semibold text-slate-600">Quay lại chỉnh sửa</button>{preflight.canSubmit && <button type="button" disabled={submittingAll} onClick={() => void confirmSubmit()} className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{submittingAll ? 'Đang nộp…' : preflight.warnings.length ? 'Đã hiểu và nộp phiếu' : 'Xác nhận nộp phiếu'}</button>}</div></div></div>}
     </div>
   );
 };

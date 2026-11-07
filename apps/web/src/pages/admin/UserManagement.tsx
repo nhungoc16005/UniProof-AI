@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { User, Faculty, Class, Role } from '../../types';
 import { apiClient } from '../../lib/apiClient';
 import { 
@@ -64,6 +65,21 @@ export const UserManagement: React.FC = () => {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [modalError, setModalError] = useState('');
+  const [resetTarget, setResetTarget] = useState<User | null>(null);
+  const [resetBusy, setResetBusy] = useState(false);
+  const [temporaryCredential, setTemporaryCredential] = useState<{ email: string; password: string } | null>(null);
+
+  const handleResetPassword = async () => {
+    if (!resetTarget) return;
+    try {
+      setResetBusy(true);
+      const result = await apiClient.resetUserPassword(resetTarget.id);
+      setTemporaryCredential({ email: result.user.email, password: result.temporaryPassword });
+      setResetTarget(null);
+      setUsers(current => current.map(item => item.id === result.user.id ? { ...item, isFirstLogin: true } : item));
+    } catch (error: any) { setLoadError(error.response?.data?.error?.message || 'Không cấp lại được mật khẩu.'); }
+    finally { setResetBusy(false); }
+  };
 
   // Faculty Modal State
   const [showFacultyModal, setShowFacultyModal] = useState(false);
@@ -609,6 +625,7 @@ export const UserManagement: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Link to="/admin/users/issues" className="inline-flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800 hover:bg-amber-100"><AlertTriangle className="h-3.5 w-3.5"/>Yêu cầu cập nhật dữ liệu</Link>
           {/* View Mode Toggle Pill */}
           <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200">
             <button
@@ -1070,6 +1087,7 @@ export const UserManagement: React.FC = () => {
                                 >
                                   {s.isActive ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
                                 </button>
+                                <button onClick={() => setResetTarget(s)} className="p-1.5 text-slate-400 hover:text-blue-700 hover:bg-blue-50 rounded-lg" title="Cấp lại mật khẩu tạm"><KeyRound className="h-3.5 w-3.5"/></button>
                                 <button
                                   onClick={() => handleDeleteUser(s)}
                                   className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
@@ -1301,6 +1319,7 @@ export const UserManagement: React.FC = () => {
                             >
                               {u.isActive ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
                             </button>
+                            <button onClick={() => setResetTarget(u)} className="p-1.5 text-slate-400 hover:text-blue-700 hover:bg-blue-50 rounded-lg" title="Cấp lại mật khẩu tạm"><KeyRound className="h-3.5 w-3.5"/></button>
                             <button
                               onClick={() => handleDeleteUser(u)}
                               className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
@@ -1904,6 +1923,9 @@ export const UserManagement: React.FC = () => {
           </div>
         </div>
       )}
+
+      {resetTarget && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 p-4"><div role="dialog" aria-modal="true" className="w-full max-w-md rounded-2xl bg-white p-5 space-y-4"><h2 className="font-bold text-slate-900">Cấp lại mật khẩu tạm</h2><p className="text-sm text-slate-600">Tất cả phiên hiện tại của <strong>{resetTarget.fullName}</strong> sẽ bị thu hồi. Người dùng phải đổi mật khẩu ở lần đăng nhập tiếp theo.</p><div className="flex justify-end gap-2"><button onClick={() => setResetTarget(null)} className="px-3 py-2 text-sm">Hủy</button><button disabled={resetBusy} onClick={() => void handleResetPassword()} className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{resetBusy ? 'Đang cấp…' : 'Cấp mật khẩu tạm'}</button></div></div></div>}
+      {temporaryCredential && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 p-4"><div role="dialog" aria-modal="true" className="w-full max-w-md rounded-2xl bg-white p-5 space-y-4"><h2 className="font-bold text-slate-900">Mật khẩu chỉ hiển thị một lần</h2><p className="text-sm text-slate-600">Hãy chuyển thông tin qua kênh an toàn. EduPoint không lưu mật khẩu rõ.</p><div className="rounded-xl bg-slate-950 p-4 font-mono text-sm text-white"><p>{temporaryCredential.email}</p><p className="mt-2 text-emerald-300">{temporaryCredential.password}</p></div><div className="flex justify-end gap-2"><button onClick={() => void navigator.clipboard?.writeText(`${temporaryCredential.email}\n${temporaryCredential.password}`)} className="rounded-lg border px-3 py-2 text-sm font-semibold">Sao chép</button><button onClick={() => setTemporaryCredential(null)} className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white">Tôi đã lưu</button></div></div></div>}
 
     </div>
   );

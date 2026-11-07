@@ -23,11 +23,12 @@ export class UsersController {
     @Query('role') role?: Role,
     @Query('facultyId') facultyId?: string,
     @Query('classId') classId?: string,
+    @Query('termId') termId?: string,
     @Query('search') search?: string,
     @Query('page') page?: number,
     @Query('pageSize') pageSize?: number,
   ) {
-    return this.usersService.findAll({ role, facultyId, classId, search, page: page ? Number(page) : 1, pageSize: pageSize ? Number(pageSize) : 50 }, actor);
+    return this.usersService.findAll({ role, facultyId, classId, termId, search, page: page ? Number(page) : 1, pageSize: pageSize ? Number(pageSize) : 50 }, actor);
   }
 
   @Get(':id')
@@ -42,6 +43,13 @@ export class UsersController {
   @ApiOperation({ summary: 'Import người dùng hàng loạt từ Excel / JSON (Chỉ Admin)' })
   async bulkImport(@Body() dto: BulkImportUsersDto, @CurrentUser('id') actorId: string) {
     return this.usersService.bulkImport(dto, actorId);
+  }
+
+  @Post(':id/reset-password')
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Cấp mật khẩu tạm và thu hồi toàn bộ phiên của tài khoản' })
+  async resetPassword(@Param('id') id: string, @CurrentUser('id') actorId: string) {
+    return this.usersService.resetPassword(id, actorId);
   }
 
   @Post()

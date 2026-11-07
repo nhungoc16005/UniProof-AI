@@ -1,15 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../../lib/apiClient';
 import { Notification } from '../../types';
-import { Bell, Check, Clock, AlertTriangle, CheckCircle, FileText } from 'lucide-react';
+import { Bell, Check, AlertTriangle, CheckCircle } from 'lucide-react';
 
 export const NotificationsCenter: React.FC = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [filter, setFilter] = useState<'ALL' | 'UNREAD'>('ALL');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    apiClient.getNotifications().then(setNotifications);
-  }, []);
+  const load = useCallback(async () => { try { setLoading(true); setError(''); setNotifications(await apiClient.getNotifications()); } catch { setError('Không tải được thông báo từ máy chủ.'); } finally { setLoading(false); } }, []);
+  useEffect(() => { void load(); }, [load]);
 
   const handleMarkAllRead = async () => {
     await apiClient.markAllNotificationsAsRead();
@@ -17,12 +20,18 @@ export const NotificationsCenter: React.FC = () => {
   };
 
   const filtered = notifications.filter((n) => (filter === 'UNREAD' ? !n.isRead : true));
+  const openNotification = async (notification: Notification) => {
+    if (!notification.isRead) {
+      try { await apiClient.markNotificationAsRead(notification.id); setNotifications(current => current.map(item => item.id === notification.id ? { ...item, isRead: true, readAt: new Date().toISOString() } : item)); } catch { setError('Không đánh dấu được thông báo. Vui lòng thử lại.'); return; }
+    }
+    if (notification.targetPath?.startsWith('/') && !notification.targetPath.startsWith('//')) navigate(notification.targetPath);
+  };
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Trung tâm Thông báo (C05)</h1>
+          <h1 className="text-xl font-bold text-slate-900">Trung tâm thông báo</h1>
           <p className="text-xs text-slate-500 mt-0.5">
             Cập nhật trạng thái duyệt hồ sơ, yêu cầu bổ sung giấy tờ và thông báo từ nhà trường.
           </p>
@@ -62,13 +71,17 @@ export const NotificationsCenter: React.FC = () => {
       </div>
 
       {/* Notifications List */}
+      {error && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{error}<button type="button" onClick={() => void load()} className="ml-2 font-semibold underline">Thử lại</button></div>}
+      {loading && <div role="status" className="rounded-xl border bg-white p-8 text-center text-sm text-slate-500">Đang tải thông báo…</div>}
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm divide-y divide-slate-100 overflow-hidden">
-        {filtered.map((n) => (
-          <div
+        {!loading && !filtered.length && <div className="p-10 text-center text-sm text-slate-500">{filter === 'UNREAD' ? 'Bạn đã đọc tất cả thông báo.' : 'Chưa có thông báo.'}</div>}
+        {!loading && filtered.map((n) => (
+          <button type="button"
             key={n.id}
+            onClick={() => void openNotification(n)}
             className={`p-4 hover:bg-slate-50 transition flex items-start gap-3.5 ${
               n.isRead ? 'opacity-70' : 'bg-sky-50/30'
-            }`}
+            } w-full text-left`}
           >
             <div
               className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
@@ -97,7 +110,7 @@ export const NotificationsCenter: React.FC = () => {
               </div>
               <p className="text-xs text-slate-600">{n.content}</p>
             </div>
-          </div>
+          </button>
         ))}
       </div>
     </div>

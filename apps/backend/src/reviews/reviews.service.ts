@@ -245,8 +245,12 @@ export class ReviewsService {
           userId: evidence.studentId,
           relatedEvidenceId: evidenceId,
           type: dto.action === ReviewDecision.SUPPLEMENT_REQUESTED ? 'SUPPLEMENT_REQUIRED' : 'EVIDENCE_REVIEWED',
+          eventKey: dto.action === ReviewDecision.SUPPLEMENT_REQUESTED ? 'SUPPLEMENT_REQUIRED' : 'EVIDENCE_REVIEWED',
+          dedupeKey: `evidence-review:${evidenceId}:${updatedEvidence.version}:${dto.action}`,
           title: `Hồ sơ "${evidence.declaredActivityName}" đã có kết quả`,
           content: `Cán bộ ${officer.fullName} đã xử lý hồ sơ của bạn với kết quả: ${dto.action}. Ghi chú: ${dto.comment}`,
+          targetPath: dto.action === ReviewDecision.SUPPLEMENT_REQUESTED ? `/student/evidence/${evidenceId}/supplement` : `/student/evidence/${evidenceId}`,
+          metadata: { evidenceId, termId: evidence.termId, action: dto.action },
         },
       });
 

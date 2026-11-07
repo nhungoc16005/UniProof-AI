@@ -1,12 +1,13 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { CreateAppealDto, ResolveAppealDto } from './dto/appeal.dto';
-import { AppealStatus, EvidenceStatus, Role } from '@prisma/client';
+import { AppealStatus, DeadlineExtensionType, EvidenceStatus, Role } from '@prisma/client';
 import { WorkflowService } from '../evaluation-workflow/workflow.service';
+import { DeadlineExtensionsService } from '../deadline-extensions/deadline-extensions.service';
 
 @Injectable()
 export class AppealsService {
-  constructor(private prisma: PrismaService, private workflow: WorkflowService) {}
+  constructor(private prisma: PrismaService, private workflow: WorkflowService, private deadlines: DeadlineExtensionsService) {}
 
   async findAll(user: any, params: { termId?: string; status?: AppealStatus; page?: number; pageSize?: number }) {
     if (user.role === Role.STAFF && !user.facultyId) throw new ForbiddenException('Chưa được phân công Khoa');
@@ -77,7 +78,8 @@ export class AppealsService {
     const termId = evidence?.termId ?? assessment!.termId;
     return this.prisma.$transaction(async tx => {
       const term = await this.workflow.lock(tx, termId);
-      if (term.status === 'CLOSED' || term.status === 'UPCOMING' || new Date() > term.appealDeadline) throw new BadRequestException('Kỳ không nhận phúc khảo hoặc đã hết hạn');
+      const effective = await this.deadlines.resolve(termId, studentId, DeadlineExtensionType.APPEAL, tx);
+      if (term.status === 'CLOSED' || term.status === 'UPCOMING' || new Date() > effective.deadline) throw new BadRequestException('Kỳ không nhận phúc khảo hoặc đã hết hạn');
       const publication = term.workflowEnabled ? await tx.assessmentPublication.findFirst({ where: { studentId, termId }, orderBy: { revision: 'desc' } }) : null;
       if (term.workflowEnabled && (!publication || !assessment)) throw new BadRequestException('Chỉ phúc khảo tiêu chí có kết quả đã được CTSV công bố');
       if (!dto.content?.trim()) throw new BadRequestException('Cần nhập giải trình');
@@ -118,7 +120,7 @@ export class AppealsService {
         await tx.evidence.update({ where: { id: appeal.evidenceId }, data: { status: appeal.previousEvidenceStatus ?? (last?.decision === 'REJECTED' ? EvidenceStatus.REJECTED : last ? EvidenceStatus.APPROVED : EvidenceStatus.NEEDS_HUMAN_REVIEW) } });
       }
       await this.workflow.audit(tx, officer.id, 'APPEAL_RESOLVED', appealId, { studentId: appeal.studentId, termId, status: dto.status, reason: dto.resolutionNote.trim() });
-      await tx.notification.create({ data: { userId: appeal.studentId, relatedEvidenceId: appeal.evidenceId, type: 'APPEAL_RESOLVED', title: 'Phúc khảo đã được phản hồi', content: dto.status === 'ACCEPTED' ? 'Đã mở lại nội dung để Khoa đánh giá và gửi lại CTSV. ' + dto.resolutionNote : dto.resolutionNote } });
+      await tx.notification.create({ data: { userId: appeal.studentId, relatedEvidenceId: appeal.evidenceId, type: 'APPEAL_RESOLVED', eventKey: 'APPEAL_RESOLVED', dedupeKey: `appeal-resolved:${appealId}:${dto.status}`, title: 'Phúc khảo đã được phản hồi', content: dto.status === 'ACCEPTED' ? 'Đã mở lại nội dung để Khoa đánh giá và gửi lại CTSV. ' + dto.resolutionNote : dto.resolutionNote, targetPath: `/student/appeals?termId=${termId}`, metadata: { appealId, termId, status: dto.status } } });
       return tx.appeal.findUnique({ where: { id: appealId } });
     });
   }

@@ -11,7 +11,7 @@ export const evaluationStateLabels: Record<string, string> = {
   READY: 'Hoàn tất chấm', SENT: 'Đã gửi CTSV', PUBLISHED: 'Đã công bố tạm',
   FACULTY_RETURNED: 'CTSV trả lại', NOT_SUBMITTED_RECORDED: 'Đã ghi nhận không nộp',
 };
-export type EvaluationRow = { studentId: string; student?: { fullName: string; studentCode: string }; classId: string; class?: { id: string; code: string }; facultyId: string; faculty?: { id: string; name: string }; state: string; ready: boolean; blockers: string[]; finalizedCriteria: number; totalCriteria: number; pendingAppeals: number; pendingEvidence: number; returnReason?: string; notSubmittedReason?: string; revision: number; officialScore?: number | null; classification?: string; publicationRevision?: number | null };
+export type EvaluationRow = { studentId: string; student?: { fullName: string; studentCode: string }; classId: string; class?: { id: string; code: string }; facultyId: string; faculty?: { id: string; name: string }; state: string; ready: boolean; blockers: string[]; finalizedCriteria: number; totalCriteria: number; pendingAppeals: number; pendingEvidence: number; returnReason?: string; notSubmittedReason?: string; exclusionReason?: string; revision: number; officialScore?: number | null; classification?: string; publicationRevision?: number | null };
 export type EvaluationData = { items: EvaluationRow[]; summary: Record<string, number>; updatedAt: string; total: number; page: number; pageSize: number; facultyProgress: { id: string; name: string; total: number; sent: number; published: number; pendingAppeals: number }[]; filters: { classes: { id: string; code: string }[]; faculties: { id: string; name: string }[] }; term: { id: string; name: string; status: string; workflowEnabled: boolean; submissionDeadline: string; appealDeadline: string; reviewDeadline?: string } };
 export type PublicationConditions = { canPublish: boolean; canClose: boolean; publishBlockers: string[]; closeBlockers: string[] };
 export const errorMessage = (err: any) => err.response?.data?.error?.message || err.response?.data?.message || err.message || 'Không thực hiện được thao tác';
@@ -31,7 +31,9 @@ export const EvaluationBoard: React.FC<{ admin?: boolean; compact?: boolean }> =
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
-  const [reasonAction, setReasonAction] = useState<{ row: EvaluationRow; type: 'return' | 'not-submitted' } | null>(null);
+  const [reasonAction, setReasonAction] = useState<{ row: EvaluationRow; type: 'return' | 'not-submitted' | 'correction' | 'exclude' } | null>(null);
+  const [publishConfirm, setPublishConfirm] = useState('');
+  const [showPublish, setShowPublish] = useState(false);
   const [reason, setReason] = useState('');
   const [refresh, setRefresh] = useState(0);
   const state = params.get('state') || '';
@@ -78,23 +80,114 @@ export const EvaluationBoard: React.FC<{ admin?: boolean; compact?: boolean }> =
     {error && <div role="alert" className="rounded-[12px] border border-[#FECACA] bg-[#FEF2F2] p-4 text-xs sm:text-sm text-[#991B1B]">{error}<button onClick={() => setRefresh(v => v + 1)} className="ml-3 underline font-semibold">Thử lại</button></div>}
     {notice && <p role="status" className="rounded-[12px] bg-[#ECFDF5] border border-[#A7F3D0] p-3 text-xs sm:text-sm text-[#065F46] font-medium">{notice}</p>}
     {!termId && <p className="rounded-[12px] border border-[#E8E8EC] bg-[#FFFFFF] p-5 text-sm text-[#6B6B6B]">Chưa có kỳ đánh giá. {admin && <Link className="text-[#1D6FC2] font-semibold hover:underline" to="/admin/terms">Thiết lập kỳ đánh giá</Link>}</p>}
-      {termId && !compact && <div className="flex flex-wrap items-center gap-2.5 rounded-[12px] border border-[#E8E8EC] bg-[#FFFFFF] p-3">
-        <input aria-label="Tìm sinh viên" placeholder="MSSV hoặc họ tên" value={query} onChange={e => setFilter('q',e.target.value)} className="rounded-[6px] border border-[#E8E8EC] bg-[#FFFFFF] px-3 py-2 text-xs sm:text-sm text-[#0A0A0A] placeholder-[#9C9C9C] focus:outline-none focus:border-[#1D6FC2] focus:ring-2 focus:ring-[#1D6FC2]/15" />
-        <select aria-label="Trạng thái đánh giá" value={state} onChange={e => setFilter('state',e.target.value)} className="rounded-[6px] border border-[#E8E8EC] bg-[#FFFFFF] px-3 py-2 text-xs sm:text-sm text-[#0A0A0A] focus:outline-none focus:border-[#1D6FC2] cursor-pointer"><option value="">Tất cả trạng thái</option>{Object.entries(evaluationStateLabels).map(([key,label]) => <option key={key} value={key}>{label}</option>)}<option value="RETURNED">Cần chỉnh sửa (tất cả)</option><option value="APPEALS">Có phúc khảo chờ</option></select>
-        {admin && <select aria-label="Khoa" value={facultyId} onChange={e => setFilter('facultyId',e.target.value)} className="rounded-[6px] border border-[#E8E8EC] bg-[#FFFFFF] px-3 py-2 text-xs sm:text-sm text-[#0A0A0A] focus:outline-none focus:border-[#1D6FC2] cursor-pointer"><option value="">Tất cả Khoa</option>{options.faculties.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}</select>}
-        <select aria-label="Lớp" value={classId} onChange={e => setFilter('classId',e.target.value)} className="rounded-[6px] border border-[#E8E8EC] bg-[#FFFFFF] px-3 py-2 text-xs sm:text-sm text-[#0A0A0A] focus:outline-none focus:border-[#1D6FC2] cursor-pointer"><option value="">Tất cả lớp</option>{options.classes.map(c => <option key={c.id} value={c.id}>{c.code}</option>)}</select>
-        <button disabled={loading || busy || !data?.total} onClick={exportRows} className="rounded-[6px] border border-[#E8E8EC] bg-[#FFFFFF] hover:bg-[#FAFAFA] px-3 py-2 text-xs sm:text-sm font-medium text-[#0A0A0A] disabled:opacity-40 transition-colors">Xuất Excel</button>
-        <button onClick={() => window.print()} className="rounded-[6px] border border-[#E8E8EC] bg-[#FFFFFF] hover:bg-[#FAFAFA] px-3 py-2 text-xs sm:text-sm font-medium text-[#0A0A0A] print:hidden transition-colors">In</button>
-        {!admin && data && !closed && <button disabled={loading || busy || !selected.length} onClick={() => { if (window.confirm(`Gửi ${selected.length} kết quả đánh giá đến CTSV? Các kết quả sẽ được khóa sửa.`)) void act(() => apiClient.sendFacultyResults(termId,selected), 'Đã gửi kết quả đến CTSV.'); }} className="rounded-[6px] bg-[#1D6FC2] hover:bg-[#175A9E] px-4 py-2 text-xs sm:text-sm font-semibold text-white disabled:opacity-40 transition-colors btn-primary-lift">Gửi CTSV ({selected.length})</button>}
-      </div>}
+      {termId && !compact && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-[#E2E8F0] bg-white p-3.5 shadow-2xs">
+          <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">
+            <input
+              aria-label="Tìm sinh viên"
+              placeholder="Tìm theo MSSV hoặc họ tên…"
+              value={query}
+              onChange={e => setFilter('q', e.target.value)}
+              className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 py-2 text-xs sm:text-sm text-[#0F172A] placeholder-[#94A3B8] focus:bg-white focus:outline-none focus:border-[#1D6FC2] focus:ring-2 focus:ring-[#1D6FC2]/15 min-w-[200px] flex-1 sm:max-w-xs transition-colors"
+            />
+            <select
+              aria-label="Trạng thái đánh giá"
+              value={state}
+              onChange={e => setFilter('state', e.target.value)}
+              className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-xs sm:text-sm text-[#0F172A] font-medium focus:bg-white focus:outline-none focus:border-[#1D6FC2] cursor-pointer transition-colors"
+            >
+              <option value="">Tất cả trạng thái</option>
+              {Object.entries(evaluationStateLabels).map(([key, label]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
+              <option value="RETURNED">Cần chỉnh sửa (tất cả)</option>
+              <option value="APPEALS">Có phúc khảo chờ</option>
+            </select>
+            {admin && (
+              <select
+                aria-label="Khoa"
+                value={facultyId}
+                onChange={e => setFilter('facultyId', e.target.value)}
+                className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-xs sm:text-sm text-[#0F172A] font-medium focus:bg-white focus:outline-none focus:border-[#1D6FC2] cursor-pointer transition-colors"
+              >
+                <option value="">Tất cả Khoa</option>
+                {options.faculties.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+            )}
+            <select
+              aria-label="Lớp"
+              value={classId}
+              onChange={e => setFilter('classId', e.target.value)}
+              className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-xs sm:text-sm text-[#0F172A] font-medium focus:bg-white focus:outline-none focus:border-[#1D6FC2] cursor-pointer transition-colors"
+            >
+              <option value="">Tất cả lớp</option>
+              {options.classes.map(c => <option key={c.id} value={c.id}>{c.code}</option>)}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              disabled={loading || busy || !data?.total}
+              onClick={exportRows}
+              className="rounded-lg border border-[#E2E8F0] bg-white hover:bg-[#F8FAFC] px-3 py-2 text-xs sm:text-sm font-semibold text-[#0F172A] disabled:opacity-40 transition-colors shadow-2xs"
+            >
+              Xuất Excel
+            </button>
+            <button
+              onClick={() => window.print()}
+              className="rounded-lg border border-[#E2E8F0] bg-white hover:bg-[#F8FAFC] px-3 py-2 text-xs sm:text-sm font-semibold text-[#0F172A] print:hidden transition-colors shadow-2xs"
+            >
+              In
+            </button>
+            {!admin && data && !closed && (
+              <button
+                disabled={loading || busy || !selected.length}
+                onClick={() => {
+                  if (window.confirm(`Gửi ${selected.length} kết quả đánh giá đến CTSV? Các kết quả sẽ được khóa sửa.`)) {
+                    void act(() => apiClient.sendFacultyResults(termId, selected), 'Đã gửi kết quả đến CTSV.');
+                  }
+                }}
+                className="rounded-lg bg-[#1D6FC2] hover:bg-[#175A9E] px-4 py-2 text-xs sm:text-sm font-bold text-white disabled:opacity-40 transition-colors shadow-2xs"
+              >
+                Gửi CTSV ({selected.length})
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     {data && data.term.id === termId && <>
-      <p className="text-xs sm:text-sm text-[#6B6B6B]">{data.term.name} · {data.total} sinh viên phù hợp · Cập nhật {new Date(data.updatedAt).toLocaleString('vi-VN')}{closed ? ' · Chỉ xem' : ''}</p>
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#64748B]">
+        <span>
+          <strong className="text-[#0F172A]">{data.term.name}</strong> · <strong className="text-[#0F172A]">{data.total}</strong> sinh viên phù hợp · Cập nhật {new Date(data.updatedAt).toLocaleString('vi-VN')}
+          {closed ? ' · Chỉ xem' : ''}
+        </span>
+      </div>
       {!data.term.workflowEnabled && <p className="rounded-[12px] bg-[#F4F4F6] p-3 text-xs sm:text-sm text-[#6B6B6B]">Kỳ lịch sử: tra cứu kết quả theo bộ tiêu chí của kỳ; không áp dụng bàn giao mới.</p>}
-      <div aria-label="Lọc nhanh trạng thái" className="flex flex-wrap gap-2">{cards.map(([title,key,filter]) => <Link key={key} to={(filter === 'APPEALS' && !admin ? '/officer/appeals' : base) + '?termId=' + termId + '&state=' + filter} className="inline-flex items-center gap-2 rounded-full border border-[#E8E8EC] bg-white px-3 py-1.5 text-xs hover:border-[#1D6FC2]"><span className="block text-xs font-medium text-[#6B6B6B]">{title}</span><strong className="font-semibold text-[#0A0A0A]">{response?.quickSummary[key]}</strong></Link>)}</div>
+      <div aria-label="Lọc nhanh trạng thái" className="flex flex-wrap gap-2">
+        {cards.map(([title, key, filterKey]) => {
+          const isActive = (filterKey === 'APPEALS' && state === 'APPEALS') || state === filterKey;
+          return (
+            <Link
+              key={key}
+              to={(filterKey === 'APPEALS' && !admin ? '/officer/appeals' : base) + '?termId=' + termId + '&state=' + filterKey}
+              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all ${
+                isActive
+                  ? 'bg-[#1D6FC2] text-white border-[#1D6FC2] shadow-2xs'
+                  : 'bg-white text-[#475569] border-[#E2E8F0] hover:border-[#CBD5E1] hover:bg-[#F8FAFC]'
+              }`}
+            >
+              <span>{title}</span>
+              <strong className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-[#0F172A]'}`}>
+                {response?.quickSummary[key] ?? 0}
+              </strong>
+            </Link>
+          );
+        })}
+      </div>
       {admin && conditions && <details className="rounded-[12px] border border-[#E8E8EC] bg-white p-4 text-sm">
         <summary className="cursor-pointer font-semibold">Công bố: {conditions.canPublish ? 'Đủ điều kiện' : 'Chưa đủ điều kiện'} — Xem điều kiện</summary>
         <p className="mt-3 text-[#6B6B6B]">{conditions.canPublish ? 'Kết quả đủ điều kiện công bố.' : conditions.publishBlockers.join('; ')}</p>
-        <div className="mt-3 flex flex-wrap items-center gap-3"><button disabled={loading || busy || !conditions.canPublish || closed} onClick={() => { if (window.confirm('Công bố phiên bản kết quả mới nhất và thông báo cho sinh viên?')) void act(() => apiClient.publishResults(termId), 'Đã công bố kết quả.'); }} className="rounded-[6px] bg-[#1D6FC2] px-4 py-2 font-semibold text-white disabled:opacity-40">Công bố tạm</button><Link className="text-[#1D6FC2] hover:underline" to={'/admin/terms?termId=' + termId}>Đi tới Kỳ đánh giá để chốt kỳ</Link></div>
+        <div className="mt-3 flex flex-wrap items-center gap-3"><button disabled={loading || busy || !conditions.canPublish || closed} onClick={() => { setPublishConfirm(''); setShowPublish(true); }} className="rounded-[6px] bg-[#1D6FC2] px-4 py-2 font-semibold text-white disabled:opacity-40">Công bố tạm</button><Link className="text-[#1D6FC2] hover:underline" to={'/admin/terms?termId=' + termId}>Đi tới Kỳ đánh giá để chốt kỳ</Link></div>
       </details>}
 
 
@@ -103,8 +196,152 @@ export const EvaluationBoard: React.FC<{ admin?: boolean; compact?: boolean }> =
       {loading ? <div role="status" aria-label="Đang tải danh sách đánh giá" className="rounded-[12px] border border-[#E8E8EC] bg-[#FFFFFF] p-4"><p className="text-xs sm:text-sm text-[#6B6B6B] mb-3">Đang tải danh sách đánh giá…</p><TableSkeleton rows={5} cols={5} /></div>
       : loadError ? <div role="alert" className="rounded-[12px] border border-[#FECACA] bg-[#FEF2F2] p-5 text-xs sm:text-sm text-[#991B1B]"><h2 className="font-bold font-heading text-sm sm:text-base">Không tải được danh sách đánh giá</h2><p className="mt-1">{loadError}</p><button type="button" onClick={() => setRefresh(value => value + 1)} className="mt-3 rounded-[6px] border border-[#FCA5A5] bg-[#FFFFFF] px-3.5 py-1.5 font-semibold text-xs text-[#991B1B] hover:bg-[#FEE2E2] transition-colors">Thử lại</button></div>
       : data && data.items.length > 0 ? <>
-      <div className="overflow-x-auto rounded-[12px] border border-[#E8E8EC] bg-[#FFFFFF]"><table className="w-full text-left text-xs sm:text-sm"><thead><tr className="border-b border-[#E8E8EC] bg-[#FAFAFA] text-[#6B6B6B] font-medium">{!compact && !admin && <th className="p-3"><input type="checkbox" aria-label="Chọn kết quả đủ điều kiện trên trang" checked={data.items.some(r => r.ready) && data.items.filter(r => r.ready).every(r => selected.includes(r.studentId))} onChange={e => setSelected(e.target.checked ? data.items.filter(r => r.ready).map(r => r.studentId) : [])} className="rounded cursor-pointer" /></th>}<th className="p-3">Sinh viên</th><th className="p-3">Lớp</th><th className="p-3">Trạng thái</th><th className="p-3">Tiêu chí</th><th className="p-3">Thao tác</th></tr></thead><tbody className="divide-y divide-[#E8E8EC]">{data.items.map(r => <tr key={r.studentId} className="hover:bg-[#FAFAFA] transition-colors align-top">{!compact && !admin && <td className="p-3"><input type="checkbox" aria-label={'Chọn ' + r.student?.fullName} disabled={!r.ready || closed || busy} checked={selected.includes(r.studentId)} onChange={e => setSelected(old => e.target.checked ? [...old,r.studentId] : old.filter(id => id !== r.studentId))} className="rounded cursor-pointer" /></td>}<td className="p-3"><strong className="block text-[#0A0A0A] font-semibold">{r.student?.fullName}</strong><span className="text-[#6B6B6B] text-xs font-mono">{r.student?.studentCode}</span></td><td className="p-3 text-[#0A0A0A]">{r.class?.code}</td><td className="p-3"><span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-[#FAFAFA] border border-[#E8E8EC] text-[#0A0A0A]">{data.term.status === 'CLOSED' && r.state === 'PUBLISHED' ? 'Đã chốt chính thức' : evaluationStateLabels[r.state]}</span>{r.returnReason && <p className="text-xs text-[#DC2626] font-medium mt-1">{r.returnReason}</p>}{r.notSubmittedReason && <p className="text-xs text-[#6B6B6B] mt-1">{r.notSubmittedReason}</p>}{r.pendingAppeals > 0 && <p className="text-xs text-[#D97706] font-medium mt-1">{r.pendingAppeals} phúc khảo chờ</p>}</td><td className="p-3 text-[#0A0A0A] font-medium">{r.finalizedCriteria}/{r.totalCriteria}<p className="text-xs text-[#6B6B6B]">{r.pendingEvidence} minh chứng chờ</p></td><td className="space-y-1.5 p-3"><Link className="block font-semibold text-[#1D6FC2] hover:text-[#175A9E] hover:underline" to={(admin ? '/admin/results/' : '/officer/students/') + r.studentId + (admin ? '' : '/assessment') + '?termId=' + termId + '&returnTo=' + encodeURIComponent(base + '?' + params.toString())}>Xem chi tiết</Link>{!compact && !closed && admin && ['SENT','PUBLISHED'].includes(r.state) && <button className="block text-xs font-medium text-[#D97706] hover:underline" onClick={() => { setReasonAction({row:r,type:'return'}); setReason(''); }}>Trả Khoa</button>}{!compact && !closed && !admin && r.state === 'NOT_SUBMITTED' && new Date() > new Date(data.term.submissionDeadline) && <button className="block text-xs font-medium text-[#6B6B6B] hover:underline" onClick={() => { setReasonAction({row:r,type:'not-submitted'}); setReason(''); }}>Ghi nhận không nộp</button>}</td></tr>)}</tbody></table></div>
-      {compact ? <Link className="inline-block text-xs sm:text-sm font-semibold text-[#1D6FC2] hover:text-[#175A9E] hover:underline pt-1" to={base + '?termId=' + termId}>Xem toàn bộ danh sách →</Link> : <div className="flex items-center justify-between gap-3 text-xs sm:text-sm text-[#6B6B6B] pt-2"><select aria-label="Số dòng mỗi trang" value={pageSize} onChange={e => setFilter('pageSize',e.target.value)} className="rounded-[6px] border border-[#E8E8EC] p-2 bg-[#FFFFFF] text-[#0A0A0A] cursor-pointer">{[25,50,100].map(n => <option key={n} value={n}>{n} dòng/trang</option>)}</select><span className="font-medium text-[#0A0A0A]">Trang {page}/{Math.max(1,Math.ceil(data.total/pageSize))} · {data.total} sinh viên</span><div className="flex gap-2"><button disabled={page <= 1} onClick={() => setFilter('page',String(page-1))} className="rounded-[6px] border border-[#E8E8EC] bg-[#FFFFFF] hover:bg-[#FAFAFA] px-3 py-1.5 disabled:opacity-40 font-medium transition-colors">Trước</button><button disabled={page*pageSize >= data.total} onClick={() => setFilter('page',String(page+1))} className="rounded-[6px] border border-[#E8E8EC] bg-[#FFFFFF] hover:bg-[#FAFAFA] px-3 py-1.5 disabled:opacity-40 font-medium transition-colors">Tiếp</button></div></div>}
+      <div className="overflow-x-auto rounded-[12px] border border-[#E2E8F0] bg-white shadow-2xs">
+        <table className="w-full text-left text-xs sm:text-sm">
+          <thead className="border-b border-[#E2E8F0] bg-[#F8FAFC] text-[11px] font-bold uppercase tracking-wider text-[#475569]">
+            <tr>
+              {!compact && !admin && (
+                <th className="p-3.5 w-10">
+                  <input
+                    type="checkbox"
+                    aria-label="Chọn kết quả đủ điều kiện trên trang"
+                    checked={data.items.some(r => r.ready) && data.items.filter(r => r.ready).every(r => selected.includes(r.studentId))}
+                    onChange={e => setSelected(e.target.checked ? data.items.filter(r => r.ready).map(r => r.studentId) : [])}
+                    className="rounded border-[#CBD5E1] text-[#1D6FC2] focus:ring-[#1D6FC2] cursor-pointer"
+                  />
+                </th>
+              )}
+              <th className="p-3.5">Sinh viên</th>
+              <th className="p-3.5">Lớp</th>
+              <th className="p-3.5">Trạng thái</th>
+              <th className="p-3.5">Tiến độ tiêu chí</th>
+              <th className="p-3.5 text-right">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#E2E8F0]">
+            {data.items.map(r => (
+              <tr key={r.studentId} className="hover:bg-[#F8FAFC]/80 transition-colors align-top">
+                {!compact && !admin && (
+                  <td className="p-3.5">
+                    <input
+                      type="checkbox"
+                      aria-label={'Chọn ' + r.student?.fullName}
+                      disabled={!r.ready || closed || busy}
+                      checked={selected.includes(r.studentId)}
+                      onChange={e => setSelected(old => e.target.checked ? [...old, r.studentId] : old.filter(id => id !== r.studentId))}
+                      className="rounded border-[#CBD5E1] text-[#1D6FC2] focus:ring-[#1D6FC2] cursor-pointer disabled:opacity-40"
+                    />
+                  </td>
+                )}
+                <td className="p-3.5">
+                  <strong className="block text-[#0F172A] font-bold">{r.student?.fullName}</strong>
+                  <span className="text-[#64748B] text-xs font-mono">{r.student?.studentCode}</span>
+                </td>
+                <td className="p-3.5">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-[#F1F5F9] text-[#475569] border border-[#E2E8F0]">
+                    {r.class?.code}
+                  </span>
+                </td>
+                <td className="p-3.5">
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
+                    r.state === 'READY'
+                      ? 'bg-sky-50 text-sky-700 border-sky-200'
+                      : r.state === 'REVIEWING'
+                      ? 'bg-amber-50 text-amber-700 border-amber-200'
+                      : r.state === 'SENT'
+                      ? 'bg-blue-50 text-blue-700 border-blue-200'
+                      : r.state === 'PUBLISHED'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : r.state === 'FACULTY_RETURNED'
+                      ? 'bg-rose-50 text-rose-700 border-rose-200'
+                      : r.state === 'STUDENT_RETURNED'
+                      ? 'bg-orange-50 text-orange-700 border-orange-200'
+                      : r.state === 'NOT_SUBMITTED_RECORDED'
+                      ? 'bg-rose-50 text-rose-800 border-rose-300'
+                      : 'bg-slate-100 text-slate-700 border-slate-200'
+                  }`}>
+                    {data.term.status === 'CLOSED' && r.state === 'PUBLISHED' ? 'Đã chốt chính thức' : evaluationStateLabels[r.state]}
+                  </span>
+                  {r.returnReason && <p className="text-xs text-[#DC2626] font-semibold mt-1">{r.returnReason}</p>}
+                  {r.notSubmittedReason && <p className="text-xs text-[#64748B] mt-1">{r.notSubmittedReason}</p>}
+                  {r.pendingAppeals > 0 && <p className="text-xs text-[#D97706] font-bold mt-1">{r.pendingAppeals} phúc khảo chờ</p>}
+                </td>
+                <td className="p-3.5 text-[#0F172A] font-medium">
+                  <div className="font-bold tabular-nums">
+                    {r.finalizedCriteria}/{r.totalCriteria} <span className="text-xs font-normal text-[#64748B]">tiêu chí</span>
+                  </div>
+                  <p className="text-xs text-[#64748B] mt-0.5">
+                    {r.pendingEvidence > 0 ? (
+                      <span className="text-amber-700 font-semibold">{r.pendingEvidence} minh chứng chờ</span>
+                    ) : (
+                      '0 minh chứng tồn'
+                    )}
+                  </p>
+                </td>
+                <td className="space-y-1.5 p-3.5 text-right">
+                  <Link
+                    className="inline-flex items-center gap-1 text-xs font-bold text-[#1D6FC2] hover:text-[#175A9E] hover:underline"
+                    to={(admin ? '/admin/results/' : '/officer/students/') + r.studentId + (admin ? '' : '/assessment') + '?termId=' + termId + '&returnTo=' + encodeURIComponent(base + '?' + params.toString())}
+                  >
+                    Xem phiếu →
+                  </Link>
+                  {!compact && !closed && admin && r.state === 'SENT' && (
+                    <button className="block text-xs font-semibold text-[#D97706] hover:underline ml-auto" onClick={() => { setReasonAction({row:r,type:'return'}); setReason(''); }}>
+                      Trả Khoa
+                    </button>
+                  )}
+                  {!compact && !closed && admin && r.state === 'PUBLISHED' && <button className="block text-xs font-semibold text-indigo-700 hover:underline ml-auto" onClick={() => { setReasonAction({ row: r, type: 'correction' }); setReason(''); }}>Yêu cầu điều chỉnh</button>}
+                  {!compact && !closed && admin && !['PUBLISHED','NOT_SUBMITTED_RECORDED'].includes(r.state) && <button className="block text-xs font-semibold text-rose-700 hover:underline ml-auto" onClick={() => { setReasonAction({ row: r, type: 'exclude' }); setReason(''); }}>Loại trừ khỏi kỳ</button>}
+                  {!compact && !closed && admin && r.exclusionReason && <button className="block text-xs font-semibold text-emerald-700 hover:underline ml-auto" onClick={() => void act(() => apiClient.restoreStudentToTerm(termId, r.studentId), 'Đã khôi phục sinh viên vào kỳ.')}>Khôi phục</button>}
+                  {!compact && !closed && !admin && r.state === 'NOT_SUBMITTED' && new Date() > new Date(data.term.submissionDeadline) && (
+                    <button className="block text-xs font-semibold text-[#DC2626] hover:underline ml-auto" onClick={() => { setReasonAction({row:r,type:'not-submitted'}); setReason(''); }}>
+                      Ghi nhận không nộp
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {compact ? (
+        <Link className="inline-block text-xs sm:text-sm font-bold text-[#1D6FC2] hover:text-[#175A9E] hover:underline pt-1" to={base + '?termId=' + termId}>
+          Xem toàn bộ danh sách →
+        </Link>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm text-[#64748B] pt-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xs">Hiển thị:</span>
+            <select
+              aria-label="Số dòng mỗi trang"
+              value={pageSize}
+              onChange={e => setFilter('pageSize', e.target.value)}
+              className="rounded-lg border border-[#E2E8F0] p-1.5 bg-white text-[#0F172A] font-medium cursor-pointer"
+            >
+              {[25, 50, 100].map(n => <option key={n} value={n}>{n} dòng/trang</option>)}
+            </select>
+          </div>
+          <span className="font-semibold text-[#0F172A] tabular-nums">
+            Trang {page}/{Math.max(1, Math.ceil(data.total / pageSize))} · Tổng {data.total} sinh viên
+          </span>
+          <div className="flex gap-2">
+            <button
+              disabled={page <= 1}
+              onClick={() => setFilter('page', String(page - 1))}
+              className="rounded-lg border border-[#E2E8F0] bg-white hover:bg-[#F8FAFC] px-3 py-1.5 disabled:opacity-40 font-semibold text-xs text-[#0F172A] transition-colors"
+            >
+              Trước
+            </button>
+            <button
+              disabled={page * pageSize >= data.total}
+              onClick={() => setFilter('page', String(page + 1))}
+              className="rounded-lg border border-[#E2E8F0] bg-white hover:bg-[#F8FAFC] px-3 py-1.5 disabled:opacity-40 font-semibold text-xs text-[#0F172A] transition-colors"
+            >
+              Sau
+            </button>
+          </div>
+        </div>
+      )}
       </> : data ? <div role="status" className="flex flex-col items-center rounded-[12px] border border-[#E8E8EC] bg-[#FFFFFF] px-5 py-10 text-center">
         {hasFilters ? <SearchX aria-hidden="true" className="mb-4 h-10 w-10 text-[#9C9C9C]" /> : <ClipboardList aria-hidden="true" className="mb-4 h-10 w-10 text-[#9C9C9C]" />}
         <h2 className="text-base font-bold font-heading text-[#0A0A0A]">{hasFilters ? 'Không tìm thấy đánh giá phù hợp' : 'Chưa có danh sách đánh giá cho kỳ này'}</h2>
@@ -113,6 +350,7 @@ export const EvaluationBoard: React.FC<{ admin?: boolean; compact?: boolean }> =
       </div> : null}
     </section>
 
-    {reasonAction && data && <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0A0A0A]/40 backdrop-blur-xs p-4"><form onSubmit={e => { e.preventDefault(); void act(() => reasonAction.type === 'return' ? apiClient.returnFacultyResult(termId,reasonAction.row.studentId,reason) : apiClient.recordNonSubmission(termId,reasonAction.row.studentId,reason), 'Đã ghi nhận và lưu lịch sử.'); }} role="dialog" aria-modal="true" aria-label="Nhập lý do" className="w-full max-w-lg space-y-4 rounded-[12px] bg-[#FFFFFF] border border-[#E8E8EC] p-5 shadow-xl"><h2 className="font-bold font-heading text-sm sm:text-base text-[#0A0A0A]">{reasonAction.type === 'return' ? 'Trả kết quả cho Khoa' : 'Ghi nhận không nộp'} · {reasonAction.row.student?.fullName}</h2><textarea autoFocus required value={reason} onChange={e => setReason(e.target.value)} aria-label="Lý do bắt buộc" rows={3} className="w-full rounded-[6px] border border-[#E8E8EC] p-3 text-xs sm:text-sm text-[#0A0A0A] focus:outline-none focus:border-[#1D6FC2] focus:ring-2 focus:ring-[#1D6FC2]/15" /><div className="flex justify-end gap-3"><button type="button" disabled={loading || busy} onClick={() => setReasonAction(null)} className="px-3.5 py-2 text-xs font-medium text-[#6B6B6B] hover:text-[#0A0A0A]">Hủy</button><button disabled={loading || busy || !reason.trim()} className="rounded-[6px] bg-[#1D6FC2] hover:bg-[#175A9E] px-4 py-2 text-xs font-semibold text-white disabled:opacity-40 transition-colors btn-primary-lift">Xác nhận</button></div></form></div>}
+    {reasonAction && data && <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0A0A0A]/40 backdrop-blur-xs p-4"><form onSubmit={e => { e.preventDefault(); const operations = { return: () => apiClient.returnFacultyResult(termId, reasonAction.row.studentId, reason), 'not-submitted': () => apiClient.recordNonSubmission(termId, reasonAction.row.studentId, reason), correction: () => apiClient.requestPublicationCorrection(termId, reasonAction.row.studentId, reason), exclude: () => apiClient.excludeStudentFromTerm(termId, reasonAction.row.studentId, reason) }; void act(operations[reasonAction.type], 'Đã ghi nhận và lưu lịch sử.'); }} role="dialog" aria-modal="true" aria-label="Nhập lý do" className="w-full max-w-lg space-y-4 rounded-[12px] bg-[#FFFFFF] border border-[#E8E8EC] p-5 shadow-xl"><h2 className="font-bold font-heading text-sm sm:text-base text-[#0A0A0A]">{{ return: 'Trả kết quả cho Khoa', 'not-submitted': 'Ghi nhận không nộp', correction: 'Yêu cầu Khoa điều chỉnh sau công bố', exclude: 'Loại trừ sinh viên khỏi kỳ' }[reasonAction.type]} · {reasonAction.row.student?.fullName}</h2><textarea autoFocus required value={reason} onChange={e => setReason(e.target.value)} aria-label="Lý do bắt buộc" rows={3} className="w-full rounded-[6px] border border-[#E8E8EC] p-3 text-xs sm:text-sm text-[#0A0A0A] focus:outline-none focus:border-[#1D6FC2] focus:ring-2 focus:ring-[#1D6FC2]/15" /><div className="flex justify-end gap-3"><button type="button" disabled={loading || busy} onClick={() => setReasonAction(null)} className="px-3.5 py-2 text-xs font-medium text-[#6B6B6B] hover:text-[#0A0A0A]">Hủy</button><button disabled={loading || busy || !reason.trim()} className="rounded-[6px] bg-[#1D6FC2] hover:bg-[#175A9E] px-4 py-2 text-xs font-semibold text-white disabled:opacity-40 transition-colors btn-primary-lift">Xác nhận</button></div></form></div>}
+    {showPublish && data && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"><div role="dialog" aria-modal="true" className="w-full max-w-lg rounded-2xl bg-white p-5 space-y-4"><h2 className="font-bold text-slate-900">Xác nhận công bố kết quả</h2><p className="text-sm text-slate-600">Hệ thống sẽ tạo revision mới cho các kết quả chưa công bố và gửi thông báo đến sinh viên. Nhập <strong>CÔNG BỐ</strong> để tiếp tục.</p><input autoFocus value={publishConfirm} onChange={e => setPublishConfirm(e.target.value)} className="w-full rounded-lg border p-3 font-semibold" placeholder="CÔNG BỐ"/><div className="flex justify-end gap-2"><button onClick={() => setShowPublish(false)} className="px-3 py-2 text-sm">Hủy</button><button disabled={publishConfirm !== 'CÔNG BỐ' || busy} onClick={() => void act(() => apiClient.publishResults(termId), 'Đã công bố kết quả.').then(() => setShowPublish(false))} className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">Công bố</button></div></div></div>}
   </div>;
 };

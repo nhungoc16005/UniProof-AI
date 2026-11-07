@@ -56,6 +56,12 @@ export class AssessmentsController {
     return this.assessments.getMine(studentId, termId);
   }
 
+  @Get('me/preflight')
+  @Roles(Role.STUDENT)
+  preflightMine(@CurrentUser('id') studentId: string, @Query('termId') termId: string) {
+    return this.assessments.preflight(studentId, termId);
+  }
+
   @Put('me/:criterionId')
   @Roles(Role.STUDENT)
   saveMine(

@@ -139,23 +139,71 @@ export const ReviewQueue: React.FC = () => {
         <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Nhóm trạng thái minh chứng">
           {mainTabs.map(tab => {
             const active = tab.decided ? decided : status === tab.status;
-            return <button key={tab.label} type="button" aria-pressed={active} onClick={() => filter('status', tab.status)} className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold ${active ? 'border-[#1D6FC2] bg-[#E1EDF9] text-[#175A9E]' : 'border-[#E8E8EC] bg-white text-[#6B6B6B]'}`}>{tab.label} <span className="ml-1 tabular-nums">{summaryLoading ? '…' : tab.count}</span></button>;
+            return (
+              <button
+                key={tab.label}
+                type="button"
+                aria-pressed={active}
+                onClick={() => filter('status', tab.status)}
+                className={`shrink-0 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                  active
+                    ? 'bg-[#1D6FC2] text-white shadow-2xs'
+                    : 'border border-[#E2E8F0] bg-white text-[#475569] hover:bg-[#F8FAFC] hover:border-[#CBD5E1]'
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span
+                  className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                    active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  {summaryLoading ? '…' : tab.count}
+                </span>
+              </button>
+            );
           })}
         </div>
-        {decided && <div className="flex gap-2" aria-label="Kết quả quyết định"><button type="button" onClick={() => filter('status', 'APPROVED')} aria-pressed={status === 'APPROVED'} className={`rounded-md px-3 py-1.5 text-xs font-medium ${status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' : 'border border-[#E8E8EC]'}`}>Hợp lệ ({summaryLoading ? '…' : summary.APPROVED})</button><button type="button" onClick={() => filter('status', 'REJECTED')} aria-pressed={status === 'REJECTED'} className={`rounded-md px-3 py-1.5 text-xs font-medium ${status === 'REJECTED' ? 'bg-red-100 text-red-800' : 'border border-[#E8E8EC]'}`}>Từ chối ({summaryLoading ? '…' : summary.REJECTED})</button></div>}
+        {decided && (
+          <div className="flex gap-2" aria-label="Kết quả quyết định">
+            <button
+              type="button"
+              onClick={() => filter('status', 'APPROVED')}
+              aria-pressed={status === 'APPROVED'}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                status === 'APPROVED'
+                  ? 'bg-emerald-600 text-white shadow-2xs'
+                  : 'border border-[#E2E8F0] bg-white text-emerald-700 hover:bg-emerald-50'
+              }`}
+            >
+              Hợp lệ ({summaryLoading ? '…' : summary.APPROVED})
+            </button>
+            <button
+              type="button"
+              onClick={() => filter('status', 'REJECTED')}
+              aria-pressed={status === 'REJECTED'}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                status === 'REJECTED'
+                  ? 'bg-rose-600 text-white shadow-2xs'
+                  : 'border border-[#E2E8F0] bg-white text-rose-700 hover:bg-rose-50'
+              }`}
+            >
+              Từ chối ({summaryLoading ? '…' : summary.REJECTED})
+            </button>
+          </div>
+        )}
         {summaryError && <p role="status" className="text-xs text-amber-700">{summaryError} <button type="button" onClick={() => void loadSummary()} className="font-semibold underline">Thử lại</button></p>}
       </div>
 
       {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-3 rounded-[12px] border border-[#E8E8EC] bg-white p-3 shadow-xs">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#E2E8F0] bg-white p-3.5 shadow-2xs">
         <div className="relative flex-1 min-w-[240px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#6B6B6B]" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#94A3B8]" />
           <input
             aria-label="Tìm minh chứng"
-            placeholder="Tên hoạt động, MSSV, họ tên…"
+            placeholder="Tìm theo tên hoạt động, MSSV, họ tên sinh viên…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-[6px] border border-[#E8E8EC] bg-[#FAFAFA] pl-9 pr-3 py-2 text-sm text-[#0A0A0A] placeholder-[#8A8A8E] focus:bg-white focus:border-[#1D6FC2] focus:outline-none transition-colors"
+            className="w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] pl-9 pr-3 py-2 text-xs sm:text-sm text-[#0F172A] placeholder-[#94A3B8] focus:bg-white focus:border-[#1D6FC2] focus:outline-none focus:ring-2 focus:ring-[#1D6FC2]/15 transition-colors"
           />
         </div>
 
@@ -163,7 +211,7 @@ export const ReviewQueue: React.FC = () => {
           aria-label="Trạng thái minh chứng"
           value={status}
           onChange={(e) => filter('status', e.target.value)}
-          className="rounded-[6px] border border-[#E8E8EC] bg-[#FAFAFA] px-3 py-2 text-sm font-medium text-[#0A0A0A] focus:bg-white focus:border-[#1D6FC2] focus:outline-none transition-colors"
+          className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-xs sm:text-sm font-semibold text-[#0F172A] focus:bg-white focus:border-[#1D6FC2] focus:outline-none transition-colors cursor-pointer"
         >
           {[
             ['NEEDS_HUMAN_REVIEW', 'Chờ Khoa xác minh'],
@@ -186,36 +234,36 @@ export const ReviewQueue: React.FC = () => {
 
         <button
           onClick={() => { void load(); void loadSummary(); }}
-          className="inline-flex items-center gap-1.5 rounded-[6px] border border-[#E8E8EC] bg-white px-3 py-2 text-sm font-medium text-[#0A0A0A] hover:bg-[#F3F4F6] transition-colors"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-[#E2E8F0] bg-white px-3.5 py-2 text-xs font-semibold text-[#0F172A] hover:bg-[#F8FAFC] transition-colors shadow-2xs"
         >
-          <RefreshCw className={`h-4 w-4 text-[#6B6B6B] ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`h-3.5 w-3.5 text-[#64748B] ${loading ? 'animate-spin text-[#1D6FC2]' : ''}`} />
           Làm mới
         </button>
       </div>
 
       {error && (
-        <div role="alert" className="rounded-[12px] border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-xs sm:text-sm text-red-800">
           {error}
         </div>
       )}
 
       {/* Main Table */}
-      <div className="overflow-hidden rounded-[12px] border border-[#E8E8EC] bg-white shadow-xs">
+      <div className="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-2xs">
         {loading ? (
-          <div className="p-12 text-center text-sm text-[#6B6B6B]">
+          <div className="p-12 text-center text-xs text-[#64748B]">
             <RefreshCw className="mx-auto h-6 w-6 animate-spin text-[#1D6FC2] mb-2" />
             Đang tải danh sách minh chứng…
           </div>
         ) : items.length === 0 ? (
           <div className="p-12 text-center">
-            <FileCheck className="mx-auto h-10 w-10 text-[#8A8A8E] mb-2" />
-            <p className="font-heading font-medium text-[#0A0A0A]">Không có minh chứng phù hợp</p>
-            <p className="text-xs text-[#6B6B6B] mt-1">Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm</p>
+            <FileCheck className="mx-auto h-10 w-10 text-[#94A3B8] mb-2" />
+            <p className="font-heading font-bold text-sm text-[#0F172A]">Không có minh chứng phù hợp</p>
+            <p className="text-xs text-[#64748B] mt-1">Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-[#E8E8EC] bg-[#FAFAFA] text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
+            <table className="w-full text-left text-xs sm:text-sm">
+              <thead className="border-b border-[#E2E8F0] bg-[#F8FAFC] text-[11px] font-bold uppercase tracking-wider text-[#475569]">
                 <tr>
                   <th className="py-3 px-4 w-[30%]">Minh chứng / Hoạt động</th>
                   <th className="py-3 px-4 w-[25%]">Sinh viên</th>
@@ -224,29 +272,29 @@ export const ReviewQueue: React.FC = () => {
                   <th className="py-3 px-4 w-[15%] text-right">Thao tác</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E8E8EC]">
+              <tbody className="divide-y divide-[#E2E8F0]">
                 {items.map((e) => (
-                  <tr key={e.id} className="hover:bg-[#F9FAFB] transition-colors">
+                  <tr key={e.id} className="hover:bg-[#F8FAFC]/80 transition-colors">
                     <td className="py-3.5 px-4">
-                      <p className="font-medium text-[#0A0A0A] line-clamp-2">{e.declaredActivityName}</p>
+                      <p className="font-bold text-[#0F172A] line-clamp-2">{e.declaredActivityName}</p>
                       {e.criterionAssessment?.criterion && (
-                        <p className="text-xs text-[#6B6B6B] mt-0.5">
+                        <p className="text-xs text-[#64748B] mt-0.5">
                           Tiêu chí {e.criterionAssessment.criterion.code}
                         </p>
                       )}
                     </td>
                     <td className="py-3.5 px-4">
-                      <div className="flex items-center gap-2">
-                        <div className="h-7 w-7 rounded-full bg-[#EBF3FC] text-[#1D6FC2] flex items-center justify-center text-xs font-semibold shrink-0">
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-7 w-7 rounded-full bg-[#E1EDF9] text-[#1D6FC2] flex items-center justify-center text-xs font-bold shrink-0">
                           {e.student?.fullName?.charAt(0) || <User className="h-3.5 w-3.5" />}
                         </div>
                         <div>
-                          <p className="font-medium text-[#0A0A0A]">{e.student?.fullName || '—'}</p>
-                          <p className="text-xs text-[#6B6B6B] font-mono">{e.student?.studentCode}</p>
+                          <p className="font-bold text-[#0F172A]">{e.student?.fullName || '—'}</p>
+                          <p className="text-xs text-[#64748B] font-mono">{e.student?.studentCode}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="py-3.5 px-4 text-xs text-[#6B6B6B]">
+                    <td className="py-3.5 px-4 text-xs text-[#64748B] tabular-nums">
                       {e.submittedAt ? new Date(e.submittedAt).toLocaleDateString('vi-VN') : 'Chưa nộp'}
                     </td>
                     <td className="py-3.5 px-4">
@@ -258,14 +306,14 @@ export const ReviewQueue: React.FC = () => {
                           to={`/officer/review/${e.id}?termId=${termId}&returnTo=${encodeURIComponent(
                             '/officer/queue?' + params.toString()
                           )}`}
-                          className="inline-flex items-center gap-1 text-xs font-semibold text-[#1D6FC2] hover:text-[#175A9E] hover:underline"
+                          className="inline-flex items-center gap-1 text-xs font-bold text-[#1D6FC2] hover:text-[#175A9E] hover:underline"
                         >
                           Xác minh
                           <ArrowRight className="h-3 w-3" />
                         </Link>
                         <Link
                           to={`/officer/students/${e.studentId}/assessment?termId=${termId}&returnTo=${encodeURIComponent('/officer/queue?' + params.toString())}`}
-                          className="text-xs text-[#6B6B6B] hover:text-[#0A0A0A] hover:underline"
+                          className="text-xs text-[#64748B] hover:text-[#0F172A] hover:underline"
                         >
                           Xem chi tiết đánh giá
                         </Link>
@@ -279,16 +327,16 @@ export const ReviewQueue: React.FC = () => {
         )}
 
         {/* Pagination */}
-        <div className="flex items-center justify-between border-t border-[#E8E8EC] bg-[#FAFAFA] px-4 py-3 text-xs text-[#6B6B6B]">
+        <div className="flex items-center justify-between border-t border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-xs text-[#64748B]">
           <span>
-            Trang <strong className="text-[#0A0A0A]">{page}</strong> / {totalPages} · Tổng{' '}
-            <strong className="text-[#0A0A0A]">{total}</strong> minh chứng
+            Trang <strong className="text-[#0F172A]">{page}</strong> / {totalPages} · Tổng{' '}
+            <strong className="text-[#0F172A]">{total}</strong> minh chứng
           </span>
           <div className="flex items-center gap-2">
             <button
               disabled={page <= 1}
               onClick={() => filter('page', String(page - 1))}
-              className="inline-flex items-center gap-1 rounded-[6px] border border-[#E8E8EC] bg-white px-2.5 py-1 text-xs font-medium text-[#0A0A0A] hover:bg-[#F3F4F6] disabled:opacity-40 disabled:pointer-events-none transition-colors"
+              className="inline-flex items-center gap-1 rounded-lg border border-[#E2E8F0] bg-white px-2.5 py-1 text-xs font-semibold text-[#0F172A] hover:bg-[#F8FAFC] disabled:opacity-40 disabled:pointer-events-none transition-colors shadow-2xs"
             >
               <ChevronLeft className="h-3.5 w-3.5" />
               Trước
@@ -296,7 +344,7 @@ export const ReviewQueue: React.FC = () => {
             <button
               disabled={page * 20 >= total}
               onClick={() => filter('page', String(page + 1))}
-              className="inline-flex items-center gap-1 rounded-[6px] border border-[#E8E8EC] bg-white px-2.5 py-1 text-xs font-medium text-[#0A0A0A] hover:bg-[#F3F4F6] disabled:opacity-40 disabled:pointer-events-none transition-colors"
+              className="inline-flex items-center gap-1 rounded-lg border border-[#E2E8F0] bg-white px-2.5 py-1 text-xs font-semibold text-[#0F172A] hover:bg-[#F8FAFC] disabled:opacity-40 disabled:pointer-events-none transition-colors shadow-2xs"
             >
               Sau
               <ChevronRight className="h-3.5 w-3.5" />

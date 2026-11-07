@@ -1,16 +1,17 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, Role } from '@prisma/client';
+import { DeadlineExtensionType, Prisma, Role } from '@prisma/client';
 import { WorkflowQueryDto } from './dto/workflow-query.dto';
 import { classification, sendBlockers, sumCategory, unresolvedEvidenceStatuses } from './evaluation-policy';
 export { classification } from './evaluation-policy';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { DeadlineExtensionsService } from '../deadline-extensions/deadline-extensions.service';
 
 export type WorkflowActor = { id: string; role: Role; facultyId?: string | null };
 const unresolved = [...unresolvedEvidenceStatuses];
 
 @Injectable()
 export class WorkflowService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly deadlines: DeadlineExtensionsService) {}
 
   async lock(tx: Prisma.TransactionClient, termId: string) {
     await tx.$queryRaw`SELECT "id" FROM "Term" WHERE "id" = ${termId} FOR UPDATE`;
@@ -74,8 +75,12 @@ export class WorkflowService {
   async assertStudentEditable(tx: Prisma.TransactionClient, studentId: string, termId: string) {
     const term = await this.lock(tx, termId);
     const submission = await tx.assessmentSubmission.findFirst({ where: { studentId, termId }, orderBy: { updatedAt: 'desc' } });
-    const returnedWindow = submission?.status === 'RETURNED' && ['ACTIVE', 'REVIEWING'].includes(term.status) && new Date() <= term.reviewDeadline;
-    if (!returnedWindow && (term.status !== 'ACTIVE' || new Date() > term.submissionDeadline)) throw new BadRequestException('Kỳ không nhận chỉnh sửa hoặc đã hết hạn nộp/bổ sung phiếu');
+    const [submissionWindow, reviewWindow] = await Promise.all([
+      this.deadlines.resolve(termId, studentId, DeadlineExtensionType.SUBMISSION, tx),
+      this.deadlines.resolve(termId, studentId, DeadlineExtensionType.REVIEW, tx),
+    ]);
+    const returnedWindow = submission?.status === 'RETURNED' && ['ACTIVE', 'REVIEWING'].includes(term.status) && new Date() <= reviewWindow.deadline;
+    if (!returnedWindow && (term.status !== 'ACTIVE' || new Date() > submissionWindow.deadline)) throw new BadRequestException('Kỳ không nhận chỉnh sửa hoặc đã hết hạn nộp/bổ sung phiếu');
     if (submission?.status === 'SUBMITTED') throw new BadRequestException('Phiếu đã nộp; chỉ được sửa sau khi Khoa trả phiếu');
     const handoff = await tx.assessmentHandoff.findUnique({ where: { studentId_termId: { studentId, termId } } });
     if (term.workflowEnabled && (!handoff || ['SENT', 'EXCLUDED'].includes(handoff.status))) throw new BadRequestException('Sinh viên chưa thuộc danh sách kỳ hoặc phiếu đã khóa');
@@ -106,7 +111,7 @@ export class WorkflowService {
     const term = await this.prisma.term.findUnique({ where: { id: termId } });
     if (!term) throw new NotFoundException('Không tìm thấy kỳ');
     const where = { termId, ...(classId ? { classId } : {}), ...(actor.role === Role.STAFF ? { facultyId: actor.facultyId! } : facultyId ? { facultyId } : {}) };
-    let rows = await this.prisma.assessmentHandoff.findMany({ where, select: { id: true, studentId: true, termId: true, rubricVersionId: true, classId: true, facultyId: true, status: true, sentById: true, sentAt: true, returnReason: true, notSubmittedReason: true, revision: true, createdAt: true, updatedAt: true }, orderBy: [{ createdAt: 'asc' }, { studentId: 'asc' }] });
+    let rows = await this.prisma.assessmentHandoff.findMany({ where, select: { id: true, studentId: true, termId: true, rubricVersionId: true, classId: true, facultyId: true, status: true, sentById: true, sentAt: true, returnReason: true, notSubmittedReason: true, exclusionReason: true, excludedAt: true, revision: true, createdAt: true, updatedAt: true }, orderBy: [{ createdAt: 'asc' }, { studentId: 'asc' }] });
     if (!term.workflowEnabled) {
       const rubric = await this.prisma.rubricVersion.findFirst({ where: { termId, status: 'PUBLISHED' }, orderBy: { version: 'desc' } });
       const history = await Promise.all([
@@ -116,7 +121,7 @@ export class WorkflowService {
       ]);
       const historicalIds = [...new Set(history.flat().map(row => row.studentId))];
       const legacy = await this.prisma.user.findMany({ where: { id: { in: historicalIds }, role: 'STUDENT', ...(classId ? { classId } : {}), ...((actor.role === Role.STAFF ? actor.facultyId : facultyId) ? { class: { facultyId: actor.role === Role.STAFF ? actor.facultyId! : facultyId } } : {}) }, include: { class: true }, orderBy: { studentCode: 'asc' } });
-      rows = legacy.filter(u => u.class).map(u => ({ id: u.id, studentId: u.id, termId, rubricVersionId: rubric?.id ?? '', classId: u.classId!, facultyId: u.class!.facultyId, status: 'WORKING' as const, sentById: null, sentAt: null, returnReason: null, notSubmittedReason: null, snapshot: null, revision: 0, createdAt: u.createdAt, updatedAt: u.updatedAt }));
+      rows = legacy.filter(u => u.class).map(u => ({ id: u.id, studentId: u.id, termId, rubricVersionId: rubric?.id ?? '', classId: u.classId!, facultyId: u.class!.facultyId, status: 'WORKING' as const, sentById: null, sentAt: null, returnReason: null, notSubmittedReason: null, exclusionReason: null, excludedAt: null, snapshot: null, revision: 0, createdAt: u.createdAt, updatedAt: u.updatedAt }));
     }
     const ids = rows.map(r => r.studentId);
     const scoped = { termId, studentId: { in: ids } };
@@ -223,6 +228,7 @@ export class WorkflowService {
         const blockers = sendBlockers(!!sub, snapshot.complete, pendingEvidence, pendingAppeals);
         if (blockers.length) throw new BadRequestException({ message: blockers.join('; '), blockers, studentId });
         await tx.assessmentHandoff.update({ where: { id: row.id }, data: { status: 'SENT', revision: { increment: 1 }, snapshot: JSON.parse(JSON.stringify(snapshot)), sentAt: new Date(), sentById: actor.id, returnReason: null } });
+        await tx.publicationCorrectionRequest.updateMany({ where: { handoffId: row.id, status: 'OPEN' }, data: { status: 'FACULTY_RESUBMITTED' } });
         sent++;
         await this.audit(tx, actor.id, 'FACULTY_RESULT_SENT', row.id, { studentId, termId, revision: row.revision + 1 });
       }
@@ -239,6 +245,8 @@ export class WorkflowService {
       if (row.status !== 'SENT') throw new BadRequestException('Khoa chưa gửi phiếu này');
       const result = await tx.assessmentHandoff.update({ where: { id: row.id }, data: { status: 'RETURNED', returnReason: reason.trim() } });
       await this.audit(tx, actor.id, 'CTSV_RESULT_RETURNED', row.id, { studentId, termId, reason: reason.trim() });
+      const staffIds = (await tx.user.findMany({ where: { role: 'STAFF', facultyId: row.facultyId, isActive: true }, select: { id: true } })).map(user => user.id);
+      if (staffIds.length) await tx.notification.createMany({ data: staffIds.map(userId => ({ userId, type: 'FACULTY_RESULT_RETURNED', eventKey: 'FACULTY_RESULT_RETURNED', dedupeKey: `handoff-return:${row.id}:${row.revision}:${userId}`, title: 'CTSV đã trả kết quả về Khoa', content: reason.trim(), targetPath: `/officer/students/${studentId}/assessment?termId=${termId}`, metadata: { studentId, termId } })) });
       return result;
     });
   }
@@ -247,7 +255,8 @@ export class WorkflowService {
     if (!reason?.trim()) throw new BadRequestException('Cần ghi lý do không nộp phiếu');
     return this.edit(actor, studentId, termId, async tx => {
       const term = await tx.term.findUniqueOrThrow({ where: { id: termId } });
-      if (new Date() <= term.submissionDeadline) throw new BadRequestException('Chưa hết hạn nộp phiếu');
+      const effective = await this.deadlines.resolve(termId, studentId, DeadlineExtensionType.SUBMISSION, tx);
+      if (new Date() <= effective.deadline) throw new BadRequestException('Chưa hết hạn nộp phiếu');
       if (await tx.assessmentSubmission.count({ where: { studentId, termId, status: { in: ['SUBMITTED', 'RETURNED'] } } })) throw new BadRequestException('Sinh viên đã có phiếu; phải xử lý phiếu hiện có');
       const row = await tx.assessmentHandoff.update({ where: { studentId_termId: { studentId, termId } }, data: { status: 'EXCLUDED', notSubmittedReason: reason.trim() } });
       await this.audit(tx, actor.id, 'NON_SUBMISSION_RECORDED', row.id, { studentId, termId, reason: reason.trim() });
@@ -257,6 +266,60 @@ export class WorkflowService {
 
   async publication(studentId: string, termId: string) {
     return this.prisma.assessmentPublication.findFirst({ where: { studentId, termId }, orderBy: { revision: 'desc' } });
+  }
+
+  async requestCorrection(actor: WorkflowActor, studentId: string, termId: string, reason: string) {
+    if (actor.role !== Role.ADMIN || !reason?.trim()) throw new BadRequestException('CTSV phải ghi lý do điều chỉnh');
+    return this.prisma.$transaction(async tx => {
+      const term = await this.lock(tx, termId);
+      if (term.status === 'CLOSED') throw new BadRequestException('Kỳ đã chốt, không thể mở điều chỉnh');
+      const handoff = await tx.assessmentHandoff.findUniqueOrThrow({ where: { studentId_termId: { studentId, termId } } });
+      const publication = await tx.assessmentPublication.findFirst({ where: { studentId, termId }, orderBy: { revision: 'desc' } });
+      if (!publication) throw new BadRequestException('Sinh viên chưa có kết quả công bố');
+      if (await tx.publicationCorrectionRequest.count({ where: { handoffId: handoff.id, status: { in: ['OPEN', 'FACULTY_RESUBMITTED'] } } })) throw new BadRequestException('Đang có yêu cầu điều chỉnh chưa hoàn tất');
+      const request = await tx.publicationCorrectionRequest.create({ data: { termId, handoffId: handoff.id, sourcePublicationId: publication.id, sourceRevision: publication.revision, reason: reason.trim(), requestedById: actor.id } });
+      await tx.assessmentHandoff.update({ where: { id: handoff.id }, data: { status: 'RETURNED', returnReason: `Điều chỉnh sau công bố: ${reason.trim()}` } });
+      const staffIds = (await tx.user.findMany({ where: { role: 'STAFF', facultyId: handoff.facultyId, isActive: true }, select: { id: true } })).map(user => user.id);
+      if (staffIds.length) await tx.notification.createMany({ data: staffIds.map(userId => ({ userId, type: 'PUBLICATION_CORRECTION_REQUESTED', eventKey: 'PUBLICATION_CORRECTION_REQUESTED', dedupeKey: `correction:${request.id}:${userId}`, title: 'CTSV yêu cầu điều chỉnh kết quả', content: reason.trim(), targetPath: `/officer/students/${studentId}/assessment?termId=${termId}`, metadata: { requestId: request.id, studentId, termId, sourceRevision: publication.revision } })) });
+      await this.audit(tx, actor.id, 'PUBLICATION_CORRECTION_REQUESTED', request.id, { studentId, termId, sourceRevision: publication.revision, reason: reason.trim() });
+      return request;
+    });
+  }
+
+  async corrections(actor: WorkflowActor, termId: string) {
+    const where: Prisma.PublicationCorrectionRequestWhereInput = { termId };
+    if (actor.role === Role.STAFF) {
+      if (!actor.facultyId) throw new ForbiddenException('Chưa được phân công Khoa');
+      where.handoff = { facultyId: actor.facultyId };
+    }
+    return this.prisma.publicationCorrectionRequest.findMany({ where, include: { handoff: { include: { student: { select: { id: true, fullName: true, studentCode: true } }, class: { select: { code: true } } } }, sourcePublication: { select: { revision: true, publishedAt: true } }, requestedBy: { select: { fullName: true } } }, orderBy: { createdAt: 'desc' } });
+  }
+
+  async exclude(actor: WorkflowActor, studentId: string, termId: string, reason: string) {
+    if (actor.role !== Role.ADMIN || !reason?.trim()) throw new BadRequestException('Cần ghi lý do loại trừ');
+    return this.prisma.$transaction(async tx => {
+      const term = await this.lock(tx, termId);
+      if (term.status === 'CLOSED') throw new BadRequestException('Kỳ đã chốt');
+      if (await tx.assessmentPublication.count({ where: { studentId, termId } })) throw new BadRequestException('Kết quả đã công bố; hãy dùng quy trình điều chỉnh');
+      const row = await tx.assessmentHandoff.findUniqueOrThrow({ where: { studentId_termId: { studentId, termId } } });
+      const updated = await tx.assessmentHandoff.update({ where: { id: row.id }, data: { status: 'EXCLUDED', exclusionReason: reason.trim(), excludedById: actor.id, excludedAt: new Date() } });
+      await tx.notification.create({ data: { userId: studentId, type: 'ASSESSMENT_EXCLUDED', eventKey: 'ASSESSMENT_EXCLUDED', dedupeKey: `excluded:${row.id}:${row.revision}`, title: 'Cập nhật danh sách đánh giá', content: reason.trim(), targetPath: '/student', metadata: { termId } } });
+      await this.audit(tx, actor.id, 'ASSESSMENT_EXCLUDED', row.id, { studentId, termId, reason: reason.trim() });
+      return updated;
+    });
+  }
+
+  async restoreExcluded(actor: WorkflowActor, studentId: string, termId: string) {
+    if (actor.role !== Role.ADMIN) throw new ForbiddenException();
+    return this.prisma.$transaction(async tx => {
+      const term = await this.lock(tx, termId);
+      if (term.status === 'CLOSED') throw new BadRequestException('Kỳ đã chốt');
+      const row = await tx.assessmentHandoff.findUniqueOrThrow({ where: { studentId_termId: { studentId, termId } } });
+      if (row.status !== 'EXCLUDED' || !row.exclusionReason) throw new BadRequestException('Sinh viên không thuộc trường hợp loại trừ có thể khôi phục');
+      const updated = await tx.assessmentHandoff.update({ where: { id: row.id }, data: { status: 'WORKING', exclusionReason: null, excludedById: null, excludedAt: null } });
+      await this.audit(tx, actor.id, 'ASSESSMENT_EXCLUSION_RESTORED', row.id, { studentId, termId });
+      return updated;
+    });
   }
 
   async publish(actor: WorkflowActor, termId: string) {
@@ -275,7 +338,8 @@ export class WorkflowService {
         if (existing) continue;
         if (!row.snapshot) throw new BadRequestException('Thiếu bản kết quả Khoa');
         await tx.assessmentPublication.create({ data: { studentId: row.studentId, termId, rubricVersionId: row.rubricVersionId, revision: row.revision, snapshot: row.snapshot, publishedById: actor.id } });
-        await tx.notification.create({ data: { userId: row.studentId, type: 'RESULT_PUBLISHED', title: 'Đã công bố tạm kết quả rèn luyện', content: `${term.name}: xem kết quả và gửi phúc khảo trước ${term.appealDeadline.toLocaleString('vi-VN')}.` } });
+        await tx.publicationCorrectionRequest.updateMany({ where: { handoffId: row.id, status: 'FACULTY_RESUBMITTED' }, data: { status: 'REPUBLISHED', resultingRevision: row.revision } });
+        await tx.notification.create({ data: { userId: row.studentId, type: 'RESULT_PUBLISHED', eventKey: 'RESULT_PUBLISHED', dedupeKey: `publication:${row.studentId}:${termId}:${row.revision}`, title: 'Đã công bố tạm kết quả rèn luyện', content: `${term.name}: xem kết quả và gửi phúc khảo trước ${term.appealDeadline.toLocaleString('vi-VN')}.`, targetPath: `/student/scores?termId=${termId}`, metadata: { termId, revision: row.revision } } });
         published++;
       }
       await tx.term.update({ where: { id: termId }, data: { status: 'REVIEWING' } });

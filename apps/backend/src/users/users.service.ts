@@ -4,13 +4,32 @@ import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
 import { Role } from '@prisma/client';
 import { WorkflowService } from '../evaluation-workflow/workflow.service';
 import * as bcrypt from 'bcryptjs';
+import { randomBytes } from 'crypto';
 
 @Injectable()
 export class UsersService {
   constructor(private prisma: PrismaService, private workflow: WorkflowService) {}
 
-  async findAll(params: { role?: Role; facultyId?: string; classId?: string; search?: string; page?: number; pageSize?: number }, actor: { id: string; role: Role; facultyId?: string | null }) {
-    const { role, facultyId, classId, search, page = 1, pageSize = 50 } = params;
+  private temporaryPassword() {
+    return `Ep!${randomBytes(9).toString('base64url')}`;
+  }
+
+  async resetPassword(id: string, actorId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id }, select: { id: true, email: true, fullName: true } });
+    if (!user) throw new NotFoundException('Không tìm thấy tài khoản');
+    const temporaryPassword = this.temporaryPassword();
+    const password = await bcrypt.hash(temporaryPassword, 10);
+    await this.prisma.$transaction(async tx => {
+      await tx.user.update({ where: { id }, data: { password, isFirstLogin: true, authVersion: { increment: 1 } } });
+      await tx.auditLog.create({ data: { userId: actorId, action: 'USER_PASSWORD_RESET', entityType: 'User', entityId: id, newValue: { email: user.email, sessionsRevoked: true, firstLoginRequired: true } } });
+    });
+    return { user: { id: user.id, email: user.email, fullName: user.fullName }, temporaryPassword };
+  }
+
+  async findAll(params: { role?: Role; facultyId?: string; classId?: string; termId?: string; search?: string; page?: number; pageSize?: number }, actor: { id: string; role: Role; facultyId?: string | null }) {
+    const { role, facultyId, classId, termId, search } = params;
+    const page = Math.max(1, Number(params.page) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(params.pageSize) || 50));
     const skip = (page - 1) * pageSize;
 
     const where: any = {};
@@ -19,8 +38,9 @@ export class UsersService {
       if (facultyId && facultyId !== actor.facultyId) throw new ForbiddenException('Không được tra cứu dữ liệu ngoài Khoa phụ trách');
       if (role && role !== Role.STUDENT) throw new ForbiddenException('Cán bộ chỉ được tra cứu danh sách sinh viên');
       where.role = Role.STUDENT;
-      where.class = { facultyId: actor.facultyId };
-      if (classId) {
+      if (termId) where.assessmentHandoffs = { some: { termId, facultyId: actor.facultyId, ...(classId ? { classId } : {}) } };
+      else where.class = { facultyId: actor.facultyId };
+      if (classId && !termId) {
         const studentClass = await this.prisma.class.findFirst({ where: { id: classId, facultyId: actor.facultyId }, select: { id: true } });
         if (!studentClass) throw new ForbiddenException('Lớp không thuộc Khoa phụ trách');
         where.classId = classId;
@@ -87,12 +107,18 @@ export class UsersService {
             },
           },
           createdAt: true,
+          updatedAt: true,
+          assessmentHandoffs: termId ? { where: { termId }, take: 1, select: { class: { select: { id: true, code: true, name: true, cohort: true, facultyId: true, faculty: { select: { id: true, code: true, name: true } } } } } } : false,
         },
       }),
       this.prisma.user.count({ where }),
     ]);
 
-    return { items, total, page, pageSize };
+    const scopedItems = items.map((item: any) => {
+      const { assessmentHandoffs, ...user } = item;
+      return { ...user, class: assessmentHandoffs?.[0]?.class || user.class };
+    });
+    return { items: scopedItems, total, page, pageSize };
   }
 
   async findOne(id: string, actor: { id: string; role: Role; facultyId?: string | null }, termId?: string) {
@@ -100,13 +126,13 @@ export class UsersService {
       where: { id },
       include: {
         faculty: true,
-        class: true,
+        class: { include: { faculty: true } },
       },
     });
 
     if (!user) throw new NotFoundException('Không tìm thấy người dùng');
     if (actor.role === Role.STAFF) await this.workflow.scope(actor, id, termId);
-    const { password, ...safeUser } = user;
+    const { password, authVersion, ...safeUser } = user;
     return safeUser;
   }
 
@@ -124,7 +150,7 @@ export class UsersService {
       throw new BadRequestException('Email hoặc Mã sinh viên đã tồn tại');
     }
 
-    const defaultPass = dto.password || (dto.role === Role.STUDENT ? 'Student@123' : dto.role === Role.STAFF ? 'Officer@123' : 'Admin@123');
+    const defaultPass = dto.password || this.temporaryPassword();
     const hashedPassword = await bcrypt.hash(defaultPass, 10);
 
     const user = await this.prisma.$transaction(async tx => {
@@ -224,10 +250,12 @@ export class UsersService {
       classMap.set(c.id, c.id);
     });
 
-    const defaultPasswordHash = await bcrypt.hash('123456', 10);
     let importedCount = 0;
     let updatedCount = 0;
     const errors: string[] = [];
+    const seenEmails = new Set<string>();
+    const seenStudentCodes = new Set<string>();
+    const temporaryCredentials: Array<{ email: string; temporaryPassword: string }> = [];
 
     for (let i = 0; i < dto.users.length; i++) {
       const row = dto.users[i];
@@ -247,6 +275,11 @@ export class UsersService {
       const studentCode = row.studentCode ? String(row.studentCode).trim() : undefined;
       const role = row.role || Role.STUDENT;
 
+      if (seenEmails.has(email)) { errors.push(`Dòng ${rowIdx}: Email ${email} bị lặp trong file`); continue; }
+      seenEmails.add(email);
+      if (studentCode && seenStudentCodes.has(studentCode)) { errors.push(`Dòng ${rowIdx}: MSSV ${studentCode} bị lặp trong file`); continue; }
+      if (studentCode) seenStudentCodes.add(studentCode);
+
       let facultyId = row.facultyId;
       if (!facultyId && row.facultyCode) {
         facultyId = facultyMap.get(String(row.facultyCode).toLowerCase());
@@ -255,6 +288,15 @@ export class UsersService {
       let classId = row.classId;
       if (!classId && row.classCode) {
         classId = classMap.get(String(row.classCode).toLowerCase());
+      }
+
+      if (row.facultyCode && !facultyId) { errors.push(`Dòng ${rowIdx}: Không tìm thấy Khoa ${row.facultyCode}`); continue; }
+      if (row.classCode && !classId) { errors.push(`Dòng ${rowIdx}: Không tìm thấy Lớp ${row.classCode}`); continue; }
+      if (role === Role.STUDENT && (!studentCode || !classId)) { errors.push(`Dòng ${rowIdx}: Sinh viên bắt buộc có MSSV và Lớp`); continue; }
+      if (role === Role.STAFF && !facultyId) { errors.push(`Dòng ${rowIdx}: Cán bộ bắt buộc thuộc một Khoa`); continue; }
+      if (classId && facultyId) {
+        const cls = classes.find(item => item.id === classId);
+        if (!cls || cls.facultyId !== facultyId) { errors.push(`Dòng ${rowIdx}: Lớp không thuộc Khoa đã chọn`); continue; }
       }
 
       try {
@@ -266,6 +308,7 @@ export class UsersService {
         }
 
         if (existingUser && existingUser.role !== role) throw new BadRequestException('Vai trò import khác tài khoản hiện có');
+        if (existingUser && !existingUser.isActive) throw new BadRequestException('Tài khoản đang bị khóa; cần mở khóa thủ công trước khi cập nhật');
         if (existingUser) {
           await tx.user.update({
             where: { id: existingUser.id },
@@ -278,6 +321,8 @@ export class UsersService {
           });
           updatedCount++;
         } else {
+          const temporaryPassword = this.temporaryPassword();
+          const defaultPasswordHash = await bcrypt.hash(temporaryPassword, 10);
           await tx.user.create({
             data: {
               email,
@@ -289,6 +334,7 @@ export class UsersService {
               facultyId: facultyId || null,
             },
           });
+          temporaryCredentials.push({ email, temporaryPassword });
           importedCount++;
         }
         const saved = await tx.user.findFirst({ where: { OR: [{ email }, ...(studentCode ? [{ studentCode }] : [])] } });
@@ -305,7 +351,7 @@ export class UsersService {
       updatedCount,
       errorCount: errors.length,
       errors,
+      temporaryCredentials,
     };
   }
 }
-

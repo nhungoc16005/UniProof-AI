@@ -11,6 +11,12 @@ import { Role } from '@prisma/client';
 export class AuditLogController {
   constructor(private auditLogService: AuditLogService) {}
 
+  @Get('health/live')
+  @ApiOperation({ summary: 'Liveness probe tối giản, không công khai thông tin hạ tầng' })
+  live() {
+    return { status: 'ok' };
+  }
+
   @Get('audit-logs')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)

@@ -1,8 +1,9 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
-import { Activity, ActivityType, Prisma, Role } from '@prisma/client';
+import { Activity, ActivityParticipantStatus, ActivityType, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { WorkflowActor, WorkflowService } from '../evaluation-workflow/workflow.service';
 import { CreateActivityDto, AddParticipantDto, UpdateActivityDto, BatchAttendanceDto } from './dto/activity.dto';
+import { evaluateRubricCriterion } from '../criteria/rubric-scoring';
 
 @Injectable()
 export class ActivitiesService {
@@ -22,6 +23,42 @@ export class ActivitiesService {
 
   private validateDates(start?: string | Date | null, end?: string | Date | null) {
     if ((start && !Number.isFinite(new Date(start).getTime())) || (end && !Number.isFinite(new Date(end).getTime())) || (start && end && new Date(start) > new Date(end))) throw new BadRequestException('Ngày bắt đầu/kết thúc hoạt động không hợp lệ');
+  }
+
+  private async ensureParticipantWritable(tx: Prisma.TransactionClient, activity: Activity, studentId: string) {
+    if (!activity.termId) throw new BadRequestException('Hoạt động lịch sử chỉ được tra cứu');
+    const term = await tx.term.findUniqueOrThrow({ where: { id: activity.termId } });
+    if (!term.workflowEnabled) return;
+    const handoff = await tx.assessmentHandoff.findUnique({ where: { studentId_termId: { studentId, termId: activity.termId } }, select: { status: true } });
+    if (!handoff || !['WORKING', 'RETURNED'].includes(handoff.status)) throw new BadRequestException('Kết quả sinh viên đã bàn giao hoặc không còn được Khoa chỉnh sửa');
+  }
+
+  private async recomputeActivityCriterion(tx: Prisma.TransactionClient, activity: Activity, studentId: string) {
+    if (!activity.termId || !activity.criterionId) throw new BadRequestException('Hoạt động chưa gắn kỳ hoặc tiêu chí');
+    const criterion = await tx.criterion.findUniqueOrThrow({ where: { id: activity.criterionId }, select: { id: true, maxScore: true, scoringConfig: true, rolesScore: true } });
+    const config = criterion.scoringConfig as Record<string, any> | null;
+    if (!config || !['activity_threshold', 'community_activity_tier'].includes(String(config.kind))) throw new BadRequestException('Tiêu chí chưa hỗ trợ ghi nhận điểm từ danh sách hoạt động');
+    const rows = await tx.activityParticipant.findMany({
+      where: { studentId, status: ActivityParticipantStatus.CONFIRMED, activity: { termId: activity.termId, criterionId: activity.criterionId } },
+      select: { activityId: true, formRole: true },
+    });
+    const unique = [...new Map(rows.map(row => [row.activityId, row])).values()];
+    const assessment = await tx.criterionAssessment.findUnique({ where: { studentId_termId_criterionId: { studentId, termId: activity.termId, criterionId: activity.criterionId } } });
+    const previous = assessment?.verifiedData && typeof assessment.verifiedData === 'object' && !Array.isArray(assessment.verifiedData) ? assessment.verifiedData as Record<string, any> : {};
+    const roleScores = criterion.rolesScore && typeof criterion.rolesScore === 'object' && !Array.isArray(criterion.rolesScore) ? criterion.rolesScore as Record<string, number> : {};
+    const verifiedData = {
+      ...previous,
+      verifiedActivityCount: unique.length,
+      cheerleaderActivityCount: unique.filter(row => ['CO_VU', 'CHEERLEADER'].includes(row.formRole || '')).length,
+      convertedCommunityPoints: unique.reduce((sum, row) => sum + (Number(roleScores[row.formRole || '']) || 0), 0),
+      activitySource: 'FACULTY_CONFIRMED_ATTENDANCE',
+    };
+    const evaluation = evaluateRubricCriterion(criterion.maxScore, criterion.scoringConfig, verifiedData);
+    return tx.criterionAssessment.upsert({
+      where: { studentId_termId_criterionId: { studentId, termId: activity.termId, criterionId: activity.criterionId } },
+      create: { studentId, termId: activity.termId, criterionId: activity.criterionId, verifiedData, verificationNote: 'Dữ liệu được tổng hợp từ danh sách hoạt động do Khoa xác nhận.', suggestedScore: evaluation.suggestedScore, suggestionReason: evaluation.reason, status: evaluation.status },
+      update: { verifiedData, verificationNote: 'Dữ liệu được tổng hợp từ danh sách hoạt động do Khoa xác nhận.', suggestedScore: evaluation.suggestedScore, suggestionReason: evaluation.reason, status: evaluation.status, officialScore: null, officialReason: null, finalizedAt: null, finalReviewerId: null },
+    });
   }
 
   private mutate<T>(id: string, actor: WorkflowActor, action: string, write: (tx: Prisma.TransactionClient, activity: Activity) => Promise<T>) {
@@ -56,7 +93,7 @@ export class ActivitiesService {
 
   async create(dto: CreateActivityDto, actor: WorkflowActor) {
     if (actor.role === Role.STAFF && !actor.facultyId) throw new ForbiddenException('Chưa được phân công Khoa');
-    if (!dto.termId || !dto.name.trim() || !dto.organizer.trim()) throw new BadRequestException('Cần chọn kỳ và nhập tên hoạt động, đơn vị tổ chức');
+    if (!dto.termId || !dto.criterionId || !dto.startDate || !dto.name.trim() || !dto.organizer.trim()) throw new BadRequestException('Cần chọn kỳ, tiêu chí, ngày diễn ra, tên hoạt động và đơn vị tổ chức');
     this.validateDates(dto.startDate, dto.endDate);
     return this.prisma.$transaction(async tx => {
       const term = await this.workflow.lock(tx, dto.termId!);
@@ -113,9 +150,39 @@ export class ActivitiesService {
     return this.mutate(activityId, actor, 'ATTENDANCE_REMOVED', async (tx, activity) => {
       const participant = await tx.activityParticipant.findUnique({ where: { id: participantId } });
       if (!participant || participant.activityId !== activityId) throw new NotFoundException('Không tìm thấy bản ghi điểm danh');
+      if (participant.status !== ActivityParticipantStatus.DRAFT) throw new BadRequestException('Danh sách đã xác nhận không thể xóa; hãy thu hồi và nhập lý do');
       await this.workflow.scope(actor, participant.studentId, activity.termId!, tx);
       await tx.activityParticipant.delete({ where: { id: participantId } });
       return { success: true, message: 'Đã xóa bản ghi điểm danh', participantId, studentId: participant.studentId };
+    });
+  }
+
+  async confirmParticipants(activityId: string, participantIds: string[] | undefined, actor: WorkflowActor) {
+    return this.mutate(activityId, actor, 'ATTENDANCE_CONFIRMED', async (tx, activity) => {
+      if (!activity.criterionId) throw new BadRequestException('Hoạt động chưa gắn tiêu chí');
+      const criterion = await tx.criterion.findFirst({ where: { id: activity.criterionId, rubricVersion: { termId: activity.termId!, status: 'PUBLISHED' } }, select: { scoringConfig: true, rolesScore: true } });
+      const config = criterion?.scoringConfig as Record<string, any> | null;
+      if (!config || !['activity_threshold', 'community_activity_tier'].includes(String(config.kind))) throw new BadRequestException('Tiêu chí chưa hỗ trợ tính điểm từ danh sách hoạt động');
+      if (config.kind === 'community_activity_tier' && (!criterion?.rolesScore || typeof criterion.rolesScore !== 'object' || !Object.keys(criterion.rolesScore as object).length)) throw new BadRequestException('Tiêu chí cộng đồng chưa cấu hình điểm quy đổi theo vai trò; chưa thể xác nhận danh sách');
+      const rows = await tx.activityParticipant.findMany({ where: { activityId, status: ActivityParticipantStatus.DRAFT, ...(participantIds?.length ? { id: { in: participantIds } } : {}) } });
+      if (!rows.length) return { confirmedCount: 0, message: 'Không còn bản ghi nháp cần xác nhận' };
+      for (const row of rows) { await this.workflow.scope(actor, row.studentId, activity.termId!, tx); await this.ensureParticipantWritable(tx, activity, row.studentId); }
+      await tx.activityParticipant.updateMany({ where: { id: { in: rows.map(row => row.id) }, status: ActivityParticipantStatus.DRAFT }, data: { status: ActivityParticipantStatus.CONFIRMED, confirmedById: actor.id, confirmedAt: new Date(), revokedAt: null, revokeReason: null, revision: { increment: 1 } } });
+      for (const studentId of [...new Set(rows.map(row => row.studentId))]) await this.recomputeActivityCriterion(tx, activity, studentId);
+      return { confirmedCount: rows.length, studentIds: [...new Set(rows.map(row => row.studentId))] };
+    });
+  }
+
+  async revokeParticipant(activityId: string, participantId: string, reason: string, actor: WorkflowActor) {
+    return this.mutate(activityId, actor, 'ATTENDANCE_REVOKED', async (tx, activity) => {
+      const participant = await tx.activityParticipant.findUnique({ where: { id: participantId } });
+      if (!participant || participant.activityId !== activityId) throw new NotFoundException('Không tìm thấy bản ghi điểm danh');
+      if (participant.status !== ActivityParticipantStatus.CONFIRMED) throw new BadRequestException('Chỉ có thể thu hồi bản ghi đã xác nhận');
+      await this.workflow.scope(actor, participant.studentId, activity.termId!, tx);
+      await this.ensureParticipantWritable(tx, activity, participant.studentId);
+      await tx.activityParticipant.update({ where: { id: participantId }, data: { status: ActivityParticipantStatus.REVOKED, revokedAt: new Date(), revokeReason: reason.trim(), revision: { increment: 1 } } });
+      await this.recomputeActivityCriterion(tx, activity, participant.studentId);
+      return { participantId, studentId: participant.studentId, status: ActivityParticipantStatus.REVOKED };
     });
   }
 

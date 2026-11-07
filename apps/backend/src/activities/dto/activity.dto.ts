@@ -1,10 +1,10 @@
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsDateString, IsEnum, IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsDateString, IsEnum, IsIn, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
 import { ActivityType } from '@prisma/client';
 
 export class CreateActivityDto {
-  @IsOptional() @IsString() termId?: string;
-  @IsOptional() @IsString() criterionId?: string;
+  @IsString() @IsNotEmpty() termId: string;
+  @IsString() @IsNotEmpty() criterionId: string;
   @ApiProperty({ example: 'Ngày hội Hiến máu Nhân đạo ĐHBK 2026' })
   @IsString()
   @IsNotEmpty()
@@ -20,10 +20,9 @@ export class CreateActivityDto {
   organizer: string;
 
   @ApiPropertyOptional({ example: '2026-10-15T00:00:00Z' })
-  @IsOptional()
   @IsString()
   @IsDateString()
-  startDate?: string;
+  startDate: string;
 
   @ApiPropertyOptional({ example: '2026-10-16T00:00:00Z' })
   @IsOptional()
@@ -59,4 +58,12 @@ export class UpdateActivityDto extends PartialType(OmitType(CreateActivityDto, [
 export class BatchAttendanceDto {
   @IsArray() @ArrayMinSize(1) @ArrayMaxSize(1000) @IsString({ each: true }) studentCodes: string[];
   @IsOptional() @IsIn(['THAM_GIA_CHINH','BAN_TO_CHUC','CO_VU','PARTICIPANT','ORGANIZER','CHEERLEADER']) formRole?: string;
+}
+
+export class ConfirmAttendanceDto {
+  @IsOptional() @IsArray() @ArrayMaxSize(1000) @IsString({ each: true }) participantIds?: string[];
+}
+
+export class RevokeAttendanceDto {
+  @IsString() @MinLength(5) reason: string;
 }

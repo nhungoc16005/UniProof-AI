@@ -128,6 +128,9 @@ export const apiClient = {
   async recordNonSubmission(termId: string, studentId: string, reason: string) {
     return (await http.post('/evaluation-workflow/' + termId + '/students/' + studentId + '/not-submitted', { reason })).data.data;
   },
+  async requestPublicationCorrection(termId: string, studentId: string, reason: string) { return (await http.post(`/evaluation-workflow/${termId}/students/${studentId}/correction`, { reason })).data.data; },
+  async excludeStudentFromTerm(termId: string, studentId: string, reason: string) { return (await http.post(`/evaluation-workflow/${termId}/students/${studentId}/exclude`, { reason })).data.data; },
+  async restoreStudentToTerm(termId: string, studentId: string) { return (await http.post(`/evaluation-workflow/${termId}/students/${studentId}/restore`)).data.data; },
   async publishResults(termId: string) {
     return (await http.post('/evaluation-workflow/' + termId + '/publish')).data.data;
   },
@@ -162,6 +165,27 @@ export const apiClient = {
   async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
     const response = await http.post('/auth/reset-password', { token, newPassword });
     return response.data.data;
+  },
+
+  async resetUserPassword(id: string): Promise<{ user: Pick<User, 'id' | 'email' | 'fullName'>; temporaryPassword: string }> {
+    return (await http.post(`/users/${id}/reset-password`)).data.data;
+  },
+
+  async createProfileDataIssue(data: { category: string; content: string }) {
+    return (await http.post('/profile-data-issues', data)).data.data;
+  },
+
+  async getMyProfileDataIssues() {
+    return extractArray<any>((await http.get('/profile-data-issues/mine')).data.data);
+  },
+
+  async getProfileDataIssues(params: { status?: string; page?: number }): Promise<{ items: any[]; total: number; page: number; pageSize: number }> {
+    const data = (await http.get('/profile-data-issues', { params })).data.data;
+    return { ...data, items: extractArray<any>(data) };
+  },
+
+  async resolveProfileDataIssue(id: string, data: { status: 'RESOLVED' | 'REJECTED'; resolution: string }) {
+    return (await http.patch(`/profile-data-issues/${id}/resolve`, data)).data.data;
   },
 
   async logout(): Promise<void> {
@@ -378,6 +402,16 @@ export const apiClient = {
     return extractArray<any>(res.data.data);
   },
 
+  async confirmActivityParticipants(activityId: string, participantIds?: string[]): Promise<{ confirmedCount: number }> {
+    const res = await http.post(`/activities/${activityId}/attendance/confirm`, { participantIds });
+    return res.data.data;
+  },
+
+  async revokeActivityParticipant(activityId: string, participantId: string, reason: string): Promise<any> {
+    const res = await http.post(`/activities/${activityId}/attendance/${participantId}/revoke`, { reason });
+    return res.data.data;
+  },
+
   async updateActivity(id: string, data: any): Promise<Activity> {
     const res = await http.patch(`/activities/${id}`, data);
     return res.data.data;
@@ -547,12 +581,26 @@ export const apiClient = {
     await http.patch('/notifications/read-all');
   },
 
+  async getAssessmentPreflight(termId: string): Promise<{ canSubmit: boolean; blockers: string[]; warnings: string[]; completedCriteria: number; totalCriteria: number; effectiveDeadline?: string; deadlineSource?: string }> {
+    return (await http.get('/assessments/me/preflight', { params: { termId } })).data.data;
+  },
+
+  async getDeadlineExtensions(termId: string): Promise<any[]> { return extractArray<any>((await http.get('/deadline-extensions', { params: { termId } })).data.data); },
+  async createDeadlineExtension(data: { termId: string; targetType: 'STUDENT' | 'CLASS'; targetId: string; type: 'SUBMISSION' | 'REVIEW' | 'APPEAL'; deadline: string; reason: string }) { return (await http.post('/deadline-extensions', data)).data.data; },
+  async revokeDeadlineExtension(id: string) { return (await http.delete(`/deadline-extensions/${id}`)).data.data; },
+
   // ==========================================
   // USER MANAGEMENT (A02)
   // ==========================================
   async getUsers(params?: { role?: string; facultyId?: string; classId?: string; search?: string; page?: number; pageSize?: number }): Promise<User[]> {
     const res = await http.get('/users', { params });
     return extractArray<User>(res.data.data);
+  },
+
+  async getUsersPage(params?: { role?: string; facultyId?: string; classId?: string; termId?: string; search?: string; page?: number; pageSize?: number }): Promise<{ items: User[]; total: number; page: number; pageSize: number }> {
+    const res = await http.get('/users', { params });
+    const items = extractArray<User>(res.data.data);
+    return { items, total: Number(res.data.meta?.total ?? items.length), page: Number(res.data.meta?.page ?? params?.page ?? 1), pageSize: Number(res.data.meta?.pageSize ?? params?.pageSize ?? 25) };
   },
 
   async getUserById(id: string, termId?: string): Promise<User> {

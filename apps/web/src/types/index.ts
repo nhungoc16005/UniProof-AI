@@ -81,6 +81,7 @@ export interface User {
   isActive: boolean;
   avatarUrl?: string;
   createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Term {
@@ -124,6 +125,10 @@ export interface ActivityParticipant {
   student?: User;
   formRole?: string; // BAN_TO_CHUC, THAM_GIA_CHINH, CO_VU
   source?: string;
+  status?: 'DRAFT' | 'CONFIRMED' | 'REVOKED';
+  confirmedAt?: string | null;
+  revokeReason?: string | null;
+  revision?: number;
 }
 
 export interface Criterion {
@@ -340,6 +345,11 @@ export interface Notification {
   type: 'EVIDENCE_REVIEWED' | 'SUPPLEMENT_REQUIRED' | 'APPEAL_RESOLVED' | 'SYSTEM' | string;
   isRead: boolean;
   relatedEvidenceId?: string;
+  eventKey?: string;
+  dedupeKey?: string;
+  targetPath?: string;
+  metadata?: Record<string, unknown>;
+  readAt?: string;
   createdAt: string;
 }
 

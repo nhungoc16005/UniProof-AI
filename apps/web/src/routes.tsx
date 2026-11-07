@@ -7,12 +7,10 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 // Common pages
 import { Login } from './pages/Login';
 import { ForgotPassword } from './pages/ForgotPassword';
-import { ResetPassword } from './pages/ResetPassword';
 import { Account } from './pages/Account';
 import { NotFound } from './pages/NotFound';
 import { RegulationRAG } from './pages/common/RegulationRAG';
 import { NotificationsCenter } from './pages/common/NotificationsCenter';
-import { OrganizerConfirm } from './pages/common/OrganizerConfirm';
 
 // Student pages (S01 - S09)
 import { StudentDashboard } from './pages/student/Dashboard';
@@ -34,6 +32,7 @@ import { StudentLookup } from './pages/officer/StudentLookup';
 import { StudentAssessment } from './pages/officer/StudentAssessment';
 import { CriteriaRulesView } from './pages/officer/CriteriaRulesView';
 import { EvaluationsByClass } from './pages/officer/EvaluationsByClass';
+import { StudentsDirectory } from './pages/officer/StudentsDirectory';
 
 // Admin pages (A01 - A11)
 import { AdminDashboard } from './pages/admin/Dashboard';
@@ -45,6 +44,7 @@ import { EvidenceInspection } from './components/EvidenceInspection';
 import { ResultsReception } from './pages/admin/ResultsReception';
 import { ResultReports } from './components/ResultReports';
 import { Monitoring } from './pages/admin/Monitoring';
+import { ProfileDataIssues } from './pages/admin/ProfileDataIssues';
 
 // Redirect root theo vai trò hiện tại
 const RootRedirect: React.FC = () => {
@@ -67,8 +67,8 @@ export const AppRoutes: React.FC = () => {
       {/* 1. Các trang xác thực công khai */}
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
-      <Route path="/organizer-confirm/:token" element={<OrganizerConfirm />} />
+      <Route path="/reset-password" element={<Navigate to="/forgot-password" replace />} />
+      <Route path="/organizer-confirm/:token" element={<Navigate to="/login" replace />} />
 
       {/* 2. Hệ thống chính (Cần đăng nhập qua ProtectedRoute) */}
       <Route
@@ -81,7 +81,8 @@ export const AppRoutes: React.FC = () => {
       >
         <Route index element={<RootRedirect />} />
         <Route path="account" element={<Account />} />
-        <Route path="regulations/ask" element={<RegulationRAG />} />
+        <Route path="regulations" element={<RegulationRAG />} />
+        <Route path="regulations/ask" element={<Navigate to="/regulations" replace />} />
         <Route path="notifications" element={<NotificationsCenter />} />
 
         {/* Phân hệ Sinh viên (Student) */}
@@ -122,6 +123,7 @@ export const AppRoutes: React.FC = () => {
           <Route path="appeals" element={<AppealsResolution />} />
           <Route path="criteria" element={<CriteriaRulesView />} />
           <Route path="students" element={<StudentLookup />} />
+          <Route path="students-directory" element={<StudentsDirectory />} />
           <Route path="students/:studentId/assessment" element={<StudentAssessment />} />
           <Route path="reports" element={<OfficerReportsRedirect />} />
           <Route path="students/legacy" element={<OfficerReportsRedirect />} />
@@ -138,6 +140,7 @@ export const AppRoutes: React.FC = () => {
         >
           <Route index element={<AdminDashboard />} />
           <Route path="users" element={<UserManagement />} />
+          <Route path="users/issues" element={<ProfileDataIssues />} />
           <Route path="results" element={<ResultsReception />} />
           <Route path="evidence/:id" element={<EvidenceInspection />} />
           <Route path="reports" element={<ResultReports admin />} />

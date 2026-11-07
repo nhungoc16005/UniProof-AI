@@ -195,7 +195,7 @@ export function FacultyClassChart({ classes, termId }: { classes: FacultyClassPr
         </tr>)}</tbody>
       </table>
     </div> : <>
-      <div className="flex flex-col gap-2.5 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3.5 text-xs">
+      <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-xs">
         <ul aria-label="Chú giải tiến độ lớp" className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px]">
           {classGroups.map(group => (
             <li key={group.key} className="flex items-center gap-1.5" title={group.desc}>
@@ -204,10 +204,6 @@ export function FacultyClassChart({ classes, termId }: { classes: FacultyClassPr
             </li>
           ))}
         </ul>
-        <div className="grid gap-1 border-t border-[#E2E8F0] pt-2 text-[11px] text-[#64748B] sm:grid-cols-2">
-          <div><span className="font-bold text-[#475569]">• Chưa nộp:</span> Chưa nộp tự đánh giá (còn trong hạn/chờ sinh viên).</div>
-          <div><span className="font-bold text-[#BE123C]">• Ghi nhận không nộp:</span> Quá hạn nộp và ghi nhận không nộp theo quy chế (thống kê riêng).</div>
-        </div>
       </div>
       <div className="flex justify-between text-[11px] text-[#64748B] font-medium px-1" aria-hidden="true"><span>0% bàn giao</span><span>50%</span><span>100%</span></div>
       <ul className="space-y-3">{visible.map(cls => <FacultyClassRow key={cls.id} cls={cls} termId={termId} />)}</ul>

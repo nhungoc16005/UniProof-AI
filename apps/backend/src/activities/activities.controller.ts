@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ActivitiesService } from './activities.service';
-import { CreateActivityDto, AddParticipantDto, UpdateActivityDto, BatchAttendanceDto } from './dto/activity.dto';
+import { CreateActivityDto, AddParticipantDto, UpdateActivityDto, BatchAttendanceDto, ConfirmAttendanceDto, RevokeAttendanceDto } from './dto/activity.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -57,6 +57,20 @@ export class ActivitiesController {
   @ApiOperation({ summary: 'Lấy danh sách điểm danh của hoạt động (Cán bộ)' })
   async getParticipants(@Param('id') id: string, @CurrentUser() actor: any) {
     return this.activitiesService.getParticipants(id, actor);
+  }
+
+  @Post(':id/attendance/confirm')
+  @Roles(Role.ADMIN, Role.STAFF)
+  @ApiOperation({ summary: 'Xác nhận danh sách nháp và cập nhật điểm đề xuất theo rubric' })
+  confirmParticipants(@Param('id') id: string, @Body() dto: ConfirmAttendanceDto, @CurrentUser() actor: any) {
+    return this.activitiesService.confirmParticipants(id, dto.participantIds, actor);
+  }
+
+  @Post(':id/attendance/:participantId/revoke')
+  @Roles(Role.ADMIN, Role.STAFF)
+  @ApiOperation({ summary: 'Thu hồi bản ghi đã xác nhận và tính lại điểm đề xuất' })
+  revokeParticipant(@Param('id') id: string, @Param('participantId') participantId: string, @Body() dto: RevokeAttendanceDto, @CurrentUser() actor: any) {
+    return this.activitiesService.revokeParticipant(id, participantId, dto.reason, actor);
   }
 
   @Delete(':id/attendance/:participantId')

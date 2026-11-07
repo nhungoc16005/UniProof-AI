@@ -91,7 +91,7 @@ export const AppLayout: React.FC = () => {
       {
         title: 'TRA CỨU',
         items: [
-          { label: 'Hỗ trợ quy chế', path: '/regulations/ask' },
+          { label: 'Tra cứu tiêu chí', path: '/regulations' },
         ],
       },
     ];
@@ -282,8 +282,11 @@ export const AppLayout: React.FC = () => {
                         }`}
                         onClick={() => {
                           setShowNotifMenu(false);
-                          if (user?.role === 'STUDENT') navigate('/student/evidence');
-                          if (user?.role === 'STAFF') navigate('/officer/queue');
+                          if (!n.isRead) void apiClient.markNotificationAsRead(n.id).then(() => setNotifications(current => current.map(item => item.id === n.id ? { ...item, isRead: true, readAt: new Date().toISOString() } : item))).catch(() => undefined);
+                          if (n.targetPath?.startsWith('/') && !n.targetPath.startsWith('//')) navigate(n.targetPath);
+                          else if (user?.role === 'STUDENT') navigate('/student/evidence');
+                          else if (user?.role === 'STAFF') navigate('/officer/queue');
+                          else navigate('/notifications');
                         }}
                       >
                         <div className="font-semibold text-[#0A0A0A]">{n.title}</div>
@@ -468,7 +471,7 @@ export const AppLayout: React.FC = () => {
         )}
 
         {/* Main Content Area */}
-        <main className="flex-1 min-w-0">
+        <main className="flex-1 min-w-0 pt-1">
           {/* Elegant Breadcrumb Navigation */}
           {breadcrumbs.length > 0 && (
             <nav aria-label="Đường dẫn trang" className="mb-4 flex items-center gap-1.5 text-xs text-[#6B6B6B]">

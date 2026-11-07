@@ -9,8 +9,8 @@ import { JwtStrategy } from './jwt.strategy';
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'edupoint-super-secret-key-2026',
-      signOptions: { expiresIn: '7d' },
+      secret: process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? (() => { throw new Error('JWT_SECRET bắt buộc trong production'); })() : 'edupoint-local-development-only'),
+      signOptions: { expiresIn: '12h' },
     }),
   ],
   controllers: [AuthController],

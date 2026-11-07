@@ -1,14 +1,13 @@
 import React from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { AiJobs } from '../../components/AiJobs';
 import { AuditLogs } from './AuditLogs';
 import { SystemHealth } from './SystemHealth';
 import { PageHeader } from '../../components/shared/PageHeader';
-import { ShieldCheck, Activity, Cpu } from 'lucide-react';
+import { ShieldCheck, Activity } from 'lucide-react';
 
 export const Monitoring: React.FC = () => {
-  const [params, setParams] = useSearchParams();
-  const activeTab = ['audit', 'health', 'jobs'].includes(params.get('tab') || '') ? params.get('tab')! : 'audit';
+  const [params] = useSearchParams();
+  const activeTab = ['audit', 'health'].includes(params.get('tab') || '') ? params.get('tab')! : 'audit';
 
 
   return (
@@ -46,24 +45,11 @@ export const Monitoring: React.FC = () => {
           <span>Trạng thái dịch vụ</span>
         </Link>
 
-        <Link
-          to={'/admin/monitoring?' + new URLSearchParams({ ...(params.get('termId') ? { termId: params.get('termId')! } : {}), tab: 'jobs' }).toString()}
-          aria-current={activeTab === 'jobs' ? 'page' : undefined}
-          className={`inline-flex items-center gap-1.5 px-4 py-3 text-xs font-semibold transition-colors border-b-2 -mb-[1px] ${
-            activeTab === 'jobs'
-              ? 'border-[#1D6FC2] text-[#1D6FC2]'
-              : 'border-transparent text-[#6B6B6B] hover:text-[#0A0A0A]'
-          }`}
-        >
-          <Cpu className="h-4 w-4" />
-          <span>Hàng đợi Job AI</span>
-        </Link>
       </div>
 
       {/* Tab Content */}
       {activeTab === 'audit' && <AuditLogs />}
       {activeTab === 'health' && <SystemHealth />}
-      {activeTab === 'jobs' && <AiJobs />}
     </div>
   );
 };

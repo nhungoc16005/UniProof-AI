@@ -28,14 +28,14 @@ export class NotificationsService {
 
     return this.prisma.notification.update({
       where: { id },
-      data: { isRead: true },
+      data: { isRead: true, readAt: notification.readAt || new Date() },
     });
   }
 
   async markAllAsRead(userId: string) {
     await this.prisma.notification.updateMany({
       where: { userId, isRead: false },
-      data: { isRead: true },
+      data: { isRead: true, readAt: new Date() },
     });
     return { message: 'Đã đánh dấu tất cả thông báo là đã đọc' };
   }

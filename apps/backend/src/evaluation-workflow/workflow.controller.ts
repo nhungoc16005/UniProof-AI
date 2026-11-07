@@ -27,6 +27,14 @@ export class WorkflowController {
   returnResult(@CurrentUser() actor: WorkflowActor, @Param('termId') termId: string, @Param('studentId') studentId: string, @Body() body: ReasonDto) { return this.workflow.returnResult(actor, studentId, termId, body.reason); }
   @Post(':termId/students/:studentId/not-submitted') @Roles(Role.STAFF)
   notSubmitted(@CurrentUser() actor: WorkflowActor, @Param('termId') termId: string, @Param('studentId') studentId: string, @Body() body: ReasonDto) { return this.workflow.recordNotSubmitted(actor, studentId, termId, body.reason); }
+  @Post(':termId/students/:studentId/correction') @Roles(Role.ADMIN)
+  requestCorrection(@CurrentUser() actor: WorkflowActor, @Param('termId') termId: string, @Param('studentId') studentId: string, @Body() body: ReasonDto) { return this.workflow.requestCorrection(actor, studentId, termId, body.reason); }
+  @Post(':termId/students/:studentId/exclude') @Roles(Role.ADMIN)
+  exclude(@CurrentUser() actor: WorkflowActor, @Param('termId') termId: string, @Param('studentId') studentId: string, @Body() body: ReasonDto) { return this.workflow.exclude(actor, studentId, termId, body.reason); }
+  @Post(':termId/students/:studentId/restore') @Roles(Role.ADMIN)
+  restore(@CurrentUser() actor: WorkflowActor, @Param('termId') termId: string, @Param('studentId') studentId: string) { return this.workflow.restoreExcluded(actor, studentId, termId); }
+  @Get(':termId/corrections') @Roles(Role.ADMIN, Role.STAFF)
+  corrections(@CurrentUser() actor: WorkflowActor, @Param('termId') termId: string) { return this.workflow.corrections(actor, termId); }
   @Post(':termId/publish') @Roles(Role.ADMIN)
   publish(@CurrentUser() actor: WorkflowActor, @Param('termId') termId: string) { return this.workflow.publish(actor, termId); }
   @Post(':termId/close') @Roles(Role.ADMIN)

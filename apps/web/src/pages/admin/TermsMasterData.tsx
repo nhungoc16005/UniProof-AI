@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Term } from '../../types';
 import { apiClient } from '../../lib/apiClient';
+import { DeadlineExtensionsDialog } from '../../components/admin/DeadlineExtensionsDialog';
 import {
   Plus,
   Lock,
@@ -18,6 +19,7 @@ export const TermsMasterData: React.FC = () => {
   const navigate = useNavigate();
   const [terms, setTerms] = useState<Array<Term & { rubricVersions?: Array<{ id: string; version: number; status: string }> }>>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [extensionTerm, setExtensionTerm] = useState<Term | null>(null);
   const activeTab = 'TERMS';
 
   // Load master data
@@ -392,6 +394,7 @@ export const TermsMasterData: React.FC = () => {
                               <Edit2 className="w-3 h-3" />
                               <span>Sửa hạn</span>
                             </button>
+                            {!isClosed && <button onClick={() => setExtensionTerm(t)} className="text-indigo-700 font-medium text-[11px]">Ngoại lệ</button>}
 
                             {t.status === 'UPCOMING' && (
                               <button onClick={() => handleActivateTerm(t)} className="text-emerald-700 hover:text-emerald-900 font-medium text-[11px] transition inline-flex items-center gap-1 cursor-pointer">
@@ -415,6 +418,7 @@ export const TermsMasterData: React.FC = () => {
       )}
 
       {/* Modal Tạo kỳ mới */}
+      {extensionTerm && <DeadlineExtensionsDialog term={extensionTerm} onClose={() => setExtensionTerm(null)} />}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
           <div className="bg-white rounded-xl max-w-md w-full p-5 shadow-xl border border-slate-100">

@@ -1,13 +1,14 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { CriterionAssessmentStatus, EvidenceStatus, Prisma, Role, TermStatus } from '@prisma/client';
+import { CriterionAssessmentStatus, DeadlineExtensionType, EvidenceStatus, Prisma, Role, TermStatus } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { WorkflowService } from '../evaluation-workflow/workflow.service';
 import { WorkflowQueryDto } from '../evaluation-workflow/dto/workflow-query.dto';
 import { evaluateRubricCriterion } from '../criteria/rubric-scoring';
+import { DeadlineExtensionsService } from '../deadline-extensions/deadline-extensions.service';
 
 @Injectable()
 export class AssessmentsService {
-  constructor(private readonly prisma: PrismaService, private readonly workflow: WorkflowService) {}
+  constructor(private readonly prisma: PrismaService, private readonly workflow: WorkflowService, private readonly deadlines: DeadlineExtensionsService) {}
 
   private async getCriterion(termId: string, criterionId: string) {
     const criterion = await this.prisma.criterion.findFirst({
@@ -53,10 +54,10 @@ export class AssessmentsService {
       if (!term) throw new NotFoundException('Không tìm thấy kỳ đánh giá');
       return { rubricVersion: null, term, categories: [], submission: null };
     }
-    const [assessments, submission] = await Promise.all([this.prisma.criterionAssessment.findMany({
+    const [assessments, submission, submissionWindow, reviewWindow, appealWindow] = await Promise.all([this.prisma.criterionAssessment.findMany({
       where: { studentId, termId, criterion: { rubricVersionId: version.id } },
       include: { evidences: { select: { id: true, declaredActivityName: true, status: true } } },
-    }), this.prisma.assessmentSubmission.findUnique({ where: { studentId_termId_rubricVersionId: { studentId, termId, rubricVersionId: version.id } } })]);
+    }), this.prisma.assessmentSubmission.findUnique({ where: { studentId_termId_rubricVersionId: { studentId, termId, rubricVersionId: version.id } } }), this.deadlines.resolve(termId, studentId, DeadlineExtensionType.SUBMISSION), this.deadlines.resolve(termId, studentId, DeadlineExtensionType.REVIEW), this.deadlines.resolve(termId, studentId, DeadlineExtensionType.APPEAL)]);
     const handoff = await this.prisma.assessmentHandoff.findUnique({ where: { studentId_termId: { studentId, termId } } });
     const publication = version.term?.workflowEnabled ? await this.workflow.publication(studentId, termId) : null;
     const publishedSnapshot = publication?.snapshot as any;
@@ -69,8 +70,9 @@ export class AssessmentsService {
       publication: publication ? { revision: publication.revision, publishedAt: publication.publishedAt } : null,
       permissions: {
         canReview: staffView && version.term?.status !== 'CLOSED' && submission?.status === 'SUBMITTED' && !['SENT', 'EXCLUDED'].includes(handoff?.status ?? ''),
-        canEdit: (!version.term?.workflowEnabled || !!handoff && !['SENT','EXCLUDED'].includes(handoff.status)) && submission?.status !== 'SUBMITTED' && ((version.term?.status === 'ACTIVE' && new Date() <= version.term!.submissionDeadline) || (submission?.status === 'RETURNED' && ['ACTIVE', 'REVIEWING'].includes(version.term!.status) && new Date() <= version.term!.reviewDeadline)),
-        canAppeal: !!publication && version.term?.status !== 'CLOSED' && new Date() <= version.term!.appealDeadline,
+        canEdit: (!version.term?.workflowEnabled || !!handoff && !['SENT','EXCLUDED'].includes(handoff.status)) && submission?.status !== 'SUBMITTED' && ((version.term?.status === 'ACTIVE' && new Date() <= submissionWindow.deadline) || (submission?.status === 'RETURNED' && ['ACTIVE', 'REVIEWING'].includes(version.term!.status) && new Date() <= reviewWindow.deadline)),
+        canAppeal: !!publication && version.term?.status !== 'CLOSED' && new Date() <= appealWindow.deadline,
+        effectiveDeadlines: { submission: submissionWindow, review: reviewWindow, appeal: appealWindow },
       },
       categories: version.categories.map((category) => ({
         key: category.code,
@@ -141,8 +143,41 @@ export class AssessmentsService {
     return this.getMine(studentId, termId);
   }
 
+  async preflight(studentId: string, termId: string) {
+    const version = await this.prisma.rubricVersion.findFirst({ where: { termId, status: 'PUBLISHED' }, include: { categories: { include: { criteria: true } } } });
+    if (!version) return { canSubmit: false, blockers: ['Kỳ chưa có bộ tiêu chí được ban hành'], warnings: [], completedCriteria: 0, totalCriteria: 0 };
+    const [assessments, drafts, effective] = await Promise.all([
+      this.prisma.criterionAssessment.findMany({ where: { studentId, termId, criterion: { rubricVersionId: version.id } } }),
+      this.prisma.evidence.findMany({ where: { studentId, termId, status: EvidenceStatus.DRAFT }, include: { files: true } }),
+      this.deadlines.resolve(termId, studentId, DeadlineExtensionType.SUBMISSION),
+    ]);
+    const byCriterion = new Map(assessments.map(row => [row.criterionId, row]));
+    const blockers: string[] = [];
+    const warnings: string[] = [];
+    const missing = version.categories.flatMap(category => category.criteria).filter(criterion => byCriterion.get(criterion.id)?.selfScore == null);
+    if (missing.length) blockers.push(`Còn ${missing.length} tiêu chí chưa tự đánh giá`);
+    for (const category of version.categories) {
+      const sum = category.criteria.reduce((total, criterion) => total + (byCriterion.get(criterion.id)?.selfScore ?? 0), 0);
+      if (sum > category.maxScore) blockers.push(`${category.name}: tổng điểm ${sum} vượt trần ${category.maxScore}`);
+    }
+    const incompleteDrafts = drafts.filter(evidence => !evidence.files.length);
+    if (incompleteDrafts.length) blockers.push(`Có ${incompleteDrafts.length} minh chứng nháp chưa có tệp`);
+    const evidenceCriterionIds = new Set(drafts.filter(evidence => evidence.files.length).flatMap(evidence => evidence.criterionAssessmentId ? [evidence.criterionAssessmentId] : []));
+    const activityWithoutEvidence = version.categories.flatMap(category => category.criteria).filter(criterion => {
+      const config = criterion.scoringConfig as Record<string, unknown> | null;
+      const score = byCriterion.get(criterion.id)?.selfScore ?? 0;
+      const assessmentId = byCriterion.get(criterion.id)?.id;
+      return score > 0 && ['activity_threshold', 'community_activity_tier', 'verified_boolean', 'award_tier'].includes(String(config?.kind)) && (!assessmentId || !evidenceCriterionIds.has(assessmentId));
+    });
+    if (activityWithoutEvidence.length) warnings.push(`${activityWithoutEvidence.length} tiêu chí có điểm nhưng chưa gắn minh chứng nháp`);
+    try { await this.ensureStudentSubmissionOpen(studentId, termId); } catch (error: any) { blockers.push(error?.message || 'Không còn quyền nộp phiếu'); }
+    return { canSubmit: blockers.length === 0, blockers, warnings, completedCriteria: version.categories.flatMap(category => category.criteria).length - missing.length, totalCriteria: version.categories.flatMap(category => category.criteria).length, effectiveDeadline: effective.deadline, deadlineSource: effective.source };
+  }
+
   async submitSelfAssessment(studentId: string, termId: string) {
     await this.ensureStudentSubmissionOpen(studentId, termId);
+    const preflight = await this.preflight(studentId, termId);
+    if (!preflight.canSubmit) throw new BadRequestException({ message: preflight.blockers.join('; '), blockers: preflight.blockers, warnings: preflight.warnings });
     const version = await this.prisma.rubricVersion.findFirst({ where: { termId, status: 'PUBLISHED' }, include: { criteria: true } });
     if (!version) throw new BadRequestException('Kỳ này chưa có rubric được ban hành');
     await this.ensureSubmissionEditable(studentId, termId, version.id);
@@ -176,7 +211,7 @@ export class AssessmentsService {
     return this.workflow.edit(staff, studentId, termId, async (tx) => {
       const current = await tx.assessmentSubmission.findUnique({ where: { id: submission.id } });
       if (current?.status !== 'SUBMITTED') throw new ConflictException('Phiếu vừa thay đổi; hãy tải lại');
-      await tx.notification.create({ data: { userId: studentId, type: 'ASSESSMENT_RETURNED', title: 'Phiếu rèn luyện cần chỉnh sửa', content: reason.trim() } });
+      await tx.notification.create({ data: { userId: studentId, type: 'ASSESSMENT_RETURNED', eventKey: 'ASSESSMENT_RETURNED', dedupeKey: `assessment-return:${submission.id}:${current?.updatedAt.toISOString()}`, title: 'Phiếu rèn luyện cần chỉnh sửa', content: reason.trim(), targetPath: `/student/scores?termId=${termId}`, metadata: { studentId, termId } } });
       await tx.criterionAssessment.updateMany({ where: { studentId, termId }, data: { status: 'NEEDS_VERIFICATION', officialScore: null, officialReason: null, finalReviewerId: null, finalizedAt: null, suggestedScore: null, suggestionReason: null } });
       const returned = await tx.assessmentSubmission.update({ where: { id: submission.id }, data: { status: 'RETURNED', returnedAt: new Date(), returnReason: reason.trim(), returnedById: staff.id } });
       await tx.auditLog.create({ data: { userId: staff.id, action: 'ASSESSMENT_RETURNED', entityType: 'AssessmentSubmission', entityId: returned.id, oldValue: { status: 'SUBMITTED' }, newValue: { status: 'RETURNED', reason: reason.trim(), studentId, termId } } });

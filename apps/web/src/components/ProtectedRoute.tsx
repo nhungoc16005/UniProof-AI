@@ -28,5 +28,9 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
     return <Navigate to="/student" replace />;
   }
 
+  if (user.isFirstLogin && location.pathname !== '/account') {
+    return <Navigate to="/account" replace state={{ firstLogin: true }} />;
+  }
+
   return <>{children}</>;
 };

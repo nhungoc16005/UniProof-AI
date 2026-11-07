@@ -14,6 +14,8 @@ import { ReportsModule } from './reports/reports.module';
 import { AuditLogModule } from './audit-log/audit-log.module';
 import { AssessmentsModule } from './assessments/assessments.module';
 import { WorkflowModule } from './evaluation-workflow/workflow.module';
+import { ProfileDataIssuesModule } from './profile-data-issues/profile-data-issues.module';
+import { DeadlineExtensionsModule } from './deadline-extensions/deadline-extensions.module';
 
 @Module({
   imports: [
@@ -32,6 +34,8 @@ import { WorkflowModule } from './evaluation-workflow/workflow.module';
     ReportsModule,
     AuditLogModule,
     AssessmentsModule,
+    ProfileDataIssuesModule,
+    DeadlineExtensionsModule,
   ],
 })
 export class AppModule {}

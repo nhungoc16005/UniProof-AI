@@ -62,6 +62,7 @@ model User {
   
   isFirstLogin Boolean  @default(true)       // Bắt buộc đổi mật khẩu lần đầu khi nhận tài khoản trường cấp
   isActive     Boolean  @default(true)
+  authVersion  Int      @default(0)          // Thu hồi JWT cũ khi đăng xuất hoặc đổi mật khẩu
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -83,6 +84,12 @@ model User {
   finalizedCriterionAssessments CriterionAssessment[] @relation("OfficialAssessmentReviewer")
   selfAssessmentSubmissions AssessmentSubmission[] @relation("SelfAssessmentSubmissionStudent")
   returnedAssessmentSubmissions AssessmentSubmission[] @relation("SelfAssessmentSubmissionReturner")
+  reportedProfileIssues ProfileDataIssue[] @relation("ProfileIssueReporter")
+  resolvedProfileIssues ProfileDataIssue[] @relation("ProfileIssueResolver")
+  createdDeadlineExtensions AssessmentDeadlineExtension[] @relation("DeadlineExtensionCreator")
+  revokedDeadlineExtensions AssessmentDeadlineExtension[] @relation("DeadlineExtensionRevoker")
+  requestedCorrections PublicationCorrectionRequest[] @relation("CorrectionRequester")
+  excludedHandoffs AssessmentHandoff[] @relation("HandoffExcluder")
 }
 
 // =========================================================================
@@ -116,11 +123,19 @@ model Term {
   rubricVersions RubricVersion[]
   criterionAssessments CriterionAssessment[]
   assessmentSubmissions AssessmentSubmission[]
+  deadlineExtensions AssessmentDeadlineExtension[]
+  correctionRequests PublicationCorrectionRequest[]
 }
 
 enum ActivityType {
   INTERNAL // Hoạt động nội bộ
   EXTERNAL // Hoạt động bên ngoài
+}
+
+enum ActivityParticipantStatus {
+  DRAFT
+  CONFIRMED
+  REVOKED
 }
 
 model Activity {
@@ -150,9 +165,17 @@ model ActivityParticipant {
   student    User     @relation(fields: [studentId], references: [id])
   formRole   String?  // BAN_TO_CHUC, THAM_GIA_CHINH, CO_VU
   source     String?  // "Import_NgayHoi_2026.xlsx"
+  status     ActivityParticipantStatus @default(DRAFT)
+  confirmedById String?
+  confirmedAt DateTime?
+  revokedAt  DateTime?
+  revokeReason String?
+  revision   Int      @default(1)
   createdAt  DateTime @default(now())
 
   @@unique([activityId, studentId])
+  @@index([studentId, status])
+  @@index([activityId, status])
 }
 
 // =========================================================================
@@ -340,6 +363,9 @@ model AssessmentHandoff {
   sentAt              DateTime?
   returnReason        String?
   notSubmittedReason  String?
+  exclusionReason     String?
+  excludedById        String?
+  excludedAt          DateTime?
   snapshot            Json?
   revision            Int      @default(0)
   createdAt           DateTime @default(now())
@@ -351,6 +377,8 @@ model AssessmentHandoff {
   class Class @relation(fields: [classId], references: [id], onDelete: Restrict)
   faculty Faculty @relation(fields: [facultyId], references: [id], onDelete: Restrict)
   sentBy User? @relation("HandoffSender", fields: [sentById], references: [id], onDelete: Restrict)
+  excludedBy User? @relation("HandoffExcluder", fields: [excludedById], references: [id], onDelete: Restrict)
+  correctionRequests PublicationCorrectionRequest[]
 
   @@unique([studentId, termId])
   @@index([termId, facultyId, classId, status])
@@ -371,6 +399,7 @@ model AssessmentPublication {
   term Term @relation(fields: [termId], references: [id], onDelete: Restrict)
   rubricVersion RubricVersion @relation(fields: [rubricVersionId], references: [id], onDelete: Restrict)
   publishedBy User @relation("PublicationAuthor", fields: [publishedById], references: [id], onDelete: Restrict)
+  correctionRequests PublicationCorrectionRequest[]
 
   @@unique([studentId, termId, revision])
   @@index([termId, studentId, publishedAt])
@@ -737,10 +766,98 @@ model Notification {
   title             String
   content           String
   type              String    // EVIDENCE_REVIEWED | SUPPLEMENT_REQUIRED | APPEAL_RESOLVED
+  eventKey          String?
+  dedupeKey         String?   @unique
+  targetPath        String?
+  metadata          Json?
   isRead            Boolean   @default(false)
+  readAt            DateTime?
   relatedEvidenceId String?
   relatedEvidence   Evidence? @relation(fields: [relatedEvidenceId], references: [id])
   createdAt         DateTime  @default(now())
 
   @@index([userId, isRead])
+}
+
+enum ProfileDataIssueStatus {
+  OPEN
+  RESOLVED
+  REJECTED
+}
+
+model ProfileDataIssue {
+  id          String                 @id @default(uuid())
+  reporterId  String
+  reporter    User                   @relation("ProfileIssueReporter", fields: [reporterId], references: [id], onDelete: Restrict)
+  category    String
+  content     String
+  currentData Json?
+  status      ProfileDataIssueStatus @default(OPEN)
+  resolverId  String?
+  resolver    User?                  @relation("ProfileIssueResolver", fields: [resolverId], references: [id], onDelete: Restrict)
+  resolution  String?
+  resolvedAt  DateTime?
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  @@index([status, createdAt])
+  @@index([reporterId, createdAt])
+}
+
+enum DeadlineExtensionTarget {
+  STUDENT
+  CLASS
+}
+
+enum DeadlineExtensionType {
+  SUBMISSION
+  REVIEW
+  APPEAL
+}
+
+model AssessmentDeadlineExtension {
+  id          String                  @id @default(uuid())
+  termId      String
+  term        Term                    @relation(fields: [termId], references: [id], onDelete: Restrict)
+  targetType  DeadlineExtensionTarget
+  targetId    String
+  type        DeadlineExtensionType
+  deadline    DateTime
+  reason      String
+  createdById String
+  createdBy   User                    @relation("DeadlineExtensionCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  revokedById String?
+  revokedBy   User?                   @relation("DeadlineExtensionRevoker", fields: [revokedById], references: [id], onDelete: Restrict)
+  revokedAt   DateTime?
+  createdAt   DateTime                @default(now())
+
+  @@index([termId, targetType, targetId, type, revokedAt])
+}
+
+enum PublicationCorrectionStatus {
+  OPEN
+  FACULTY_RESUBMITTED
+  REPUBLISHED
+  CANCELLED
+}
+
+model PublicationCorrectionRequest {
+  id                    String                      @id @default(uuid())
+  termId                String
+  term                  Term                        @relation(fields: [termId], references: [id], onDelete: Restrict)
+  handoffId             String
+  handoff               AssessmentHandoff           @relation(fields: [handoffId], references: [id], onDelete: Restrict)
+  sourcePublicationId   String
+  sourcePublication     AssessmentPublication       @relation(fields: [sourcePublicationId], references: [id], onDelete: Restrict)
+  sourceRevision        Int
+  resultingRevision     Int?
+  reason                String
+  requestedById         String
+  requestedBy           User                        @relation("CorrectionRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+  status                PublicationCorrectionStatus @default(OPEN)
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+
+  @@index([termId, status, createdAt])
+  @@index([handoffId, status])
 }
