@@ -365,13 +365,18 @@ export const AppLayout: React.FC = () => {
                       <Link
                         key={item.path}
                         to={sectionHref(item.path)}
-                        className={`block px-3 py-2 rounded-[6px] text-xs transition-colors duration-150 ${
+                        className={`flex items-center justify-between px-3 py-2 rounded-[6px] text-xs transition-colors duration-150 ${
                           isActive
                             ? 'bg-[#E1EDF9] text-[#1D6FC2] font-semibold border-l-2 border-[#1D6FC2]'
                             : 'text-[#6B6B6B] hover:text-[#0A0A0A] hover:bg-[#FFFFFF] font-medium'
                         }`}
                       >
-                        {item.label}
+                        <span>{item.label}</span>
+                        {item.path === '/officer/appeals' && Boolean(workCounts?.appeals) && (
+                          <span className="rounded-full bg-rose-100 px-1.5 py-0.2 text-[10px] font-bold text-rose-700">
+                            {workCounts?.appeals}
+                          </span>
+                        )}
                       </Link>
                     );
                   })}
@@ -442,13 +447,18 @@ export const AppLayout: React.FC = () => {
                           key={item.path}
                           to={sectionHref(item.path)}
                           onClick={() => setMobileMenuOpen(false)}
-                          className={`block px-3 py-2 rounded-[6px] text-xs transition ${
+                          className={`flex items-center justify-between px-3 py-2 rounded-[6px] text-xs transition ${
                             isActive
                               ? 'bg-[#E1EDF9] text-[#1D6FC2] font-semibold border-l-2 border-[#1D6FC2]'
                               : 'text-[#6B6B6B] font-medium hover:text-[#0A0A0A]'
                           }`}
                         >
-                          {item.label}
+                          <span>{item.label}</span>
+                          {item.path === '/officer/appeals' && Boolean(workCounts?.appeals) && (
+                            <span className="rounded-full bg-rose-100 px-1.5 py-0.2 text-[10px] font-bold text-rose-700">
+                              {workCounts?.appeals}
+                            </span>
+                          )}
                         </Link>
                       );
                     })}
