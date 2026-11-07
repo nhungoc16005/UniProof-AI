@@ -101,7 +101,6 @@ export const AppealsResolution: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Giải quyết phúc khảo"
-        description="Xem kết quả đã công bố và giải trình của sinh viên. Chấp thuận sẽ mở lại tiêu chí để đánh giá và gửi lại CTSV."
         badge={
           <span className="inline-flex items-center rounded-full bg-[#F3F4F6] px-2.5 py-0.5 text-xs font-semibold text-[#6B6B6B] border border-[#E8E8EC]">
             {total} đơn

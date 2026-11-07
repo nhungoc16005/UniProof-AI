@@ -619,9 +619,6 @@ export const UserManagement: React.FC = () => {
           <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
             Tài khoản & đơn vị
           </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Cơ cấu tổ chức trường cấp: Khoa $\rightarrow$ Lớp sinh hoạt $\rightarrow$ Sinh viên & Cán bộ phụ trách.
-          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

@@ -14,7 +14,6 @@ export const Monitoring: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Giám sát & nhật ký"
-        description="Theo dõi lịch sử xử lý, nhật ký kiểm toán hệ thống, kết nối dữ liệu và trạng thái dịch vụ."
       />
 
       {/* Tabs */}

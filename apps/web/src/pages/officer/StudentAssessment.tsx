@@ -704,6 +704,11 @@ export const StudentAssessment: React.FC = () => {
                     Đã bàn giao CTSV
                   </span>
                 )}
+                {payload?.resultSource === 'HANDOFF_SNAPSHOT' && (
+                  <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-[10px] font-semibold text-[#1D6FC2] border border-blue-200">
+                    Bản lưu v{payload.handoffRevision}
+                  </span>
+                )}
                 {payload?.submission?.status === 'RETURNED' && (
                   <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-200">
                     Đã yêu cầu sinh viên sửa
@@ -793,13 +798,6 @@ export const StudentAssessment: React.FC = () => {
         </div>
       )}
 
-      {payload?.resultSource === 'HANDOFF_SNAPSHOT' && (
-        <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3.5 text-xs text-blue-900 flex items-center gap-2.5">
-          <Info className="h-4 w-4 text-[#1D6FC2] shrink-0" />
-          <span>Bản bàn giao Khoa gửi · Phiên bản {payload.handoffRevision}. Điểm hiển thị từ bản snapshot đã lưu khi gửi CTSV.</span>
-        </div>
-      )}
-
       {payload?.permissions?.sendBlockers?.length && !isReadOnly ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-900 flex items-start gap-2.5">
           <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
@@ -824,21 +822,6 @@ export const StudentAssessment: React.FC = () => {
           <div>
             <strong className="font-semibold">Yêu cầu sinh viên sửa:</strong> {payload.submission.returnReason}
           </div>
-        </div>
-      )}
-
-      {isReadOnly && (
-        <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 text-xs text-slate-600 flex items-center gap-2">
-          <Info className="h-4 w-4 text-slate-400 shrink-0" />
-          <span>
-            {payload?.term?.status === 'CLOSED'
-              ? 'Kỳ đã chốt sổ chính thức.'
-              : isAdmin
-              ? 'CTSV xem căn cứ và tiếp nhận kết quả; Khoa chịu trách nhiệm chấm điểm.'
-              : payload?.handoff?.status === 'SENT'
-              ? 'Kết quả đã gửi CTSV. Phiếu được khóa cho đến khi được trả lại hoặc mở phúc khảo.'
-              : 'Sinh viên chưa nộp hoặc đang chỉnh sửa; phiếu chỉ được xem.'}
-          </span>
         </div>
       )}
 

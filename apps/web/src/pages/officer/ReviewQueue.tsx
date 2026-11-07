@@ -125,7 +125,6 @@ export const ReviewQueue: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Hàng đợi minh chứng"
-        description="Xác nhận tính hợp lệ của minh chứng trước khi Khoa hoàn tất kết quả đánh giá."
         badge={
           <span className="inline-flex items-center rounded-full bg-[#F3F4F6] px-2.5 py-0.5 text-xs font-semibold text-[#6B6B6B] border border-[#E8E8EC]">
             {total} hồ sơ

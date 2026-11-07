@@ -191,7 +191,6 @@ export const AdminDashboard: React.FC = () => {
     <div className="space-y-6 pb-12 font-sans">
       <PageHeader
         title="Tổng quan toàn trường"
-        description="Bảng điều hành đánh giá rèn luyện cấp trường. Giám sát tiến độ các Khoa, điều kiện công bố và giải quyết tồn đọng trước khi chốt kỳ."
         badge={
           term && (
             <span className="px-2.5 py-1 rounded-[6px] text-xs font-semibold bg-[#F0F6FC] text-[#1D6FC2] border border-[#C2DBF2]">

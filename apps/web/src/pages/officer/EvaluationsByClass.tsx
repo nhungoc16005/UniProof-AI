@@ -220,9 +220,6 @@ export const EvaluationsByClass: React.FC = () => {
           <h1 className="mt-1 text-xl font-bold font-heading sm:text-2xl text-[#0F172A] tracking-tight">
             Xử lý đánh giá theo lớp
           </h1>
-          <p className="mt-1 text-sm text-[#64748B]">
-            Theo dõi tiến độ, ưu tiên giải quyết các lớp còn tồn đọng và quản lý thẩm định hồ sơ theo lớp.
-          </p>
         </div>
         <button
           type="button"
@@ -307,9 +304,6 @@ export const EvaluationsByClass: React.FC = () => {
                         {visibleClasses.length}/{classes.length} lớp
                       </span>
                     </h2>
-                    <p className="mt-0.5 text-xs text-[#64748B]">
-                      KPI phía trên tính toàn Khoa; tìm kiếm và lọc dưới đây áp dụng trực tiếp cho danh sách lớp.
-                    </p>
                   </div>
 
                   {/* Search box */}

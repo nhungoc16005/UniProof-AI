@@ -492,7 +492,6 @@ export const CriteriaManager: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Bộ tiêu chí đánh giá"
-        description="Bộ chuẩn là mẫu quy định toàn trường; mỗi học kỳ khởi tạo một bản sao độc lập để bảo toàn tính toàn vẹn dữ liệu lịch sử."
         action={
           <Link
             to="/admin/terms"

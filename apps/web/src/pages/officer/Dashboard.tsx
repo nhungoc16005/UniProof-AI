@@ -196,9 +196,6 @@ export const OfficerDashboard: React.FC = () => {
           <h1 className="mt-1 text-xl font-semibold font-heading sm:text-2xl text-[#0A0A0A]">
             Tổng quan Khoa
           </h1>
-          <p className="mt-1 text-sm text-[#6B6B6B]">
-            Trung tâm điều hành rèn luyện: theo dõi tiến độ xử lý, thẩm định minh chứng và báo cáo kết quả công bố.
-          </p>
           {term && (
             <p className="mt-2 text-xs text-[#6B6B6B]">
               <span className="mr-2 inline-flex items-center gap-1 rounded-full border border-[#E8E8EC] bg-white px-2 py-0.5">

@@ -305,9 +305,6 @@ export const TermsMasterData: React.FC = () => {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-lg font-bold text-slate-900 tracking-tight">Kỳ đánh giá</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Quản trị thời hạn nộp hồ sơ, chấm điểm và chốt sổ điểm rèn luyện toàn trường.
-          </p>
         </div>
 
         <button

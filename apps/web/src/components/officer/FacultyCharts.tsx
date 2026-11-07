@@ -209,7 +209,6 @@ export function FacultyClassChart({ classes, termId }: { classes: FacultyClassPr
       <ul className="space-y-3">{visible.map(cls => <FacultyClassRow key={cls.id} cls={cls} termId={termId} />)}</ul>
     </>}
     {classes.length > 8 && <button type="button" aria-expanded={all} onClick={() => setAll(v => !v)} className={'rounded-md border border-[#E8E8EC] px-3 py-2 text-xs font-semibold text-[#1D6FC2] ' + focus}>{all ? 'Thu gọn (8 lớp)' : `Xem tất cả ${classes.length} lớp`}</button>}
-    {classes.length > 0 && <p className="text-[11px] leading-5 text-[#64748B]">Đã bàn giao bao gồm kết quả chờ công bố và đã công bố. Mỗi thanh thể hiện 100% sĩ số lớp.</p>}
   </figure>;
 }
 

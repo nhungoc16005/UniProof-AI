@@ -493,8 +493,7 @@ export const AppLayout: React.FC = () => {
             </nav>
           )}
 
-          {currentSection?.tabs && <section className="mb-6 space-y-3" aria-label={currentSection.label}>
-            <p className="text-sm text-[#6B6B6B]">{currentSection.description}</p>
+          {currentSection?.tabs && <section className="mb-5" aria-label={currentSection.label}>
             <nav aria-label="Các mục chức năng" className="flex gap-1 overflow-x-auto border-b border-[#E8E8EC]">
               {currentSection.tabs.map((tab, index) => {
                 const exactTab = currentSection.tabs?.find(t => location.pathname === t.path || location.pathname.startsWith(t.path + '/')) || (location.pathname.startsWith('/officer/review/') ? currentSection.tabs?.[1] : undefined);

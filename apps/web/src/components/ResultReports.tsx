@@ -274,7 +274,6 @@ export const ResultReports: React.FC<{ admin?: boolean }> = ({ admin = false }) 
     <div className="space-y-6 pb-12 font-sans">
       <PageHeader
         title={admin ? 'Báo cáo điểm rèn luyện toàn trường' : 'Báo cáo điểm rèn luyện Khoa'}
-        description="Kết quả lấy từ phiên bản công bố mới nhất (officialScore/publication). Phiếu đang xử lý và sinh viên không nộp được thống kê riêng."
         badge={
           data?.term && (
             <span className="px-2.5 py-1 rounded-[6px] text-xs font-semibold bg-[#F0F6FC] text-[#1D6FC2] border border-[#C2DBF2]">
