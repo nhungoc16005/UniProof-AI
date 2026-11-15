@@ -2,6 +2,67 @@
 
 Mỗi công việc trong dự án thêm mục mới ở đầu với ngày, phạm vi, feature/bug/quyết định liên quan, thay đổi thực tế, kiểm tra đã chạy và giới hạn. Không ghi test dự kiến như đã Passed, không ghi credential hoặc dữ liệu sinh viên.
 
+## 2026-11-15 — Sửa BL-007 (Bảo vệ tệp khi Upload/Ký URL) và Kiểm chứng kịch bản BL-026 (Race Xóa/Nộp)
+
+- **Phạm vi & mục tiêu:**
+  - Sửa dứt điểm **BL-007 (P0 - Confirmed)**: Lỗi upload thành công nhưng ký URL xem tệp thất bại làm xóa mất tệp Storage đã được DB tham chiếu.
+  - Khắc phục và kiểm chứng **BL-026 (P0 - Potential)**: Race condition giữa xóa minh chứng/tệp (`deleteEvidence`, `deleteDraftFile`) và nộp phiếu (`submitSelfAssessment`) bằng transaction có khóa Term qua `workflow.studentEdit`. Giữ nguyên nhãn Potential do chưa có môi trường PostgreSQL đa kết nối thật để test concurrency vật lý.
+- **Thay đổi thực tế mã nguồn:**
+  - `Backend (apps/backend/src/evidence/evidence.service.ts)`:
+    + `BL-007 (uploadDraftFile)`: Tách riêng 3 bước: (1) Upload Storage, (2) Commit DB qua `workflow.studentEdit` (nếu lỗi kiểm tra `findFirst` trước khi dọn tệp để tránh ambiguous timeout), (3) Ký URL xem tệp bằng `getFileUrl` trong try/catch riêng. Nếu ký lỗi: **tuyệt đối không xóa Storage**, trả về thông tin tệp đã lưu kèm `signedUrlAvailable: false` và thông báo hướng dẫn.
+    + `withSignedFiles`: Bọc try/catch khi ký URL danh sách/chi tiết; nếu ký lỗi thì fallback giữ nguyên đường dẫn lưu trữ và gán `signedUrlAvailable: false`, tránh làm sập trang.
+    + `cleanupStorageObject`: Thêm private helper kiểm tra `res.ok`, log rõ ràng lỗi HTTP 403/500 và lỗi mạng, bắt lỗi `getStorageConfig()` an toàn, không để lỗi dọn Storage làm hỏng kết quả commit DB.
+    + `BL-026 (deleteDraftFile & deleteEvidence)`: Đưa toàn bộ kiểm tra trạng thái và thao tác xóa DB vào bên trong transaction có khóa Term qua `workflow.studentEdit`. Đặc biệt trong `deleteEvidence`: đọc lại danh sách tệp `files` **bên trong** transaction lock và trả ra ngoài để dọn dẹp Storage sau khi commit thành công.
+  - `Frontend (apps/web)`:
+    + `apps/web/src/types/index.ts`: Bổ sung `signedUrlAvailable?: boolean; message?: string | null;` vào interface `EvidenceFile`.
+    + `apps/web/src/pages/student/ScoreReport.tsx`: Xử lý cờ `signedUrlAvailable === false` hoặc `fileUrl.startsWith('evidence/')` tại danh sách tệp minh chứng: vô hiệu hóa liên kết xem trực tiếp, hiển thị nhãn "Đã lưu, chưa có liên kết xem" kèm nút "Tải lại"; đọc kết quả upload và thông báo cho sinh viên khi tệp lưu an toàn nhưng chưa có liên kết tạm thời.
+    + `apps/web/src/pages/student/EvidenceDetail.tsx`: Xử lý fallback an toàn khi URL chưa ký, không hiển thị broken image hay link lỗi, có nút tải lại trang.
+    + `apps/web/src/components/EvidenceInspection.tsx`: Chặn liên kết thô, hiển thị nhãn "Đã lưu, chưa có liên kết xem" và bổ sung nút "Thử tải lại" để gọi lại API ký URL khi dịch vụ phục hồi; sử dụng `activeRequestIdRef = useRef(0)` để kiểm soát race condition stale response (khi chuyển nhanh giữa các hồ sơ A và B hoặc khi tải lại nhiều lần liên tiếp), xóa dữ liệu cũ (`setData(null)`) ngay khi bắt đầu request mới, drop toàn bộ phản hồi muộn của request trước đó; bảo đảm `loadData` nhận `targetId` an toàn khi gọi từ event click.
+    + `apps/web/src/pages/officer/ReviewDetail.tsx`: Xử lý trường hợp URL chưa ký tại màn hình duyệt minh chứng của cán bộ Khoa: không render `<img>` với đường dẫn `evidence/...`, hiển thị thông báo "Tệp đã được lưu an toàn nhưng chưa có liên kết xem tạm thời." và nút "Thử tải lại" kèm icon `RefreshCw`; bổ sung `setLoadError('')` khi bắt đầu `fetchEvidence` và trong `.then(...)` thành công để xóa sạch thông báo lỗi cũ sau khi thử lại thành công.
+- **Kiểm thử thực chạy và kết quả:**
+  - Tạo bộ test cô lập [apps/backend/test/data-protection.test.cjs](../apps/backend/test/data-protection.test.cjs) chạy bằng Node.js test runner (`node --test`), bao gồm 2 suite và 11 ca kiểm thử:
+    + BL-007 (6 tests):
+      * Ca 1: Upload Storage 500 $\rightarrow$ ném ServiceUnavailable, không ghi DB, không gọi DELETE.
+      * Ca 2: DB commit thất bại $\rightarrow$ dọn tệp mồ côi trên Storage.
+      * Ca 2b: DB timeout nhưng đã có bản ghi $\rightarrow$ KHÔNG xóa Storage.
+      * Ca 3: Ký URL thất bại sau commit $\rightarrow$ KHÔNG xóa Storage, trả `signedUrlAvailable: false` kèm message.
+      * Ca 3b: Tải lại khi signing lỗi (không crash trang, fallback an toàn) và khi signing đã phục hồi (tạo signed URL thành công).
+      * Ca 4 (Đối chứng đỏ): Code cũ gom try/catch làm xóa tệp khi ký thất bại.
+    + BL-026 (5 tests):
+      * Ca 5: Thứ tự 1 — Nộp trước (`SUBMITTED`) $\rightarrow$ Thao tác xóa bị `assertStudentEditable` chặn với 400 BadRequestException, KHÔNG gọi DELETE Storage.
+      * Ca 6: Thứ tự 2 — Xen kẽ thao tác: submit vượt qua precheck ngoài lock (`files.length === 1`) $\rightarrow$ xóa tệp commit $\rightarrow$ submit bước vào transaction có khóa Term, đọc lại dữ liệu trong lock và bị chặn bởi nhánh `currentDrafts.some(e => !e.files.length)` với thông báo `"Có minh chứng nháp chưa có tệp"`.
+      * Ca 7: Rollback trong transaction xóa $\rightarrow$ kiểm chứng cả Storage KHÔNG bị xóa và bản ghi DB (`dbFiles`, `dbEvidence`) được phục hồi nguyên vẹn.
+      * Ca 8: Danh sách tệp cần xóa được đọc BÊN TRONG transaction có khóa Term.
+      * Ca 9: Cleanup Storage trả lỗi HTTP 500/mất mạng $\rightarrow$ DB commit xóa thành công, ghi nhận `filesPendingCleanup: 1` / `storageCleaned: false`, không crash.
+    + Kết quả: 11/11 tests pass (thời gian chạy: 3.5s).
+  - Tạo bộ test cô lập [apps/web/scripts/evidence-inspection.test.cjs](../apps/web/scripts/evidence-inspection.test.cjs) chạy bằng Node.js test runner (`node --test`), bao gồm 5 ca kiểm thử:
+    + Ca 1: Mở hồ sơ A (delay 50ms), chuyển sang hồ sơ B (delay 10ms); B trả trước $\rightarrow$ màn hình hiển thị B; khi A trả về sau $\rightarrow$ màn hình vẫn giữ B, A bị bỏ qua hoàn toàn.
+    + Ca 2: Khi chuyển từ hồ sơ A sang B, dữ liệu của A bị xóa ngay lập tức (`data === null`) và bật lại `loading === true`, không giữ lại hồ sơ cũ.
+    + Ca 3: Bấm thử tải lại lần 1 trễ (40ms), bấm tiếp lần 2 trả nhanh (10ms) $\rightarrow$ kết quả lần 1 bị bỏ qua, màn hình hiển thị kết quả lần 2.
+    + Ca 4: Lỗi mạng của request A cũ về muộn không ghi đè vào `state.error` của hồ sơ B mới.
+    + Ca 5: ReviewDetail: ban đầu lỗi mạng (`loadError`), sau đó bấm thử tải lại thành công $\rightarrow$ thông báo lỗi được xóa sạch (`loadError === ''`).
+    + Kết quả: 5/5 tests pass (thời gian chạy: 0.22s).
+  - Chạy regression toàn bộ các suite hiện có:
+    + `node --test apps/web/scripts/evidence-inspection.test.cjs` $\rightarrow$ 5/5 tests pass.
+    + `node --test apps/backend/test/data-protection.test.cjs` $\rightarrow$ 11/11 tests pass.
+    + `node --test apps/backend/test/security-fixes.test.cjs` $\rightarrow$ 16/16 tests pass.
+    + `node --test apps/backend/test/evidence-processing-worker.test.cjs` $\rightarrow$ 15/15 tests pass.
+    + `node --test apps/web/scripts/faculty-analytics.test.cjs` $\rightarrow$ 6/6 tests pass.
+    + Tổng cộng: **53/53 tests pass 100%**.
+    + Typecheck backend: `./apps/backend/node_modules/.bin/tsc --noEmit --incremental false -p apps/backend/tsconfig.json` $\rightarrow$ 0 lỗi.
+    + Typecheck frontend: `./apps/web/node_modules/.bin/tsc --noEmit -p apps/web/tsconfig.json` $\rightarrow$ 0 lỗi.
+- **Tài liệu cập nhật & đồng bộ:**
+  - `docs/BUSINESS_LOGIC_AUDIT.md`: Đổi BL-007 sang `Resolved`; BL-026 sang `In Progress / Potential (Chờ kiểm chứng PostgreSQL đa kết nối)`; cập nhật số đếm: 23 mục Open (21 Confirmed, 2 Potential) và 4 mục Resolved.
+  - `docs/BACKLOG.md`: Đổi BL-007 sang `Done`; BL-026 sang `In Progress / Potential`.
+  - `docs/TEST_PLAN.md`: Bổ sung suite `data-protection.test.cjs` (11 tests pass) và kết quả chi tiết.
+  - `docs/features/06-evidence-and-storage.md`: Cập nhật AC, kịch bản khóa Term và F06-TC-05 Passed.
+  - `docs/README.md`: Đồng bộ 4 mục Resolved, 23 mục Open.
+  - `docs/PROJECT_OVERVIEW.md`: Đồng bộ dòng 206 thành 4 mục Resolved, 23 mục Open.
+  - `docs/API_CONTRACT.md`: Mô tả đầy đủ các trường phản hồi mới (`signedUrlAvailable`, `storageCleaned`, `filesPendingCleanup`, `message`) cho các endpoint upload/delete/get minh chứng.
+- **Giới hạn còn lại:**
+  - Kiểm chứng hiện tại dựa trên mô hình bộ nhớ (in-memory test doubles / mock fetch), chưa chứng minh cơ chế khóa hàng `FOR UPDATE` và rollback trên hệ quản trị cơ sở dữ liệu PostgreSQL thực tế; vì vậy BL-026 tiếp tục giữ nhãn In Progress / Potential chờ kiểm chứng trên DB đa kết nối cách ly.
+  - Các thao tác Storage chạy trên mock fetch an toàn; chưa kiểm chứng trên Supabase Storage production thật.
+
 ## 2026-11-15 — Sửa nhóm lỗi Bảo mật & Đăng nhập P0: BL-002, BL-001, BL-009
 
 - **Phạm vi & mục tiêu:** Xử lý 3 lỗi bảo mật P0 (Confirmed) phát hiện trong audit theo đúng kế hoạch đã thống nhất với người dùng. Giữ nguyên rubric hiện hành, DB schema và dữ liệu.

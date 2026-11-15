@@ -221,10 +221,18 @@ export const ScoreReport: React.FC = () => {
     try {
       const record = editingEvidence ? await apiClient.updateEvidence(editingEvidence.id, payload) : await apiClient.createEvidence(payload);
       setEditingEvidence(record);
-      for (const file of evidenceFormFiles) await apiClient.uploadEvidenceDraftFile(record.id, await fileAsDataUrl(file), file.name, file.type || 'application/octet-stream');
+      let unsignedCount = 0;
+      for (const file of evidenceFormFiles) {
+        const uploadRes = await apiClient.uploadEvidenceDraftFile(record.id, await fileAsDataUrl(file), file.name, file.type || 'application/octet-stream');
+        if (uploadRes?.signedUrlAvailable === false) unsignedCount++;
+      }
       setEditingEvidence(null); setEvidenceFormFiles([]);
       await load(true);
-      setNotice('Đã lưu hồ sơ minh chứng nháp. Hồ sơ sẽ được gửi xử lý khi bạn nộp phiếu.');
+      if (unsignedCount > 0) {
+        setNotice(`Đã lưu hồ sơ và ${unsignedCount} tệp minh chứng an toàn. Liên kết xem tệp tạm thời chưa khởi tạo được, bạn có thể bấm "Tải lại" để thử lại.`);
+      } else {
+        setNotice('Đã lưu hồ sơ minh chứng nháp. Hồ sơ sẽ được gửi xử lý khi bạn nộp phiếu.');
+      }
     } catch (error: any) {
       const message = error.response?.data?.message || error.message || 'Không lưu được hồ sơ minh chứng.';
       setLoadError(Array.isArray(message) ? message.join(' ') : message);
@@ -322,7 +330,26 @@ export const ScoreReport: React.FC = () => {
                 {(!canWrite || access.error) && <StudentAssessmentNotice access={access} termId={activeTerm.id} />}
                 <div className="space-y-2"><div className="flex items-center justify-between gap-2"><h3 className="text-sm font-bold text-slate-800">Danh sách minh chứng ({evidenceFor(evidenceCriterion).length})</h3><button type="button" disabled={!canWrite} onClick={() => { setEditingEvidence(null); setEvidenceForm({ declaredActivityName: '', description: '', declaredRole: 'PARTICIPANT', evidenceType: 'GIAY_XAC_NHAN', participationDate: new Date().toISOString().slice(0, 10) }); setEvidenceFormFiles([]); }} className="inline-flex items-center gap-1 rounded-lg bg-blue-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"><FilePlus2 className="h-4 w-4" />Thêm minh chứng</button></div>
                   {evidenceFor(evidenceCriterion).length ? evidenceFor(evidenceCriterion).map((evidence, index) => <article key={evidence.id} className="rounded-xl border border-slate-200 p-3"><div className="flex flex-wrap items-start justify-between gap-2"><div><h4 className="font-semibold text-slate-900">Minh chứng {index + 1}: {evidence.declaredActivityName || 'Chưa đặt tên'}</h4><p className="mt-1 text-xs text-slate-500">{evidenceStatusLabels[evidence.status] || evidence.status} · {evidence.evidenceType} · {evidence.participationDate ? new Date(evidence.participationDate).toLocaleDateString('vi-VN') : 'Chưa có ngày'}</p>{evidence.description && <p className="mt-2 whitespace-pre-line text-sm text-slate-700">{evidence.description}</p>}</div><div className="flex gap-1"><button type="button" disabled={!canWrite || evidence.status === 'APPROVED'} onClick={() => editEvidence(evidence)} className="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-40">Sửa</button><button type="button" disabled={!canWrite || evidence.status === 'APPROVED'} onClick={() => void removeEvidence(evidence)} className="rounded-md border border-rose-200 px-2.5 py-1.5 text-xs font-semibold text-rose-700 disabled:opacity-40"><Trash2 className="h-3.5 w-3.5" /></button></div></div>
-                    {evidence.files?.length > 0 && <ul className="mt-2 space-y-1">{evidence.files.map((file) => <li key={file.id} className="flex min-w-0 items-center justify-between gap-2 rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs"><a href={file.fileUrl} target="_blank" rel="noreferrer" className="min-w-0 truncate text-blue-700 hover:underline">{file.fileName || 'Tệp minh chứng'}</a><span className="shrink-0 text-slate-500">{file.fileSize ? `${(file.fileSize / 1024 / 1024).toFixed(1)} MB` : file.fileType}</span>{canWrite && evidence.status !== 'APPROVED' && <button type="button" onClick={() => void removeEvidenceFile(evidence, file.id)} className="shrink-0 text-rose-700" aria-label="Xóa tệp"><X className="h-4 w-4" /></button>}</li>)}</ul>}
+                    {evidence.files?.length > 0 && <ul className="mt-2 space-y-1">{evidence.files.map((file) => {
+                      const isSigned = file.signedUrlAvailable !== false && !file.fileUrl.startsWith('evidence/');
+                      return <li key={file.id} className="flex min-w-0 items-center justify-between gap-2 rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          {isSigned ? (
+                            <a href={file.fileUrl} target="_blank" rel="noreferrer" className="min-w-0 truncate text-blue-700 hover:underline">{file.fileName || 'Tệp minh chứng'}</a>
+                          ) : (
+                            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                              <span className="truncate font-medium text-slate-700" title={file.fileUrl}>{file.fileName || 'Tệp minh chứng'}</span>
+                              <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Đã lưu, chưa có liên kết xem</span>
+                              <button type="button" onClick={() => void load(true)} className="shrink-0 text-[10px] font-semibold text-blue-700 hover:underline">Tải lại</button>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span className="text-slate-500">{file.fileSize ? `${(file.fileSize / 1024 / 1024).toFixed(1)} MB` : file.fileType}</span>
+                          {canWrite && evidence.status !== 'APPROVED' && <button type="button" onClick={() => void removeEvidenceFile(evidence, file.id)} className="shrink-0 text-rose-700" aria-label="Xóa tệp"><X className="h-4 w-4" /></button>}
+                        </div>
+                      </li>;
+                    })}</ul>}
                   </article>) : <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">Chưa có minh chứng cho tiêu chí này.</p>}
                 </div>
                 <form className="space-y-3 rounded-xl border border-blue-200 bg-blue-50/40 p-3 sm:p-4" onSubmit={(event) => { event.preventDefault(); void saveEvidenceDraft(); }}><fieldset disabled={!canWrite || evidenceBusy} className="space-y-3">

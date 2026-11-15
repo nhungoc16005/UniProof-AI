@@ -226,7 +226,7 @@ export const EvidenceDetail: React.FC = () => {
             </div>
 
             <div className="border border-slate-200 rounded-lg overflow-hidden bg-slate-900/5 aspect-[4/3] flex items-center justify-center relative group">
-              {evidence.files[0]?.fileUrl ? (
+              {evidence.files[0]?.fileUrl && evidence.files[0]?.signedUrlAvailable !== false && !evidence.files[0]?.fileUrl.startsWith('evidence/') ? (
                 <>
                   <img
                     src={evidence.files[0].fileUrl}
@@ -243,6 +243,17 @@ export const EvidenceDetail: React.FC = () => {
                     <span>Xem ảnh kích thước thật</span>
                   </a>
                 </>
+              ) : evidence.files[0]?.fileUrl ? (
+                <div className="text-center p-6 text-slate-600 text-xs space-y-2">
+                  <p className="font-semibold text-amber-800">Tệp đã được lưu an toàn nhưng liên kết xem tạm thời chưa sẵn sàng.</p>
+                  <button
+                    type="button"
+                    onClick={() => window.location.reload()}
+                    className="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 font-semibold hover:bg-blue-100 transition"
+                  >
+                    Tải lại trang
+                  </button>
+                </div>
               ) : (
                 <div className="text-center p-6 text-slate-400 text-xs">
                   Không tìm thấy tệp minh chứng hoặc hồ sơ chưa đính kèm ảnh

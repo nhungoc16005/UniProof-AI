@@ -203,7 +203,7 @@ Inventory tracked baseline: 255 file, 16 controller, 16 service, 89 file trong W
 
 | Vùng | Phân loại và giới hạn |
 |---|---|
-| Web/NestJS/Prisma chính | Có implementation; audit có 3 finding P0 đã xử lý (BL-001, BL-002, BL-009), 24 finding mở |
+| Web/NestJS/Prisma chính | Có implementation; audit có 4 finding P0 đã xử lý (BL-001, BL-002, BL-007, BL-009), 23 finding mở |
 | apps/mobile | Nhiều màn/config rỗng; không có bằng chứng mobile workflow hoạt động |
 | apps/ai-service | Python main/schemas/tokenizer/predictor và nhiều asset scaffold/rỗng; không coi FastAPI là backend chính |
 | packages/ai-core, research | Nhiều file scaffold/dataset/script rỗng; không chứng minh model đã train/evaluate |

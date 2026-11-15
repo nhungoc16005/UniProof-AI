@@ -149,10 +149,48 @@ export class EvidenceService {
     return { ...signed, permissions: { canReview }, aiSuggestions: aiIsCurrent ? signed.aiSuggestions : [], aiAnalysisStatus: latestRun && !aiIsCurrent && latestRun.status === 'COMPLETED' ? 'STALE' : latestRun?.status ?? 'NOT_STARTED' };
   }
 
-  private async withSignedFiles<T extends { files?: Array<{ fileUrl: string }> }>(value: T): Promise<T> {
+  private async withSignedFiles<T extends { files?: Array<{ fileUrl: string; signedUrlAvailable?: boolean }> }>(value: T): Promise<T> {
     if (!value.files?.length) return value;
-    const files = await Promise.all(value.files.map(async (file) => ({ ...file, fileUrl: await this.getFileUrl(file.fileUrl) })));
+    const files = await Promise.all(
+      value.files.map(async (file) => {
+        try {
+          const signedUrl = await this.getFileUrl(file.fileUrl);
+          return { ...file, fileUrl: signedUrl, signedUrlAvailable: true };
+        } catch (_err) {
+          return { ...file, fileUrl: file.fileUrl, signedUrlAvailable: false };
+        }
+      }),
+    );
     return { ...value, files };
+  }
+
+  private async cleanupStorageObject(fileUrl: string): Promise<{ success: boolean; error?: string }> {
+    if (!fileUrl || !fileUrl.startsWith('evidence/')) return { success: true };
+    try {
+      let config: { baseUrl: string; key: string; bucket: string };
+      try {
+        config = this.getStorageConfig();
+      } catch (configErr: any) {
+        console.warn(`[EvidenceStorageCleanup] Không lấy được cấu hình Storage để dọn tệp ${fileUrl}: ${configErr?.message}`);
+        return { success: false, error: configErr?.message || 'Thiếu cấu hình Storage' };
+      }
+      const { baseUrl, key, bucket } = config;
+      const objectKey = fileUrl.slice('evidence/'.length);
+      const url = `${baseUrl}/storage/v1/object/${encodeURIComponent(bucket)}/${objectKey.split('/').map(encodeURIComponent).join('/')}`;
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: { apikey: key, Authorization: `Bearer ${key}` },
+      });
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        console.warn(`[EvidenceStorageCleanup] Dọn tệp Storage ${fileUrl} thất bại (HTTP ${response.status}): ${errorText}`);
+        return { success: false, error: `HTTP ${response.status}: ${errorText}` };
+      }
+      return { success: true };
+    } catch (networkErr: any) {
+      console.warn(`[EvidenceStorageCleanup] Lỗi kết nối khi dọn tệp Storage ${fileUrl}: ${networkErr?.message}`);
+      return { success: false, error: networkErr?.message || 'Lỗi mạng khi gọi Storage' };
+    }
   }
 
   private getStorageConfig() {
@@ -373,16 +411,41 @@ export class EvidenceService {
     const { baseUrl, key, bucket } = this.getStorageConfig();
     const safeName = dto.fileName.normalize('NFKD').replace(/[^a-zA-Z0-9._-]+/g, '-').slice(-100) || 'evidence-file';
     const objectKey = `${studentId}/${evidence.termId}/${id}/${randomUUID()}-${safeName}`;
+    const storageUrl = `evidence/${objectKey}`;
+
+    // 1. Tải tệp lên Supabase Storage
     const response = await fetch(`${baseUrl}/storage/v1/object/${encodeURIComponent(bucket)}/${objectKey.split('/').map(encodeURIComponent).join('/')}`, {
       method: 'POST', headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': dto.fileType, 'x-upsert': 'false' }, body: buffer,
     });
     if (!response.ok) throw new ServiceUnavailableException('Tải tệp minh chứng lên Supabase Storage thất bại');
+
+    // 2. Lưu bản ghi vào cơ sở dữ liệu qua transaction khóa Term
+    let file: any;
     try {
-      const file = await this.workflow.studentEdit(studentId, evidence.termId, tx => tx.evidenceFile.create({ data: { evidenceId: id, fileUrl: `evidence/${objectKey}`, fileType: dto.fileType, fileName: dto.fileName, fileSize: buffer.length } }));
-      return { ...file, fileUrl: await this.getFileUrl(file.fileUrl) };
-    } catch (error) {
-      await fetch(`${baseUrl}/storage/v1/object/${encodeURIComponent(bucket)}/${objectKey.split('/').map(encodeURIComponent).join('/')}`, { method: 'DELETE', headers: { apikey: key, Authorization: `Bearer ${key}` } }).catch(() => undefined);
-      throw error;
+      file = await this.workflow.studentEdit(studentId, evidence.termId, tx => tx.evidenceFile.create({
+        data: { evidenceId: id, fileUrl: storageUrl, fileType: dto.fileType, fileName: dto.fileName, fileSize: buffer.length },
+      }));
+    } catch (dbError) {
+      // Kiểm tra xem liệu DB có thực sự tạo bản ghi hay chưa (phòng trường hợp commit xong nhưng kết nối bị ngắt)
+      const existingFile = await this.prisma.evidenceFile.findFirst({ where: { fileUrl: storageUrl } });
+      if (!existingFile) {
+        // DB thực sự chưa có bản ghi, dọn dẹp Storage để không tạo tệp rác mồ côi
+        await this.cleanupStorageObject(storageUrl);
+      }
+      throw dbError;
+    }
+
+    // 3. Ký URL xem tệp (độc lập: lỗi ký không xóa tệp đã lưu trong DB)
+    try {
+      const signedUrl = await this.getFileUrl(file.fileUrl);
+      return { ...file, fileUrl: signedUrl, signedUrlAvailable: true };
+    } catch (_signError) {
+      return {
+        ...file,
+        fileUrl: file.fileUrl,
+        signedUrlAvailable: false,
+        message: 'Tệp đã được lưu an toàn nhưng chưa tạo được liên kết xem tạm thời. Bạn có thể tải lại trang sau.',
+      };
     }
   }
 
@@ -422,45 +485,79 @@ export class EvidenceService {
   }
 
   async deleteDraftFile(id: string, fileId: string, studentId: string) {
-    const evidence = await this.prisma.evidence.findUnique({ where: { id }, include: { term: true } });
-    if (!evidence) throw new NotFoundException('Không tìm thấy hồ sơ minh chứng');
-    if (evidence.studentId !== studentId) throw new ForbiddenException('Không có quyền thao tác');
-    if (evidence.status === EvidenceStatus.APPROVED) throw new BadRequestException('Không thể xóa tệp minh chứng đã được duyệt');
-    await this.ensureEvidenceEditable(id, studentId);
-    const file = await this.prisma.evidenceFile.findFirst({ where: { id: fileId, evidenceId: id } });
-    if (!file) throw new NotFoundException('Không tìm thấy tệp minh chứng');
-    if (file.fileUrl.startsWith('evidence/')) {
-      const { baseUrl, key, bucket } = this.getStorageConfig();
-      await fetch(`${baseUrl}/storage/v1/object/${encodeURIComponent(bucket)}/${file.fileUrl.slice('evidence/'.length).split('/').map(encodeURIComponent).join('/')}`, { method: 'DELETE', headers: { apikey: key, Authorization: `Bearer ${key}` } });
-    }
-    await this.prisma.evidenceFile.delete({ where: { id: fileId } });
-    return { deleted: true };
+    const initialEvidence = await this.prisma.evidence.findUnique({ where: { id }, include: { term: true } });
+    if (!initialEvidence) throw new NotFoundException('Không tìm thấy hồ sơ minh chứng');
+    if (initialEvidence.studentId !== studentId) throw new ForbiddenException('Không có quyền thao tác');
+    if (initialEvidence.status === EvidenceStatus.APPROVED) throw new BadRequestException('Không thể xóa tệp minh chứng đã được duyệt');
+
+    const fileToDelete = await this.workflow.studentEdit(studentId, initialEvidence.termId, async (tx) => {
+      const currentEvidence = await tx.evidence.findUnique({ where: { id } });
+      if (!currentEvidence) throw new NotFoundException('Không tìm thấy hồ sơ minh chứng');
+      if (currentEvidence.studentId !== studentId) throw new ForbiddenException('Không có quyền thao tác');
+      if (currentEvidence.status === EvidenceStatus.APPROVED) throw new BadRequestException('Không thể xóa tệp minh chứng đã được duyệt');
+
+      const file = await tx.evidenceFile.findFirst({ where: { id: fileId, evidenceId: id } });
+      if (!file) throw new NotFoundException('Không tìm thấy tệp minh chứng');
+      await tx.evidenceFile.delete({ where: { id: fileId } });
+      return file;
+    });
+
+    const cleanupResult = await this.cleanupStorageObject(fileToDelete.fileUrl);
+    return { deleted: true, storageCleaned: cleanupResult.success };
   }
 
   async deleteEvidence(id: string, user: any) {
     if (user.role !== Role.STUDENT) throw new ForbiddenException('Chỉ sinh viên sở hữu hồ sơ được xóa minh chứng');
-    const evidence = await this.prisma.evidence.findUnique({ where: { id }, include: { files: true, aiProcessingJobs: { select: { id: true } } } });
-    if (!evidence) throw new NotFoundException('Không tìm thấy hồ sơ');
-    if (user.role === Role.STUDENT && evidence.studentId !== user.id) {
+    const initialEvidence = await this.prisma.evidence.findUnique({ where: { id } });
+    if (!initialEvidence) throw new NotFoundException('Không tìm thấy hồ sơ');
+    if (initialEvidence.studentId !== user.id) {
       throw new ForbiddenException('Không có quyền thao tác');
     }
 
-    if (evidence.status !== EvidenceStatus.DRAFT || evidence.aiProcessingJobs.length > 0) {
-      throw new BadRequestException('Chỉ hồ sơ nháp chưa từng nộp mới được xóa; hồ sơ đã có lịch sử xử lý cần được lưu để tra cứu.');
-    }
-    if (user.role === Role.STUDENT) await this.ensureEvidenceEditable(id, user.id);
+    const { storageUrls } = await this.workflow.studentEdit(user.id, initialEvidence.termId, async (tx) => {
+      // Đọc lại hồ sơ và danh sách tệp BÊN TRONG TRANSACTION sau khi đã lấy khóa Term
+      const evidence = await tx.evidence.findUnique({
+        where: { id },
+        include: { files: true, aiProcessingJobs: { select: { id: true } } },
+      });
+      if (!evidence) throw new NotFoundException('Không tìm thấy hồ sơ');
+      if (evidence.studentId !== user.id) {
+        throw new ForbiddenException('Không có quyền thao tác');
+      }
 
-    const storageFiles = evidence.files.filter((file) => file.fileUrl.startsWith('evidence/'));
-    if (storageFiles.length) {
-      const { baseUrl, key, bucket } = this.getStorageConfig();
-      await Promise.all(storageFiles.map((file) => fetch(`${baseUrl}/storage/v1/object/${encodeURIComponent(bucket)}/${file.fileUrl.slice('evidence/'.length).split('/').map(encodeURIComponent).join('/')}`, { method: 'DELETE', headers: { apikey: key, Authorization: `Bearer ${key}` } })));
+      if (evidence.status !== EvidenceStatus.DRAFT || evidence.aiProcessingJobs.length > 0) {
+        throw new BadRequestException('Chỉ hồ sơ nháp chưa từng nộp mới được xóa; hồ sơ đã có lịch sử xử lý cần được lưu để tra cứu.');
+      }
+
+      const storageFiles = evidence.files
+        .map((f) => f.fileUrl)
+        .filter((url) => url.startsWith('evidence/'));
+
+      await tx.evidenceFile.deleteMany({ where: { evidenceId: id } });
+      await tx.aiProcessingJob.deleteMany({ where: { evidenceId: id } });
+      await tx.review.deleteMany({ where: { evidenceId: id } });
+      await tx.supplementRequest.deleteMany({ where: { evidenceId: id } });
+      await tx.appeal.deleteMany({ where: { evidenceId: id } });
+      await tx.evidence.delete({ where: { id } });
+
+      return { storageUrls: storageFiles };
+    });
+
+    // Dọn dẹp Storage sau khi transaction DB đã commit thành công
+    const cleanupResults = await Promise.all(
+      storageUrls.map((url) => this.cleanupStorageObject(url)),
+    );
+    const uncleaned = cleanupResults.filter((r) => !r.success);
+    if (uncleaned.length > 0) {
+      console.warn(`[EvidenceDelete] Đã xóa hồ sơ ${id} khỏi DB nhưng còn ${uncleaned.length} tệp Storage chưa dọn dẹp được.`);
     }
-    await this.prisma.evidenceFile.deleteMany({ where: { evidenceId: id } });
-    await this.prisma.aiProcessingJob.deleteMany({ where: { evidenceId: id } });
-    await this.prisma.review.deleteMany({ where: { evidenceId: id } });
-    await this.prisma.supplementRequest.deleteMany({ where: { evidenceId: id } });
-    await this.prisma.appeal.deleteMany({ where: { evidenceId: id } });
-    return this.prisma.evidence.delete({ where: { id } });
+
+    return {
+      id,
+      deleted: true,
+      filesCleaned: storageUrls.length - uncleaned.length,
+      filesPendingCleanup: uncleaned.length,
+    };
   }
 
   async deleteDraft(id: string, studentId: string) {

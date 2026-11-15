@@ -2,14 +2,14 @@
 
 | Thuộc tính | Giá trị |
 |---|---|
-| Phiên bản / đối chiếu | 1.0 / 2026-11-15, mã nguồn tại baseline `93fb66c` |
+| Phiên bản / đối chiếu | 1.1 / 2026-11-15, đã sửa BL-007 và bổ sung đối chứng race condition BL-026 |
 | Vai trò | STUDENT sở hữu; STAFF theo Khoa; ADMIN xem |
-| Trạng thái | Đã có implementation; còn gap trong audit, chưa nghiệm thu toàn bộ |
+| Trạng thái | Đã sửa BL-007; đối chứng kịch bản BL-026 đạt qua application lock, chờ test DB đa kết nối |
 | Quy tắc liên quan | [R-12](../BUSINESS_RULES.md#r-12), [R-13](../BUSINESS_RULES.md#r-13), [R-14](../BUSINESS_RULES.md#r-14) |
 
 Nguồn: [evidence/evidence.service.ts](../../apps/backend/src/evidence/evidence.service.ts), [evidence/evidence.controller.ts](../../apps/backend/src/evidence/evidence.controller.ts); [routes Web](../../apps/web/src/routes.tsx), [API client](../../apps/web/src/lib/apiClient.ts).
 
-Gap: [BL-007](../BUSINESS_LOGIC_AUDIT.md#bl-007), [BL-015](../BUSINESS_LOGIC_AUDIT.md#bl-015), [BL-019](../BUSINESS_LOGIC_AUDIT.md#bl-019), [BL-026](../BUSINESS_LOGIC_AUDIT.md#bl-026). Theo dõi trong [backlog](../BACKLOG.md); chưa áp dụng bản sửa.
+Gap: Đã giải quyết [BL-007](../BUSINESS_LOGIC_AUDIT.md#bl-007); [BL-026](../BUSINESS_LOGIC_AUDIT.md#bl-026) (đã bọc khóa Term qua `workflow.studentEdit`, đọc file trong lock và dọn Storage sau commit, giữ nhãn Potential chờ test DB đa kết nối); [BL-015](../BUSINESS_LOGIC_AUDIT.md#bl-015), [BL-019](../BUSINESS_LOGIC_AUDIT.md#bl-019). Theo dõi trong [backlog](../BACKLOG.md).
 
 ## 1. Objective — Mục tiêu
 
@@ -87,7 +87,7 @@ Lỗi validation/nghiệp vụ phải hiển thị lý do từ server; 401 yêu 
 | F06-TC-02 | Kiểm chứng: upload nháp kiểm tra DataURL và kích thước tối đa 8 MB | F06-AC-02 | Planned |
 | F06-TC-03 | Kiểm chứng: truy cập tệp phải kiểm tra quyền trước khi ký URL | F06-AC-03 | Planned |
 | F06-TC-04 | Kiểm chứng: nháp chưa từng xử lý mới được xóa cả hồ sơ | F06-AC-04 | Planned |
-| F06-TC-05 | Kiểm chứng: dB và Storage không được mất liên kết khi ký URL thất bại | F06-AC-05 | Planned |
+| F06-TC-05 | Kiểm chứng: DB và Storage không bị mất liên kết khi ký URL thất bại (tách 3 bước, không xóa Storage khi signing fail, trả signedUrlAvailable: false; đối chứng đỏ/xanh) | F06-AC-05 | Passed (11/11 tests trong `data-protection.test.cjs`) |
 | F06-TC-06 | Kiểm chứng: thay đổi tệp không được giữ nguyên kết luận duyệt cũ | F06-AC-06 | Planned |
 
 Bổ sung ca biên ở mục 7 và regression của từng BL liên quan; xem [TEST_PLAN](../TEST_PLAN.md) để chọn môi trường và bằng chứng. Không gán Passed nếu chưa chạy.

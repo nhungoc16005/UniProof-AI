@@ -67,7 +67,10 @@ Kết quả gồm nguồn HANDOFF_SNAPSHOT cho CTSV xem phiếu đã gửi; báo
 | Login | LoginDto email/password → access token và user an toàn; first-login hiện UI enforce, xem BL-016 |
 | Tự đánh giá | Lưu điểm theo criterionId và query termId; preflight trả canSubmit/blockers/warnings/effectiveDeadline; POST /assessments/me/submit?termId=... không có body, chuyển phiếu và nháp đủ tệp sang xử lý |
 | Tạo minh chứng | CreateEvidenceDto cần declaredActivityName/evidenceType; term/criterion liên hệ rubric do service kiểm tra; draft=true giữ nháp |
-| Upload nháp | UploadEvidenceFileDto fileName/fileType/fileData (DataURL), tối đa 8 MB; chỉ nháp; trả file với URL đã ký |
+| Upload nháp | UploadEvidenceFileDto fileName/fileType/fileData (DataURL), tối đa 8 MB; chỉ nháp; bọc transaction khóa Term qua studentEdit. Phản hồi trả về `EvidenceFile`: `{ id, evidenceId, fileUrl, fileType, fileName, fileSize, signedUrlAvailable: boolean, message?: string }`. Nếu ký URL tạm thời lỗi: không xóa Storage, trả `signedUrlAvailable: false` và `message` hướng dẫn tải lại |
+| Xóa tệp nháp | `DELETE /api/evidence/:id/files/:fileId`: chỉ sinh viên sở hữu; bọc transaction khóa Term qua studentEdit. Dọn Storage sau khi DB commit; phản hồi: `{ deleted: true, storageCleaned: boolean }` |
+| Xóa hồ sơ nháp | `DELETE /api/evidence/:id`: chỉ sinh viên sở hữu và hồ sơ DRAFT chưa có lịch sử AI; bọc transaction khóa Term qua studentEdit. Danh sách tệp được đọc bên trong lock và dọn Storage sau commit; phản hồi: `{ id: string, deleted: true, filesCleaned: number, filesPendingCleanup: number }` |
+| Tra cứu minh chứng | `GET /api/evidence` và `GET /api/evidence/:id`: trả danh sách/chi tiết có mảng `files`, mỗi file kèm `signedUrlAvailable: boolean`. Nếu `signedUrlAvailable: false` (signing lỗi), `fileUrl` giữ nguyên đường dẫn lưu trữ nội bộ `evidence/...` để client hiển thị trạng thái chưa có liên kết xem |
 | Duyệt minh chứng | ReviewDecisionDto action/comment; expectedVersion optional để tương thích client cũ; REJECTED cần rejectBasis; SUPPLEMENT_REQUESTED có missingItem/supplementDeadline |
 | Thêm nguồn | sourceName, sourceUrl?, note, level, confirmedActivity, confirmedStudent; lưu VerificationResult/audit; không ghi điểm |
 | Bổ sung | explanation?, verificationUrl?, fileData?, fileName?, fileType?; ít nhất một nội dung; PDF/JPEG/PNG/WebP theo nhánh supplement |

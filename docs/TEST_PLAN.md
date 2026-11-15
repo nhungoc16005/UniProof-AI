@@ -22,6 +22,7 @@ Tài liệu navigation/dashboard cũ từng ghi build/integration/browser đã �
 
 | Nguồn | Loại / giới hạn |
 |---|---|
+| [data protection unit](../apps/backend/test/data-protection.test.cjs) | In-memory doubles; kiểm BL-007 (tách 3 bước upload/commit/ký, lỗi ký không xóa Storage, fallback signedUrlAvailable: false, đối chứng đỏ/xanh) và BL-026 (5 ca đối chứng kịch bản race condition nộp/xóa, lock Term, đọc file trong lock, cleanup sau commit, rollback an toàn); 11/11 tests pass |
 | [security fixes unit](../apps/backend/test/security-fixes.test.cjs) | In-memory doubles & Passport authenticate thật; kiểm BL-001 (scope/kỳ & dashboard sinh viên), BL-002 (select reviewer an toàn), BL-009 (JWT registerAsync factory + token 12h); 16/16 tests pass |
 | [worker unit](../apps/backend/test/evidence-processing-worker.test.cjs) | In-memory doubles; kiểm worker/lease/recovery/version; đọc harness trước khi chạy |
 | [faculty analytics unit](../apps/web/scripts/faculty-analytics.test.cjs) | Thuần tính toán: state, tổng hợp lớp, trùng/thiếu/empty và thứ tự |
@@ -40,6 +41,7 @@ node --test test/evidence-processing-worker.test.cjs
 ```sh
 # cwd: apps/web
 node --test scripts/faculty-analytics.test.cjs
+node --test scripts/evidence-inspection.test.cjs
 ```
 
 Không dùng `npm test` backend cho audit vì glob bao gồm workflow.integration.test.cjs. Không chạy backend để “chỉ xem Swagger”: EvidenceProcessingWorker khởi động cùng ứng dụng.
@@ -56,7 +58,7 @@ Mỗi BL giữ kịch bản chi tiết trong [audit](BUSINESS_LOGIC_AUDIT.md). �
 | [BL-004](BUSINESS_LOGIC_AUDIT.md#bl-004) | Contract/form + browser cách ly | Thao tác form thật cho leadershipRole=true ở tiêu chí 14 và 16; kiểm tra payload boolean và điểm 4/3. |
 | [BL-005](BUSINESS_LOGIC_AUDIT.md#bl-005) | Service/API + DB cách ly | CONFIRMED roster không có Evidence, chỉ Evidence, cả hai cùng hoạt động và hai nguồn khác hoạt động; kết quả không đổi theo thứ tự lưu. |
 | [BL-006](BUSINESS_LOGIC_AUDIT.md#bl-006) | Service/API + DB cách ly | Hạn gốc hết nhưng gia hạn cá nhân/lớp chưa hết→không chốt; thu hồi/hết toàn bộ hạn→đánh giá lại blockers. |
-| [BL-007](BUSINESS_LOGIC_AUDIT.md#bl-007) | Service doubles rồi DB/Storage cách ly | Double Storage upload/DB thành công rồi signing lỗi; object không bị xóa, bản ghi vẫn ký lại được. |
+| [BL-007](BUSINESS_LOGIC_AUDIT.md#bl-007) | Service doubles rồi DB/Storage cách ly | **Passed (unit):** Đạt 6/6 ca trong data-protection.test.cjs (tách riêng 3 bước upload/commit/ký; lỗi ký không xóa tệp đã lưu trong DB, trả phản hồi an toàn signedUrlAvailable: false; đối chứng đỏ/xanh chứng minh code cũ xóa tệp, code mới giữ tệp) và 5/5 ca trong evidence-inspection.test.cjs (chống race condition ghi đè hồ sơ cũ B trả trước A trả sau, xóa sạch error khi retry thành công). |
 | [BL-008](BUSINESS_LOGIC_AUDIT.md#bl-008) | Pure/service doubles | Mock response có headers tức thì, body treo; sau deadline job kết thúc đúng trạng thái và poller nhận job tiếp. |
 | [BL-009](BUSINESS_LOGIC_AUDIT.md#bl-009) | Pure/service doubles | **Passed (unit):** Đạt 4/4 ca trong security-fixes.test.cjs qua Passport strategy thật; token 12h ký bằng secret từ ConfigService được xác thực thành công; token ký bằng fallback bị invalid signature; production thiếu secret ném lỗi. |
 | [BL-010](BUSINESS_LOGIC_AUDIT.md#bl-010) | Contract/form + browser cách ly | Mock permission=true với hạn gốc đã qua, effectiveDeadline tương lai: form cho phép và hiển thị hạn mới. |
@@ -75,7 +77,7 @@ Mỗi BL giữ kịch bản chi tiết trong [audit](BUSINESS_LOGIC_AUDIT.md). �
 | [BL-023](BUSINESS_LOGIC_AUDIT.md#bl-023) | Contract/form + browser cách ly | Yêu cầu có comment khác missingItem, deadline khác mẫu và deadline=null; UI phản ánh đúng cả3. |
 | [BL-024](BUSINESS_LOGIC_AUDIT.md#bl-024) | Contract/form + browser cách ly | Deep link kỳ cũ, Back/Forward, reload, selector mobile390px; title/API/payload đều cùng kỳ. |
 | [BL-025](BUSINESS_LOGIC_AUDIT.md#bl-025) | Service/API + DB cách ly | Create STUDENT thiếu mã/lớp, STAFF thiếu Khoa bị từ chối; bản hợp lệ được nhận. |
-| [BL-026](BUSINESS_LOGIC_AUDIT.md#bl-026) | DB concurrency cách ly + barrier | Barrier integration test hai kết nối DB cách ly, xen kẽ precheck→submit→delete; nộp thành công phải giữ tệp hoặc xóa buộc nộp bị chặn. |
+| [BL-026](BUSINESS_LOGIC_AUDIT.md#bl-026) | DB concurrency cách ly + barrier | **In Progress / Potential (unit đối chứng đạt 5/5 ca):** Đạt 5/5 ca trong data-protection.test.cjs (nộp trước chặn xóa và không gọi DELETE Storage; xóa tệp trước khiến nộp bị chặn; rollback giữ nguyên Storage; đọc file trong lock; cleanup lỗi không phá hỏng DB). Chờ môi trường PostgreSQL đa kết nối thật để kiểm chứng concurrency DB vật lý. |
 | [BL-027](BUSINESS_LOGIC_AUDIT.md#bl-027) | DB concurrency cách ly + barrier | Dùng barrier cho save-null trước khi submit lấy lock; submit phải trả blocker, không SUBMITTED. |
 
 ## Feature acceptance

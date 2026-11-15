@@ -5,7 +5,7 @@ import { Evidence, ReviewDecision, RubricPayload } from '../../types';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { TwoQuestionsVerification, VerificationBadge } from '../../components/ui/VerificationBadge';
 import { ConfidenceBar } from '../../components/ui/ConfidenceBar';
-import { BookOpen, Search, X, CheckCircle, HelpCircle, Sparkles } from 'lucide-react';
+import { BookOpen, Search, X, CheckCircle, HelpCircle, Sparkles, RefreshCw } from 'lucide-react';
 
 interface BoundingBox {
   id: string;
@@ -65,17 +65,24 @@ export const ReviewDetail: React.FC = () => {
   const [showCriteriaGuideDrawer, setShowCriteriaGuideDrawer] = useState(false);
   const [criteriaSearch, setCriteriaSearch] = useState('');
 
-  useEffect(() => {
+  const fetchEvidence = () => {
     if (id) {
+      setIsLoading(true);
+      setLoadError('');
       apiClient.getEvidenceById(id).then((data) => {
         setEvidence(data);
         setSavedSources((data?.verificationResults || []).map(v => ({ id:v.id, name:v.sourceDescription, level:v.verificationLevel, confirmedActivity:v.activityExistsVerified, confirmedStudent:v.studentParticipationVerified })));
         if (data?.aiSuggestions?.[0]?.suggestedScore) {
           setFinalScoreInput(data.aiSuggestions[0].suggestedScore);
         }
+        setLoadError('');
         setIsLoading(false);
       }).catch(() => { setLoadError('Không tải được minh chứng.'); setIsLoading(false); });
     }
+  };
+
+  useEffect(() => {
+    fetchEvidence();
   }, [id]);
 
   const canReview = evidence?.permissions?.canReview ?? false;
@@ -288,17 +295,41 @@ export const ReviewDetail: React.FC = () => {
                 filter: highContrast ? 'contrast(160%) saturate(140%)' : 'none',
               }}
             >
-              {evidence.files && evidence.files[0]?.fileUrl ? (
-                <img
-                  src={evidence.files[0].fileUrl}
-                  alt="Minh chứng"
-                  className="max-h-[500px] w-auto object-contain rounded shadow-md block"
-                />
-              ) : (
-                <div className="p-8 text-center text-xs text-slate-400">
-                  Hồ sơ này không có tệp ảnh minh chứng đính kèm.
-                </div>
-              )}
+              {(() => {
+                const primaryFile = evidence.files?.[0];
+                const isSigned = primaryFile?.fileUrl && primaryFile?.signedUrlAvailable !== false && !primaryFile?.fileUrl.startsWith('evidence/');
+                if (isSigned) {
+                  return (
+                    <img
+                      src={primaryFile.fileUrl}
+                      alt="Minh chứng"
+                      className="max-h-[500px] w-auto object-contain rounded shadow-md block"
+                    />
+                  );
+                }
+                if (primaryFile?.fileUrl) {
+                  return (
+                    <div className="p-8 text-center space-y-3">
+                      <p className="text-xs font-semibold text-amber-800">
+                        Tệp đã được lưu an toàn nhưng chưa có liên kết xem tạm thời.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={fetchEvidence}
+                        className="px-3 py-1.5 rounded-lg bg-sky-50 text-sky-700 font-semibold text-xs hover:bg-sky-100 transition inline-flex items-center gap-1.5"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>Thử tải lại</span>
+                      </button>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="p-8 text-center text-xs text-slate-400">
+                    Hồ sơ này không có tệp ảnh minh chứng đính kèm.
+                  </div>
+                );
+              })()}
 
               {/* Bounding Boxes Layer */}
               {showBoxes && boundingBoxes.map((box) => {

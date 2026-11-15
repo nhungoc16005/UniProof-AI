@@ -1,13 +1,13 @@
 # Audit logic nghiệp vụ EduPoint
 
-Ngày lập tài liệu: 2026-11-15. Baseline nguồn: `93fb66c`. Ghi nhận kết quả audit mã nguồn và tiến độ xử lý theo từng đợt; đợt 1 đã hoàn thành xử lý và kiểm chứng 3 mục P0 (BL-001, BL-002, BL-009). Đọc [kiến trúc và workflow](PROJECT_OVERVIEW.md), [quy tắc](BUSINESS_RULES.md) trước các finding.
+Ngày lập tài liệu: 2026-11-15. Baseline nguồn: `93fb66c`. Ghi nhận kết quả audit mã nguồn và tiến độ xử lý theo từng đợt; đợt 1 đã hoàn thành xử lý 3 mục P0 (BL-001, BL-002, BL-009); đợt 2 đã giải quyết BL-007 và hoàn thiện kiểm chứng kịch bản BL-026. Đọc [kiến trúc và workflow](PROJECT_OVERVIEW.md), [quy tắc](BUSINESS_RULES.md) trước các finding.
 
 ## Phạm vi và cách phân loại
 
 - **Confirmed:** luồng mã nguồn đủ chứng minh mâu thuẫn/hành vi; không đồng nghĩa đã tái hiện trên deployment.
 - **Potential:** thứ tự xen kẽ/concurrency có thể gây lỗi, cần kiểm tra DB thực cách ly.
 - Severity đánh giá tác động; priority đánh giá thứ tự xử lý. P0 kiểm chứng/xử lý trước bàn giao, P1 tiếp theo, P2 theo sprint được chọn.
-- Tổng cộng 27 mục: **24 mục Open** (22 Confirmed, 2 Potential) và **3 mục Resolved** (BL-001, BL-002, BL-009); không có Critical. Trong 24 mục Open có 6 High Confirmed, 16 Medium Confirmed, 1 High Potential và 1 Medium Potential.
+- Tổng cộng 27 mục: **23 mục Open** (21 Confirmed, 2 Potential) và **4 mục Resolved** (BL-001, BL-002, BL-007, BL-009); không có Critical. Trong 23 mục Open có 5 High Confirmed, 16 Medium Confirmed, 1 High Potential (BL-026) và 1 Medium Potential (BL-027).
 - Expected chỉ dựa vào luồng/quy tắc hiện có; Q-01/Q-02 vẫn cần quyết định trước khi triển khai hợp nhất nguồn/tỷ lệ điểm. Gợi ý sửa là đề xuất, chưa được tự thực thi.
 
 ## Danh sách ưu tiên
@@ -17,9 +17,9 @@ Ngày lập tài liệu: 2026-11-15. Baseline nguồn: `93fb66c`. Ghi nhận k�
 | [BL-001](#bl-001) | High | Confirmed | P0 | Bỏ termId vượt ranh giới Khoa lịch sử (Resolved) |
 | [BL-002](#bl-002) | High | Confirmed | P0 | Response duyệt minh chứng chứa password hash cán bộ (Resolved) |
 | [BL-006](#bl-006) | High | Confirmed | P0 | Chốt kỳ bỏ qua gia hạn phúc khảo còn hiệu lực |
-| [BL-007](#bl-007) | High | Confirmed | P0 | Lỗi ký URL xóa tệp đã commit vào DB |
+| [BL-007](#bl-007) | High | Confirmed | P0 | Lỗi ký URL xóa tệp đã commit vào DB (Resolved) |
 | [BL-009](#bl-009) | High | Confirmed | P0 | JWT secret được đọc trước khi ConfigModule nạp .env (Resolved) |
-| [BL-026](#bl-026) | High | Potential | P0 | Xóa minh chứng/tệp có khoảng đua với nộp phiếu |
+| [BL-026](#bl-026) | High | Potential | P0 | Xóa minh chứng/tệp có khoảng đua với nộp phiếu (In Progress / Potential) |
 | [BL-003](#bl-003) | High | Confirmed | P1 | Tiêu chí nhóm mặc định thiếu baseScore |
 | [BL-004](#bl-004) | High | Confirmed | P1 | leadershipRole gửi chuỗi làm điểm chức vụ bằng 0 |
 | [BL-005](#bl-005) | High | Confirmed | P1 | Xác minh minh chứng ghi đè số hoạt động từ điểm danh |
@@ -158,7 +158,7 @@ Ngày lập tài liệu: 2026-11-15. Baseline nguồn: `93fb66c`. Ghi nhận k�
 
 ### BL-007 — Lỗi ký URL xóa tệp đã commit vào DB
 
-1. **Bug ID:** BL-007. **Trạng thái:** Open. **Độ chắc chắn:** Confirmed; **ưu tiên:** P0.
+1. **Bug ID:** BL-007. **Trạng thái:** Resolved. **Độ chắc chắn:** Confirmed; **ưu tiên:** P0.
 2. **Severity:** High.
 3. **Vị trí:** [apps/backend/src/evidence/evidence.service.ts:381](../apps/backend/src/evidence/evidence.service.ts#L381); [apps/backend/src/evidence/evidence.service.ts:384](../apps/backend/src/evidence/evidence.service.ts#L384).
 4. **Workflow:** Upload tệp nháp. [F06](features/06-evidence-and-storage.md).
@@ -169,8 +169,9 @@ Ngày lập tài liệu: 2026-11-15. Baseline nguồn: `93fb66c`. Ghi nhận k�
 9. **Tác động:** Mất tệp minh chứng, DB giữ liên kết hỏng.
 10. **Gợi ý sửa:** Tách bước commit và ký URL; chỉ cleanup object khi DB chưa commit, cho ký lại URL sau lỗi.
 11. **Regression test:** Double Storage upload/DB thành công rồi signing lỗi; object không bị xóa, bản ghi vẫn ký lại được.
+12. **Bằng chứng đã xử lý:** Đã tách riêng 3 bước upload Storage, commit DB qua transaction khóa Term `workflow.studentEdit`, và ký URL qua `getFileUrl`. Nếu ký URL thất bại, trả về tệp đã lưu kèm `signedUrlAvailable: false` và thông báo hướng dẫn, tuyệt đối không xóa Storage; `withSignedFiles` bọc try/catch an toàn; nếu commit DB thất bại chỉ dọn tệp khi DB thực sự chưa có bản ghi. Kiểm chứng đạt 6/6 ca trong [apps/backend/test/data-protection.test.cjs](../apps/backend/test/data-protection.test.cjs) gồm đối chứng đỏ/xanh (code cũ xóa tệp, code mới giữ nguyên tệp).
 
-**Giới hạn bằng chứng:** Đối chiếu caller, service và hợp đồng liên quan trong nguồn. Không khẳng định đã tái hiện trên DB/Storage/AI triển khai.
+**Giới hạn kiểm chứng:** Đã kiểm chứng qua unit test in-memory mock Storage; chưa kiểm chứng trên Supabase Storage production.
 
 <a id="bl-008"></a>
 
@@ -501,19 +502,20 @@ Ngày lập tài liệu: 2026-11-15. Baseline nguồn: `93fb66c`. Ghi nhận k�
 
 ### BL-026 — Xóa minh chứng/tệp có khoảng đua với nộp phiếu
 
-1. **Bug ID:** BL-026. **Trạng thái:** Open. **Độ chắc chắn:** Potential; **ưu tiên:** P0.
+1. **Bug ID:** BL-026. **Trạng thái:** In Progress / Potential (Chờ kiểm chứng PostgreSQL đa kết nối). **Độ chắc chắn:** Potential; **ưu tiên:** P0.
 2. **Severity:** High.
 3. **Vị trí:** [apps/backend/src/evidence/evidence.service.ts:429](../apps/backend/src/evidence/evidence.service.ts#L429); [apps/backend/src/evidence/evidence.service.ts:451](../apps/backend/src/evidence/evidence.service.ts#L451); [apps/backend/src/assessments/assessments.service.ts:188](../apps/backend/src/assessments/assessments.service.ts#L188).
 4. **Workflow:** Hai request xóa và nộp đồng thời. [F06](features/06-evidence-and-storage.md).
-5. **Hiện tại:** ensureEvidenceEditable có transaction riêng kết thúc trước Storage delete/Prisma delete; deleteEvidence dựa snapshot DRAFT đọc trước.
+5. **Hiện tại:** ensureEvidenceEditable trước đây có transaction riêng kết thúc trước Storage delete/Prisma delete; deleteEvidence dựa snapshot DRAFT đọc trước. Hiện đã được sửa: đưa việc kiểm tra và xóa DB vào trong transaction khóa Term qua `workflow.studentEdit`.
 6. **Kỳ vọng có căn cứ:** Sau SUBMITTED không được xóa dữ liệu vừa nộp; kiểm tra và thay đổi phải tuần tự theo cùng khóa.
-7. **Logic và trace qua lớp:** Term lock bảo vệ nộp nhưng không bao trùm phần xóa; request xóa đã vượt precheck có thể chạy tiếp sau khi nộp. Kết quả DB cuối phụ thuộc FK/cascade/thứ tự query.
+7. **Logic và trace qua lớp:** Term lock bảo vệ nộp; khi bọc cả thao tác xóa DB vào `workflow.studentEdit`, hai luồng bị tuần tự hóa bởi `SELECT FOR UPDATE`. Danh sách tệp cần xóa được đọc bên trong lock và dọn Storage sau commit.
 8. **Tình huống:** TabA bắt đầu xóa nháp rồi dừng sau precheck; tabB nộp phiếu; tabA tiếp tục xóa file/quan hệ.
-9. **Tác động:** Có thể mất tệp/hồ sơ đã nộp hoặc lỗi và trạng thái dở dang.
-10. **Gợi ý sửa:** Đặt kiểm tra hiện trạng và ghi DB trong cùng transaction khóa Term; thiết kế cleanup Storage sau commit có thể retry.
+9. **Tác động:** Có thể mất tệp/hồ sơ đã nộp hoặc lỗi và trạng thái dở dang nếu không tuần tự hóa.
+10. **Gợi ý sửa:** Đặt kiểm tra hiện trạng và ghi DB trong cùng transaction khóa Term; thiết kế cleanup Storage sau commit có thể retry (đã thực hiện).
 11. **Regression test:** Barrier integration test hai kết nối DB cách ly, xen kẽ precheck→submit→delete; nộp thành công phải giữ tệp hoặc xóa buộc nộp bị chặn.
+12. **Tiến độ xử lý & Kiểm chứng:** Đã sửa mã nguồn: đưa toàn bộ kiểm tra và thao tác xóa DB trong `deleteDraftFile` và `deleteEvidence` vào transaction có khóa Term qua `workflow.studentEdit`; đọc lại danh sách tệp `files` bên trong lock và trả ra ngoài transaction để dọn Storage sau khi commit; helper `cleanupStorageObject` kiểm tra `res.ok`, log rõ ràng lỗi HTTP/mạng và bắt lỗi cấu hình an toàn. Đã kiểm chứng 5 kịch bản đối chứng trong [apps/backend/test/data-protection.test.cjs](../apps/backend/test/data-protection.test.cjs) (thứ tự nộp trước chặn xóa và không gọi DELETE Storage; thứ tự xóa tệp trước khiến nộp bị chặn do thiếu file; rollback giữ nguyên Storage; đọc file trong lock; cleanup lỗi không làm hỏng kết quả DB). **Vẫn giữ nhãn Potential** vì cần môi trường PostgreSQL đa kết nối thật để kiểm chứng concurrency DB vật lý.
 
-**Giới hạn bằng chứng:** Mô hình xen kẽ cho thấy cửa sổ đua; chưa chạy hai kết nối DB hay xác nhận FK/deployment.
+**Giới hạn bằng chứng:** Đã mô phỏng và kiểm chứng 5 kịch bản tầng application logic; chưa chạy trên hạ tầng PostgreSQL cách ly đa kết nối thực tế.
 
 <a id="bl-027"></a>
 

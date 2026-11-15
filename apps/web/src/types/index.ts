@@ -237,6 +237,8 @@ export interface EvidenceFile {
   fileName?: string | null;
   fileSize?: number | null;
   uploadedAt: string;
+  signedUrlAvailable?: boolean;
+  message?: string | null;
 }
 
 export interface OcrResult {
