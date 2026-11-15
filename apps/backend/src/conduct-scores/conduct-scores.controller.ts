@@ -20,7 +20,9 @@ export class ConductScoresController {
   @Get('dashboard')
   @ApiOperation({ summary: 'Lấy bảng điểm rèn luyện tổng hợp của Sinh viên hiện tại (Dashboard)' })
   async getDashboard(@CurrentUser('id') studentId: string, @Query('termId') termId?: string) {
-    return this.scoresService.getDashboard(studentId, termId);
+    const targetTermId = await this.scoresService.resolveTermId(termId);
+    if (!targetTermId) return this.scoresService.getEmptyScore();
+    return this.scoresService.getDashboard(studentId, targetTermId);
   }
 
   @Get('trace/:evidenceId')
@@ -44,7 +46,12 @@ export class ConductScoresController {
   @Roles(Role.ADMIN, Role.STAFF)
   @ApiOperation({ summary: 'Tra cứu bảng điểm rèn luyện của một sinh viên (Cán bộ, Admin)' })
   async getScoreByStudent(@Param('studentId') studentId: string, @CurrentUser() actor: any, @Query('termId') termId?: string) {
-    await this.workflow.scope(actor, studentId, termId);
-    return this.scoresService.getScoreByStudent(studentId, termId);
+    const targetTermId = await this.scoresService.resolveTermId(termId);
+    if (!targetTermId) {
+      await this.workflow.scope(actor, studentId);
+      return this.scoresService.getEmptyScore();
+    }
+    await this.workflow.scope(actor, studentId, targetTermId);
+    return this.scoresService.getScoreByStudent(studentId, targetTermId);
   }
 }

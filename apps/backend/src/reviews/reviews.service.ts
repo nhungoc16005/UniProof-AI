@@ -223,7 +223,18 @@ export class ReviewsService {
           lockedAt: null,
         },
         include: {
-          reviews: { include: { reviewer: true, criterion: true } },
+          reviews: {
+            include: {
+              reviewer: {
+                select: {
+                  id: true,
+                  fullName: true,
+                  role: true,
+                },
+              },
+              criterion: true,
+            },
+          },
           supplementRequests: true,
         },
       });

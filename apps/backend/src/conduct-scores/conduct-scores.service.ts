@@ -10,27 +10,32 @@ import { EvidenceStatus, TermStatus } from '@prisma/client';
 export class ConductScoresService {
   constructor(private prisma: PrismaService, private workflow: WorkflowService, private reports: ReportsService) {}
 
+  async resolveTermId(termId?: string): Promise<string | null> {
+    if (termId) {
+      const term = await this.prisma.term.findUnique({ where: { id: termId } });
+      if (!term) throw new NotFoundException('Không tìm thấy kỳ đánh giá');
+      return term.id;
+    }
+    const activeTerm = await this.prisma.term.findFirst({ where: { status: TermStatus.ACTIVE } });
+    if (activeTerm) return activeTerm.id;
+    const latestTerm = await this.prisma.term.findFirst({ orderBy: { startDate: 'desc' } });
+    return latestTerm?.id ?? null;
+  }
+
+  getEmptyScore() {
+    return {
+      officialScore: 0,
+      pendingScore: 0,
+      classification: 'CHƯA_XẾP_LOẠI',
+      categories: [],
+    };
+  }
+
   async getDashboard(studentId: string, termId?: string, staffView = false) {
-    // 1. Xác định kỳ học
-    let activeTermId = termId;
-    if (!activeTermId) {
-      const activeTerm = await this.prisma.term.findFirst({ where: { status: TermStatus.ACTIVE } });
-      activeTermId = activeTerm?.id;
+    if (!termId) {
+      return this.getEmptyScore();
     }
-
-    if (!activeTermId) {
-      const latestTerm = await this.prisma.term.findFirst({ orderBy: { startDate: 'desc' } });
-      activeTermId = latestTerm?.id;
-    }
-
-    if (!activeTermId) {
-      return {
-        officialScore: 0,
-        pendingScore: 0,
-        classification: 'CHƯA_XẾP_LOẠI',
-        categories: [],
-      };
-    }
+    const activeTermId = termId;
 
     const rubricVersion = await this.prisma.rubricVersion.findFirst({
       where: { termId: activeTermId, status: 'PUBLISHED' },
