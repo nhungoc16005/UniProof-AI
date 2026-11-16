@@ -193,7 +193,18 @@ export interface RubricPayload {
   term?: Pick<Term, 'id' | 'name' | 'status' | 'workflowEnabled' | 'appealDeadline' | 'submissionDeadline' | 'reviewDeadline'>;
   handoff?: { status: string; returnReason?: string | null; revision: number } | null;
   publication?: { revision: number; publishedAt: string } | null;
-  permissions?: { canReview: boolean; canAppeal: boolean; canEdit?: boolean; canSend?: boolean; sendBlockers?: string[] };
+  permissions?: {
+    canReview: boolean;
+    canAppeal: boolean;
+    canEdit?: boolean;
+    canSend?: boolean;
+    sendBlockers?: string[];
+    effectiveDeadlines?: {
+      submission?: { deadline: string; source: 'STUDENT' | 'CLASS' | 'TERM'; extensionId: string | null };
+      review?: { deadline: string; source: 'STUDENT' | 'CLASS' | 'TERM'; extensionId: string | null };
+      appeal?: { deadline: string; source: 'STUDENT' | 'CLASS' | 'TERM'; extensionId: string | null };
+    };
+  };
   resultSource?: 'HANDOFF_SNAPSHOT' | 'WORKING';
   handoffRevision?: number;
   submission?: { id: string; status: 'DRAFT' | 'SUBMITTED' | 'RETURNED'; submittedAt?: string | null; returnedAt?: string | null; returnReason?: string | null } | null;
@@ -239,6 +250,31 @@ export interface EvidenceFile {
   uploadedAt: string;
   signedUrlAvailable?: boolean;
   message?: string | null;
+}
+
+export interface DeadlineExtensionTargetItem {
+  id: string;
+  code: string;
+  name: string;
+  className?: string;
+  classCode?: string;
+  studentCode?: string;
+  fullName?: string;
+  targetType: 'STUDENT' | 'CLASS';
+}
+
+export interface DeadlineExtensionRow {
+  id: string;
+  termId: string;
+  targetType: 'STUDENT' | 'CLASS';
+  targetId: string;
+  type: 'SUBMISSION' | 'REVIEW' | 'APPEAL';
+  deadline: string;
+  reason: string;
+  revokedAt?: string | null;
+  createdAt: string;
+  createdBy?: { fullName: string };
+  revokedBy?: { fullName: string };
 }
 
 export interface OcrResult {

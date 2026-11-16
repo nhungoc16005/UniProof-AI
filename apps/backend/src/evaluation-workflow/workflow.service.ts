@@ -5,6 +5,7 @@ import { classification, sendBlockers, sumCategory, unresolvedEvidenceStatuses }
 export { classification } from './evaluation-policy';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { DeadlineExtensionsService } from '../deadline-extensions/deadline-extensions.service';
+import { lockTerm } from './workflow-lock.helper';
 
 export type WorkflowActor = { id: string; role: Role; facultyId?: string | null };
 const unresolved = [...unresolvedEvidenceStatuses];
@@ -14,10 +15,7 @@ export class WorkflowService {
   constructor(private readonly prisma: PrismaService, private readonly deadlines: DeadlineExtensionsService) {}
 
   async lock(tx: Prisma.TransactionClient, termId: string) {
-    await tx.$queryRaw`SELECT "id" FROM "Term" WHERE "id" = ${termId} FOR UPDATE`;
-    const term = await tx.term.findUnique({ where: { id: termId } });
-    if (!term) throw new NotFoundException('Không tìm thấy kỳ đánh giá');
-    return term;
+    return lockTerm(tx, termId);
   }
 
   async scope(actor: WorkflowActor, studentId: string, termId?: string, db: Prisma.TransactionClient = this.prisma) {
@@ -180,17 +178,69 @@ export class WorkflowService {
     return { term, items: unpaged ? filtered : filtered.slice((page - 1) * pageSize, page * pageSize), summary, facultyProgress, filters: { classes, faculties }, total: filtered.length, page, pageSize, updatedAt: new Date().toISOString() };
   }
 
-  async conditions(actor: WorkflowActor, termId: string, db: Prisma.TransactionClient = this.prisma) {
+  async checkAppealDeadlineBlockers(
+    termId: string,
+    term: { appealDeadline: Date },
+    rows: { studentId: string; classId?: string | null }[],
+    now: Date = new Date(),
+    db: Prisma.TransactionClient | PrismaService = this.prisma
+  ): Promise<string[]> {
+    const blockers: string[] = [];
+    if (now <= term.appealDeadline) {
+      blockers.push('Chưa hết hạn phúc khảo');
+    }
+
+    if (!rows.length) return blockers;
+
+    const appealExtensions = await db.assessmentDeadlineExtension.findMany({
+      where: { termId, type: DeadlineExtensionType.APPEAL, revokedAt: null },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }]
+    });
+
+    if (!appealExtensions.length) return blockers;
+
+    const studentExtMap = new Map<string, Date>();
+    const classExtMap = new Map<string, Date>();
+
+    for (const ext of appealExtensions) {
+      if (ext.targetType === 'STUDENT' && !studentExtMap.has(ext.targetId)) {
+        studentExtMap.set(ext.targetId, ext.deadline);
+      } else if (ext.targetType === 'CLASS' && !classExtMap.has(ext.targetId)) {
+        classExtMap.set(ext.targetId, ext.deadline);
+      }
+    }
+
+    let hasActiveExtension = false;
+    for (const r of rows) {
+      const studentExt = studentExtMap.get(r.studentId);
+      const classExt = r.classId ? classExtMap.get(r.classId) : undefined;
+      const effectiveDeadline = studentExt ?? classExt ?? term.appealDeadline;
+      if (now <= effectiveDeadline) {
+        hasActiveExtension = true;
+        break;
+      }
+    }
+
+    if (now > term.appealDeadline && hasActiveExtension) {
+      blockers.push('Còn gia hạn phúc khảo đang có hiệu lực');
+    }
+
+    return blockers;
+  }
+
+  async conditions(actor: WorkflowActor, termId: string, db: Prisma.TransactionClient = this.prisma, checkNow?: Date) {
     if (actor.role !== Role.ADMIN) throw new ForbiddenException();
+    const now = checkNow ?? new Date();
     const term = await db.term.findUniqueOrThrow({ where: { id: termId } });
     const [rows, publications, pending] = await Promise.all([
-      db.assessmentHandoff.findMany({ where: { termId } }),
+      db.assessmentHandoff.findMany({ where: { termId }, select: { id: true, studentId: true, classId: true, facultyId: true, status: true, revision: true, snapshot: true } }),
       db.assessmentPublication.findMany({ where: { termId }, select: { studentId: true, revision: true } }),
       db.appeal.count({ where: { termId, status: 'PENDING' } }),
     ]);
+    const appealBlockers = await this.checkAppealDeadlineBlockers(termId, term, rows, now, db);
     const common = [!term.workflowEnabled && 'Kỳ lịch sử chỉ được tra cứu', !rows.length && 'Chưa có danh sách đánh giá', rows.some(r => !['SENT', 'EXCLUDED'].includes(r.status)) && 'Còn phiếu chưa gửi hoặc chưa ghi nhận không nộp', pending > 0 && `${pending} phúc khảo chờ xử lý`].filter(Boolean) as string[];
-    const publishBlockers = [...common, ...(!['ACTIVE', 'REVIEWING'].includes(term.status) ? ['Trạng thái kỳ không cho phép công bố'] : []), ...(new Date() > term.appealDeadline ? ['Cần gia hạn phúc khảo trước khi công bố'] : []), ...(rows.some(r => r.status === 'SENT' && !r.snapshot) ? ['Thiếu bản kết quả Khoa'] : [])];
-    const closeBlockers = [...common, ...(term.status !== 'REVIEWING' ? ['Cần công bố tạm trước khi chốt'] : []), ...(new Date() <= term.appealDeadline ? ['Chưa hết hạn phúc khảo'] : []), ...(rows.some(r => r.status === 'SENT' && !publications.some(p => p.studentId === r.studentId && p.revision === r.revision)) ? ['Còn phiên bản kết quả chưa công bố'] : [])];
+    const publishBlockers = [...common, ...(!['ACTIVE', 'REVIEWING'].includes(term.status) ? ['Trạng thái kỳ không cho phép công bố'] : []), ...(now > term.appealDeadline ? ['Cần gia hạn phúc khảo trước khi công bố'] : []), ...(rows.some(r => r.status === 'SENT' && !r.snapshot) ? ['Thiếu bản kết quả Khoa'] : [])];
+    const closeBlockers = [...common, ...(term.status !== 'REVIEWING' ? ['Cần công bố tạm trước khi chốt'] : []), ...appealBlockers, ...(rows.some(r => r.status === 'SENT' && !publications.some(p => p.studentId === r.studentId && p.revision === r.revision)) ? ['Còn phiên bản kết quả chưa công bố'] : [])];
     return { canPublish: !publishBlockers.length, canClose: !closeBlockers.length, publishBlockers, closeBlockers };
   }
 
@@ -348,14 +398,15 @@ export class WorkflowService {
     }, { timeout: 30000 });
   }
 
-  async close(actor: WorkflowActor, termId: string) {
+  async close(actor: WorkflowActor, termId: string, checkNow?: Date) {
     if (actor.role !== Role.ADMIN) throw new ForbiddenException();
     return this.prisma.$transaction(async tx => {
       const term = await this.lock(tx, termId);
       if (term.status === 'CLOSED') return term;
-      const conditions = await this.conditions(actor, termId, tx);
+      const now = checkNow ?? new Date();
+      const conditions = await this.conditions(actor, termId, tx, now);
       if (!conditions.canClose) throw new BadRequestException({ message: conditions.closeBlockers.join('; '), blockers: conditions.closeBlockers });
-      if (term.status !== 'REVIEWING' || new Date() <= term.appealDeadline) throw new BadRequestException('Chỉ chốt sau công bố tạm và hết hạn phúc khảo');
+      if (term.status !== 'REVIEWING') throw new BadRequestException('Chỉ chốt sau công bố tạm');
       const rows = await tx.assessmentHandoff.findMany({ where: { termId } });
       const publications = await tx.assessmentPublication.findMany({ where: { termId } });
       if (!rows.length || rows.some(r => r.status !== 'EXCLUDED' && (r.status !== 'SENT' || !publications.some(p => p.studentId === r.studentId && p.revision === r.revision)))) throw new BadRequestException('Còn phiếu chưa công bố phiên bản mới nhất');

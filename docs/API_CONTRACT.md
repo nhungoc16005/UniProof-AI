@@ -181,9 +181,10 @@ Body/Query/Param là tên tham số decorator và kiểu TS trực tiếp, khôn
 | POST | `/api/regulations` | ADMIN | *: RegulationDto | — | — | [apps/backend/src/criteria/criteria.controller.ts:254](../apps/backend/src/criteria/criteria.controller.ts#L254) |
 | PATCH | `/api/regulations/:id/status` | ADMIN | *: RegulationStatusDto | — | id: string | [apps/backend/src/criteria/criteria.controller.ts:266](../apps/backend/src/criteria/criteria.controller.ts#L266) |
 | DELETE | `/api/regulations/:id` | ADMIN | — | — | id: string | [apps/backend/src/criteria/criteria.controller.ts:273](../apps/backend/src/criteria/criteria.controller.ts#L273) |
-| GET | `/api/deadline-extensions` | ADMIN | — | termId: string | — | [apps/backend/src/deadline-extensions/deadline-extensions.controller.ts:24](../apps/backend/src/deadline-extensions/deadline-extensions.controller.ts#L24) |
-| POST | `/api/deadline-extensions` | ADMIN | *: CreateExtensionDto | — | — | [apps/backend/src/deadline-extensions/deadline-extensions.controller.ts:25](../apps/backend/src/deadline-extensions/deadline-extensions.controller.ts#L25) |
-| DELETE | `/api/deadline-extensions/:id` | ADMIN | — | — | id: string | [apps/backend/src/deadline-extensions/deadline-extensions.controller.ts:26](../apps/backend/src/deadline-extensions/deadline-extensions.controller.ts#L26) |
+| GET | `/api/deadline-extensions` | ADMIN | — | termId: string | — | [apps/backend/src/deadline-extensions/deadline-extensions.controller.ts:48](../apps/backend/src/deadline-extensions/deadline-extensions.controller.ts#L48) |
+| GET | `/api/deadline-extensions/targets` | ADMIN | — | *: DeadlineExtensionTargetsQueryDto | — | [apps/backend/src/deadline-extensions/deadline-extensions.controller.ts:54](../apps/backend/src/deadline-extensions/deadline-extensions.controller.ts#L54) |
+| POST | `/api/deadline-extensions` | ADMIN | *: CreateExtensionDto | — | — | [apps/backend/src/deadline-extensions/deadline-extensions.controller.ts:65](../apps/backend/src/deadline-extensions/deadline-extensions.controller.ts#L65) |
+| DELETE | `/api/deadline-extensions/:id` | ADMIN | — | — | id: string | [apps/backend/src/deadline-extensions/deadline-extensions.controller.ts:70](../apps/backend/src/deadline-extensions/deadline-extensions.controller.ts#L70) |
 | GET | `/api/ai-jobs` | ADMIN | — | *: JobsQueryDto | — | [apps/backend/src/evaluation-workflow/ai-jobs.controller.ts:21](../apps/backend/src/evaluation-workflow/ai-jobs.controller.ts#L21) |
 | POST | `/api/ai-jobs/:id/retry` | ADMIN | — | — | id: string | [apps/backend/src/evaluation-workflow/ai-jobs.controller.ts:25](../apps/backend/src/evaluation-workflow/ai-jobs.controller.ts#L25) |
 | GET | `/api/evaluation-workflow/:termId` | STAFF, ADMIN | — | *: WorkflowQueryDto | termId: string | [apps/backend/src/evaluation-workflow/workflow.controller.ts:16](../apps/backend/src/evaluation-workflow/workflow.controller.ts#L16) |
@@ -563,16 +564,30 @@ Nguồn: [apps/backend/src/criteria/dto/criteria.dto.ts:153](../apps/backend/src
 
 ### CreateExtensionDto
 
-Nguồn: [apps/backend/src/deadline-extensions/deadline-extensions.controller.ts:10](../apps/backend/src/deadline-extensions/deadline-extensions.controller.ts#L10).
+Nguồn: [apps/backend/src/deadline-extensions/deadline-extensions.controller.ts:11](../apps/backend/src/deadline-extensions/deadline-extensions.controller.ts#L11).
 
 | Trường | Kiểu TS | Optional TS | Validation khai báo |
 |---|---|---|---|
-| termId | `string` | Không | @IsString() |
+| termId | `string` | Không | @IsString() @IsNotEmpty() |
 | targetType | `DeadlineExtensionTarget` | Không | @IsEnum(DeadlineExtensionTarget) |
-| targetId | `string` | Không | @IsString() |
+| targetId | `string` | Không | @IsString() @IsNotEmpty() |
 | type | `DeadlineExtensionType` | Không | @IsEnum(DeadlineExtensionType) |
 | deadline | `string` | Không | @IsDateString() |
 | reason | `string` | Không | @IsString() @MinLength(3) |
+
+<a id="dto-deadlineextensiontargetsquerydto"></a>
+
+### DeadlineExtensionTargetsQueryDto
+
+Nguồn: [apps/backend/src/deadline-extensions/deadline-extensions.controller.ts:31](../apps/backend/src/deadline-extensions/deadline-extensions.controller.ts#L31).
+
+| Trường | Kiểu TS | Optional TS | Validation khai báo |
+|---|---|---|---|
+| termId | `string` | Không | @IsString() @IsNotEmpty() |
+| targetType | `DeadlineExtensionTarget` | Không | @IsEnum(DeadlineExtensionTarget) |
+| q | `string` | Có | @IsOptional() @IsString() |
+| page | `number` | Có (mặc định 1) | @IsOptional() @Type(() => Number) @IsInt() @Min(1) |
+| pageSize | `number` | Có (mặc định 25) | @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) |
 
 <a id="dto-jobsquerydto"></a>
 

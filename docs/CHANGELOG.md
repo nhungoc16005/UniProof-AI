@@ -2,6 +2,47 @@
 
 Mỗi công việc trong dự án thêm mục mới ở đầu với ngày, phạm vi, feature/bug/quyết định liên quan, thay đổi thực tế, kiểm tra đã chạy và giới hạn. Không ghi test dự kiến như đã Passed, không ghi credential hoặc dữ liệu sinh viên.
 
+## 2026-11-16 — Triển khai & Hoàn thiện Đợt 3: Gia hạn và chốt kỳ (BL-006, BL-010, BL-020)
+
+- **Phạm vi & mục tiêu:**
+  - **BL-006 (P0 - Confirmed):** Khóa chốt kỳ khi thời hạn phúc khảo (bao gồm gia hạn) chưa kết thúc. Tôn trọng quy tắc ưu tiên: cá nhân $\rightarrow$ lớp theo snapshot kỳ $\rightarrow$ hạn chung; mỗi cấp chọn bản chưa thu hồi mới nhất (`createdAt: desc, id: desc`). Xử lý concurrency trong `revoke` (read-after-lock) và đồng bộ khóa `lockTerm` giữa chốt kỳ và gia hạn.
+  - **BL-010 (P2 - Confirmed):** Web hiển thị và tính quyền chỉnh sửa theo hạn hiệu lực (`effectiveDeadlines`), ngăn chặn việc hạn gốc tự phủ định quyền gia hạn của backend; khôi phục kiểm tra `!deadlinePassed` để khóa sửa ngay lập tức trên UI khi hết hạn hiệu lực.
+  - **BL-020 (P2 - Confirmed):** Admin picker đối tượng gia hạn giới hạn đúng Roster của kỳ (`AssessmentHandoff`), có tìm kiếm debounce, phân trang (>100 sinh viên) và loại trùng lặp cho lớp; backend từ chối tạo gia hạn ngoài roster kỳ; khớp nối contract kiểu dữ liệu và lấy thông tin lớp theo snapshot kỳ thay vì thông tin hiện tại của User; bổ sung DTO validation cho endpoint targets.
+- **Thay đổi thực tế mã nguồn:**
+  - `Backend (apps/backend)`:
+    + `evaluation-workflow/workflow-lock.helper.ts`: Helper khóa hàng Term `SELECT FOR UPDATE` dùng chung để tránh circular dependency giữa `WorkflowService` và `DeadlineExtensionsService`.
+    + `evaluation-workflow/workflow.service.ts`:
+      * Bổ sung hàm `checkAppealDeadlineBlockers` duyệt toàn bộ danh sách `AssessmentHandoff` của kỳ, tính hạn phúc khảo hiệu lực theo ưu tiên cá nhân $\rightarrow$ lớp $\rightarrow$ hạn chung, mỗi cấp lấy bản chưa thu hồi mới nhất với thứ tự phụ `id: 'desc'`.
+      * Cập nhật `conditions` và `close`: chỉ cho phép chốt khi `now > deadline`, tại đúng biên `now === deadline` vẫn chặn; chặn chốt kỳ khi có gia hạn phúc khảo còn hiệu lực; `close` kiểm tra lại bằng client transaction `tx` sau khi khóa Term.
+    + `deadline-extensions/deadline-extensions.service.ts`:
+      * Dùng `lockTerm(tx, ...)` trong `create` và `revoke` để đồng bộ khóa với `close`.
+      * Trong `revoke`: đọc lại `freshRow = await tx.assessmentDeadlineExtension.findUniqueOrThrow({ where: { id } })` **sau khi đã có khóa Term** để ngăn chặn race condition 2 request đồng thời cùng ghi đè audit log.
+      * Sắp xếp thứ tự phụ `orderBy: [{ createdAt: 'desc' }, { id: 'desc' }]` trong `resolve` và `list`.
+      * Export interface `DeadlineExtensionTargetItem`, trả đầy đủ cả `code/name` lẫn `studentCode/fullName` và `className/classCode`.
+      * Bổ sung method `targets({ termId, targetType, q, page, pageSize })`: lấy sinh viên/lớp từ `AssessmentHandoff` của kỳ, trích xuất thông tin lớp theo snapshot kỳ từ relation `h.class`, loại trùng lớp, hỗ trợ phân trang và tìm kiếm.
+      * Trong `create`: kiểm tra đối tượng phải thuộc roster kỳ (`AssessmentHandoff`), từ chối nếu ngoài kỳ.
+    + `deadline-extensions/deadline-extensions.controller.ts`:
+      * Định nghĩa class DTO `DeadlineExtensionTargetsQueryDto` với validator đầy đủ (`termId`, `targetType`, `page`, `pageSize`, `q`).
+      * Endpoint `@Get('targets')` nhận `@Query() query: DeadlineExtensionTargetsQueryDto`.
+  - `Frontend (apps/web)`:
+    + `types/index.ts`: Bổ sung `effectiveDeadlines` vào `RubricPayload.permissions`; export interface `DeadlineExtensionTargetItem` và `DeadlineExtensionRow`, xóa bỏ mọi kiểu `any[]`.
+    + `lib/apiClient.ts`: Định kiểu mạnh cho `getDeadlineExtensions` và `getDeadlineExtensionTargets`.
+    + `hooks/useStudentAssessmentAccess.ts`:
+      * Đọc `editDeadline` từ `effectiveDeadlines.submission.deadline` hoặc `.review.deadline` (chỉ fallback về hạn gốc nếu thiếu).
+      * Tính `deadlinePassed` theo `editDeadline`.
+      * Khôi phục điều kiện `!deadlinePassed` trong `canEdit = Boolean(current?.verified && assessment?.rubricVersion && assessment.permissions?.canEdit && !deadlinePassed);` để khóa form ngay lập tức khi hết hạn hiệu lực dù request refresh API còn pending.
+    + `components/admin/DeadlineExtensionsDialog.tsx`: Viết lại dialog picker roster-scoped có tìm kiếm debounce 300ms, phân trang trang trước/sau, reset state khi đổi loại/kỳ, chống race-condition bằng `requestId`, render chuẩn xác `item.code — item.name (item.className)` và nhãn đã chọn `item.code · item.name (item.className)`, không còn `undefined · undefined`.
+- **Kiểm thử thực chạy và kết quả:**
+  - [apps/backend/test/deadline-and-closure.test.cjs](../apps/backend/test/deadline-and-closure.test.cjs) (16 tests đạt 100%):
+    + BL-006 (12 ca): chốt kỳ sau hạn appeal, chặn tại biên `now === deadline`, chặn khi có hạn cá nhân, cho chốt khi đã thu hồi, chặn khi có hạn lớp, ưu tiên cá nhân $\rightarrow$ lớp, thứ tự phụ `id: desc`, bỏ qua ngoài roster, đối chứng đỏ logic cũ, ca concurrency 2 request revoke đồng thời đọc lại sau khóa, và **2 ca Concurrency Lock Barrier mô phỏng (Thứ tự 1: gia hạn giữ khóa trước làm chốt kỳ bị chặn; Thứ tự 2: chốt kỳ giữ khóa trước làm gia hạn bị từ chối)**.
+    + BL-020 (4 ca): DTO validation 5 trường hợp, danh sách 105 sinh viên phân trang trang 5/6, loại trùng lớp, từ chối tạo ngoài roster kỳ.
+  - [apps/web/scripts/deadline-dialog-and-access.test.cjs](../apps/web/scripts/deadline-dialog-and-access.test.cjs) (6 tests đạt 100%):
+    + BL-020 (2 ca component thật): render `DeadlineExtensionsDialog` đọc đúng MSSV/tên/lớp snapshot kỳ; **phân trang thực tế danh sách 105 sinh viên qua 6 trang bằng cách bấm nút "Trang sau", kiểm tra tham số request gửi API, hiển thị và chọn thành công sinh viên 105**.
+    + BL-010 (4 ca hook thật): phiếu `DRAFT` hạn gia hạn tương lai `canEdit = true`, phiếu `RETURNED` đọc hạn review hiệu lực (mock đúng `getMyAssessments`); **hết hạn trong lúc API refresh đang treo thì `canEdit` lập tức chuyển `false` trước khi response về, kèm kiểm chứng nhánh refresh thất bại (lỗi mạng 500)**; đối chứng đỏ code cũ bỏ `!deadlinePassed`.
+  - Regression toàn hệ thống: Chạy lại toàn bộ 7 test suites (`deadline-and-closure`, `deadline-dialog-and-access`, `evidence-inspection`, `faculty-analytics`, `data-protection`, `security-fixes`, `evidence-processing-worker`) đạt **75/75 tests pass 100%** trên 9 suites.
+  - Typecheck: Web `tsc --noEmit` 0 lỗi, Backend `tsc --noEmit` 0 lỗi, `git diff --check` sạch sẽ.
+- **Giới hạn kiểm chứng:** Đã kiểm chứng qua unit test in-memory, hook thật và component harness (các ca concurrency sử dụng barrier mô phỏng khóa hàng in-memory double; chưa chạy DB PostgreSQL vật lý đa kết nối và browser e2e). Đã cập nhật test case F03-TC-03 và F03-TC-04 sang `Partially verified` trong `docs/features/03-terms-and-deadlines.md`.
+
 ## 2026-11-15 — Sửa BL-007 (Bảo vệ tệp khi Upload/Ký URL) và Kiểm chứng kịch bản BL-026 (Race Xóa/Nộp)
 
 - **Phạm vi & mục tiêu:**

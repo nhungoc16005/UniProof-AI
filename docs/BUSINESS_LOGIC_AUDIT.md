@@ -1,13 +1,13 @@
 # Audit logic nghiệp vụ EduPoint
 
-Ngày lập tài liệu: 2026-11-15. Baseline nguồn: `93fb66c`. Ghi nhận kết quả audit mã nguồn và tiến độ xử lý theo từng đợt; đợt 1 đã hoàn thành xử lý 3 mục P0 (BL-001, BL-002, BL-009); đợt 2 đã giải quyết BL-007 và hoàn thiện kiểm chứng kịch bản BL-026. Đọc [kiến trúc và workflow](PROJECT_OVERVIEW.md), [quy tắc](BUSINESS_RULES.md) trước các finding.
+Ngày lập tài liệu: 2026-11-15. Baseline nguồn: `93fb66c`. Ghi nhận kết quả audit mã nguồn và tiến độ xử lý theo từng đợt; đợt 1 đã hoàn thành xử lý 3 mục P0 (BL-001, BL-002, BL-009); đợt 2 đã giải quyết BL-007 và hoàn thiện kiểm chứng kịch bản BL-026; đợt 3 đã giải quyết BL-006, BL-010 và BL-020. Đọc [kiến trúc và workflow](PROJECT_OVERVIEW.md), [quy tắc](BUSINESS_RULES.md) trước các finding.
 
 ## Phạm vi và cách phân loại
 
 - **Confirmed:** luồng mã nguồn đủ chứng minh mâu thuẫn/hành vi; không đồng nghĩa đã tái hiện trên deployment.
 - **Potential:** thứ tự xen kẽ/concurrency có thể gây lỗi, cần kiểm tra DB thực cách ly.
 - Severity đánh giá tác động; priority đánh giá thứ tự xử lý. P0 kiểm chứng/xử lý trước bàn giao, P1 tiếp theo, P2 theo sprint được chọn.
-- Tổng cộng 27 mục: **23 mục Open** (21 Confirmed, 2 Potential) và **4 mục Resolved** (BL-001, BL-002, BL-007, BL-009); không có Critical. Trong 23 mục Open có 5 High Confirmed, 16 Medium Confirmed, 1 High Potential (BL-026) và 1 Medium Potential (BL-027).
+- Tổng cộng 27 mục: **20 mục Open** (18 Confirmed, 2 Potential) và **7 mục Resolved** (BL-001, BL-002, BL-006, BL-007, BL-009, BL-010, BL-020); không có Critical. Trong 20 mục Open có 4 High Confirmed, 14 Medium Confirmed, 1 High Potential (BL-026) và 1 Medium Potential (BL-027).
 - Expected chỉ dựa vào luồng/quy tắc hiện có; Q-01/Q-02 vẫn cần quyết định trước khi triển khai hợp nhất nguồn/tỷ lệ điểm. Gợi ý sửa là đề xuất, chưa được tự thực thi.
 
 ## Danh sách ưu tiên
@@ -16,7 +16,7 @@ Ngày lập tài liệu: 2026-11-15. Baseline nguồn: `93fb66c`. Ghi nhận k�
 |---|---|---|---|---|
 | [BL-001](#bl-001) | High | Confirmed | P0 | Bỏ termId vượt ranh giới Khoa lịch sử (Resolved) |
 | [BL-002](#bl-002) | High | Confirmed | P0 | Response duyệt minh chứng chứa password hash cán bộ (Resolved) |
-| [BL-006](#bl-006) | High | Confirmed | P0 | Chốt kỳ bỏ qua gia hạn phúc khảo còn hiệu lực |
+| [BL-006](#bl-006) | High | Confirmed | P0 | Chốt kỳ bỏ qua gia hạn phúc khảo còn hiệu lực (Resolved) |
 | [BL-007](#bl-007) | High | Confirmed | P0 | Lỗi ký URL xóa tệp đã commit vào DB (Resolved) |
 | [BL-009](#bl-009) | High | Confirmed | P0 | JWT secret được đọc trước khi ConfigModule nạp .env (Resolved) |
 | [BL-026](#bl-026) | High | Potential | P0 | Xóa minh chứng/tệp có khoảng đua với nộp phiếu (In Progress / Potential) |
@@ -25,7 +25,7 @@ Ngày lập tài liệu: 2026-11-15. Baseline nguồn: `93fb66c`. Ghi nhận k�
 | [BL-005](#bl-005) | High | Confirmed | P1 | Xác minh minh chứng ghi đè số hoạt động từ điểm danh |
 | [BL-008](#bl-008) | High | Confirmed | P1 | Timeout AI dừng trước lúc đọc response body |
 | [BL-027](#bl-027) | Medium | Potential | P1 | Preflight nộp phiếu nằm ngoài transaction khóa |
-| [BL-010](#bl-010) | Medium | Confirmed | P2 | Web khóa sửa theo hạn gốc dù đã gia hạn |
+| [BL-010](#bl-010) | Medium | Confirmed | P2 | Web khóa sửa theo hạn gốc dù đã gia hạn (Resolved) |
 | [BL-011](#bl-011) | Medium | Confirmed | P2 | Mật khẩu tạm không được bàn giao đầy đủ |
 | [BL-012](#bl-012) | Medium | Confirmed | P2 | Thiếu classId/facultyId scalar làm bộ lọc tài khoản sai |
 | [BL-013](#bl-013) | Medium | Confirmed | P2 | Nháp minh chứng không hiện dưới đúng tiêu chí |
@@ -35,7 +35,7 @@ Ngày lập tài liệu: 2026-11-15. Baseline nguồn: `93fb66c`. Ghi nhận k�
 | [BL-017](#bl-017) | Medium | Confirmed | P2 | Bộ đếm không hợp lệ bị ép thành 0 và được điểm cao |
 | [BL-018](#bl-018) | Medium | Confirmed | P2 | Yêu cầu sửa thông tin mất meta và không có phân trang UI |
 | [BL-019](#bl-019) | Medium | Confirmed | P2 | Danh sách minh chứng chỉ tải trang đầu rồi lọc cục bộ |
-| [BL-020](#bl-020) | Medium | Confirmed | P2 | Chọn gia hạn chỉ có 100 sinh viên và lệch roster kỳ |
+| [BL-020](#bl-020) | Medium | Confirmed | P2 | Chọn gia hạn chỉ có 100 sinh viên và lệch roster kỳ (Resolved) |
 | [BL-021](#bl-021) | Medium | Confirmed | P2 | Loại trừ lần hai trùng dedupeKey và rollback |
 | [BL-022](#bl-022) | Medium | Confirmed | P2 | Thêm nguồn xác minh hủy job nhưng Evidence còn PROCESSING |
 | [BL-023](#bl-023) | Medium | Confirmed | P2 | Màn bổ sung hiển thị deadline/nội dung giả |
@@ -140,9 +140,9 @@ Ngày lập tài liệu: 2026-11-15. Baseline nguồn: `93fb66c`. Ghi nhận k�
 
 ### BL-006 — Chốt kỳ bỏ qua gia hạn phúc khảo còn hiệu lực
 
-1. **Bug ID:** BL-006. **Trạng thái:** Open. **Độ chắc chắn:** Confirmed; **ưu tiên:** P0.
+1. **Bug ID:** BL-006. **Trạng thái:** Resolved. **Độ chắc chắn:** Confirmed; **ưu tiên:** P0.
 2. **Severity:** High.
-3. **Vị trí:** [apps/backend/src/evaluation-workflow/workflow.service.ts:193](../apps/backend/src/evaluation-workflow/workflow.service.ts#L193); [apps/backend/src/deadline-extensions/deadline-extensions.service.ts:9](../apps/backend/src/deadline-extensions/deadline-extensions.service.ts#L9); [apps/backend/src/appeals/appeals.service.ts:72](../apps/backend/src/appeals/appeals.service.ts#L72).
+3. **Vị trí:** [apps/backend/src/evaluation-workflow/workflow.service.ts:181](../apps/backend/src/evaluation-workflow/workflow.service.ts#L181); [apps/backend/src/evaluation-workflow/workflow.service.ts:401](../apps/backend/src/evaluation-workflow/workflow.service.ts#L401); [apps/backend/src/deadline-extensions/deadline-extensions.service.ts:18](../apps/backend/src/deadline-extensions/deadline-extensions.service.ts#L18).
 4. **Workflow:** Gia hạn → phúc khảo → chốt kỳ. [F03](features/03-terms-and-deadlines.md), [F10](features/10-publication-and-term-closure.md), [F11](features/11-appeals-and-corrections.md).
 5. **Hiện tại:** conditions chỉ so thời gian với term.appealDeadline, trong khi tạo appeal dùng hạn resolve theo sinh viên/lớp.
 6. **Kỳ vọng có căn cứ:** Quyền phúc khảo theo gia hạn còn hiệu lực phải được tôn trọng trước khi khóa kỳ.
@@ -151,8 +151,9 @@ Ngày lập tài liệu: 2026-11-15. Baseline nguồn: `93fb66c`. Ghi nhận k�
 9. **Tác động:** Kết thúc sớm quyền phúc khảo đã cấp.
 10. **Gợi ý sửa:** Kiểm tra tất cả cửa sổ APPEAL đang hiệu lực trong conditions và transaction close; xác nhận thêm chính sách Q-03.
 11. **Regression test:** Hạn gốc hết nhưng gia hạn cá nhân/lớp chưa hết→không chốt; thu hồi/hết toàn bộ hạn→đánh giá lại blockers.
+12. **Bằng chứng đã xử lý:** Đã bổ sung hàm `checkAppealDeadlineBlockers` trong `WorkflowService` duyệt toàn bộ danh sách `AssessmentHandoff` của kỳ, tính hạn phúc khảo hiệu lực theo thứ tự ưu tiên cá nhân → lớp → hạn chung (mỗi cấp chọn bản ghi chưa thu hồi mới nhất theo `createdAt: desc, id: desc`). Cả `conditions` và `close` đều kiểm tra hạn hiệu lực; tại đúng thời điểm biên `now === deadline` vẫn chặn (`now <= deadline`); `close` kiểm tra lại bằng client transaction `tx` sau khi khóa Term. Đã kiểm chứng đạt 12/12 ca trong [deadline-and-closure.test.cjs](../apps/backend/test/deadline-and-closure.test.cjs) gồm ca biên, ưu tiên ghi đè cá nhân/lớp, đối chứng đỏ/xanh, 1 ca concurrency lock revoke đồng thời đọc lại sau khóa, và 2 ca concurrency lock barrier mô phỏng tranh chấp 2 chiều giữa chốt kỳ và gia hạn.
 
-**Giới hạn bằng chứng:** Đối chiếu caller, service và hợp đồng liên quan trong nguồn. Không khẳng định đã tái hiện trên DB/Storage/AI triển khai.
+**Giới hạn kiểm chứng:** Đã kiểm chứng qua unit test in-memory mô phỏng khóa hàng (SELECT FOR UPDATE) và transaction; chưa kiểm chứng trên DB đa kết nối concurrency PostgreSQL vật lý thật.
 
 <a id="bl-007"></a>
 
@@ -214,9 +215,9 @@ Ngày lập tài liệu: 2026-11-15. Baseline nguồn: `93fb66c`. Ghi nhận k�
 
 ### BL-010 — Web khóa sửa theo hạn gốc dù đã gia hạn
 
-1. **Bug ID:** BL-010. **Trạng thái:** Open. **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
+1. **Bug ID:** BL-010. **Trạng thái:** Resolved. **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
 2. **Severity:** Medium.
-3. **Vị trí:** [apps/web/src/hooks/useStudentAssessmentAccess.ts:81](../apps/web/src/hooks/useStudentAssessmentAccess.ts#L81).
+3. **Vị trí:** [apps/web/src/hooks/useStudentAssessmentAccess.ts:50](../apps/web/src/hooks/useStudentAssessmentAccess.ts#L50); [apps/web/src/types/index.ts:168](../apps/web/src/types/index.ts#L168).
 4. **Workflow:** Sinh viên sửa/nộp trong gia hạn. [F03](features/03-terms-and-deadlines.md), [F05](features/05-student-assessment.md).
 5. **Hiện tại:** Hook tự tính deadlinePassed từ term.submissionDeadline/reviewDeadline và AND với permissions.canEdit.
 6. **Kỳ vọng có căn cứ:** UI phải dùng hạn hiệu lực/permissions server đã trả.
@@ -225,8 +226,9 @@ Ngày lập tài liệu: 2026-11-15. Baseline nguồn: `93fb66c`. Ghi nhận k�
 9. **Tác động:** Không thể dùng quyền gia hạn qua giao diện.
 10. **Gợi ý sửa:** Trả/đọc effectiveDeadline và nguồn hạn thống nhất; tránh tự áp hạn gốc.
 11. **Regression test:** Mock permission=true với hạn gốc đã qua, effectiveDeadline tương lai: form cho phép và hiển thị hạn mới.
+12. **Bằng chứng đã xử lý:** Đã sửa hook `useStudentAssessmentAccess`: đọc `effectiveDeadlines` từ `permissions` do server trả về, gán `editDeadline` theo hạn gia hạn hiệu lực tương ứng với trạng thái phiếu; tính `deadlinePassed` theo `editDeadline`; không dùng hạn gốc để AND phủ định quyền của backend (`canEdit` tôn trọng `permissions.canEdit && !deadlinePassed`). Đã kiểm chứng đạt 4/4 ca trong [apps/web/scripts/deadline-dialog-and-access.test.cjs](../apps/web/scripts/deadline-dialog-and-access.test.cjs) chạy trực tiếp hook thật: mock đúng `getMyAssessments`, kiểm tra hạn gia hạn tương lai, phiếu RETURNED, kiểm tra thời điểm hết hạn khi API refresh đang treo thì `canEdit` lập tức chuyển false trước khi response về, kèm kiểm chứng nhánh refresh thất bại (lỗi mạng 500), và đối chứng đỏ code cũ.
 
-**Giới hạn bằng chứng:** Đối chiếu caller, service và hợp đồng liên quan trong nguồn. Không khẳng định đã tái hiện trên DB/Storage/AI triển khai.
+**Giới hạn kiểm chứng:** Đã kiểm chứng qua hook unit test trong component harness; chưa kiểm chứng e2e trên browser.
 
 <a id="bl-011"></a>
 
@@ -394,19 +396,20 @@ Ngày lập tài liệu: 2026-11-15. Baseline nguồn: `93fb66c`. Ghi nhận k�
 
 ### BL-020 — Chọn gia hạn chỉ có 100 sinh viên và lệch roster kỳ
 
-1. **Bug ID:** BL-020. **Trạng thái:** Open. **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
+1. **Bug ID:** BL-020. **Trạng thái:** Resolved. **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
 2. **Severity:** Medium.
-3. **Vị trí:** [apps/web/src/components/admin/DeadlineExtensionsDialog.tsx:17](../apps/web/src/components/admin/DeadlineExtensionsDialog.tsx#L17); [apps/backend/src/users/users.service.ts:29](../apps/backend/src/users/users.service.ts#L29).
+3. **Vị trí:** [apps/web/src/components/admin/DeadlineExtensionsDialog.tsx](../apps/web/src/components/admin/DeadlineExtensionsDialog.tsx); [apps/backend/src/deadline-extensions/deadline-extensions.service.ts:53](../apps/backend/src/deadline-extensions/deadline-extensions.service.ts#L53); [apps/backend/src/deadline-extensions/deadline-extensions.controller.ts:40](../apps/backend/src/deadline-extensions/deadline-extensions.controller.ts#L40).
 4. **Workflow:** Admin gia hạn cá nhân. [F03](features/03-terms-and-deadlines.md), [F12](features/12-scores-reports-and-exports.md).
 5. **Hiện tại:** Dialog tải page1,size100 không search/pager; users với ADMIN không bắt buộc membership chỉ vì có termId.
 6. **Kỳ vọng có căn cứ:** Đối tượng thuộc kỳ phải chọn được đầy đủ và không đưa đối tượng không hợp lệ vào picker.
 7. **Logic và trace qua lớp:** termId chủ yếu đổi projection class/nhánh STAFF; đầu vào ADMIN không được giới hạn roster kỳ và dialog cắt trang.
-8. **Tình huống:** Kỳ có 101 sinh viên; người cần gia hạn ngoài100 hoặc sinh viên mới chưa thuộc kỳ lại xuất hiện.
+8. **Tình huống:** Kỳ có 101 sinh viên; người cần gia hạn ngoài 100 hoặc sinh viên mới chưa thuộc kỳ lại xuất hiện.
 9. **Tác động:** Không gia hạn được đúng người hoặc gửi yêu cầu chắc chắn bị service từ chối.
 10. **Gợi ý sửa:** Endpoint/picker roster-scoped, tìm kiếm phân trang và giữ snapshot lớp.
 11. **Regression test:** 101+ roster và user ngoài kỳ; tìm được người cuối và không chọn user ngoài roster.
+12. **Bằng chứng đã xử lý:** Đã bổ sung endpoint `GET /deadline-extensions/targets` nhận `termId`, `targetType`, `q`, `page`, `pageSize`; validate DTO đầu vào; truy vấn trực tiếp từ `AssessmentHandoff` của kỳ, trích xuất thông tin lớp snapshot từ `h.class`, loại trùng lặp cho lớp và chỉ trả sinh viên thuộc roster của kỳ; `create` từ chối nếu đối tượng ngoài roster kỳ. Cập nhật `DeadlineExtensionsDialog.tsx`: picker roster-scoped có tìm kiếm debounce 300ms, phân trang trang trước/sau, reset state khi đổi loại/kỳ và chống race-condition qua `requestId`, hiển thị đúng MSSV/họ tên/lớp snapshot không bị undefined. Đã kiểm chứng đạt 4/4 ca backend trong [deadline-and-closure.test.cjs](../apps/backend/test/deadline-and-closure.test.cjs) (DTO validation, phân trang 105 sinh viên, loại trùng lớp, chặn ngoài roster) và 2/2 ca frontend trong [deadline-dialog-and-access.test.cjs](../apps/web/scripts/deadline-dialog-and-access.test.cjs) (render thông tin sinh viên và phân trang thực tế 6 trang bằng nút bấm, hiển thị và chọn thành công sinh viên 105).
 
-**Giới hạn bằng chứng:** Đối chiếu caller, service và hợp đồng liên quan trong nguồn. Không khẳng định đã tái hiện trên DB/Storage/AI triển khai.
+**Giới hạn kiểm chứng:** Đã kiểm chứng qua unit test in-memory và component harness; chưa kiểm chứng e2e trên browser.
 
 <a id="bl-021"></a>
 

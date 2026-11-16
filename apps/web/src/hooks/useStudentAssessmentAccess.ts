@@ -78,7 +78,11 @@ export function useStudentAssessmentAccess(userId: string | undefined, termId: s
   const current = snapshot?.key === key ? snapshot : null;
   const assessment = current?.assessment ?? null;
   const isReturned = assessment?.submission?.status === 'RETURNED';
-  const editDeadline = isReturned ? assessment?.term?.reviewDeadline : assessment?.term?.submissionDeadline;
+  const effectiveDeadline = isReturned
+    ? assessment?.permissions?.effectiveDeadlines?.review?.deadline
+    : assessment?.permissions?.effectiveDeadlines?.submission?.deadline;
+  const fallbackDeadline = isReturned ? assessment?.term?.reviewDeadline : assessment?.term?.submissionDeadline;
+  const editDeadline = effectiveDeadline ?? fallbackDeadline;
   const deadlineTime = editDeadline ? new Date(editDeadline).getTime() : null;
   const deadlinePassed = deadlineTime !== null && Number.isFinite(deadlineTime) && Date.now() > deadlineTime;
 
@@ -91,6 +95,11 @@ export function useStudentAssessmentAccess(userId: string | undefined, termId: s
     return () => window.clearTimeout(timer);
   }, [deadlineTime, refresh, assessment]);
 
-  const canEdit = Boolean(current?.verified && assessment?.rubricVersion && assessment.permissions?.canEdit && !deadlinePassed);
+  const canEdit = Boolean(
+    current?.verified &&
+      assessment?.rubricVersion &&
+      assessment.permissions?.canEdit &&
+      !deadlinePassed
+  );
   return { assessment, canEdit, isReturned, editDeadline, deadlinePassed, error: current?.error ?? '', checking, refresh, accept };
 }

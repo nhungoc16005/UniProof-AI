@@ -16,6 +16,8 @@ import {
   RubricDefinition,
   RubricTemplate,
   RubricTemplateVersionSummary,
+  DeadlineExtensionTargetItem,
+  DeadlineExtensionRow,
 } from '../types';
 
 export const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3001/api';
@@ -585,7 +587,25 @@ export const apiClient = {
     return (await http.get('/assessments/me/preflight', { params: { termId } })).data.data;
   },
 
-  async getDeadlineExtensions(termId: string): Promise<any[]> { return extractArray<any>((await http.get('/deadline-extensions', { params: { termId } })).data.data); },
+  async getDeadlineExtensions(termId: string): Promise<DeadlineExtensionRow[]> {
+    return extractArray<DeadlineExtensionRow>((await http.get('/deadline-extensions', { params: { termId } })).data.data);
+  },
+  async getDeadlineExtensionTargets(params: {
+    termId: string;
+    targetType: 'STUDENT' | 'CLASS';
+    q?: string;
+    page?: number;
+    pageSize?: number;
+  }): Promise<{ items: DeadlineExtensionTargetItem[]; total: number; page: number; pageSize: number }> {
+    const res = (await http.get('/deadline-extensions/targets', { params })).data;
+    const body = res.data ?? res;
+    return {
+      items: Array.isArray(body?.items) ? body.items : (Array.isArray(body) ? body : []),
+      total: Number(body?.total ?? res?.meta?.total ?? 0),
+      page: Number(body?.page ?? res?.meta?.page ?? 1),
+      pageSize: Number(body?.pageSize ?? res?.meta?.pageSize ?? 25),
+    };
+  },
   async createDeadlineExtension(data: { termId: string; targetType: 'STUDENT' | 'CLASS'; targetId: string; type: 'SUBMISSION' | 'REVIEW' | 'APPEAL'; deadline: string; reason: string }) { return (await http.post('/deadline-extensions', data)).data.data; },
   async revokeDeadlineExtension(id: string) { return (await http.delete(`/deadline-extensions/${id}`)).data.data; },
 

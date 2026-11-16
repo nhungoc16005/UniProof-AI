@@ -22,6 +22,8 @@ Tài liệu navigation/dashboard cũ từng ghi build/integration/browser đã �
 
 | Nguồn | Loại / giới hạn |
 |---|---|
+| [deadline & closure backend unit](../apps/backend/test/deadline-and-closure.test.cjs) | In-memory doubles, Term lock queue & DTO validation; kiểm BL-006 (11 ca: khóa chốt kỳ khi còn gia hạn phúc khảo hiệu lực, ưu tiên cá nhân → lớp, id: desc, ca biên now === deadline, đối chứng đỏ, 2 ca lock concurrency: 2 revoke đồng thời đọc lại sau khóa, xen kẽ chốt kỳ và gia hạn), BL-020 (4 ca: DTO validation query, 105 sinh viên phân trang trang 5/6, snapshot lớp, loại trùng lớp, từ chối đối tượng ngoài kỳ); 15/15 tests pass |
+| [deadline dialog & access web unit](../apps/web/scripts/deadline-dialog-and-access.test.cjs) | React Component & Hook Harness chạy mã nguồn thật; kiểm BL-020 (2 ca dialog thật: MSSV/tên/lớp snapshot không undefined, phân trang 105 sinh viên 6 trang), BL-010 (4 ca hook thật: DRAFT, RETURNED, thời điểm hết hạn khóa ngay trên UI, đối chứng đỏ); 6/6 tests pass |
 | [data protection unit](../apps/backend/test/data-protection.test.cjs) | In-memory doubles; kiểm BL-007 (tách 3 bước upload/commit/ký, lỗi ký không xóa Storage, fallback signedUrlAvailable: false, đối chứng đỏ/xanh) và BL-026 (5 ca đối chứng kịch bản race condition nộp/xóa, lock Term, đọc file trong lock, cleanup sau commit, rollback an toàn); 11/11 tests pass |
 | [security fixes unit](../apps/backend/test/security-fixes.test.cjs) | In-memory doubles & Passport authenticate thật; kiểm BL-001 (scope/kỳ & dashboard sinh viên), BL-002 (select reviewer an toàn), BL-009 (JWT registerAsync factory + token 12h); 16/16 tests pass |
 | [worker unit](../apps/backend/test/evidence-processing-worker.test.cjs) | In-memory doubles; kiểm worker/lease/recovery/version; đọc harness trước khi chạy |
@@ -36,12 +38,16 @@ Lệnh pure có thể dùng sau khi inspect harness và xác nhận không gọi
 ```sh
 # cwd: apps/backend
 node --test test/evidence-processing-worker.test.cjs
+node --test test/security-fixes.test.cjs
+node --test test/data-protection.test.cjs
+node --test test/deadline-and-closure.test.cjs
 ```
 
 ```sh
 # cwd: apps/web
 node --test scripts/faculty-analytics.test.cjs
 node --test scripts/evidence-inspection.test.cjs
+node --test scripts/deadline-dialog-and-access.test.cjs
 ```
 
 Không dùng `npm test` backend cho audit vì glob bao gồm workflow.integration.test.cjs. Không chạy backend để “chỉ xem Swagger”: EvidenceProcessingWorker khởi động cùng ứng dụng.
@@ -57,11 +63,11 @@ Mỗi BL giữ kịch bản chi tiết trong [audit](BUSINESS_LOGIC_AUDIT.md). �
 | [BL-003](BUSINESS_LOGIC_AUDIT.md#bl-003) | Pure/service doubles | Rubric mặc định: không vi phạm→3, vắng không lý do một lần→1, trễ việc→0; config thiếu baseScore phải bị từ chối. |
 | [BL-004](BUSINESS_LOGIC_AUDIT.md#bl-004) | Contract/form + browser cách ly | Thao tác form thật cho leadershipRole=true ở tiêu chí 14 và 16; kiểm tra payload boolean và điểm 4/3. |
 | [BL-005](BUSINESS_LOGIC_AUDIT.md#bl-005) | Service/API + DB cách ly | CONFIRMED roster không có Evidence, chỉ Evidence, cả hai cùng hoạt động và hai nguồn khác hoạt động; kết quả không đổi theo thứ tự lưu. |
-| [BL-006](BUSINESS_LOGIC_AUDIT.md#bl-006) | Service/API + DB cách ly | Hạn gốc hết nhưng gia hạn cá nhân/lớp chưa hết→không chốt; thu hồi/hết toàn bộ hạn→đánh giá lại blockers. |
+| [BL-006](BUSINESS_LOGIC_AUDIT.md#bl-006) | Service/API + DB cách ly | **Passed (unit/concurrency):** Đạt 12/12 ca trong deadline-and-closure.test.cjs; chốt kỳ thành công khi hết hạn gốc và không có gia hạn; chặn khi tại đúng thời điểm biên (now === deadline); chặn khi có gia hạn cá nhân hoặc lớp còn hiệu lực; ưu tiên cá nhân → lớp; thứ tự phụ id: desc; gia hạn ngoài roster không chặn kỳ; đối chứng đỏ logic cũ; 3 ca concurrency lock (revoke đồng thời đọc lại sau khóa, và 2 ca concurrency lock barrier mô phỏng tranh chấp cả 2 thứ tự chốt kỳ/gia hạn). |
 | [BL-007](BUSINESS_LOGIC_AUDIT.md#bl-007) | Service doubles rồi DB/Storage cách ly | **Passed (unit):** Đạt 6/6 ca trong data-protection.test.cjs (tách riêng 3 bước upload/commit/ký; lỗi ký không xóa tệp đã lưu trong DB, trả phản hồi an toàn signedUrlAvailable: false; đối chứng đỏ/xanh chứng minh code cũ xóa tệp, code mới giữ tệp) và 5/5 ca trong evidence-inspection.test.cjs (gọi trực tiếp component thực tế EvidenceInspection và ReviewDetail với Deferred Promise điều khiển thủ công: retry 2 hoàn thành trước, retry 1 trả về sau không ghi đè; xóa sạch error khi retry thành công; có đối chứng đỏ chứng minh code lỗi làm test fail). |
 | [BL-008](BUSINESS_LOGIC_AUDIT.md#bl-008) | Pure/service doubles | Mock response có headers tức thì, body treo; sau deadline job kết thúc đúng trạng thái và poller nhận job tiếp. |
 | [BL-009](BUSINESS_LOGIC_AUDIT.md#bl-009) | Pure/service doubles | **Passed (unit):** Đạt 4/4 ca trong security-fixes.test.cjs qua Passport strategy thật; token 12h ký bằng secret từ ConfigService được xác thực thành công; token ký bằng fallback bị invalid signature; production thiếu secret ném lỗi. |
-| [BL-010](BUSINESS_LOGIC_AUDIT.md#bl-010) | Contract/form + browser cách ly | Mock permission=true với hạn gốc đã qua, effectiveDeadline tương lai: form cho phép và hiển thị hạn mới. |
+| [BL-010](BUSINESS_LOGIC_AUDIT.md#bl-010) | Contract/form + browser cách ly | **Passed (unit/hook thật):** Đạt 4/4 ca trong deadline-dialog-and-access.test.cjs chạy trực tiếp hook thật `useStudentAssessmentAccess`; mock đúng `getMyAssessments`; hook đọc effectiveDeadlines, khi hạn gốc đã qua nhưng có gia hạn tương lai thì canEdit=true, editDeadline cập nhật đúng hạn gia hạn; phiếu RETURNED đọc hạn review hiệu lực; khi hết hạn trong lúc API refresh đang treo thì canEdit lập tức chuyển false trước khi response về, kèm kiểm chứng nhánh refresh thất bại (lỗi 500); đối chứng đỏ chứng minh code cũ bỏ !deadlinePassed cho phép sửa sai khi đã hết hạn. |
 | [BL-011](BUSINESS_LOGIC_AUDIT.md#bl-011) | Service/API + DB cách ly | Tạo không password và import thành công: Admin nhận được phương thức bàn giao; response/log không lộ credential lâu dài. |
 | [BL-012](BUSINESS_LOGIC_AUDIT.md#bl-012) | Contract/form + browser cách ly | User có class.id nhưng không có scalar, lọc theo lớp phải vẫn đúng hoặc API bổ sung scalar theo hợp đồng. |
 | [BL-013](BUSINESS_LOGIC_AUDIT.md#bl-013) | Contract/form + browser cách ly | Tạo nháp chưa review, reload; hiển thị đúng một lần tại tiêu chí, sửa/xóa được trong quyền. |
@@ -71,7 +77,7 @@ Mỗi BL giữ kịch bản chi tiết trong [audit](BUSINESS_LOGIC_AUDIT.md). �
 | [BL-017](BUSINESS_LOGIC_AUDIT.md#bl-017) | Pure/service doubles | Chuỗi rác, âm, fractional khi cần integer, Infinity/boolean phải bị từ chối; 0 hợp lệ vẫn tính đúng. |
 | [BL-018](BUSINESS_LOGIC_AUDIT.md#bl-018) | Contract/form + browser cách ly | Fixture26 hoặc 51 issues qua double HTTP, kiểm total/pageSize, chuyển trang và xử lý item cuối. |
 | [BL-019](BUSINESS_LOGIC_AUDIT.md#bl-019) | Contract/form + browser cách ly | 21+ minh chứng, hồ sơ mục tiêu ở trang 2; tìm/đổi trạng thái và mở chi tiết vẫn truy cập được. |
-| [BL-020](BUSINESS_LOGIC_AUDIT.md#bl-020) | Contract/form + browser cách ly | 101+ roster và user ngoài kỳ; tìm được người cuối và không chọn user ngoài roster. |
+| [BL-020](BUSINESS_LOGIC_AUDIT.md#bl-020) | Contract/form + browser cách ly | **Passed (unit/component thật):** Đạt 4/4 ca trong deadline-and-closure.test.cjs (targets DTO validation, 105 sinh viên phân trang trang 5/6, loại trùng lớp, từ chối ngoài roster) và 2/2 ca trong deadline-dialog-and-access.test.cjs (component thật DeadlineExtensionsDialog render đúng MSSV, họ tên, lớp snapshot không bị undefined · undefined; bấm chuyển trang thực tế qua 6 trang, kiểm tra tham số request gửi API, hiển thị và chọn thành công sinh viên 105). |
 | [BL-021](BUSINESS_LOGIC_AUDIT.md#bl-021) | Service doubles rồi DB/Storage cách ly | Chạy chuỗi exclude/restore/exclude trong DB test cách ly; hai sự kiện tồn tại, trạng thái cuối EXCLUDED. |
 | [BL-022](BUSINESS_LOGIC_AUDIT.md#bl-022) | Pure/service doubles | PROCESSING + job active, addSource→job CANCELLED và trạng thái xét thủ công; response cũ không đổi lại. |
 | [BL-023](BUSINESS_LOGIC_AUDIT.md#bl-023) | Contract/form + browser cách ly | Yêu cầu có comment khác missingItem, deadline khác mẫu và deadline=null; UI phản ánh đúng cả3. |

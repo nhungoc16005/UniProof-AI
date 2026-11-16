@@ -9,7 +9,7 @@
 
 Nguồn: [criteria/criteria.service.ts](../../apps/backend/src/criteria/criteria.service.ts), [deadline-extensions/deadline-extensions.service.ts](../../apps/backend/src/deadline-extensions/deadline-extensions.service.ts), [evaluation-workflow/workflow.service.ts](../../apps/backend/src/evaluation-workflow/workflow.service.ts); [routes Web](../../apps/web/src/routes.tsx), [API client](../../apps/web/src/lib/apiClient.ts).
 
-Gap: [BL-006](../BUSINESS_LOGIC_AUDIT.md#bl-006), [BL-010](../BUSINESS_LOGIC_AUDIT.md#bl-010), [BL-020](../BUSINESS_LOGIC_AUDIT.md#bl-020). Theo dõi trong [backlog](../BACKLOG.md); chưa áp dụng bản sửa.
+Gap: Đã giải quyết [BL-006](../BUSINESS_LOGIC_AUDIT.md#bl-006), [BL-010](../BUSINESS_LOGIC_AUDIT.md#bl-010), [BL-020](../BUSINESS_LOGIC_AUDIT.md#bl-020) tại Đợt 3. Đã có 16/16 test cô lập đạt trong [deadline-and-closure.test.cjs](../../apps/backend/test/deadline-and-closure.test.cjs).
 
 ## 1. Objective — Mục tiêu
 
@@ -48,6 +48,7 @@ Các route sau đều có prefix `/api` (trừ pipeline ngoài hệ thống):
 - `PATCH /terms/:id`
 - `POST /terms/:id/activate, /terms/:id/close, /terms/:id/reopen`
 - `GET/POST /deadline-extensions`
+- `GET /deadline-extensions/targets` (lọc đối tượng theo Roster kỳ `termId`, `targetType`, `q`, `page`, `pageSize`)
 - `DELETE /deadline-extensions/:id`
 
 Request, DTO, quyền khai báo và vị trí controller: [API_CONTRACT](../API_CONTRACT.md). Phân biệt các [response envelope](../API_CONTRACT.md#envelopes); quyền service có thể hẹp hơn decorator.
@@ -86,9 +87,9 @@ Lỗi validation/nghiệp vụ phải hiển thị lý do từ server; 401 yêu 
 |---|---|---|---|
 | F03-TC-01 | Kiểm chứng hai chuỗi ngày: start ≤ end và start ≤ submission ≤ review ≤ appeal; không tự thêm điều kiện appeal ≤ end | F03-AC-01 | Planned |
 | F03-TC-02 | Kiểm chứng: kích hoạt cần rubric PUBLISHED và tạo snapshot sinh viên đang hoạt động, có lớp | F03-AC-02 | Planned |
-| F03-TC-03 | Kiểm chứng: gia hạn lưu đối tượng, loại hạn, thời điểm và lý do; thu hồi giữ dấu vết | F03-AC-03 | Planned |
-| F03-TC-04 | Kiểm chứng: quyền sửa/nộp/phúc khảo phải dùng hạn có hiệu lực | F03-AC-04 | Planned |
-| F03-TC-05 | Kiểm chứng: cLOSED chỉ xem; endpoint reopen hiện luôn từ chối | F03-AC-05 | Planned |
+| F03-TC-03 | Kiểm chứng: gia hạn lưu đối tượng, loại hạn, thời điểm và lý do; thu hồi giữ dấu vết; lọc đối tượng theo Roster kỳ (BL-020) | F03-AC-03; BL-020 | Partially verified (Unit/Component: BL-020 & revoke lock đạt 2 ca dialog thật gồm chuyển trang qua nút bấm đến trang 6 và chọn SV 105, 4 ca backend targets/DTO/100+ roster; chưa kiểm chứng DB/E2E tích hợp) |
+| F03-TC-04 | Kiểm chứng: quyền sửa/nộp/phúc khảo dùng hạn hiệu lực, web không bị hạn gốc phủ định quyền gia hạn (BL-010); chốt kỳ bị chặn khi còn gia hạn phúc khảo hiệu lực (BL-006) | F03-AC-04; BL-006; BL-010 | Partially verified (Unit/Hook: BL-006 đạt 12 ca backend gồm 3 ca lock concurrency có barrier 2 chiều, BL-010 đạt 4 ca hook thật gồm RETURNED/hết hạn khi pending refresh/lỗi 500; chưa kiểm chứng DB/E2E tích hợp) |
+| F03-TC-05 | Kiểm chứng: CLOSED chỉ xem; endpoint reopen hiện luôn từ chối | F03-AC-05 | Planned |
 | F03-TC-06 | Given rubric hiện hành không đổi, When tạo kỳ kế tiếp, Then vẫn áp dụng nguyên rubric và truy vết được lịch sử theo kỳ | F03-AC-06; DEC-006; REQ-002 | Planned |
 
 Bổ sung ca biên ở mục 7 và regression của từng BL liên quan; xem [TEST_PLAN](../TEST_PLAN.md) để chọn môi trường và bằng chứng. Không gán Passed nếu chưa chạy.
