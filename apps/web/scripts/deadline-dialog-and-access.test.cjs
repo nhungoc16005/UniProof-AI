@@ -4,17 +4,66 @@ const fs = require('node:fs');
 const path = require('node:path');
 const Module = require('node:module');
 
+let fakeTime = null;
+let scheduledTimers = [];
+let nextTimerId = 1;
+
+const nativeDateNow = Date.now;
+Date.now = () => (fakeTime !== null ? fakeTime : nativeDateNow.call(Date));
+
+function enableFakeClock(startTime = 1770000000000) {
+  fakeTime = startTime;
+  scheduledTimers = [];
+}
+
+function disableFakeClock() {
+  fakeTime = null;
+  scheduledTimers = [];
+}
+
+async function advanceClock(ms, harness) {
+  if (fakeTime === null) return;
+  fakeTime += ms;
+  const ready = [];
+  scheduledTimers = scheduledTimers.filter((t) => {
+    if (t.triggerAt <= fakeTime) {
+      ready.push(t);
+      return false;
+    }
+    return true;
+  });
+  ready.sort((a, b) => a.triggerAt - b.triggerAt);
+  for (const timer of ready) {
+    timer.fn();
+  }
+  if (harness) {
+    await harness.flush(5);
+    harness.rerender();
+  }
+}
+
 // Stub window & document cho môi trường Node.js (unref timer để process thoát tự nhiên)
 if (typeof global.window === 'undefined') {
   global.window = {
     addEventListener: () => {},
     removeEventListener: () => {},
     setTimeout: (fn, ms) => {
+      if (fakeTime !== null) {
+        const id = nextTimerId++;
+        scheduledTimers.push({ id, fn, triggerAt: fakeTime + ms });
+        return id;
+      }
       const id = setTimeout(fn, ms);
       if (id && typeof id.unref === 'function') id.unref();
       return id;
     },
-    clearTimeout: (id) => clearTimeout(id),
+    clearTimeout: (id) => {
+      if (fakeTime !== null) {
+        scheduledTimers = scheduledTimers.filter((t) => t.id !== id);
+        return;
+      }
+      clearTimeout(id);
+    },
     setInterval: (fn, ms) => {
       const id = setInterval(fn, ms);
       if (id && typeof id.unref === 'function') id.unref();
@@ -515,93 +564,97 @@ describe('BL-010 (Web): Hook thật useStudentAssessmentAccess phân giải quy�
   });
 
   test('Ca 3: Hết hạn trong lúc API refresh đang treo -> canEdit lập tức chuyển false trước khi response về; xử lý nhánh refresh thất bại', async () => {
-    // 1. Ban đầu hạn hiệu lực còn 50ms trong tương lai
-    const initialDeadlineMs = Date.now() + 50;
-    const initialAssessment = {
-      rubricVersion: { id: 'rubric-1' },
-      submission: { status: 'DRAFT' },
-      term: termFixture,
-      permissions: {
-        canEdit: true,
-        effectiveDeadlines: {
-          submission: {
-            deadline: new Date(initialDeadlineMs).toISOString(),
-            source: 'STUDENT',
-            extensionId: 'ext-1',
+    enableFakeClock(1770000000000);
+    try {
+      // 1. Ban đầu hạn hiệu lực còn 1000ms trong tương lai
+      const initialDeadlineMs = 1770000001000;
+      const initialAssessment = {
+        rubricVersion: { id: 'rubric-1' },
+        submission: { status: 'DRAFT' },
+        term: termFixture,
+        permissions: {
+          canEdit: true,
+          effectiveDeadlines: {
+            submission: {
+              deadline: new Date(initialDeadlineMs).toISOString(),
+              source: 'STUDENT',
+              extensionId: 'ext-1',
+            },
           },
         },
-      },
-    };
+      };
 
-    let getMyAssessmentsCalls = 0;
-    let refreshDeferredReject;
-    let refreshDeferredResolve;
-    const refreshDeferredPromise = new Promise((resolve, reject) => {
-      refreshDeferredResolve = resolve;
-      refreshDeferredReject = reject;
-    });
+      let getMyAssessmentsCalls = 0;
+      let refreshDeferredReject;
+      let refreshDeferredResolve;
+      const refreshDeferredPromise = new Promise((resolve, reject) => {
+        refreshDeferredResolve = resolve;
+        refreshDeferredReject = reject;
+      });
 
-    const mockApiClient = {
-      getMyAssessments: async (termId) => {
-        getMyAssessmentsCalls++;
-        if (getMyAssessmentsCalls === 1) {
-          // Lần 1: nạp ban đầu khi mount
-          return initialAssessment;
-        }
-        // Lần 2 trở đi: refresh được kích hoạt bởi timer khi hết hạn -> giữ ở trạng thái pending (treo trên mạng)
-        return refreshDeferredPromise;
-      },
-    };
+      const mockApiClient = {
+        getMyAssessments: async (termId) => {
+          getMyAssessmentsCalls++;
+          if (getMyAssessmentsCalls === 1) {
+            // Lần 1: nạp ban đầu khi mount
+            return initialAssessment;
+          }
+          // Lần 2 trở đi: refresh được kích hoạt bởi timer khi hết hạn -> giữ ở trạng thái pending (treo trên mạng)
+          return refreshDeferredPromise;
+        },
+      };
 
-    const accessModule = loadWebModule('hooks/useStudentAssessmentAccess.ts', {
-      apiClient: { apiClient: mockApiClient },
-    });
-    const useStudentAssessmentAccess = accessModule.useStudentAssessmentAccess;
+      const accessModule = loadWebModule('hooks/useStudentAssessmentAccess.ts', {
+        apiClient: { apiClient: mockApiClient },
+      });
+      const useStudentAssessmentAccess = accessModule.useStudentAssessmentAccess;
 
-    const harness = createReactHarness();
-    harness.mount(() => useStudentAssessmentAccess('student-1', 'term-1'));
+      const harness = createReactHarness();
+      harness.mount(() => useStudentAssessmentAccess('student-1', 'term-1'));
 
-    // Đợi lần nạp dữ liệu ban đầu hoàn tất
-    await harness.flush(30);
-    harness.rerender();
+      // Đợi lần nạp dữ liệu ban đầu hoàn tất
+      await harness.flush(5);
+      harness.rerender();
 
-    const initialResult = harness.getResult();
-    assert.equal(initialResult.canEdit, true, 'Ban đầu canEdit là true khi hạn còn hiệu lực');
-    assert.equal(initialResult.deadlinePassed, false, 'deadlinePassed ban đầu là false');
-    assert.equal(initialResult.checking, false, 'checking ban đầu là false');
-    assert.equal(getMyAssessmentsCalls, 1, 'API getMyAssessments được gọi 1 lần khi mount');
+      const initialResult = harness.getResult();
+      assert.equal(initialResult.canEdit, true, 'Ban đầu canEdit là true khi hạn còn hiệu lực');
+      assert.equal(initialResult.deadlinePassed, false, 'deadlinePassed ban đầu là false');
+      assert.equal(initialResult.checking, false, 'checking ban đầu là false');
+      assert.equal(getMyAssessmentsCalls, 1, 'API getMyAssessments được gọi 1 lần khi mount');
 
-    // 2. Chờ thời gian vượt quá hạn hiệu lực (50ms deadline + 25ms timer buffer)
-    // Sau ~85ms, timer setTimeout của hook sẽ kích hoạt setClock và gọi refresh()
-    await harness.flush(85);
-    harness.rerender();
+      // 2. Tua đồng hồ vượt quá hạn hiệu lực (tua 1050ms > 1000ms deadline + 25ms timer buffer)
+      // Timer setTimeout của hook sẽ kích hoạt setClock và gọi refresh() ngay lập tức mà không phụ thuộc CPU/thời gian thực
+      await advanceClock(1050, harness);
 
-    // 3. Kiểm chứng tại thời điểm timer đã kích hoạt, refresh đang treo trên mạng (checking = true)
-    const pendingRefreshResult = harness.getResult();
-    assert.equal(getMyAssessmentsCalls, 2, 'Timer hết hạn phải kích hoạt lời gọi refresh() thứ 2 qua getMyAssessments');
-    assert.equal(pendingRefreshResult.checking, true, 'refresh đang treo trên mạng (checking = true)');
-    assert.equal(pendingRefreshResult.deadlinePassed, true, 'deadlinePassed phải chuyển sang true ngay khi qua thời hạn');
-    assert.equal(
-      pendingRefreshResult.canEdit,
-      false,
-      'canEdit phải chuyển sang false NGAY LẬP TỨC TRƯỚC KHI response refresh về'
-    );
+      // 3. Kiểm chứng tại thời điểm timer đã kích hoạt, refresh đang treo trên mạng (checking = true)
+      const pendingRefreshResult = harness.getResult();
+      assert.equal(getMyAssessmentsCalls, 2, 'Timer hết hạn phải kích hoạt lời gọi refresh() thứ 2 qua getMyAssessments');
+      assert.equal(pendingRefreshResult.checking, true, 'refresh đang treo trên mạng (checking = true)');
+      assert.equal(pendingRefreshResult.deadlinePassed, true, 'deadlinePassed phải chuyển sang true ngay khi qua thời hạn');
+      assert.equal(
+        pendingRefreshResult.canEdit,
+        false,
+        'canEdit phải chuyển sang false NGAY LẬP TỨC TRƯỚC KHI response refresh về'
+      );
 
-    // 4. Nhánh refresh thất bại: Giả lập API refresh trả lỗi mạng 500
-    refreshDeferredReject(new Error('Network error 500 / timeout'));
-    await harness.flush(30);
-    harness.rerender();
+      // 4. Nhánh refresh thất bại: Giả lập API refresh trả lỗi mạng 500
+      refreshDeferredReject(new Error('Network error 500 / timeout'));
+      await harness.flush(5);
+      harness.rerender();
 
-    const failedRefreshResult = harness.getResult();
-    assert.equal(failedRefreshResult.checking, false, 'checking trở về false sau khi refresh kết thúc');
-    assert.equal(failedRefreshResult.canEdit, false, 'canEdit vẫn tiếp tục bị khóa (false) sau khi refresh thất bại');
-    assert.equal(failedRefreshResult.deadlinePassed, true, 'deadlinePassed vẫn là true');
-    assert.ok(
-      failedRefreshResult.error.includes('Không xác minh được quyền chỉnh sửa'),
-      'Phải hiển thị thông báo lỗi chuyển sang chế độ xem an toàn khi refresh thất bại'
-    );
+      const failedRefreshResult = harness.getResult();
+      assert.equal(failedRefreshResult.checking, false, 'checking trở về false sau khi refresh kết thúc');
+      assert.equal(failedRefreshResult.canEdit, false, 'canEdit vẫn tiếp tục bị khóa (false) sau khi refresh thất bại');
+      assert.equal(failedRefreshResult.deadlinePassed, true, 'deadlinePassed vẫn là true');
+      assert.ok(
+        failedRefreshResult.error.includes('Không xác minh được quyền chỉnh sửa'),
+        'Phải hiển thị thông báo lỗi chuyển sang chế độ xem an toàn khi refresh thất bại'
+      );
 
-    harness.unmount();
+      harness.unmount();
+    } finally {
+      disableFakeClock();
+    }
   });
 
   test('Ca 4: Bằng chứng đối chứng đỏ — Nếu bỏ !deadlinePassed như code cũ, form vẫn mở canEdit = true khi đã hết hạn', () => {
