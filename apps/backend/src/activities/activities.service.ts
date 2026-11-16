@@ -4,6 +4,7 @@ import { PrismaService } from '../common/prisma/prisma.service';
 import { WorkflowActor, WorkflowService } from '../evaluation-workflow/workflow.service';
 import { CreateActivityDto, AddParticipantDto, UpdateActivityDto, BatchAttendanceDto } from './dto/activity.dto';
 import { evaluateRubricCriterion } from '../criteria/rubric-scoring';
+import { recomputeAndSaveActivityCriterion } from './activity-aggregator';
 
 @Injectable()
 export class ActivitiesService {
@@ -35,30 +36,11 @@ export class ActivitiesService {
 
   private async recomputeActivityCriterion(tx: Prisma.TransactionClient, activity: Activity, studentId: string) {
     if (!activity.termId || !activity.criterionId) throw new BadRequestException('Hoạt động chưa gắn kỳ hoặc tiêu chí');
-    const criterion = await tx.criterion.findUniqueOrThrow({ where: { id: activity.criterionId }, select: { id: true, maxScore: true, scoringConfig: true, rolesScore: true } });
-    const config = criterion.scoringConfig as Record<string, any> | null;
-    if (!config || !['activity_threshold', 'community_activity_tier'].includes(String(config.kind))) throw new BadRequestException('Tiêu chí chưa hỗ trợ ghi nhận điểm từ danh sách hoạt động');
-    const rows = await tx.activityParticipant.findMany({
-      where: { studentId, status: ActivityParticipantStatus.CONFIRMED, activity: { termId: activity.termId, criterionId: activity.criterionId } },
-      select: { activityId: true, formRole: true },
-    });
-    const unique = [...new Map(rows.map(row => [row.activityId, row])).values()];
-    const assessment = await tx.criterionAssessment.findUnique({ where: { studentId_termId_criterionId: { studentId, termId: activity.termId, criterionId: activity.criterionId } } });
-    const previous = assessment?.verifiedData && typeof assessment.verifiedData === 'object' && !Array.isArray(assessment.verifiedData) ? assessment.verifiedData as Record<string, any> : {};
-    const roleScores = criterion.rolesScore && typeof criterion.rolesScore === 'object' && !Array.isArray(criterion.rolesScore) ? criterion.rolesScore as Record<string, number> : {};
-    const verifiedData = {
-      ...previous,
-      verifiedActivityCount: unique.length,
-      cheerleaderActivityCount: unique.filter(row => ['CO_VU', 'CHEERLEADER'].includes(row.formRole || '')).length,
-      convertedCommunityPoints: unique.reduce((sum, row) => sum + (Number(roleScores[row.formRole || '']) || 0), 0),
-      activitySource: 'FACULTY_CONFIRMED_ATTENDANCE',
-    };
-    const evaluation = evaluateRubricCriterion(criterion.maxScore, criterion.scoringConfig, verifiedData);
-    return tx.criterionAssessment.upsert({
-      where: { studentId_termId_criterionId: { studentId, termId: activity.termId, criterionId: activity.criterionId } },
-      create: { studentId, termId: activity.termId, criterionId: activity.criterionId, verifiedData, verificationNote: 'Dữ liệu được tổng hợp từ danh sách hoạt động do Khoa xác nhận.', suggestedScore: evaluation.suggestedScore, suggestionReason: evaluation.reason, status: evaluation.status },
-      update: { verifiedData, verificationNote: 'Dữ liệu được tổng hợp từ danh sách hoạt động do Khoa xác nhận.', suggestedScore: evaluation.suggestedScore, suggestionReason: evaluation.reason, status: evaluation.status, officialScore: null, officialReason: null, finalizedAt: null, finalReviewerId: null },
-    });
+    return recomputeAndSaveActivityCriterion(
+      tx,
+      { studentId, termId: activity.termId, criterionId: activity.criterionId },
+      'Dữ liệu được tổng hợp từ nguồn hoạt động chung do Khoa xác nhận.'
+    );
   }
 
   private mutate<T>(id: string, actor: WorkflowActor, action: string, write: (tx: Prisma.TransactionClient, activity: Activity) => Promise<T>) {

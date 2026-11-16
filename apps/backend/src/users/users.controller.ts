@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, Header } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { BulkImportUsersDto, CreateUserDto, UpdateUserDto } from './dto/user.dto';
@@ -40,6 +40,7 @@ export class UsersController {
 
   @Post('import')
   @Roles(Role.ADMIN)
+  @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'Import người dùng hàng loạt từ Excel / JSON (Chỉ Admin)' })
   async bulkImport(@Body() dto: BulkImportUsersDto, @CurrentUser('id') actorId: string) {
     return this.usersService.bulkImport(dto, actorId);
@@ -47,6 +48,7 @@ export class UsersController {
 
   @Post(':id/reset-password')
   @Roles(Role.ADMIN)
+  @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'Cấp mật khẩu tạm và thu hồi toàn bộ phiên của tài khoản' })
   async resetPassword(@Param('id') id: string, @CurrentUser('id') actorId: string) {
     return this.usersService.resetPassword(id, actorId);
@@ -54,6 +56,7 @@ export class UsersController {
 
   @Post()
   @Roles(Role.ADMIN)
+  @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'Tạo tài khoản người dùng mới (Chỉ Admin)' })
   async create(@Body() dto: CreateUserDto, @CurrentUser('id') actorId: string) {
     return this.usersService.create(dto, actorId);

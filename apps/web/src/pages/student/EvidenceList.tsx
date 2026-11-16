@@ -1,39 +1,109 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiClient } from '../../lib/apiClient';
 import { Evidence } from '../../types';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { TableSkeleton } from '../../components/ui/Skeleton';
+import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 
 export const EvidenceList: React.FC = () => {
-  const { user, activeTerm } = useAuth();
+  const { user, activeTerm, terms } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTermId = searchParams.get('termId');
+  const selectedTerm = (urlTermId && terms.find((t) => t.id === urlTermId)) || activeTerm;
+  const effectiveTermId = selectedTerm?.id || activeTerm?.id || '';
+
   const [evidences, setEvidences] = useState<Evidence[]>([]);
-  const [filterTab, setFilterTab] = useState<string>('ALL');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [filterTab, setFilterTab] = useState<'ALL' | 'APPROVED' | 'SUPPLEMENT' | 'REVIEWING'>('ALL');
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
+  const [total, setTotal] = useState(0);
+  const [counts, setCounts] = useState({ all: 0, approved: 0, supplement: 0, reviewing: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const requestGen = useRef(0);
 
-  const fetchEvidences = () => {
+  // Đồng bộ URL ?termId=... nếu chưa có param
+  useEffect(() => {
+    if (effectiveTermId && !urlTermId) {
+      const next = new URLSearchParams(searchParams);
+      next.set('termId', effectiveTermId);
+      setSearchParams(next, { replace: true });
+    }
+  }, [effectiveTermId, urlTermId, searchParams, setSearchParams]);
+
+  // Reset page = 1 khi effectiveTermId thay đổi
+  const prevTermIdRef = useRef(effectiveTermId);
+  useEffect(() => {
+    if (prevTermIdRef.current !== effectiveTermId) {
+      prevTermIdRef.current = effectiveTermId;
+      setPage(1);
+    }
+  }, [effectiveTermId]);
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchInput.trim());
+      setPage(1); // Reset trang khi tìm kiếm
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  const handleTermChange = (newTermId: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('termId', newTermId);
+    next.delete('page');
+    setSearchParams(next);
+    setPage(1);
+  };
+
+  const fetchEvidences = async () => {
+    const currentGen = ++requestGen.current;
     setIsLoading(true);
     setLoadError('');
-    apiClient.getEvidences({ studentId: user.id, termId: activeTerm.id }).then((data) => {
-      setEvidences(data);
-    }).catch(() => {
+    try {
+      const res = await apiClient.getEvidencesPage({
+        studentId: user.id,
+        termId: effectiveTermId,
+        statusGroup: filterTab,
+        search: debouncedSearch || undefined,
+        page,
+        pageSize,
+      });
+      if (currentGen !== requestGen.current) return;
+      setEvidences(res.items);
+      setTotal(res.total);
+      if (res.counts) {
+        setCounts(res.counts);
+      }
+    } catch {
+      if (currentGen !== requestGen.current) return;
       setEvidences([]);
       setLoadError('Không tải được minh chứng từ máy chủ. Vui lòng thử lại.');
-    }).finally(() => setIsLoading(false));
+    } finally {
+      if (currentGen === requestGen.current) {
+        setIsLoading(false);
+      }
+    }
   };
 
   useEffect(() => {
-    fetchEvidences();
-  }, [user.id, activeTerm.id]);
+    void fetchEvidences();
+  }, [user.id, effectiveTermId, filterTab, debouncedSearch, page]);
 
   const handleWithdraw = async (id: string) => {
     if (window.confirm('Bạn có chắc chắn muốn rút hồ sơ minh chứng này không?')) {
       const ok = await apiClient.withdrawEvidence(id);
       if (ok) {
-        fetchEvidences();
+        if (evidences.length === 1 && page > 1) {
+          setPage((p) => p - 1);
+        } else {
+          void fetchEvidences();
+        }
       }
     }
   };
@@ -42,48 +112,46 @@ export const EvidenceList: React.FC = () => {
     if (window.confirm('Bạn có chắc chắn muốn xóa hồ sơ minh chứng này không? Dữ liệu sẽ không thể khôi phục.')) {
       try {
         await apiClient.deleteEvidence(id);
-        fetchEvidences();
         alert('Đã xóa hồ sơ minh chứng.');
+        if (evidences.length === 1 && page > 1) {
+          setPage((p) => p - 1);
+        } else {
+          void fetchEvidences();
+        }
       } catch (err: any) {
         alert(err.response?.data?.message || 'Không thể xóa hồ sơ.');
       }
     }
   };
 
-  // Filter counts
-  const counts = useMemo(() => {
-    const all = evidences.length;
-    const approved = evidences.filter((e) => e.status === 'APPROVED').length;
-    const supplement = evidences.filter((e) => e.status === 'NEEDS_SUPPLEMENT').length;
-    const reviewing = evidences.filter((e) => e.status === 'NEEDS_HUMAN_REVIEW' || e.status === 'PROCESSING' || e.status === 'PLAUSIBLE').length;
-    return { all, approved, supplement, reviewing };
-  }, [evidences]);
-
-  const filtered = useMemo(() => {
-    return evidences.filter((item) => {
-      if (filterTab === 'APPROVED' && item.status !== 'APPROVED') return false;
-      if (filterTab === 'SUPPLEMENT' && item.status !== 'NEEDS_SUPPLEMENT') return false;
-      if (filterTab === 'REVIEWING' && item.status !== 'NEEDS_HUMAN_REVIEW' && item.status !== 'PROCESSING' && item.status !== 'PLAUSIBLE') return false;
-
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        const matchesName = item.declaredActivityName?.toLowerCase().includes(query);
-        const matchesId = item.id.toLowerCase().includes(query);
-        if (!matchesName && !matchesId) return false;
-      }
-      return true;
-    });
-  }, [evidences, filterTab, searchQuery]);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
     <div className="space-y-6 pb-12">
-      {loadError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{loadError}</div>}
-      
+      {loadError && (
+        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          {loadError}
+          <button onClick={() => void fetchEvidences()} className="ml-2 underline font-semibold">
+            Thử lại
+          </button>
+        </div>
+      )}
+
       {/* 1. Header with Term info and Quick Action */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.05)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-[#1d6fc2] mb-2 border border-blue-100">
-            <span>{activeTerm.name}</span>
+          <div className="flex items-center gap-2 mb-2">
+            <select
+              value={effectiveTermId}
+              onChange={(e) => handleTermChange(e.target.value)}
+              className="text-xs font-semibold bg-blue-50 text-[#1d6fc2] border border-blue-100 rounded-xl px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
+            >
+              {(terms.length > 0 ? terms : [activeTerm]).map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name} {t.status === 'ACTIVE' ? '(Hiện hành)' : ''}
+                </option>
+              ))}
+            </select>
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
             Minh chứng của tôi
@@ -93,9 +161,9 @@ export const EvidenceList: React.FC = () => {
           </p>
         </div>
 
-        {activeTerm.status === 'ACTIVE' && (
+        {selectedTerm?.status === 'ACTIVE' && (
           <Link
-            to="/student/scores"
+            to={`/student/scores?termId=${effectiveTermId}`}
             className="px-4 py-2.5 bg-[#1d6fc2] hover:bg-[#175ea5] active:scale-[0.99] text-white font-bold text-xs rounded-xl shadow-md shadow-blue-600/20 transition cursor-pointer shrink-0"
           >
             Mở phiếu đánh giá
@@ -105,12 +173,14 @@ export const EvidenceList: React.FC = () => {
 
       {/* 2. Sleek Filter Tabs & Search Bar */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.05)] flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-        
         {/* Rounded Pills Filter Tabs */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
           <button
             type="button"
-            onClick={() => setFilterTab('ALL')}
+            onClick={() => {
+              setFilterTab('ALL');
+              setPage(1);
+            }}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
               filterTab === 'ALL'
                 ? 'bg-[#1d6fc2] text-white shadow-sm shadow-blue-500/20'
@@ -122,7 +192,10 @@ export const EvidenceList: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => setFilterTab('APPROVED')}
+            onClick={() => {
+              setFilterTab('APPROVED');
+              setPage(1);
+            }}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
               filterTab === 'APPROVED'
                 ? 'bg-emerald-600 text-white shadow-sm'
@@ -134,7 +207,10 @@ export const EvidenceList: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => setFilterTab('SUPPLEMENT')}
+            onClick={() => {
+              setFilterTab('SUPPLEMENT');
+              setPage(1);
+            }}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
               filterTab === 'SUPPLEMENT'
                 ? 'bg-amber-600 text-white shadow-sm'
@@ -146,7 +222,10 @@ export const EvidenceList: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => setFilterTab('REVIEWING')}
+            onClick={() => {
+              setFilterTab('REVIEWING');
+              setPage(1);
+            }}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
               filterTab === 'REVIEWING'
                 ? 'bg-indigo-600 text-white shadow-sm'
@@ -158,13 +237,14 @@ export const EvidenceList: React.FC = () => {
         </div>
 
         {/* High-quality Search Input */}
-        <div className="w-full md:w-80">
+        <div className="w-full md:w-80 relative">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Tìm theo tên hoạt động hoặc mã..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-3.5 py-2 text-xs bg-slate-50/80 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none transition font-medium"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="w-full pl-9 pr-3.5 py-2 text-xs bg-slate-50/80 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none transition font-medium"
           />
         </div>
       </div>
@@ -179,7 +259,7 @@ export const EvidenceList: React.FC = () => {
             </div>
             <TableSkeleton rows={4} cols={6} />
           </div>
-        ) : filtered.length === 0 ? (
+        ) : evidences.length === 0 ? (
           <div className="p-12 text-center space-y-2">
             <p className="text-xs font-bold text-slate-700">Không tìm thấy hồ sơ minh chứng nào</p>
             <p className="text-[11px] text-slate-400">Không có hồ sơ nào trùng khớp với bộ lọc hiện tại.</p>
@@ -198,7 +278,7 @@ export const EvidenceList: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filtered.map((item) => {
+                {evidences.map((item) => {
                   const officialScore = item.reviews?.[0]?.finalScore;
                   const aiScore = item.aiSuggestions?.[0]?.suggestedScore;
 
@@ -286,8 +366,39 @@ export const EvidenceList: React.FC = () => {
             </table>
           </div>
         )}
-      </div>
 
+        {/* 4. Pagination Bar */}
+        {!isLoading && total > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 bg-slate-50/75 border-t border-slate-200 text-xs text-slate-600">
+            <div>
+              Hiển thị <strong>{(page - 1) * pageSize + 1}</strong> – <strong>{Math.min(page * pageSize, total)}</strong> trên tổng số <strong>{total}</strong> hồ sơ
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition cursor-pointer"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Trang trước
+              </button>
+              <span className="font-semibold text-slate-700 px-1">
+                Trang {page} / {totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition cursor-pointer"
+              >
+                Trang sau
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

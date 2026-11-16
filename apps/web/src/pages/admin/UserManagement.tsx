@@ -107,7 +107,14 @@ export const UserManagement: React.FC = () => {
   const [showImportModal, setShowImportModal] = useState(false);
   const [importFileName, setImportFileName] = useState('');
   const [parsedStudents, setParsedStudents] = useState<any[]>([]);
-  const [importResult, setImportResult] = useState<{ total: number; importedCount: number; updatedCount: number; errorCount: number; errors: string[] } | null>(null);
+  const [importResult, setImportResult] = useState<{
+    total: number;
+    importedCount: number;
+    updatedCount: number;
+    errorCount: number;
+    errors: string[];
+    temporaryCredentials?: Array<{ email: string; temporaryPassword: string }>;
+  } | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [importError, setImportError] = useState('');
 
@@ -401,7 +408,8 @@ export const UserManagement: React.FC = () => {
         payload.facultyId = newFacultyId;
       }
 
-      const created = await apiClient.createUser(payload);
+      const result = await apiClient.createUser(payload);
+      const created = result.user;
       
       const enrichedUser: User = {
         ...created,
@@ -411,7 +419,11 @@ export const UserManagement: React.FC = () => {
 
       setUsers(prev => [enrichedUser, ...prev]);
       setShowCreateModal(false);
-      alert(`Đã tạo thành công tài khoản: ${enrichedUser.fullName} (${enrichedUser.email})`);
+      if (result.temporaryPassword) {
+        setTemporaryCredential({ email: created.email, password: result.temporaryPassword });
+      } else {
+        alert(`Đã tạo thành công tài khoản: ${enrichedUser.fullName} (${enrichedUser.email})`);
+      }
     } catch (err: any) {
       console.error('Lỗi tạo người dùng', err);
       const msg = err.response?.data?.message || err.response?.data?.error?.message || err.message || 'Không thể tạo người dùng.';
@@ -1847,6 +1859,31 @@ export const UserManagement: React.FC = () => {
                   <div>• Tổng số dòng: <strong>{importResult.total}</strong></div>
                   <div>• Thêm mới thành công: <strong className="text-emerald-700">{importResult.importedCount}</strong> tài khoản</div>
                   <div>• Cập nhật thông tin: <strong className="text-blue-700">{importResult.updatedCount}</strong> tài khoản</div>
+                  {importResult.temporaryCredentials && importResult.temporaryCredentials.length > 0 && (
+                    <div className="pt-2 border-t border-emerald-200 mt-2 space-y-1.5">
+                      <div className="font-bold text-emerald-900">Danh sách mật khẩu tạm thời ({importResult.temporaryCredentials.length} tài khoản mới):</div>
+                      <p className="text-[11px] text-slate-600">Mật khẩu chỉ hiển thị một lần. Hãy tải file để bàn giao an toàn cho người dùng.</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const ws = XLSX.utils.json_to_sheet(
+                            importResult.temporaryCredentials!.map((c: { email: string; temporaryPassword: string }) => ({
+                              'Email': c.email,
+                              'Mật khẩu tạm thời': c.temporaryPassword,
+                            })),
+                            { header: ['Email', 'Mật khẩu tạm thời'] }
+                          );
+                          const wb = XLSX.utils.book_new();
+                          XLSX.utils.book_append_sheet(wb, ws, 'Credentials');
+                          XLSX.writeFile(wb, `EduPoint_Credentials_${new Date().toISOString().slice(0, 10)}.xlsx`);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-semibold cursor-pointer shadow-xs"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Tải danh sách mật khẩu tạm (.xlsx)</span>
+                      </button>
+                    </div>
+                  )}
                   {importResult.errorCount > 0 && (
                     <div className="text-amber-700 pt-1">
                       <div>• Bỏ qua / lỗi: <strong>{importResult.errorCount}</strong> dòng:</div>

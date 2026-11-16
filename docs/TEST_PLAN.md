@@ -4,6 +4,56 @@
 
 ## Phân loại bằng chứng
 
+### Kiểm thử xác minh & Nghiệm thu toàn diện sau review (2026-11-16)
+
+Đã giải quyết dứt điểm 7 điểm khiếm khuyết được chỉ ra trong review độc lập, bổ sung đầy đủ unit test in-memory và component test cho mã nguồn thật:
+
+1. **BL-014 & BL-005 (Activity Aggregator & Roles Scoring):**
+   - File test: [apps/backend/test/activity-and-roles-scoring.test.cjs](../apps/backend/test/activity-and-roles-scoring.test.cjs) (**13/13 tests pass 100%**).
+   - Kiểm chứng tiêu chí 12 không tự gán mặc định trong `DUT_RUBRIC_CRITERIA` theo DEC-009; thiếu rate `CHEERLEADER` lập tức báo blocker `NEEDS_VERIFICATION, suggestedScore: null` (không fallback ngầm sang PARTICIPANT hoặc 0).
+   - Kiểm chứng round-trip bằng `CriteriaService` thật: cập nhật draft có `rolesScore` → đọc lại qua `getTermRubric` → sao chép qua `createTerm` bảo toàn 100% cấu hình vai trò `rolesScore`.
+   - Kiểm chứng `validateScoringConfig` chấp nhận `rolesScore` hợp lệ và từ chối `rolesScore` chứa điểm số âm.
+
+2. **BL-024 (ScoreReport term switch & Preflight):**
+   - File test: [apps/web/scripts/score-report-and-evidence-list.test.cjs](../apps/web/scripts/score-report-and-evidence-list.test.cjs) (**4/4 tests pass 100%**).
+   - Kiểm chứng Deferred Promise: khi bắt đầu nộp ở kỳ A và đổi sang kỳ B trong lúc request preflight đang treo, `submitGenerationRef` và `currentTermRef` hủy kết quả kỳ A, `preflight` bị xóa sạch khi đổi kỳ và tuyệt đối không hiển thị xác nhận nộp kỳ A trên màn hình kỳ B.
+
+3. **BL-011, BL-012, BL-025 (Accounts, Permissions & Scope):**
+   - File test: [apps/backend/test/accounts-and-permissions.test.cjs](../apps/backend/test/accounts-and-permissions.test.cjs) (**16/16 tests pass 100%**).
+   - Kiểm chứng `bulkImport` áp dụng `validateUserPayload` từng dòng trước khi mở transaction; khi rollback không tăng `importedCount` và không trả `temporaryCredentials`.
+   - `findAll` giữ nguyên `facultyId` trực tiếp gán trên User; cán bộ Khoa chỉ xem sinh viên thuộc Khoa mình.
+   - Cho phép cập nhật tài khoản legacy STUDENT thiếu `studentCode`/`classId` khi chỉ sửa `fullName`.
+   - Kiểm chứng `JwtAuthGuard` thật chạy qua prototype không monkey-patch đè lên `canActivate`.
+
+4. **BL-021 (Chu trình Loại trừ → Khôi phục → Loại trừ lại):**
+   - File test: [apps/backend/test/exclusion-and-restore.test.cjs](../apps/backend/test/exclusion-and-restore.test.cjs) (**6/6 tests pass 100%**).
+   - Giữ nguyên `revision` bàn giao của Handoff (không tự tăng revision sai ngữ cảnh); sinh `eventId = randomUUID()` cho `dedupeKey` bảo đảm tính duy nhất tuyệt đối.
+   - Đã ở trạng thái `EXCLUDED` là strict no-op: gọi lặp lại kể cả với lý do khác không ghi đè lý do cũ và không sinh notification thừa; ghi nhận `eventId` vào audit log.
+
+5. **BL-018 & BL-019 (Pagination, Filter & Evidence List):**
+   - File test: [apps/backend/test/pagination-and-filter.test.cjs](../apps/backend/test/pagination-and-filter.test.cjs) (**8/8 tests pass 100%**) và [apps/web/scripts/score-report-and-evidence-list.test.cjs](../apps/web/scripts/score-report-and-evidence-list.test.cjs).
+   - `ProfileDataIssues.tsx`: `requestGen` chặn triệt để phản hồi cũ từ tab `OPEN` ghi đè lên tab `RESOLVED`.
+   - `EvidenceList.tsx`: đồng bộ query `?termId=...` vào URL; tự động reset `page = 1` khi đổi kỳ.
+   - `evidence.service.ts`: hỗ trợ tìm kiếm theo ID minh chứng; không xóa filter search khỏi `baseScopeWhere` để tab counts phản ánh đúng số lượng theo từ khóa.
+
+**Tổng kết kiểm thử tự động:**
+- Backend: **158 tests (157 passed, 1 skipped isolated DB)** trong 10 suites (`node --test apps/backend/test/*.test.cjs`).
+- Web: **21 tests passed 100%** trong 4 suites (`node --test apps/web/scripts/*.test.cjs`).
+- Toàn bộ **178 pure/in-memory unit tests đạt 100%**, không có failure hay timeout.
+- TypeScript compiler: **0 lỗi** trên cả `apps/web` và `apps/backend`.
+- `git diff --check`: **sạch sẽ, 0 lỗi whitespace**.
+
+### Review độc lập ngày 2026-11-16 — Đợt 5, 7, 8, 9, 10
+
+Chạy trực tiếp `node --test` với 13 file sau, không dùng glob integration:
+
+- Backend (`apps/backend/test/`): `accounts-and-permissions.test.cjs`, `activity-and-roles-scoring.test.cjs`, `pagination-and-filter.test.cjs`, `exclusion-and-restore.test.cjs`, `evidence-and-term-selection.test.cjs`, `scoring-and-validation.test.cjs`, `deadline-and-closure.test.cjs`, `data-protection.test.cjs`, `security-fixes.test.cjs`, `evidence-processing-worker.test.cjs`.
+- Web (`apps/web/scripts/`): `deadline-dialog-and-access.test.cjs`, `evidence-inspection.test.cjs`, `faculty-analytics.test.cjs`.
+- Kết quả: **169 tests pass, 25 suites, 0 fail, 0 skipped**, khoảng 17.2 giây. Không có DB integration trong lệnh này. Typecheck hai app đạt; backend tắt incremental. `git diff --check` đạt.
+- Không dùng tổng test làm bằng chứng nghiệm thu: test guard ghi đè method đang được kiểm; một số test frontend chép lại thuật toán và không mount component thật. Cần test guard thật qua Passport/metadata/filter và component thật với Deferred Promise khi đổi kỳ/preflight/retry.
+- Reproduction ad hoc bằng source/service thật và doubles, không lưu regression mới: thiếu CHEERLEADER rate bị fallback thành 5 điểm; `getTermRubric` bỏ rolesScore; validator publish cho qua rolesScore âm; lỗi audit import vẫn trả credential/count thành công; handler submitAll nhận preflight kỳ A khi currentPage là B. Các kết quả này chứng minh còn thiếu ca kiểm thử, không phải production/DB reproduction.
+- Cần bổ sung: round-trip rubric đọc/lưu/copy kỳ giữ nguyên rolesScore, publish thiếu/âm/alias sai bị chặn; import rollback không tăng count/credential; exclude đã EXCLUDED khác lý do vẫn no-op và revision giữ nguyên; pagination/search/counts/URL và phản hồi cũ trên component thật. Giữ AI hoãn theo DEC-007, DB concurrency chưa kiểm chứng.
+
 | Mức | Chứng minh được | Không chứng minh được |
 |---|---|---|
 | Source inspection | Điều kiện/nhánh/quan hệ và mismatch contract | Deployment/schema đã áp dụng, thứ tự concurrency thật |
@@ -22,6 +72,12 @@ Tài liệu navigation/dashboard cũ từng ghi build/integration/browser đã �
 
 | Nguồn | Loại / giới hạn |
 |---|---|
+| [exclusion & restore backend unit](../apps/backend/test/exclusion-and-restore.test.cjs) | In-memory doubles & State machine test; kiểm BL-021 (6 ca: chu trình Loại trừ (lần 1) -> Khôi phục -> Loại trừ lại (lần 2) thành công 100% không bị lỗi P2002 dedupeKey, tính idempotent khi exclude lặp lại không tạo notification thừa, restore sinh viên không ở trạng thái EXCLUDED bị từ chối, cán bộ Khoa không có quyền bị chặn, không thể loại trừ khi đã công bố kết quả, không thể loại trừ hoặc khôi phục khi kỳ đã chốt CLOSED); 6/6 tests pass |
+| [pagination & filter backend unit](../apps/backend/test/pagination-and-filter.test.cjs) | In-memory doubles & Pagination envelope test; kiểm BL-018 (3 ca: list ProfileDataIssues trả về envelope { items, total, page, pageSize }, chuyển trang 2 skip/take chính xác, chuẩn hóa pageSize an toàn tối đa 100 và fallback 25 khi âm), BL-019 (4 ca: findAll Evidence phân trang server-side với page/pageSize, lọc statusGroup APPROVED, counts toàn kỳ chuẩn xác cho 4 nhóm trạng thái không bị cắt xén, tìm kiếm không phân biệt hoa thường); 7/7 tests pass |
+| [activity & roles scoring backend unit](../apps/backend/test/activity-and-roles-scoring.test.cjs) | In-memory doubles & Aggregator test; kiểm BL-005 (6 ca: gộp cùng activityId thành 1 hoạt động không đếm 2 lần, minh chứng độc lập không activityId nhận diện riêng bằng evidence.id, ưu tiên vai trò PARTICIPANT từ attendance CONFIRMED trước khai báo ORGANIZER của minh chứng, nhiều evidence APPROVED mâu thuẫn vai trò báo blocker NEEDS_VERIFICATION kèm lý do, minh chứng pending báo blocker NEEDS_VERIFICATION suggestedScore null, recomputeAndSaveActivityCriterion vô hiệu hóa officialScore cũ khi căn cứ thay đổi), BL-014 (5 ca: tiêu chí 12 trong DUT_RUBRIC_CRITERIA có đầy đủ rolesScore chuẩn, validateScoringConfig chấp nhận rolesScore hợp lệ, từ chối rolesScore chứa điểm số âm, tiêu chí cộng đồng tính đúng điểm theo rolesScore cấu hình, tiêu chí thiếu rolesScore báo blocker NEEDS_VERIFICATION); 11/11 tests pass |
+| [accounts & permissions backend unit](../apps/backend/test/accounts-and-permissions.test.cjs) | In-memory doubles, ExecutionContext mock & Guard test; kiểm BL-016 (4 ca: user.isFirstLogin = true chặn API nghiệp vụ với HTTP 403 FIRST_LOGIN_PASSWORD_CHANGE_REQUIRED, cho phép @AllowFirstLogin(), user thường qua bình thường, tương thích khi không inject reflector), BL-025 (6 ca: validate ràng buộc vai trò STUDENT bắt buộc MSSV/lớp thuộc Khoa, STAFF bắt buộc Khoa cấm MSSV/lớp, ADMIN cấm gán Khoa/lớp, cấm chuỗi rỗng/khoảng trắng, update cấm xóa trường bắt buộc của vai trò, cho phép khóa tài khoản legacy isActive: false), BL-011 (3 ca: tạo user không password sinh temporaryPassword ngẫu nhiên không lộ hash/authVersion, tạo user có password không echo lại và temporaryPassword: null, reset password sinh temporaryPassword và bật isFirstLogin: true), BL-012 (2 ca: findAll trả về đầy đủ classId/facultyId và chuẩn hóa student.facultyId từ class, STAFF chỉ xem được sinh viên thuộc Khoa của mình); 15/15 tests pass |
+| [evidence & term selection backend unit](../apps/backend/test/evidence-and-term-selection.test.cjs) | In-memory doubles & Logic test; kiểm BL-015 (5 ca: phiếu RETURNED + evidence APPROVED chặn addFile, uploadDraftFile chặn non-draft, race condition status đổi thành APPROVED trong tx bị chặn, sai sinh viên bị Forbidden, update hồ sơ APPROVED bị chặn), BL-013 (3 ca: nháp có criterionAssessment.criterion hiển thị đúng sau reload, direct link ưu tiên hơn review cũ không bị ghi đè, cùng code 1.1 ở 2 rubric không ghép nhầm), BL-023 (4 ca: missingItem khác review.reason hiển thị đúng, deadline null hiển thị Không đặt hạn riêng kèm hạn kỳ, deadline quá hạn isExpired = true khóa gửi, không có yêu cầu mở hasOpenRequest = false), BL-024 (4 ca: URL có termId hợp lệ mở đúng kỳ, URL termId sai báo lỗi khóa form không fallback ngầm, URL không termId chuẩn hóa về kỳ hiện tại, đổi kỳ giữa chừng hủy nộp sang kỳ mới); 16/16 tests pass |
+| [scoring & validation backend unit](../apps/backend/test/scoring-and-validation.test.cjs) | In-memory doubles, React Component Harness & Evaluator; kiểm BL-003 (15 ca: tiêu chí 2 có baseScore: 3, 6 ca tính điểm theo quy chế vắng/trễ việc/vượt trần, all_conditions bắt buộc communityViolations không cho 10 điểm khi thiếu dữ liệu, dữ liệu null/undefined trả NEEDS_VERIFICATION, cấu hình cũ tiers [null] trong activity_threshold và community_activity_tier không crash, config thiếu baseScore trả NEEDS_VERIFICATION không crash, validator từ chối lưu rubric sai cấu hình, đối chứng đỏ), BL-004 (8 ca: leadershipRole boolean tiêu chí 14 >90% được 4đ, tiêu chí 16 được 3đ, 90.0% bị 0đ, string "true" bị từ chối HTTP 400, render component thật CriterionCard từ StudentAssessment.tsx thao tác Có/Không gửi đúng boolean true/false), BL-017 (16 ca: validateVerifiedData từ chối counter âm/thập phân/chuỗi rác/boolean, validation enum từ chối mảng/object cho awardTier và academicTier, evaluator từ chối tính điểm mảng/object, mã lỗi qua HttpExceptionFilter thật trả đúng contract { error: { code: "INVALID_VERIFICATION_DATA" } }, gọi verifyCriterion thật với DB doubles chứng minh request invalid KHÔNG ghi DB/audit, tỷ lệ >100 hoặc âm, chấp nhận tỷ lệ thập phân 95.5% và điểm cộng đồng thập phân 7.5, từ chối officialScore > maxScore, 0 hợp lệ tính đúng điểm, evaluator từ chối ép 0 sai lệch, đối chứng đỏ hàm count cũ); 39/39 tests pass |
 | [deadline & closure backend unit](../apps/backend/test/deadline-and-closure.test.cjs) | In-memory doubles, Term lock queue & DTO validation; kiểm BL-006 (11 ca: khóa chốt kỳ khi còn gia hạn phúc khảo hiệu lực, ưu tiên cá nhân → lớp, id: desc, ca biên now === deadline, đối chứng đỏ, 2 ca lock concurrency: 2 revoke đồng thời đọc lại sau khóa, xen kẽ chốt kỳ và gia hạn), BL-020 (4 ca: DTO validation query, 105 sinh viên phân trang trang 5/6, snapshot lớp, loại trùng lớp, từ chối đối tượng ngoài kỳ); 15/15 tests pass |
 | [deadline dialog & access web unit](../apps/web/scripts/deadline-dialog-and-access.test.cjs) | React Component & Hook Harness chạy mã nguồn thật; kiểm BL-020 (2 ca dialog thật: MSSV/tên/lớp snapshot không undefined, phân trang 105 sinh viên 6 trang), BL-010 (4 ca hook thật: DRAFT, RETURNED, thời điểm hết hạn khóa ngay trên UI, đối chứng đỏ); 6/6 tests pass |
 | [data protection unit](../apps/backend/test/data-protection.test.cjs) | In-memory doubles; kiểm BL-007 (tách 3 bước upload/commit/ký, lỗi ký không xóa Storage, fallback signedUrlAvailable: false, đối chứng đỏ/xanh) và BL-026 (5 ca đối chứng kịch bản race condition nộp/xóa, lock Term, đọc file trong lock, cleanup sau commit, rollback an toàn); 11/11 tests pass |
@@ -41,6 +97,12 @@ node --test test/evidence-processing-worker.test.cjs
 node --test test/security-fixes.test.cjs
 node --test test/data-protection.test.cjs
 node --test test/deadline-and-closure.test.cjs
+node --test test/scoring-and-validation.test.cjs
+node --test test/evidence-and-term-selection.test.cjs
+node --test test/accounts-and-permissions.test.cjs
+node --test test/activity-and-roles-scoring.test.cjs
+node --test test/pagination-and-filter.test.cjs
+node --test test/exclusion-and-restore.test.cjs
 ```
 
 ```sh
@@ -60,8 +122,8 @@ Mỗi BL giữ kịch bản chi tiết trong [audit](BUSINESS_LOGIC_AUDIT.md). �
 |---|---|---|
 | [BL-001](BUSINESS_LOGIC_AUDIT.md#bl-001) | Service/API doubles | **Passed (unit):** Đạt 5/5 ca trong security-fixes.test.cjs; kỳ không tồn tại ném NotFoundException, DB rỗng trả empty score, thiếu snapshot ném ForbiddenException, request có/không termId với sinh viên chuyển Khoa đều dùng cùng ranh giới snapshot Khoa. |
 | [BL-002](BUSINESS_LOGIC_AUDIT.md#bl-002) | Service/API doubles | **Passed (unit):** Đạt 2/2 ca trong security-fixes.test.cjs; reviewer dùng projection select an toàn { id, fullName, role }, payload và chuỗi JSON không chứa password/authVersion; bắt được lỗi nếu code cũ dùng reviewer: true. |
-| [BL-003](BUSINESS_LOGIC_AUDIT.md#bl-003) | Pure/service doubles | Rubric mặc định: không vi phạm→3, vắng không lý do một lần→1, trễ việc→0; config thiếu baseScore phải bị từ chối. |
-| [BL-004](BUSINESS_LOGIC_AUDIT.md#bl-004) | Contract/form + browser cách ly | Thao tác form thật cho leadershipRole=true ở tiêu chí 14 và 16; kiểm tra payload boolean và điểm 4/3. |
+| [BL-003](BUSINESS_LOGIC_AUDIT.md#bl-003) | Pure/service doubles | **Passed (unit):** Đạt 15/15 ca trong scoring-and-validation.test.cjs; tiêu chí 2 mặc định có baseScore: 3 và tổng điểm khung I đúng 20; tính đúng 6 ca theo quy chế (không vi phạm: 3đ, vắng không phép 1 lần: 1đ, vắng có phép 1 lần: 3đ, vắng có phép 2 lần: 2đ, trễ hạn nhóm: 0đ, điểm trừ vượt trần: 0đ); all_conditions bắt buộc communityViolations không cho 10 điểm khi thiếu dữ liệu vi phạm; dữ liệu null/undefined trả NEEDS_VERIFICATION; cấu hình cũ tiers [null] trong activity_threshold và community_activity_tier không crash; config thiếu baseScore trả NEEDS_VERIFICATION rõ ràng không crash; validateScoringConfig từ chối lưu rubric sai cấu hình; đối chứng đỏ chứng minh code cũ sinh NaN. |
+| [BL-004](BUSINESS_LOGIC_AUDIT.md#bl-004) | Contract/form + browser cách ly | **Passed (unit/component thật):** Đạt 8/8 ca trong scoring-and-validation.test.cjs; tiêu chí 14 đúng chức vụ, 95%, xác nhận đạt 4 điểm; đúng 90.0% bị 0 điểm (yêu cầu trên 90%); 90.1% đạt 4 điểm; tiêu chí 16 đạt 3 điểm; string "true" bị backend validateVerifiedData từ chối HTTP 400; render component thật CriterionCard từ StudentAssessment.tsx thao tác chọn Có/Không gửi đúng boolean true/false lên API. |
 | [BL-005](BUSINESS_LOGIC_AUDIT.md#bl-005) | Service/API + DB cách ly | CONFIRMED roster không có Evidence, chỉ Evidence, cả hai cùng hoạt động và hai nguồn khác hoạt động; kết quả không đổi theo thứ tự lưu. |
 | [BL-006](BUSINESS_LOGIC_AUDIT.md#bl-006) | Service/API + DB cách ly | **Passed (unit/concurrency):** Đạt 12/12 ca trong deadline-and-closure.test.cjs; chốt kỳ thành công khi hết hạn gốc và không có gia hạn; chặn khi tại đúng thời điểm biên (now === deadline); chặn khi có gia hạn cá nhân hoặc lớp còn hiệu lực; ưu tiên cá nhân → lớp; thứ tự phụ id: desc; gia hạn ngoài roster không chặn kỳ; đối chứng đỏ logic cũ; 3 ca concurrency lock (revoke đồng thời đọc lại sau khóa, và 2 ca concurrency lock barrier mô phỏng tranh chấp cả 2 thứ tự chốt kỳ/gia hạn). |
 | [BL-007](BUSINESS_LOGIC_AUDIT.md#bl-007) | Service doubles rồi DB/Storage cách ly | **Passed (unit):** Đạt 6/6 ca trong data-protection.test.cjs (tách riêng 3 bước upload/commit/ký; lỗi ký không xóa tệp đã lưu trong DB, trả phản hồi an toàn signedUrlAvailable: false; đối chứng đỏ/xanh chứng minh code cũ xóa tệp, code mới giữ tệp) và 5/5 ca trong evidence-inspection.test.cjs (gọi trực tiếp component thực tế EvidenceInspection và ReviewDetail với Deferred Promise điều khiển thủ công: retry 2 hoàn thành trước, retry 1 trả về sau không ghi đè; xóa sạch error khi retry thành công; có đối chứng đỏ chứng minh code lỗi làm test fail). |
@@ -74,7 +136,7 @@ Mỗi BL giữ kịch bản chi tiết trong [audit](BUSINESS_LOGIC_AUDIT.md). �
 | [BL-014](BUSINESS_LOGIC_AUDIT.md#bl-014) | Service/API + DB cách ly | Tạo→lưu→ban hành rubric có role rates, đọc lại giữ nguyên và điểm danh tính đúng; thiếu rates hiển thị blocker trước sử dụng. |
 | [BL-015](BUSINESS_LOGIC_AUDIT.md#bl-015) | Service doubles rồi DB/Storage cách ly | RETURNED tổng nhưng Evidence APPROVED: thêm file bị chặn hoặc chuyển trạng thái đúng cùng audit/version. |
 | [BL-016](BUSINESS_LOGIC_AUDIT.md#bl-016) | Service/API + DB cách ly | Token firstLogin gọi API ghi bị chặn, đổi mật khẩu xong gọi được; không chặn endpoint cần cho bước đổi. |
-| [BL-017](BUSINESS_LOGIC_AUDIT.md#bl-017) | Pure/service doubles | Chuỗi rác, âm, fractional khi cần integer, Infinity/boolean phải bị từ chối; 0 hợp lệ vẫn tính đúng. |
+| [BL-017](BUSINESS_LOGIC_AUDIT.md#bl-017) | Pure/service doubles | **Passed (unit/DB doubles):** Đạt 16/16 ca trong scoring-and-validation.test.cjs; validateVerifiedData từ chối counter âm (-2), số thập phân (1.5), chuỗi rác ("abc"), boolean (true) với HTTP 400 INVALID_VERIFICATION_DATA; validation enum từ chối mảng/object cho awardTier và academicTier; evaluator từ chối tính điểm mảng/object; mã lỗi qua HttpExceptionFilter thật trả đúng contract { error: { code: "INVALID_VERIFICATION_DATA" } }; gọi verifyCriterion thật với DB doubles chứng minh request invalid KHÔNG ghi DB/audit, request valid ghi đúng; tỷ lệ >100 hoặc âm bị chặn; chấp nhận tỷ lệ thập phân 95.5% và điểm quy đổi thập phân 7.5; từ chối officialScore > maxScore; 0 hợp lệ tính đúng điểm tối đa; evaluator từ chối ép 0 khi gặp dữ liệu vi phạm sai kiểu; đối chứng đỏ chứng minh hàm count cũ ép chuỗi rác/số âm thành 0 và cho điểm tối đa. |
 | [BL-018](BUSINESS_LOGIC_AUDIT.md#bl-018) | Contract/form + browser cách ly | Fixture26 hoặc 51 issues qua double HTTP, kiểm total/pageSize, chuyển trang và xử lý item cuối. |
 | [BL-019](BUSINESS_LOGIC_AUDIT.md#bl-019) | Contract/form + browser cách ly | 21+ minh chứng, hồ sơ mục tiêu ở trang 2; tìm/đổi trạng thái và mở chi tiết vẫn truy cập được. |
 | [BL-020](BUSINESS_LOGIC_AUDIT.md#bl-020) | Contract/form + browser cách ly | **Passed (unit/component thật):** Đạt 4/4 ca trong deadline-and-closure.test.cjs (targets DTO validation, 105 sinh viên phân trang trang 5/6, loại trùng lớp, từ chối ngoài roster) và 2/2 ca trong deadline-dialog-and-access.test.cjs (component thật DeadlineExtensionsDialog render đúng MSSV, họ tên, lớp snapshot không bị undefined · undefined; bấm chuyển trang thực tế qua 6 trang, kiểm tra tham số request gửi API, hiển thị và chọn thành công sinh viên 105). |

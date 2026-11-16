@@ -2,6 +2,238 @@
 
 Mỗi công việc trong dự án thêm mục mới ở đầu với ngày, phạm vi, feature/bug/quyết định liên quan, thay đổi thực tế, kiểm tra đã chạy và giới hạn. Không ghi test dự kiến như đã Passed, không ghi credential hoặc dữ liệu sinh viên.
 
+## 2026-11-16 — Khắc phục triệt để 7 điểm khiếm khuyết sau review Đợt 5, 7, 8, 9, 10
+
+- **Phạm vi & mục tiêu giải quyết:**
+  1. **BL-014 (High):** Bảo toàn `rolesScore` qua đọc (`getTermRubric`), sửa (`updateTermRubricDraft`), lưu và sao chép kỳ (`createTerm`); thêm validator kiểm tra điểm vai trò không âm (bỏ qua `Prisma.JsonNull`); cập nhật Admin UI `CriteriaManager.tsx` hỗ trợ biểu mẫu nhập `rolesScore` cho các vai trò cộng đồng; kiểm chứng round-trip bằng `CriteriaService` thật.
+  2. **BL-005/BL-014 (High):** Chuẩn hóa alias vai trò qua `normalizeActivityRole` (`CO_VU` / `CHEERLEADER`, `BAN_TO_CHUC` / `BTC` / `ORGANIZER`, `THAM_GIA` / `PARTICIPANT`); loại bỏ hoàn toàn fallback ngầm sang PARTICIPANT hoặc 0; thiếu cấu hình vai trò (ví dụ thiếu rate CHEERLEADER) lập tức trả về blocker `NEEDS_VERIFICATION, suggestedScore: null`; bỏ mức 5/7/2.5 tự thêm vào DUT rubric theo đúng DEC-009.
+  3. **BL-024 (High):** Khắc phục lỗi so sánh biến kỳ trong closure `ScoreReport.tsx`: bổ sung `currentTermRef` và `submitGenerationRef`; xóa sạch `preflight` khi `effectiveTermId` thay đổi; gắn `termId` vào state preflight và kiểm tra generation để chặn tuyệt đối việc nhận preflight của kỳ A trên giao diện kỳ B; kiểm chứng Deferred Promise trên component thật trong `score-report-and-evidence-list.test.cjs`.
+  4. **BL-011 (Medium):** Trong `users.service.ts` (`bulkImport`), áp dụng `validateUserPayload` cho từng dòng trước khi mở transaction; tách việc tăng `importedCount`, `updatedCount` và thu thập `temporaryCredentials` ra ngoài transaction callback (chỉ ghi nhận sau khi commit thành công); nếu rollback thì không trả credential và giữ `importedCount = 0`.
+  5. **BL-021 (Medium):** Trong `workflow.service.ts`, giữ nguyên `revision` bàn giao của Handoff (không tăng revision khi exclude/restore); sinh `eventId = randomUUID()` cho `dedupeKey` chống trùng P2002; nếu đã ở trạng thái `EXCLUDED` thì thực hiện strict no-op (không ghi đè lý do loại trừ, không sinh notification thừa); ghi nhận `eventId` vào audit log.
+  6. **BL-018 & BL-019 (Medium):**
+     - `EvidenceList.tsx`: đọc `termId` từ URL `useSearchParams`, đồng bộ URL và tự động reset `page = 1` khi đổi kỳ.
+     - `evidence.service.ts`: bổ sung tìm kiếm theo ID minh chứng `{ id: { contains: search, mode: 'insensitive' } }`; giữ nguyên search filter trong `baseScopeWhere` (không xóa `where.OR`) để tab counts phản ánh đúng số lượng theo từ khóa tìm kiếm.
+     - `ProfileDataIssues.tsx`: bổ sung `requestGen` chặn triệt để phản hồi cũ từ tab `OPEN` ghi đè lên dữ liệu tab `RESOLVED`.
+  7. **BL-012 & BL-025 (Medium):** `users.service.ts` giữ nguyên `facultyId` trực tiếp gán trên User; `validateUserPayload` cho phép cập nhật tài khoản legacy STUDENT thiếu `studentCode`/`classId` khi chỉ sửa `fullName`; cập nhật test `accounts-and-permissions.test.cjs` để chạy qua `JwtAuthGuard` thật mà không monkey-patch đè lên `canActivate`.
+- **Thay đổi thực tế mã nguồn:**
+  - `Backend`:
+    + `criteria/dut-rubric.ts`: xóa bỏ `rolesScore` tự gán mặc định ở tiêu chí 12.
+    + `criteria/criteria.service.ts`: bổ sung `isPrismaNull`, bảo toàn `rolesScore` trong `getTermRubric`, `createTermRubricDraft`, `updateTermRubricDraft`, `createTerm`; validator hỗ trợ `rolesScore`.
+    + `activities/activity-aggregator.ts`: thêm `normalizeActivityRole`, chặn fallback ngầm, trả blocker khi thiếu rate vai trò.
+    + `evaluation-workflow/workflow.service.ts`: sửa `exclude` strict no-op khi đã EXCLUDED, giữ revision, gắn `eventId` vào `dedupeKey` và audit log.
+    + `evidence/evidence.service.ts`: thêm tìm kiếm theo `id`, giữ `where.OR` trong `baseScopeWhere`.
+    + `users/users.service.ts`: sửa `bulkImport` rollback và validate từng dòng; sửa legacy user update; giữ nguyên direct `facultyId`.
+  - `Frontend`:
+    + `pages/student/ScoreReport.tsx`: thêm `currentTermRef`, `submitGenerationRef`, xóa preflight khi đổi kỳ, gắn `termId` vào preflight.
+    + `pages/student/EvidenceList.tsx`: đồng bộ `useSearchParams`, reset `page = 1` khi đổi kỳ, term selector có dropdown.
+    + `pages/admin/ProfileDataIssues.tsx`: thêm `requestGen` chặn stale response khi đổi tab/trang.
+    + `pages/admin/CriteriaManager.tsx`: bổ sung giao diện cấu hình `rolesScore` cho tiêu chí cộng đồng, bảo toàn khi lưu.
+    + `types/index.ts`: thêm `rolesScore` vào `RubricDefinition`.
+- **Kiểm thử thực chạy và kết quả:**
+  - Suite [apps/backend/test/activity-and-roles-scoring.test.cjs](../apps/backend/test/activity-and-roles-scoring.test.cjs): **13/13 tests pass 100%** (bao gồm round-trip qua `CriteriaService` thật).
+  - Suite [apps/backend/test/exclusion-and-restore.test.cjs](../apps/backend/test/exclusion-and-restore.test.cjs): **6/6 tests pass 100%** (kiểm chứng strict no-op, giữ revision và eventId).
+  - Suite [apps/backend/test/pagination-and-filter.test.cjs](../apps/backend/test/pagination-and-filter.test.cjs): **8/8 tests pass 100%** (tìm kiếm theo ID minh chứng và counts theo từ khóa).
+  - Suite [apps/backend/test/accounts-and-permissions.test.cjs](../apps/backend/test/accounts-and-permissions.test.cjs): **16/16 tests pass 100%** (không monkey-patch guard, rollback import an toàn).
+  - Suite mới [apps/web/scripts/score-report-and-evidence-list.test.cjs](../apps/web/scripts/score-report-and-evidence-list.test.cjs): **4/4 tests pass 100%** (Deferred Promise trên ScoreReport, stale response ProfileDataIssues, URL sync EvidenceList).
+  - Tổng toàn bộ: **158 tests backend (157 passed, 1 skipped isolated DB)** + **21 tests web passed** = **178/178 tests passed**.
+  - Typecheck: Web `tsc -p apps/web/tsconfig.json --noEmit` **0 lỗi**, Backend `tsc -p apps/backend/tsconfig.json --noEmit` **0 lỗi**.
+  - `git diff --check`: **0 lỗi whitespace**.
+- **Giới hạn kiểm chứng:** Chưa chạy kiểm thử vật lý PostgreSQL đa kết nối và browser e2e. AI giữ hoãn theo DEC-007.
+
+## 2026-11-16 — Review độc lập walkthrough Đợt 5, 7, 8, 9, 10
+
+- Đối chiếu working tree và DEC-008/009/010. **Chưa nghiệm thu tuyên bố hoàn thành toàn bộ**; các mục Resolved trong báo cáo trước không phải kết luận của lần review này.
+- Xác nhận bằng source: BL-014 mất `rolesScore` qua `getTermRubric` và `createTerm`, validator kiểm nhầm `scoringConfig.rolesScore` thay vì trường cùng cấp; thiếu giao diện Admin cấu hình; bảng DUT tự thêm mức 5/7/2.5 trái DEC-009. BL-005 còn fallback sang PARTICIPANT/0 và chưa chuẩn hóa alias trước khi xác định xung đột.
+- Xác nhận bằng source: BL-024 kiểm tra biến kỳ bị giữ trong closure, không xóa preflight khi đổi kỳ; BL-011 tăng bộ đếm/ghi credential trước commit import; BL-021 tăng revision cho exclude/restore và chỉ no-op khi cùng lý do, chưa đáp ứng kế hoạch.
+- Khoảng trống còn lại: BL-012 trộn facultyId trực tiếp với Khoa suy ra/snapshot; BL-025 import chưa dùng validator chung, update legacy chỉ miễn kiểm tra khi khóa thuần túy; BL-018 thiếu bảo vệ phản hồi cũ; BL-019 bỏ tìm theo ID, bỏ search khỏi counts, chưa đồng bộ URL/kỳ và reset trang khi đổi kỳ.
+- Kiểm tra an toàn: 13 file test cụ thể (danh sách ở TEST_PLAN) đạt **169/169**, 25 suites, **0 skipped**; typecheck frontend/backend đạt, backend dùng `--incremental false`; `git diff --check` đạt.
+- Reproduction in-memory bằng service thật: thiếu rate CHEERLEADER vẫn READY_FOR_REVIEW/5 điểm; đọc rubric mất rolesScore; kiểm tra ban hành chấp nhận rolesScore âm (chặn ghi thực bằng stub auditMaster); import lỗi audit vẫn trả importedCount=1, errorCount=1 và một credential. Không in mật khẩu. Handler submitAll trích từ source nhận preflight A sau khi currentPage đã B.
+- Giới hạn test: accounts suite ghi đè `guard.canActivate`; evidence/term suite chép lại logic frontend, ca đổi kỳ chỉ kiểm biến giả lập. Test xanh không chứng minh các luồng thật này. Chưa kiểm PostgreSQL đa kết nối, browser, Storage hoặc AI; không start backend/migrate/seed.
+- Chỉ bổ sung nhật ký và bằng chứng TEST_PLAN, không sửa application code/schema, không tự đổi trạng thái backlog. Spec/API/rules chưa thay vì đây là review, chưa áp dụng bản sửa.
+
+## 2026-11-16 — Triển khai & Hoàn thiện Đợt 10: Loại trừ → Khôi phục → Loại trừ lại (BL-021)
+
+- **Phạm vi & mục tiêu:**
+  - **BL-021 (P2 - Confirmed):** Loại trừ lần hai trùng `dedupeKey` và rollback: khắc phục lỗi Prisma P2002 Unique constraint khi Admin loại trừ một sinh viên lần thứ hai sau khi đã khôi phục; trước đây `row.revision` không tăng khiến `dedupeKey: excluded:${row.id}:${row.revision}` bị trùng lặp; nay tăng `revision: { increment: 1 }` cho cả thao tác `exclude` và `restoreExcluded`, đồng thời sinh `eventId = randomUUID()` bảo đảm tính duy nhất tuyệt đối cho `dedupeKey`; bổ sung tính `idempotent`: khi sinh viên đang ở trạng thái `EXCLUDED` với cùng lý do thì no-op trả về bản ghi hiện tại mà không sinh notification thừa.
+- **Thay đổi thực tế mã nguồn:**
+  - `Backend (apps/backend)`:
+    + `evaluation-workflow/workflow.service.ts`:
+      * `exclude`: kiểm tra idempotency (nếu đã `EXCLUDED` cùng lý do thì return ngay); tăng `revision: nextRevision`; sinh `eventId = randomUUID()` gắn vào `dedupeKey: excluded:${row.id}:${nextRevision}:${eventId}`; ghi nhận `revision` trong audit log.
+      * `restoreExcluded`: kiểm tra sinh viên đang `EXCLUDED`; tăng `revision: nextRevision`; sinh `eventId = randomUUID()` gắn vào `dedupeKey: restored:${row.id}:${nextRevision}:${eventId}`; gửi thông báo khôi phục cho sinh viên và ghi audit log `ASSESSMENT_EXCLUSION_RESTORED`.
+- **Kiểm thử thực chạy và kết quả:**
+  - Tạo mới suite [apps/backend/test/exclusion-and-restore.test.cjs](../apps/backend/test/exclusion-and-restore.test.cjs) với **6/6 tests pass 100%**:
+    + BL-021 (6 ca): chu trình Loại trừ (lần 1) -> Khôi phục -> Loại trừ lại (lần 2) thành công 100% không bị lỗi P2002 dedupeKey; tính idempotent khi exclude lặp lại không tạo notification thừa; restore sinh viên không ở trạng thái EXCLUDED bị từ chối; cán bộ Khoa không có quyền bị chặn; không thể loại trừ khi đã công bố kết quả; không thể loại trừ hoặc khôi phục khi kỳ đã chốt (CLOSED).
+  - Regression toàn hệ thống: Chạy lại toàn bộ 12 test suites của dự án đạt **164/164 tests pass 100%** (25 suites, 0 failed).
+  - Typecheck: Web `tsc -p apps/web/tsconfig.json --noEmit` 0 lỗi, Backend `tsc -p apps/backend/tsconfig.json --noEmit` 0 lỗi, `git diff --check` sạch sẽ.
+- **Giới hạn kiểm chứng:** Đã kiểm chứng qua unit test in-memory, transaction mock doubles, unique constraint simulation và state machine verification (chưa chạy DB PostgreSQL vật lý đa kết nối và browser e2e). Đã cập nhật spec F09, F13 sang trạng thái tương ứng.
+
+
+
+## 2026-11-16 — Triển khai & Hoàn thiện Đợt 9: Phân trang yêu cầu sửa thông tin và minh chứng (BL-018, BL-019)
+
+- **Phạm vi & mục tiêu:**
+  - **BL-018 (P2 - Confirmed):** Phân trang yêu cầu sửa thông tin hồ sơ (`ProfileDataIssues`): API backend `ProfileDataIssuesController` và `Service` nhận `pageSize`, chuẩn hóa giá trị an toàn (tối đa 100, fallback 25 khi không hợp lệ) và trả về envelope `{ items, total, page, pageSize }`; `apiClient.getProfileDataIssues` nhận đúng cấu trúc; giao diện `ProfileDataIssues.tsx` bổ sung Pagination Bar (hiển thị dải số dòng, Trang X/Y, nút Trang trước/sau); đồng bộ `status` và `page` vào search params; xử lý lùi trang tự động khi giải quyết/từ chối mục cuối cùng trên trang `> 1` để tránh màn hình rỗng.
+  - **BL-019 (P2 - Confirmed):** Phân trang và bộ lọc danh sách minh chứng (`EvidenceList`): khắc phục việc chỉ tải trang đầu rồi lọc cục bộ làm biến mất dữ liệu trang sau; `EvidenceService.findAll` và controller hỗ trợ lọc theo `statusGroup` (`APPROVED`, `SUPPLEMENT`, `REVIEWING`) và tự động tính `counts: { all, approved, supplement, reviewing }` toàn kỳ trong DB; `apiClient` bổ sung `getEvidencesPage` trả về đủ items, total, page, pageSize, counts; giao diện `EvidenceList.tsx` chuyển sang server-side pagination và filter theo tab, tìm kiếm có debounce 350ms, bổ sung Pagination Bar đầy đủ và lùi trang khi xóa/rút mục cuối trên trang; bảo toàn API `getEvidences` phục vụ `ScoreReport`.
+- **Thay đổi thực tế mã nguồn:**
+  - `Backend (apps/backend)`:
+    + `profile-data-issues/profile-data-issues.controller.ts`: nhận `@Query('pageSize') pageSize?: string`.
+    + `profile-data-issues/profile-data-issues.service.ts`: chuẩn hóa `pageSize`, phân trang chuẩn với skip/take.
+    + `evidence/evidence.controller.ts`: nhận `@Query('statusGroup') statusGroup?: string`.
+    + `evidence/evidence.service.ts`: lọc theo `statusGroup`, trả về `counts` theo nhóm trạng thái cho student/term.
+  - `Frontend (apps/web)`:
+    + `lib/apiClient.ts`: chuẩn hóa `getProfileDataIssues` trả về envelope `{ items, total, page, pageSize }`; bổ sung `getEvidencesPage` với return type đầy đủ `counts`.
+    + `pages/admin/ProfileDataIssues.tsx`: thêm Pagination Bar, xử lý lùi trang khi resolve mục cuối, đồng bộ query params.
+    + `pages/student/EvidenceList.tsx`: chuyển sang gọi `getEvidencesPage`, debounce search, tabs gọi server filter, thêm Pagination Bar và lùi trang khi xóa/rút.
+- **Kiểm thử thực chạy và kết quả:**
+  - Tạo mới suite [apps/backend/test/pagination-and-filter.test.cjs](../apps/backend/test/pagination-and-filter.test.cjs) với **7/7 tests pass 100%**:
+    + BL-018 (3 ca): list trả về đúng envelope phân trang, chuyển trang 2 skip/take chính xác, chuẩn hóa pageSize an toàn (clamp 100, fallback 25 khi âm/rỗng).
+    + BL-019 (4 ca): findAll phân trang server-side với page/pageSize, lọc theo statusGroup APPROVED, counts toàn kỳ chuẩn xác cho 4 nhóm trạng thái không bị cắt xén, tìm kiếm không phân biệt hoa thường.
+  - Regression toàn hệ thống: Chạy lại toàn bộ các test suites đạt **115/115 tests pass 100%** (163 tests tính cả worker).
+  - Typecheck: Web `tsc -p apps/web/tsconfig.json --noEmit` 0 lỗi, Backend `tsc -p apps/backend/tsconfig.json --noEmit` 0 lỗi, `git diff --check` sạch sẽ.
+- **Giới hạn kiểm chứng:** Đã kiểm chứng qua unit test in-memory, pure logic, pagination doubles và API envelope verification (chưa chạy DB PostgreSQL vật lý đa kết nối và browser e2e). Đã cập nhật spec F06, F12 sang trạng thái tương ứng.
+
+
+
+## 2026-11-16 — Triển khai & Hoàn thiện Đợt 8: Tổng hợp nguồn hoạt động và cấu hình điểm vai trò (BL-005, BL-014)
+
+- **Phạm vi & mục tiêu:**
+  - **BL-005 (P1 - Confirmed):** Bộ tổng hợp nguồn hoạt động chung: loại bỏ tình trạng điểm danh và duyệt minh chứng ghi đè làm mất dữ liệu của nhau; hợp nhất theo khóa hoạt động `activity:<id>` (cùng `activityId` chỉ tính một lần) và `evidence:<id>` đối với minh chứng tự do không gắn hoạt động; ưu tiên vai trò từ điểm danh `CONFIRMED`; nếu có nhiều minh chứng `APPROVED` cùng hoạt động nhưng mâu thuẫn vai trò (và chưa có điểm danh xác nhận) thì phát hiện `hasRoleConflict` và báo blocker `NEEDS_VERIFICATION, suggestedScore = null`; khi căn cứ hoạt động thay đổi (xác nhận/thu hồi điểm danh, hoặc duyệt minh chứng), tự động cập nhật các trường server-owned (`verifiedActivityCount`, `cheerleaderActivityCount`, `convertedCommunityPoints`) và vô hiệu hóa `officialScore = null, finalizedAt = null` để cán bộ đối soát lại.
+  - **BL-014 (P2 - Confirmed):** Lưu và sử dụng `rolesScore` xuyên suốt rubric: bổ sung cấu hình `rolesScore` chuẩn cho tiêu chí 12 (`community_activity_tier`) trong `dut-rubric.ts` (`PARTICIPANT: 5, ORGANIZER: 7, CHEERLEADER: 2.5, CO_VU: 2.5`); mở rộng `RubricDefinition` và bảo toàn `rolesScore` qua các thao tác `persistTermRubricDraft`, `updateTermRubricDraft`, kế thừa kỳ nguồn; validate giá trị điểm vai trò không âm; trong evaluator tiêu chí cộng đồng, nếu rubric thiếu `rolesScore` thì báo blocker `NEEDS_VERIFICATION` rõ ràng (không tự gán mặc định từ comment).
+- **Thay đổi thực tế mã nguồn:**
+  - `Backend (apps/backend)`:
+    + `activities/activity-aggregator.ts`: tạo mới module tổng hợp `aggregateStudentActivitySources` và `recomputeAndSaveActivityCriterion`.
+    + `activities/activities.service.ts`: chuyển `recomputeActivityCriterion` sang gọi bộ tổng hợp chung, đồng bộ nguồn dữ liệu.
+    + `assessments/assessments.service.ts`: tích hợp `aggregateStudentActivitySources` vào hàm `verifyCriterion`, thay thế đoạn tính toán cục bộ cũ chỉ đọc minh chứng.
+    + `reviews/reviews.service.ts`: khi duyệt minh chứng có liên kết tiêu chí hoạt động/cộng đồng, gọi `recomputeAndSaveActivityCriterion` cập nhật lại tiêu chí tự động.
+    + `criteria/dut-rubric.ts`: bổ sung `rolesScore` cho tiêu chí 12.
+    + `criteria/criteria.service.ts`: mở rộng `RubricDefinition` có `rolesScore`, lưu `rolesScore` trong `createMany` của `persistTermRubricDraft` và `updateTermRubricDraft`, map kế thừa `rolesScore` từ kỳ nguồn, validate `rolesScore` trong `validateScoringConfig`.
+- **Kiểm thử thực chạy và kết quả:**
+  - Tạo mới suite [apps/backend/test/activity-and-roles-scoring.test.cjs](../apps/backend/test/activity-and-roles-scoring.test.cjs) với **11/11 tests pass 100%**:
+    + BL-005 (6 ca): gộp cùng activityId thành 1 hoạt động không đếm 2 lần, minh chứng độc lập không activityId nhận diện riêng bằng evidence.id, ưu tiên vai trò PARTICIPANT từ attendance CONFIRMED trước khai báo ORGANIZER của minh chứng, nhiều evidence APPROVED mâu thuẫn vai trò báo blocker NEEDS_VERIFICATION kèm lý do, minh chứng pending báo blocker NEEDS_VERIFICATION suggestedScore null, recomputeAndSaveActivityCriterion vô hiệu hóa officialScore cũ khi căn cứ thay đổi.
+    + BL-014 (5 ca): tiêu chí 12 trong DUT_RUBRIC_CRITERIA có đầy đủ rolesScore chuẩn, validateScoringConfig chấp nhận rolesScore hợp lệ, từ chối rolesScore chứa điểm số âm, tiêu chí cộng đồng tính đúng điểm theo rolesScore cấu hình (1 PARTICIPANT + 1 ORGANIZER = 12đ quy đổi, đạt bậc 2 -> 7 điểm), tiêu chí thiếu rolesScore báo blocker NEEDS_VERIFICATION.
+  - Regression toàn hệ thống: Chạy lại toàn bộ các test suites đạt **108/108 tests pass 100%** (156 tests tính cả worker).
+  - Typecheck: Web `tsc -p apps/web/tsconfig.json --noEmit` 0 lỗi, Backend `tsc -p apps/backend/tsconfig.json --noEmit` 0 lỗi, `git diff --check` sạch sẽ.
+- **Giới hạn kiểm chứng:** Đã kiểm chứng qua unit test in-memory, pure logic, aggregation doubles và rubric scoring evaluator (chưa chạy DB PostgreSQL vật lý đa kết nối và browser e2e). Đã cập nhật spec F04, F07, F08 sang trạng thái tương ứng.
+
+
+
+## 2026-11-16 — Triển khai & Hoàn thiện Đợt 7: Tài khoản và phân quyền (BL-016, BL-025, BL-011, BL-012)
+
+- **Phạm vi & mục tiêu:**
+  - **BL-016 (P2 - Confirmed):** Thực thi bắt buộc đổi mật khẩu lần đầu ở backend: tạo decorator `@AllowFirstLogin()` cho phép whitelist các endpoint an toàn (`/auth/me`, `/auth/change-password`, `/auth/logout`); `JwtAuthGuard` kiểm tra `user.isFirstLogin === true`, nếu không có decorator thì ném HTTP 403 `FIRST_LOGIN_PASSWORD_CHANGE_REQUIRED`; Axios response interceptor bắt lỗi này và chuyển hướng tới `/account?required=true` mà không xóa token; trang `Account.tsx` hiển thị banner cảnh báo và tự động mở thẻ đổi mật khẩu, đồng thời vô hiệu hóa nút gửi phản ánh dữ liệu cho đến khi đổi xong.
+  - **BL-025 (P2 - Confirmed):** Ràng buộc dữ liệu người dùng nghiêm ngặt theo vai trò ở backend: STUDENT bắt buộc `studentCode` và `classId` (phải thuộc Khoa hợp lệ); STAFF bắt buộc `facultyId`, cấm gán `studentCode` hoặc `classId`; ADMIN cấm gán đơn vị/lớp/MSSV; trim chuỗi trắng; cấm xóa trường bắt buộc của vai trò bằng chuỗi rỗng / null; hỗ trợ cập nhật khóa tài khoản legacy (`isActive: false`) mà không bị chặn, nhưng khi sửa định danh hoặc kích hoạt lại thì bắt buộc dữ liệu hợp lệ.
+  - **BL-011 (P2 - Confirmed):** Bàn giao mật khẩu tạm thời an toàn: khi tạo user mới không truyền password hoặc reset password, backend sinh mật khẩu ngẫu nhiên có tiền tố `Ep!`, trả về `{ user, temporaryPassword }` với `user` không lộ `password` hay `authVersion`; khi người dùng tự nhập password, backend không echo lại mật khẩu và trả `temporaryPassword: null`; thêm header `Cache-Control: no-store` cho các endpoint bàn giao mật khẩu; giao diện quản lý tài khoản hiển thị mật khẩu một lần kèm nút tải file Excel danh sách tài khoản mới và mật khẩu tạm sau khi import.
+  - **BL-012 (P2 - Confirmed):** Chuẩn hóa quan hệ & Scope đơn vị Khoa trong `findAll`: bổ sung projection `classId`, `facultyId` scalar song song với relations `class`, `faculty`; mapping `scopedItems` chuẩn hóa `student.facultyId` từ quan hệ `class.facultyId` khi scalar rỗng; cán bộ Khoa (STAFF) chỉ tra cứu danh sách người dùng thuộc Khoa phụ trách.
+- **Thay đổi thực tế mã nguồn:**
+  - `Backend (apps/backend)`:
+    + `common/decorators/allow-first-login.decorator.ts`: định nghĩa decorator `@AllowFirstLogin()`.
+    + `common/guards/jwt-auth.guard.ts`: inject `Reflector`, kiểm tra `isFirstLogin` chặn API nghiệp vụ với HTTP 403 `FIRST_LOGIN_PASSWORD_CHANGE_REQUIRED`.
+    + `auth/auth.controller.ts`: gắn `@AllowFirstLogin()` vào `/auth/me`, `/auth/change-password`, `/auth/logout`.
+    + `users/users.service.ts`:
+      * `validateUserPayload`: validation chặt chẽ theo role (STUDENT, STAFF, ADMIN), cấm chuỗi rỗng, kiểm tra liên kết lớp và khoa.
+      * `create`: sinh `temporaryPassword` an toàn khi không truyền password, trả về `{ user: safeUser, temporaryPassword }`.
+      * `update`: kiểm tra quyền ADMIN, chặn tự khóa tài khoản, cấm xóa trường bắt buộc của vai trò, cho phép khóa tài khoản legacy (`isActive: false`), validate đầy đủ khi sửa định danh.
+      * `resetPassword`: sinh `temporaryPassword`, đánh dấu `isFirstLogin: true`, thu hồi phiên qua `authVersion: { increment: 1 }`.
+      * `findAll`: bổ sung `classId`, `facultyId` scalar, chuẩn hóa `facultyId` từ `class.facultyId`, lọc chặt chẽ theo scope Khoa của Cán bộ.
+    + `users/users.controller.ts`: gắn `@Header('Cache-Control', 'no-store')` vào `create`, `resetPassword`, `bulkImport`.
+  - `Frontend (apps/web)`:
+    + `lib/apiClient.ts`:
+      * Cập nhật return type của `createUser` trả về `{ user: User; temporaryPassword: string | null }` và `bulkImportUsers` có `temporaryCredentials`.
+      * Bổ sung axios response interceptor bắt HTTP 403 `FIRST_LOGIN_PASSWORD_CHANGE_REQUIRED` chuyển hướng về `/account?required=true` mà không xóa token.
+    + `pages/Account.tsx`:
+      * Đọc search param `required=true`, xác định `isFirstLoginRequired`.
+      * Hiển thị banner cảnh báo đổi mật khẩu lần đầu, tự động mở thẻ đổi mật khẩu, disable nút Báo sai thông tin khi chưa đổi mật khẩu.
+    + `pages/admin/UserManagement.tsx`:
+      * Xử lý hiển thị modal mật khẩu tạm khi `createUser` sinh `temporaryPassword`.
+      * Khai báo kiểu `importResult` có `temporaryCredentials`, hiển thị nút tải file `.xlsx` danh sách mật khẩu tạm thời sau khi import thành công.
+- **Kiểm thử thực chạy và kết quả:**
+  - Tạo mới suite [apps/backend/test/accounts-and-permissions.test.cjs](../apps/backend/test/accounts-and-permissions.test.cjs) với **15/15 tests pass 100%**:
+    + BL-016 (4 ca): isFirstLogin = true chặn API nghiệp vụ với 403 FIRST_LOGIN_PASSWORD_CHANGE_REQUIRED, cho phép endpoint @AllowFirstLogin(), isFirstLogin = false qua bình thường, tương thích khi không inject reflector.
+    + BL-025 (6 ca): STUDENT thiếu studentCode/chứa trắng bị chặn, STUDENT chọn lớp không thuộc Khoa bị chặn, STAFF có MSSV/lớp bị chặn, ADMIN gán Khoa/lớp bị chặn, update STUDENT xóa studentCode bằng chuỗi rỗng bị chặn, khóa tài khoản legacy isActive = false cho phép thành công.
+    + BL-011 (3 ca): tạo user không password sinh temporaryPassword ngẫu nhiên không lộ hash/authVersion, tạo user có password không echo lại và temporaryPassword = null, reset password sinh temporaryPassword và bật isFirstLogin = true.
+    + BL-012 (2 ca): findAll trả về đầy đủ classId/facultyId và chuẩn hóa student.facultyId từ class, STAFF chỉ xem được sinh viên thuộc Khoa của mình.
+  - Regression toàn hệ thống: Chạy lại toàn bộ các test suites đạt **97/97 tests pass 100%** (145 tests tính cả worker).
+  - Typecheck: Web `tsc -p apps/web/tsconfig.json --noEmit` 0 lỗi, Backend `tsc -p apps/backend/tsconfig.json --noEmit` 0 lỗi, `git diff --check` sạch sẽ.
+- **Giới hạn kiểm chứng:** Đã kiểm chứng qua unit test in-memory, guard test doubles, execution context mocks, pure logic và component test harness (chưa chạy DB PostgreSQL vật lý đa kết nối và browser e2e). Đã cập nhật spec F01 sang trạng thái tương ứng.
+
+
+
+## 2026-11-16 — Triển khai & Hoàn thiện Đợt 5: Minh chứng, bổ sung và chọn kỳ (BL-015, BL-013, BL-023, BL-024)
+
+- **Phạm vi & mục tiêu:**
+  - **BL-015 (P2 - Confirmed):** Bảo vệ nội dung minh chứng đã duyệt: chặn thêm tệp, upload nháp, sửa hoặc xóa tệp đối với hồ sơ `APPROVED` ở cả kiểm tra ban đầu lẫn bên trong transaction có khóa Term; phiếu tổng thể `RETURNED` không làm minh chứng `APPROVED` trở thành có thể sửa.
+  - **BL-013 (P2 - Confirmed):** Hiển thị nháp đúng tiêu chí sau reload: API `findAll` bổ sung projection `criterionAssessment.criterion`; frontend ghép bằng ID tiêu chí từ liên kết trực tiếp này, ưu tiên cao hơn review cũ và không ghép bằng `criterion.code` giữa các rubric khác nhau; đảm bảo mỗi evidence xuất hiện đúng 1 lần.
+  - **BL-023 (P2 - Confirmed):** Màn hình bổ sung hiển thị yêu cầu và hạn thật: lấy `SupplementRequest` chưa giải quyết mới nhất sắp xếp `createdAt desc, id desc`; hiển thị `missingItem` thực tế; áp dụng hạn `request.deadline ?? term.reviewDeadline` (khi deadline null hiển thị Không đặt hạn riêng kèm hạn kỳ); khóa form khi quá hạn hoặc không có yêu cầu mở; reset form khi đổi id; đồng bộ mô tả upload tối đa 8 MB (PDF, JPEG, PNG, WebP) và bỏ lời hứa tự động duyệt AI.
+  - **BL-024 (P2 - Confirmed):** Một nguồn chọn kỳ thống nhất cho URL, UI và request: `ScoreReport` đọc query param `termId` từ URL, đối chiếu danh sách kỳ; nếu sai thì báo lỗi và khóa form (không fallback âm thầm sang kỳ hiện tại); đồng bộ Desktop và Mobile term selector trong `AppLayout` dùng chung handler cập nhật URL, giữ lịch sử Back/Forward; hủy timer autosave cũ và drop response cũ khi đổi kỳ; hủy chuỗi nộp nếu kỳ thay đổi sau khi bắt đầu lưu.
+- **Thay đổi thực tế mã nguồn:**
+  - `Backend (apps/backend)`:
+    + `evidence/evidence.service.ts`:
+      * `findAll`: bổ sung projection `criterionAssessment.criterion` và `supplementRequests` sắp xếp `createdAt desc, id desc`.
+      * `findOne`: sắp xếp `supplementRequests` thống nhất `[{ createdAt: 'desc' }, { id: 'desc' }]`.
+      * `addFile`: chặn `APPROVED` ở kiểm tra ban đầu và kiểm tra lại `currentEvidence.status === APPROVED` bên trong transaction `studentEdit` sau khi khóa Term.
+      * `uploadDraftFile`: kiểm tra lại `currentEvidence.status !== DRAFT` bên trong transaction trước khi tạo `evidenceFile`.
+      * `update`: kiểm tra lại `currentEvidence.status === APPROVED` bên trong transaction trước khi cập nhật.
+  - `Frontend (apps/web)`:
+    + `types/index.ts`: bổ sung `criterionId?: string` trong `Evidence.criterionAssessment`.
+    + `pages/student/ScoreReport.tsx`:
+      * Đọc `termId` từ search params và so khớp `terms`: nếu `isTermLoading` thì chờ, nếu `termError` thì hiển thị lỗi và khóa thao tác, nếu thiếu query thì chuẩn hóa URL bằng `replace`.
+      * Dùng `effectiveTermId` cho toàn bộ các API calls và hook `useStudentAssessmentAccess`.
+      * Hủy timer autosave, tăng version ref để drop async response cũ khi đổi kỳ; kiểm tra race condition trước khi submit.
+      * Cập nhật `evidenceFor`: ưu tiên `criterionAssessment?.criterion?.id` / `criterionId`, không ghép bằng `criterion.code` giữa các rubric.
+    + `pages/student/SupplementEvidence.tsx`:
+      * Lấy `activeRequest` chưa giải quyết mới nhất; hiển thị `missingItemContent` thực tế.
+      * Tính `effectiveDeadline`, hiển thị thời gian cụ thể hoặc thông báo "Không đặt hạn riêng"; cảnh báo và khóa nút Gửi nếu đã quá hạn hoặc không có yêu cầu mở.
+      * Sử dụng `activeIdRef` để bỏ response cũ về muộn khi chuyển giữa các hồ sơ; reset form state khi `id` thay đổi.
+      * Đồng bộ mô tả upload tệp: JPG, PNG, WebP, PDF (tối đa 8 MB); thông báo hồ sơ chuyển lại cho cán bộ xem xét.
+    + `layouts/AppLayout.tsx`:
+      * Xây dựng handler `handleTermChange` dùng chung cho cả Desktop và Mobile: cập nhật query param `termId` và navigate giữ lịch sử trình duyệt.
+      * Bỏ điều kiện khóa student ở Desktop term selector: hiển thị và chọn theo `selectedTermId` cho mọi role.
+- **Kiểm thử thực chạy và kết quả:**
+  - Tạo mới suite [apps/backend/test/evidence-and-term-selection.test.cjs](../apps/backend/test/evidence-and-term-selection.test.cjs) với **16/16 tests pass 100%**:
+    + BL-015 (5 ca): phiếu RETURNED + evidence APPROVED chặn addFile, uploadDraftFile chặn non-draft, race condition status đổi thành APPROVED trong tx bị chặn, sai sinh viên bị Forbidden, update hồ sơ APPROVED bị chặn.
+    + BL-013 (3 ca): nháp có criterionAssessment.criterion hiển thị đúng sau reload, direct link ưu tiên hơn review cũ không bị ghi đè, cùng code 1.1 ở 2 rubric không ghép nhầm.
+    + BL-023 (4 ca): missingItem khác review.reason hiển thị đúng, deadline null hiển thị Không đặt hạn riêng kèm hạn kỳ, deadline quá hạn isExpired = true khóa gửi, không có yêu cầu mở hasOpenRequest = false.
+    + BL-024 (4 ca): URL có termId hợp lệ mở đúng kỳ, URL termId sai báo lỗi khóa form không fallback ngầm, URL không termId chuẩn hóa về kỳ hiện tại, đổi kỳ giữa chừng hủy nộp sang kỳ mới.
+  - Regression toàn hệ thống: Chạy lại toàn bộ 9 test suites đạt **130/130 tests pass 100%**.
+  - Typecheck: Web `tsc -p apps/web/tsconfig.json --noEmit` 0 lỗi, Backend `tsc -p apps/backend/tsconfig.json --noEmit` 0 lỗi, `git diff --check` sạch sẽ.
+- **Giới hạn kiểm chứng:** Đã kiểm chứng qua unit test in-memory, pure logic, component/hook test harness và mock doubles (chưa chạy DB PostgreSQL vật lý đa kết nối và browser e2e). Đã cập nhật spec F05, F06, F07 sang trạng thái tương ứng.
+
+
+## 2026-11-16 — Triển khai & Hoàn thiện Đợt 4: Cấu hình tính điểm, kiểu dữ liệu xác minh và validation (BL-003, BL-004, BL-017)
+
+- **Phạm vi & mục tiêu:**
+  - **BL-003 (P1 - Confirmed):** Tiêu chí 2 (`group_penalty`) trong rubric DUT chuẩn thiếu cấu hình `baseScore: 3`, làm công thức tính điểm sinh ra `NaN` và rơi vào lỗi kẹt trạng thái; bổ sung hàm `validateScoringConfig` bảo vệ việc lưu và ban hành rubric; evaluator trả về `NEEDS_VERIFICATION` rõ ràng nếu gặp cấu hình thiếu/sai baseScore trong DB cũ (không fallback toàn cục tùy tiện, không crash).
+  - **BL-004 (P1 - Confirmed):** Giao diện cán bộ thiếu `leadershipRole` trong `booleanFields`, khiến serializer gửi chuỗi `"true"` lên API; backend evaluator kiểm tra `=== true` dẫn đến tiêu chí 14 và 16 luôn nhận gợi ý 0 điểm; đồng bộ kiểu dữ liệu `boolean` giữa Web và Backend, hiển thị dropdown Có/Không, backend từ chối chuỗi với HTTP 400.
+  - **BL-017 (P2 - Confirmed):** API xác minh tiêu chí (`VerificationDto`) thiếu validation dữ liệu bên trong, hàm `count` trong evaluator ép chuỗi rác hoặc số âm thành 0 vi phạm (làm tăng khống điểm rèn luyện); xây dựng hàm `validateVerifiedData` chặn dữ liệu sai lệch trước khi mở transaction ghi DB; evaluator không nuốt lỗi sai kiểu thành 0 vi phạm.
+- **Thay đổi thực tế mã nguồn:**
+  - `Backend (apps/backend)`:
+    + `criteria/dut-rubric.ts`: Thêm `baseScore: 3` vào `scoringConfig` của tiêu chí 2 (`group_penalty`), đảm bảo tổng điểm KHUNG_I bằng 20 điểm và toàn bộ 16 tiêu chí hợp lệ.
+    + `criteria/rubric-scoring.ts`:
+      * Kiểm tra tính hợp lệ của `baseScore` đối với các kind penalty (`attendance_penalty`, `group_penalty`, `conduct_penalty`); nếu thiếu hoặc sai số thì trả về `{ status: 'NEEDS_VERIFICATION', suggestedScore: null, reason: 'Cấu hình tiêu chí không hợp lệ (thiếu hoặc sai baseScore).' }`.
+      * Thay thế hàm `count` ép kiểu lỏng lẻo bằng helper `getNonNegativeInteger`: chỉ chấp nhận số nguyên an toàn không âm (`Number.isInteger(val) && val >= 0`), trả về lỗi khi gặp chuỗi/số âm/thập phân/boolean.
+      * Kiểm tra kiểu boolean chặt chẽ cho các trường xác nhận trong `leadership_duty`, `verified_boolean`, `all_conditions`, `conduct_penalty`, `academic_effort`.
+      * Tiêu chí 14 kiểm tra tỷ lệ bình chọn hợp lệ trong $[0, 100]$ và ngưỡng nghiêm ngặt `> 90` (trên 90%).
+    + `criteria/criteria.service.ts`:
+      * Xây dựng hàm `validateScoringConfig(criterionCode, maxScore, config)` kiểm tra chặt chẽ cấu hình theo từng `kind` (`attendance_penalty`, `group_penalty`, `conduct_penalty`, `leadership_duty`, `verified_boolean`, `award_tier`, `activity_threshold`, `community_activity_tier`, `all_conditions`, `academic_effort`, `manual_verified`).
+      * Tích hợp `validateScoringConfig` vào `validateRubricDefinition`, chặn mọi thao tác lưu/ban hành rubric lỗi từ cấp Service/DTO.
+    + `assessments/assessments.service.ts`:
+      * Xây dựng hàm `validateVerifiedData(config, data, maxScore)` xác thực chặt chẽ dữ liệu đầu vào: counter phải là số nguyên không âm, trường boolean phải có kiểu boolean (từ chối string/number), tỷ lệ bình chọn trong $[0, 100]$, điểm quy đổi $\ge 0$, điểm chính thức trong $[0, maxScore]$.
+      * Ném `BadRequestException` với mã `INVALID_VERIFICATION_DATA` và danh sách trường vi phạm `details.fields`.
+      * Gọi `validateVerifiedData` ngay đầu phương thức `verifyCriterion` **trước khi mở transaction DB**, đảm bảo request invalid không bao giờ ghi dữ liệu rác vào cơ sở dữ liệu.
+  - `Frontend (apps/web)`:
+    + `pages/officer/StudentAssessment.tsx`:
+      * Thêm `'leadershipRole'` vào `booleanFields` và `fieldLabels`.
+      * Mở rộng regex `isNumberField` để nhận diện cả `classWarnings` và `missedGroupDeadlines`.
+      * `toVerifiedData` chuyển đổi đúng kiểu boolean (`true`/`false`) cho `leadershipRole` và kiểu số cho các trường counter/points/deadlines/warnings.
+- **Kiểm thử thực chạy và kết quả:**
+  - Tạo mới suite [apps/backend/test/scoring-and-validation.test.cjs](../apps/backend/test/scoring-and-validation.test.cjs) với **30/30 tests pass 100%**:
+    + BL-003 (10 ca): Tiêu chí 2 có `baseScore: 3`, tổng điểm khung I đúng 20; 6 ca tính điểm theo quy chế vắng/trễ việc/vượt trần; cấu hình thiếu baseScore trả NEEDS_VERIFICATION không crash; validator từ chối lưu rubric sai cấu hình; đối chứng đỏ chứng minh code cũ sinh NaN.
+    + BL-004 (9 ca): Tiêu chí 14 đúng chức vụ, 95%, xác nhận đạt 4 điểm; đúng 90.0% bị 0 điểm (yêu cầu trên 90%); 90.1% đạt 4 điểm; tiêu chí 16 đạt 3 điểm; chuỗi `"true"` bị từ chối HTTP 400; frontend serializer `toVerifiedData` sinh đúng boolean; load lại draft hiển thị đúng chuỗi dropdown `"true"`/`"false"`.
+    + BL-017 (11 ca): `validateVerifiedData` từ chối counter âm, số thập phân, chuỗi rác, boolean sai kiểu với HTTP 400 `INVALID_VERIFICATION_DATA`; tỷ lệ >100 hoặc âm bị chặn; chấp nhận tỷ lệ thập phân 95.5% và điểm quy đổi thập phân 7.5; từ chối `officialScore > maxScore`; 0 hợp lệ tính đúng điểm tối đa; evaluator từ chối ép 0 sai lệch; đối chứng đỏ chứng minh hàm `count` cũ ép chuỗi rác/số âm thành 0 và cho điểm tối đa.
+  - Regression toàn hệ thống: Chạy lại toàn bộ 8 test suites (`scoring-and-validation`, `deadline-and-closure`, `deadline-dialog-and-access`, `evidence-inspection`, `faculty-analytics`, `data-protection`, `security-fixes`, `evidence-processing-worker`) đạt **105/105 tests pass 100%** trên 12 suites.
+  - Typecheck: Web `tsc --noEmit` 0 lỗi, Backend `tsc --noEmit` 0 lỗi, `git diff --check` sạch sẽ.
+- **Giới hạn kiểm chứng:** Đã kiểm chứng qua unit test in-memory, pure evaluator và contract serializer (chưa kiểm kê/chạy script rà soát dữ liệu rubric lịch sử đã lưu trong DB; chưa chạy DB PostgreSQL vật lý đa kết nối và browser e2e). Đã cập nhật test case F04-TC-08, F04-TC-09, F04-TC-10, F07-TC-07, F07-TC-08 sang `Verified` trong spec tương ứng.
+
 ## 2026-11-16 — Triển khai & Hoàn thiện Đợt 3: Gia hạn và chốt kỳ (BL-006, BL-010, BL-020)
 
 - **Phạm vi & mục tiêu:**

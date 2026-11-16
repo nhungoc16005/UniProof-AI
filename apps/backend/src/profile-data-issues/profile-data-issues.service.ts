@@ -19,14 +19,33 @@ export class ProfileDataIssuesService {
     return this.prisma.profileDataIssue.findMany({ where: { reporterId: userId }, orderBy: { createdAt: 'desc' }, take: 20 });
   }
 
-  async list(status?: ProfileDataIssueStatus, page = 1) {
-    const pageSize = 25;
+  async list(status?: ProfileDataIssueStatus, page = 1, requestedPageSize = 25) {
+    const rawSize = Number(requestedPageSize);
+    const pageSize = rawSize > 0 ? Math.min(100, rawSize) : 25;
+    const normalizedPage = Math.max(1, Number(page) || 1);
     const where = status ? { status } : {};
     const [items, total] = await this.prisma.$transaction([
-      this.prisma.profileDataIssue.findMany({ where, include: { reporter: { select: { id: true, fullName: true, email: true, studentCode: true, class: { select: { code: true, faculty: { select: { name: true } } } } } }, resolver: { select: { fullName: true } } }, orderBy: { createdAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize }),
+      this.prisma.profileDataIssue.findMany({
+        where,
+        include: {
+          reporter: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              studentCode: true,
+              class: { select: { code: true, faculty: { select: { name: true } } } },
+            },
+          },
+          resolver: { select: { fullName: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (normalizedPage - 1) * pageSize,
+        take: pageSize,
+      }),
       this.prisma.profileDataIssue.count({ where }),
     ]);
-    return { items, total, page, pageSize };
+    return { items, total, page: normalizedPage, pageSize };
   }
 
   async resolve(actorId: string, id: string, body: { status: 'RESOLVED' | 'REJECTED'; resolution: string }) {

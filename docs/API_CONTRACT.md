@@ -74,7 +74,7 @@ Kết quả gồm nguồn HANDOFF_SNAPSHOT cho CTSV xem phiếu đã gửi; báo
 | Duyệt minh chứng | ReviewDecisionDto action/comment; expectedVersion optional để tương thích client cũ; REJECTED cần rejectBasis; SUPPLEMENT_REQUESTED có missingItem/supplementDeadline |
 | Thêm nguồn | sourceName, sourceUrl?, note, level, confirmedActivity, confirmedStudent; lưu VerificationResult/audit; không ghi điểm |
 | Bổ sung | explanation?, verificationUrl?, fileData?, fileName?, fileType?; ít nhất một nội dung; PDF/JPEG/PNG/WebP theo nhánh supplement |
-| Xác minh tiêu chí | VerificationDto data object, note; evaluateRubricCriterion tạo suggestion, có invalidate điểm cũ; kiểm kiểu bên trong còn gap BL-017 |
+| Xác minh tiêu chí | VerificationDto data object, note; evaluateRubricCriterion tạo suggestion, có invalidate điểm cũ; validateVerifiedData kiểm tra cấu trúc bên trong của data (từ chối chuỗi rác, số âm, số thập phân cho counter, kiểm tra kiểu boolean cho các trường xác nhận, tỷ lệ 0-100, officialScore 0-maxScore); ném BadRequestException với mã INVALID_VERIFICATION_DATA và details.fields khi dữ liệu sai lệch (BL-004, BL-017 Resolved) |
 | Chốt tiêu chí | FinalAssessmentDto score?, reason?; cần đủ dữ liệu chính thức và quyền STAFF trong workflow mới |
 | Gửi Khoa | SendDto studentIds 1–100; server kiểm blockers/lock và tạo handoff snapshot/revision; lặp SENT không nhân revision |
 | Trả/ghi nhận không nộp/hiệu chỉnh/loại trừ | ReasonDto reason; service kiểm không trắng, quyền và trạng thái riêng; restore không dùng body |
@@ -359,11 +359,11 @@ Nguồn: [apps/backend/src/assessments/assessments.controller.ts:17](../apps/bac
 
 ### VerificationDto
 
-Nguồn: [apps/backend/src/assessments/assessments.controller.ts:22](../apps/backend/src/assessments/assessments.controller.ts#L22).
+Nguồn: [apps/backend/src/assessments/assessments.controller.ts:22](../apps/backend/src/assessments/assessments.controller.ts#L22); [apps/backend/src/assessments/assessments.service.ts:9](../apps/backend/src/assessments/assessments.service.ts#L9).
 
 | Trường | Kiểu TS | Optional TS | Validation khai báo |
 |---|---|---|---|
-| data | `Record&lt;string, unknown&gt;` | Không | @IsObject() |
+| data | `Record&lt;string, unknown&gt;` | Không | @IsObject(); được validate chi tiết bởi `validateVerifiedData`: các trường bộ đếm (`examBans`, `classWarnings`, `unexcusedAbsences`...) phải là số nguyên không âm; các trường boolean (`leadershipRole`, `advisorConfirmation`...) phải có kiểu `boolean` (từ chối chuỗi "true"/"false"); `collectiveApprovalPercent` trong [0, 100]; `convertedCommunityPoints` không âm; `officialScore` trong [0, maxScore]. Vi phạm ném HTTP 400 `INVALID_VERIFICATION_DATA` kèm `details.fields`. |
 | note | `string` | Không | @IsString() |
 
 <a id="dto-finalassessmentdto"></a>

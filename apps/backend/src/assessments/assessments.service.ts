@@ -5,6 +5,82 @@ import { WorkflowService } from '../evaluation-workflow/workflow.service';
 import { WorkflowQueryDto } from '../evaluation-workflow/dto/workflow-query.dto';
 import { evaluateRubricCriterion } from '../criteria/rubric-scoring';
 import { DeadlineExtensionsService } from '../deadline-extensions/deadline-extensions.service';
+import { aggregateStudentActivitySources } from '../activities/activity-aggregator';
+
+export function validateVerifiedData(config: Record<string, unknown> | null, data: Record<string, unknown>, maxScore: number): void {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new BadRequestException({
+      code: 'INVALID_VERIFICATION_DATA',
+      message: 'Dữ liệu xác minh không hợp lệ',
+      details: { fields: [{ field: 'data', message: 'Dữ liệu xác minh phải là một object' }] },
+    });
+  }
+
+  const errors: Array<{ field: string; message: string }> = [];
+
+  const counterFields = new Set([
+    'attendanceViolations', 'classWarnings', 'examBans', 'unexcusedAbsences',
+    'excusedAbsences', 'missedGroupDeadlines', 'nonCauseAccountLocks',
+    'classTaskFailures', 'unexcusedClassMeetingAbsences', 'excusedClassMeetingAbsences',
+    'communityViolations', 'verifiedActivityCount', 'cheerleaderActivityCount',
+  ]);
+
+  const booleanFields = new Set([
+    'leadershipRole', 'improvedFromPreviousTerm', 'academicWarning', 'eligibleMembership',
+    'tuitionCompliance', 'studentWeekParticipation', 'requiredSurveyParticipation',
+    'disciplinaryViolation', 'healthInsurance', 'residenceDeclaration',
+    'organizerConfirmation', 'advisorConfirmation', 'excellentDutyConfirmation',
+    'awardEvidence', 'institutionAwardEvidence',
+  ]);
+
+  for (const [key, val] of Object.entries(data)) {
+    if (val === undefined || val === null) continue;
+
+    if (counterFields.has(key)) {
+      if (typeof val !== 'number' || !Number.isInteger(val) || val < 0) {
+        errors.push({ field: key, message: `Trường ${key} phải là số nguyên không âm` });
+      }
+    } else if (booleanFields.has(key)) {
+      if (typeof val !== 'boolean') {
+        errors.push({ field: key, message: `Trường ${key} phải có kiểu boolean` });
+      }
+    } else if (key === 'collectiveApprovalPercent') {
+      if (typeof val !== 'number' || !Number.isFinite(val) || val < 0 || val > 100) {
+        errors.push({ field: key, message: 'Tỷ lệ tập thể bình chọn phải là số từ 0 đến 100' });
+      }
+    } else if (key === 'convertedCommunityPoints') {
+      if (typeof val !== 'number' || !Number.isFinite(val) || val < 0) {
+        errors.push({ field: key, message: 'Điểm hoạt động cộng đồng quy đổi phải là số không âm' });
+      }
+    } else if (key === 'officialScore') {
+      if (typeof val !== 'number' || !Number.isFinite(val) || val < 0 || val > maxScore) {
+        errors.push({ field: key, message: `Điểm chính thức phải là số từ 0 đến ${maxScore}` });
+      }
+    } else if (key === 'academicTier') {
+      if (typeof val !== 'string' || !['BELOW_AVERAGE', 'AVERAGE', 'ABOVE_AVERAGE', 'GOOD', 'EXCELLENT'].includes(val)) {
+        errors.push({ field: key, message: 'Xếp loại học tập không hợp lệ' });
+      }
+    } else if (key === 'awardTier') {
+      const scores = config?.scores as Record<string, number> | undefined;
+      if (typeof val !== 'string' || (scores && !Object.prototype.hasOwnProperty.call(scores, val))) {
+        errors.push({ field: key, message: 'Mức thành tích không hợp lệ' });
+      }
+    } else if (key === 'officialAssessment') {
+      if (typeof val !== 'string') {
+        errors.push({ field: key, message: 'Kết luận xác minh chính thức phải là chuỗi' });
+      }
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new BadRequestException({
+      code: 'INVALID_VERIFICATION_DATA',
+      error: 'INVALID_VERIFICATION_DATA',
+      message: 'Dữ liệu xác minh không hợp lệ',
+      details: { fields: errors },
+    });
+  }
+}
 
 @Injectable()
 export class AssessmentsService {
@@ -302,33 +378,21 @@ export class AssessmentsService {
     await this.ensureWritable(termId);
     if (!body.note?.trim()) throw new BadRequestException('Cần ghi căn cứ xác minh');
     const criterion = await this.getCriterion(termId, criterionId);
+    validateVerifiedData(criterion.scoringConfig as Record<string, unknown> | null, body.data, criterion.maxScore);
     await this.ensureSubmittedForStaffReview(studentId, termId, criterion.rubricVersionId!);
     return this.workflow.edit(staff, studentId, termId, async (tx) => {
     if (!await tx.assessmentSubmission.count({ where: { studentId, termId, status: 'SUBMITTED' } })) throw new BadRequestException('Sinh viên chưa nộp phiếu');
     const config = criterion.scoringConfig as Record<string, unknown> | null;
     const verifiedData = { ...body.data };
-    let hasUnresolvedEvidence = false;
+    let evaluation: { status: 'READY_FOR_REVIEW' | 'NEEDS_VERIFICATION'; suggestedScore: number | null; reason: string };
+
     if (config && ['activity_threshold', 'community_activity_tier'].includes(String(config.kind))) {
-      const existingAssessment = await tx.criterionAssessment.findUnique({
-        where: { studentId_termId_criterionId: { studentId, termId, criterionId } },
-        select: { id: true },
-      });
-      const evidences = existingAssessment ? await tx.evidence.findMany({
-        where: { studentId, termId, criterionAssessmentId: existingAssessment.id },
-        select: { id: true, activityId: true, declaredRole: true, status: true },
-      }) : [];
-      hasUnresolvedEvidence = evidences.some((evidence) => evidence.status !== EvidenceStatus.APPROVED && evidence.status !== EvidenceStatus.REJECTED && evidence.status !== EvidenceStatus.WITHDRAWN);
-      const approved = evidences.filter((evidence) => evidence.status === 'APPROVED');
-      const uniqueActivities = new Map(approved.map((evidence) => [evidence.activityId || evidence.id, evidence]));
-      verifiedData.verifiedActivityCount = uniqueActivities.size;
-      if (config.cheerleaderMultiplier) {
-        verifiedData.cheerleaderActivityCount = [...uniqueActivities.values()].filter((evidence) => ['CHEERLEADER', 'CO_VU'].includes(evidence.declaredRole || '')).length;
-      }
+      const aggregation = await aggregateStudentActivitySources(tx, { studentId, termId, criterionId });
+      Object.assign(verifiedData, aggregation.verifiedDataUpdates);
+      evaluation = aggregation.evaluation;
+    } else {
+      evaluation = evaluateRubricCriterion(criterion.maxScore, criterion.scoringConfig, verifiedData);
     }
-    const computedEvaluation = evaluateRubricCriterion(criterion.maxScore, criterion.scoringConfig, verifiedData);
-    const evaluation = hasUnresolvedEvidence
-      ? { status: 'NEEDS_VERIFICATION' as const, suggestedScore: null, reason: 'Còn minh chứng đang chờ xử lý; điểm chỉ được tính sau khi hồ sơ liên quan được duyệt hoặc kết thúc.' }
-      : computedEvaluation;
     const assessment = await tx.criterionAssessment.upsert({
       where: { studentId_termId_criterionId: { studentId, termId, criterionId } },
       create: {

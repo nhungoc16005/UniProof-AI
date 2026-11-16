@@ -39,7 +39,7 @@ http.interceptors.request.use((config) => {
   return config;
 });
 
-// Interceptor xử lý lỗi 401
+// Interceptor xử lý lỗi 401 & 403 đổi mật khẩu lần đầu
 http.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -47,6 +47,14 @@ http.interceptors.response.use(
     const payload = error.response?.data;
     if (payload?.error?.message && !payload.message) {
       payload.message = payload.error.message;
+    }
+    const errorCode = payload?.error?.code || payload?.code;
+    if (error.response?.status === 403 && errorCode === 'FIRST_LOGIN_PASSWORD_CHANGE_REQUIRED') {
+      if (!window.location.pathname.includes('/account')) {
+        console.warn('Yêu cầu đổi mật khẩu lần đầu. Chuyển hướng tới trang đổi mật khẩu.');
+        window.location.href = '/account?required=true';
+      }
+      return Promise.reject(error);
     }
     if (error.response?.status === 401) {
       const hadToken = !!localStorage.getItem('edupoint_auth_token');
@@ -181,9 +189,16 @@ export const apiClient = {
     return extractArray<any>((await http.get('/profile-data-issues/mine')).data.data);
   },
 
-  async getProfileDataIssues(params: { status?: string; page?: number }): Promise<{ items: any[]; total: number; page: number; pageSize: number }> {
-    const data = (await http.get('/profile-data-issues', { params })).data.data;
-    return { ...data, items: extractArray<any>(data) };
+  async getProfileDataIssues(params?: { status?: string; page?: number; pageSize?: number }): Promise<{ items: any[]; total: number; page: number; pageSize: number }> {
+    const res = await http.get('/profile-data-issues', { params });
+    const payload = res.data.data;
+    const items = extractArray<any>(payload);
+    return {
+      items,
+      total: Number(payload?.total ?? items.length),
+      page: Number(payload?.page ?? params?.page ?? 1),
+      pageSize: Number(payload?.pageSize ?? params?.pageSize ?? 25),
+    };
   },
 
   async resolveProfileDataIssue(id: string, data: { status: 'RESOLVED' | 'REJECTED'; resolution: string }) {
@@ -441,6 +456,40 @@ export const apiClient = {
     return extractArray<Evidence>(res.data.data);
   },
 
+  async getEvidencesPage(params?: {
+    studentId?: string;
+    status?: string;
+    statusGroup?: string;
+    termId?: string;
+    classId?: string;
+    search?: string;
+    sortOrder?: 'asc' | 'desc';
+    page?: number;
+    pageSize?: number;
+  }): Promise<{
+    items: Evidence[];
+    total: number;
+    page: number;
+    pageSize: number;
+    counts: { all: number; approved: number; supplement: number; reviewing: number };
+  }> {
+    const res = await http.get('/evidence', { params });
+    const payload = res.data.data;
+    const items = extractArray<Evidence>(payload);
+    return {
+      items,
+      total: Number(payload?.total ?? items.length),
+      page: Number(payload?.page ?? params?.page ?? 1),
+      pageSize: Number(payload?.pageSize ?? params?.pageSize ?? 20),
+      counts: payload?.counts ?? {
+        all: items.length,
+        approved: items.filter((e) => e.status === 'APPROVED').length,
+        supplement: items.filter((e) => e.status === 'NEEDS_SUPPLEMENT').length,
+        reviewing: items.filter((e) => ['NEEDS_HUMAN_REVIEW', 'PROCESSING', 'PLAUSIBLE'].includes(e.status)).length,
+      },
+    };
+  },
+
   async getEvidenceById(id: string): Promise<Evidence | null> {
     const res = await http.get(`/evidence/${id}`);
     return res.data.data;
@@ -628,7 +677,7 @@ export const apiClient = {
     return res.data.data;
   },
 
-  async createUser(data: any): Promise<User> {
+  async createUser(data: any): Promise<{ user: User; temporaryPassword: string | null }> {
     const res = await http.post('/users', data);
     return res.data.data;
   },
@@ -638,7 +687,7 @@ export const apiClient = {
     return res.data.data;
   },
 
-  async bulkImportUsers(users: any[]): Promise<{ total: number; importedCount: number; updatedCount: number; errorCount: number; errors: string[] }> {
+  async bulkImportUsers(users: any[]): Promise<{ total: number; importedCount: number; updatedCount: number; errorCount: number; errors: string[]; temporaryCredentials?: Array<{ email: string; temporaryPassword: string }> }> {
     const res = await http.post('/users/import', { users });
     return res.data.data;
   },

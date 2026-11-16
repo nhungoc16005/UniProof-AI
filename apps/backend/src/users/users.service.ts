@@ -14,6 +14,88 @@ export class UsersService {
     return `Ep!${randomBytes(9).toString('base64url')}`;
   }
 
+  private async validateUserPayload(data: {
+    role: Role;
+    email?: string;
+    fullName?: string;
+    studentCode?: string | null;
+    classId?: string | null;
+    facultyId?: string | null;
+    isActive?: boolean;
+    isUpdate?: boolean;
+    existingUser?: any;
+  }) {
+    const role = data.role;
+
+    if (data.fullName !== undefined) {
+      if (!data.fullName || !data.fullName.trim()) {
+        throw new BadRequestException('Họ và tên không được để trống hoặc chỉ chứa khoảng trắng');
+      }
+    }
+
+    if (data.email !== undefined) {
+      if (!data.email || !data.email.trim()) {
+        throw new BadRequestException('Email không được để trống hoặc chỉ chứa khoảng trắng');
+      }
+    }
+
+    if (role === Role.STUDENT) {
+      const studentCode = data.studentCode !== undefined
+        ? (data.studentCode ? String(data.studentCode).trim() : '')
+        : (data.existingUser?.studentCode ?? '');
+      const classId = data.classId !== undefined ? data.classId : (data.existingUser?.classId ?? null);
+
+      if (data.isUpdate && data.studentCode === undefined && !data.existingUser?.studentCode) {
+        // Tài khoản legacy thiếu studentCode trong DB: không chặn khi chỉ sửa trường khác
+      } else if (!studentCode) {
+        throw new BadRequestException('Sinh viên bắt buộc phải có Mã sinh viên (studentCode)');
+      }
+
+      if (data.isUpdate && data.classId === undefined && !data.existingUser?.classId) {
+        // Tài khoản legacy thiếu classId trong DB: không chặn khi chỉ sửa trường khác
+      } else if (!classId) {
+        throw new BadRequestException('Sinh viên bắt buộc phải thuộc một Lớp (classId)');
+      }
+
+      const cls = await this.prisma.class.findUnique({ where: { id: classId } });
+      if (!cls) {
+        throw new BadRequestException(`Không tìm thấy Lớp với ID: ${classId}`);
+      }
+
+      const facultyId = data.facultyId !== undefined ? data.facultyId : (data.existingUser?.facultyId ?? null);
+      if (facultyId && cls.facultyId !== facultyId) {
+        throw new BadRequestException('Lớp học không thuộc Khoa đã chọn');
+      }
+    } else if (role === Role.STAFF) {
+      const facultyId = data.facultyId !== undefined ? data.facultyId : (data.existingUser?.facultyId ?? null);
+      if (data.isUpdate && data.facultyId === undefined && !data.existingUser?.facultyId) {
+        // Tài khoản legacy thiếu facultyId trong DB: không chặn khi chỉ sửa trường khác
+      } else if (!facultyId) {
+        throw new BadRequestException('Cán bộ bắt buộc phải thuộc một Khoa (facultyId)');
+      }
+      const faculty = await this.prisma.faculty.findUnique({ where: { id: facultyId } });
+      if (!faculty) {
+        throw new BadRequestException(`Không tìm thấy Khoa với ID: ${facultyId}`);
+      }
+      if (data.classId) {
+        throw new BadRequestException('Cán bộ quản lý Khoa không được gán vào lớp sinh viên');
+      }
+      if (data.studentCode) {
+        throw new BadRequestException('Cán bộ không có Mã sinh viên');
+      }
+    } else if (role === Role.ADMIN) {
+      if (data.classId) {
+        throw new BadRequestException('Quản trị viên hệ thống không thuộc lớp sinh viên');
+      }
+      if (data.facultyId) {
+        throw new BadRequestException('Quản trị viên hệ thống cấp trường không thuộc một Khoa riêng');
+      }
+      if (data.studentCode) {
+        throw new BadRequestException('Quản trị viên không có Mã sinh viên');
+      }
+    }
+  }
+
   async resetPassword(id: string, actorId: string) {
     const user = await this.prisma.user.findUnique({ where: { id }, select: { id: true, email: true, fullName: true } });
     if (!user) throw new NotFoundException('Không tìm thấy tài khoản');
@@ -96,6 +178,8 @@ export class UsersService {
           studentCode: true,
           isActive: true,
           isFirstLogin: true,
+          classId: true,
+          facultyId: true,
           faculty: { select: { id: true, code: true, name: true } },
           class: {
             select: {
@@ -103,12 +187,13 @@ export class UsersService {
               code: true,
               name: true,
               cohort: true,
+              facultyId: true,
               faculty: { select: { id: true, code: true, name: true } },
             },
           },
           createdAt: true,
           updatedAt: true,
-          assessmentHandoffs: termId ? { where: { termId }, take: 1, select: { class: { select: { id: true, code: true, name: true, cohort: true, facultyId: true, faculty: { select: { id: true, code: true, name: true } } } } } } : false,
+          assessmentHandoffs: termId ? { where: { termId }, take: 1, select: { classId: true, facultyId: true, class: { select: { id: true, code: true, name: true, cohort: true, facultyId: true, faculty: { select: { id: true, code: true, name: true } } } } } } : false,
         },
       }),
       this.prisma.user.count({ where }),
@@ -116,7 +201,14 @@ export class UsersService {
 
     const scopedItems = items.map((item: any) => {
       const { assessmentHandoffs, ...user } = item;
-      return { ...user, class: assessmentHandoffs?.[0]?.class || user.class };
+      const handoff = assessmentHandoffs?.[0];
+      const snapshotClass = handoff?.class || user.class;
+      return {
+        ...user,
+        classId: handoff?.classId || user.classId,
+        class: snapshotClass,
+        facultyId: user.facultyId,
+      };
     });
     return { items: scopedItems, total, page, pageSize };
   }
@@ -137,11 +229,15 @@ export class UsersService {
   }
 
   async create(dto: CreateUserDto, actorId: string) {
+    await this.validateUserPayload(dto);
+    const normalizedEmail = dto.email.trim().toLowerCase();
+    const normalizedCode = dto.studentCode ? dto.studentCode.trim() : null;
+
     const existing = await this.prisma.user.findFirst({
       where: {
         OR: [
-          { email: dto.email.trim().toLowerCase() },
-          ...(dto.studentCode ? [{ studentCode: dto.studentCode.trim() }] : []),
+          { email: normalizedEmail },
+          ...(normalizedCode ? [{ studentCode: normalizedCode }] : []),
         ],
       },
     });
@@ -150,31 +246,52 @@ export class UsersService {
       throw new BadRequestException('Email hoặc Mã sinh viên đã tồn tại');
     }
 
-    const defaultPass = dto.password || this.temporaryPassword();
-    const hashedPassword = await bcrypt.hash(defaultPass, 10);
+    const generatedPassword = !dto.password ? this.temporaryPassword() : null;
+    const passwordToHash = dto.password || generatedPassword!;
+    const hashedPassword = await bcrypt.hash(passwordToHash, 10);
 
     const user = await this.prisma.$transaction(async tx => {
-    const user = await tx.user.create({
-      data: {
-        email: dto.email.trim().toLowerCase(),
-        password: hashedPassword,
-        fullName: dto.fullName.trim(),
-        role: dto.role,
-        studentCode: dto.studentCode ? dto.studentCode.trim() : null,
-        classId: dto.classId || null,
-        facultyId: dto.facultyId || null,
-      },
-      include: {
-        faculty: true,
-        class: true,
-      },
+      const user = await tx.user.create({
+        data: {
+          email: normalizedEmail,
+          password: hashedPassword,
+          fullName: dto.fullName.trim(),
+          role: dto.role,
+          studentCode: normalizedCode,
+          classId: dto.classId || null,
+          facultyId: dto.facultyId || null,
+          isFirstLogin: true,
+        },
+        include: {
+          faculty: true,
+          class: true,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: actorId,
+          action: 'USER_CREATED',
+          entityType: 'User',
+          entityId: user.id,
+          newValue: {
+            fullName: user.fullName,
+            email: user.email,
+            role: user.role,
+            classId: user.classId,
+            facultyId: user.facultyId,
+            hasTemporaryPassword: Boolean(generatedPassword),
+          },
+        },
+      });
+      return user;
     });
 
-    await tx.auditLog.create({ data: { userId: actorId, action: 'USER_CREATED', entityType: 'User', entityId: user.id, newValue: { fullName: user.fullName, email: user.email, role: user.role, classId: user.classId, facultyId: user.facultyId } } });
-    return user;
-    });
-    const { password, ...safeUser } = user;
-    return safeUser;
+    const { password, authVersion, ...safeUser } = user;
+    return {
+      user: safeUser,
+      temporaryPassword: generatedPassword,
+    };
   }
 
   async update(id: string, dto: UpdateUserDto, actor: { id: string; role: Role }) {
@@ -183,28 +300,56 @@ export class UsersService {
     if (!existing) throw new NotFoundException('Không tìm thấy người dùng');
 
     if (dto.isActive === false && id === actor.id) throw new BadRequestException('Không tự khóa tài khoản đang sử dụng');
+
+    // Không cho phép xóa trường bắt buộc của role bằng chuỗi rỗng / null
+    if (existing.role === Role.STUDENT) {
+      if (dto.studentCode !== undefined && !dto.studentCode?.trim()) {
+        throw new BadRequestException('Không được xóa Mã sinh viên của Sinh viên');
+      }
+      if (dto.classId !== undefined && !dto.classId) {
+        throw new BadRequestException('Không được xóa Lớp của Sinh viên');
+      }
+    }
+    if (existing.role === Role.STAFF) {
+      if (dto.facultyId !== undefined && !dto.facultyId) {
+        throw new BadRequestException('Không được xóa Khoa của Cán bộ');
+      }
+    }
+
+    // Nếu chỉ khóa tài khoản (isActive: false) mà không đổi định danh/đơn vị thì cho phép khóa dữ liệu legacy
+    const isOnlyDeactivating = dto.isActive === false && dto.fullName === undefined && dto.email === undefined && dto.studentCode === undefined && dto.classId === undefined && dto.facultyId === undefined;
+    if (!isOnlyDeactivating) {
+      await this.validateUserPayload({
+        ...dto,
+        role: existing.role,
+        isUpdate: true,
+        existingUser: existing,
+      });
+    }
+
     const updated = await this.prisma.$transaction(async tx => {
       const updated = await tx.user.update({
-      where: { id },
-      data: {
-        fullName: dto.fullName !== undefined ? dto.fullName.trim() : undefined,
-        email: dto.email !== undefined ? dto.email.trim().toLowerCase() : undefined,
-        studentCode: dto.studentCode !== undefined ? (dto.studentCode ? dto.studentCode.trim() : null) : undefined,
-        isActive: dto.isActive !== undefined ? dto.isActive : undefined,
-        classId: dto.classId !== undefined ? dto.classId : undefined,
-        facultyId: dto.facultyId !== undefined ? dto.facultyId : undefined,
-      },
-      include: {
-        faculty: true,
-        class: true,
-      },
-    });
+        where: { id },
+        data: {
+          fullName: dto.fullName !== undefined ? dto.fullName.trim() : undefined,
+          email: dto.email !== undefined ? dto.email.trim().toLowerCase() : undefined,
+          studentCode: dto.studentCode !== undefined ? (dto.studentCode ? dto.studentCode.trim() : null) : undefined,
+          isActive: dto.isActive !== undefined ? dto.isActive : undefined,
+          classId: dto.classId !== undefined ? dto.classId : undefined,
+          facultyId: dto.facultyId !== undefined ? dto.facultyId : undefined,
+        },
+        include: {
+          faculty: true,
+          class: true,
+        },
+      });
 
       const visible = (u: typeof existing) => ({ fullName: u.fullName, email: u.email, studentCode: u.studentCode, classId: u.classId, facultyId: u.facultyId, isActive: u.isActive });
       await tx.auditLog.create({ data: { userId: actor.id, action: 'USER_UPDATED', entityType: 'User', entityId: id, oldValue: visible(existing), newValue: visible(updated) } });
       return updated;
     });
-    const { password, ...safeUser } = updated;
+
+    const { password, authVersion, ...safeUser } = updated;
     return safeUser;
   }
 
@@ -238,15 +383,15 @@ export class UsersService {
 
     const facultyMap = new Map<string, string>(); // code/name lowercase -> id
     faculties.forEach((f) => {
-      facultyMap.set(f.code.toLowerCase(), f.id);
-      facultyMap.set(f.name.toLowerCase(), f.id);
+      if (f.code) facultyMap.set(f.code.toLowerCase(), f.id);
+      if (f.name) facultyMap.set(f.name.toLowerCase(), f.id);
       facultyMap.set(f.id, f.id);
     });
 
     const classMap = new Map<string, string>(); // code/name lowercase -> id
     classes.forEach((c) => {
-      classMap.set(c.code.toLowerCase(), c.id);
-      classMap.set(c.name.toLowerCase(), c.id);
+      if (c.code) classMap.set(c.code.toLowerCase(), c.id);
+      if (c.name) classMap.set(c.name.toLowerCase(), c.id);
       classMap.set(c.id, c.id);
     });
 
@@ -292,54 +437,74 @@ export class UsersService {
 
       if (row.facultyCode && !facultyId) { errors.push(`Dòng ${rowIdx}: Không tìm thấy Khoa ${row.facultyCode}`); continue; }
       if (row.classCode && !classId) { errors.push(`Dòng ${rowIdx}: Không tìm thấy Lớp ${row.classCode}`); continue; }
-      if (role === Role.STUDENT && (!studentCode || !classId)) { errors.push(`Dòng ${rowIdx}: Sinh viên bắt buộc có MSSV và Lớp`); continue; }
-      if (role === Role.STAFF && !facultyId) { errors.push(`Dòng ${rowIdx}: Cán bộ bắt buộc thuộc một Khoa`); continue; }
-      if (classId && facultyId) {
-        const cls = classes.find(item => item.id === classId);
-        if (!cls || cls.facultyId !== facultyId) { errors.push(`Dòng ${rowIdx}: Lớp không thuộc Khoa đã chọn`); continue; }
+
+      try {
+        await this.validateUserPayload({
+          role,
+          email,
+          fullName,
+          studentCode,
+          classId,
+          facultyId,
+        });
+      } catch (valErr: any) {
+        errors.push(`Dòng ${rowIdx} (${email}): ${valErr.message}`);
+        continue;
       }
+
+      let isImported = false;
+      let isUpdated = false;
+      let newCred: { email: string; temporaryPassword: string } | null = null;
 
       try {
         await this.prisma.$transaction(async tx => {
-        // Tìm xem user đã tồn tại chưa bằng email hoặc studentCode
-        let existingUser = await tx.user.findUnique({ where: { email } });
-        if (!existingUser && studentCode) {
-          existingUser = await tx.user.findFirst({ where: { studentCode } });
-        }
+          // Tìm xem user đã tồn tại chưa bằng email hoặc studentCode
+          let existingUser = await tx.user.findUnique({ where: { email } });
+          if (!existingUser && studentCode) {
+            existingUser = await tx.user.findFirst({ where: { studentCode } });
+          }
 
-        if (existingUser && existingUser.role !== role) throw new BadRequestException('Vai trò import khác tài khoản hiện có');
-        if (existingUser && !existingUser.isActive) throw new BadRequestException('Tài khoản đang bị khóa; cần mở khóa thủ công trước khi cập nhật');
-        if (existingUser) {
-          await tx.user.update({
-            where: { id: existingUser.id },
-            data: {
-              fullName,
-              studentCode: studentCode || existingUser.studentCode,
-              classId: classId || existingUser.classId,
-              facultyId: facultyId || existingUser.facultyId,
-            },
-          });
-          updatedCount++;
-        } else {
-          const temporaryPassword = this.temporaryPassword();
-          const defaultPasswordHash = await bcrypt.hash(temporaryPassword, 10);
-          await tx.user.create({
-            data: {
-              email,
-              fullName,
-              role,
-              studentCode: studentCode || null,
-              password: defaultPasswordHash,
-              classId: classId || null,
-              facultyId: facultyId || null,
-            },
-          });
-          temporaryCredentials.push({ email, temporaryPassword });
-          importedCount++;
-        }
-        const saved = await tx.user.findFirst({ where: { OR: [{ email }, ...(studentCode ? [{ studentCode }] : [])] } });
-        if (saved) await tx.auditLog.create({ data: { userId: actorId, action: 'USER_IMPORTED', entityType: 'User', entityId: saved.id, oldValue: existingUser ? { fullName: existingUser.fullName, classId: existingUser.classId, facultyId: existingUser.facultyId } : undefined, newValue: { email, fullName, role, classId: saved.classId, facultyId: saved.facultyId } } });
+          if (existingUser && existingUser.role !== role) throw new BadRequestException('Vai trò import khác tài khoản hiện có');
+          if (existingUser && !existingUser.isActive) throw new BadRequestException('Tài khoản đang bị khóa; cần mở khóa thủ công trước khi cập nhật');
+          if (existingUser) {
+            await tx.user.update({
+              where: { id: existingUser.id },
+              data: {
+                fullName,
+                studentCode: studentCode || existingUser.studentCode,
+                classId: classId || existingUser.classId,
+                facultyId: facultyId || existingUser.facultyId,
+              },
+            });
+            isUpdated = true;
+          } else {
+            const temporaryPassword = this.temporaryPassword();
+            const defaultPasswordHash = await bcrypt.hash(temporaryPassword, 10);
+            await tx.user.create({
+              data: {
+                email,
+                fullName,
+                role,
+                studentCode: studentCode || null,
+                password: defaultPasswordHash,
+                classId: classId || null,
+                facultyId: facultyId || null,
+              },
+            });
+            newCred = { email, temporaryPassword };
+            isImported = true;
+          }
+          const saved = await tx.user.findFirst({ where: { OR: [{ email }, ...(studentCode ? [{ studentCode }] : [])] } });
+          if (saved) await tx.auditLog.create({ data: { userId: actorId, action: 'USER_IMPORTED', entityType: 'User', entityId: saved.id, oldValue: existingUser ? { fullName: existingUser.fullName, classId: existingUser.classId, facultyId: existingUser.facultyId } : undefined, newValue: { email, fullName, role, classId: saved.classId, facultyId: saved.facultyId } } });
         });
+
+        // Chỉ tăng count và lưu temporaryCredentials sau khi transaction thành công và commit
+        if (isImported) {
+          importedCount++;
+          if (newCred) temporaryCredentials.push(newCred);
+        } else if (isUpdated) {
+          updatedCount++;
+        }
       } catch (err: any) {
         errors.push(`Dòng ${rowIdx} (${email}): ${err.message || 'Lỗi lưu dữ liệu'}`);
       }

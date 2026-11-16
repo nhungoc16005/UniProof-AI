@@ -4,12 +4,12 @@
 |---|---|
 | Phiên bản / đối chiếu | 1.0 / 2026-11-15, mã nguồn tại baseline `93fb66c` |
 | Vai trò | Người dùng đã đăng nhập |
-| Trạng thái | Đã có implementation; còn gap trong audit, chưa nghiệm thu toàn bộ |
+| Trạng thái | Đã có implementation; gap BL-021 đã được giải quyết và kiểm chứng trong Đợt 10 |
 | Quy tắc liên quan | [R-25](../BUSINESS_RULES.md#r-25) |
 
 Nguồn: [notifications/notifications.service.ts](../../apps/backend/src/notifications/notifications.service.ts), [evaluation-workflow/workflow.service.ts](../../apps/backend/src/evaluation-workflow/workflow.service.ts); [routes Web](../../apps/web/src/routes.tsx), [API client](../../apps/web/src/lib/apiClient.ts).
 
-Gap: [BL-021](../BUSINESS_LOGIC_AUDIT.md#bl-021). Theo dõi trong [backlog](../BACKLOG.md); chưa áp dụng bản sửa.
+Gap: [BL-021](../BUSINESS_LOGIC_AUDIT.md#bl-021) (Resolved). Theo dõi trong [backlog](../BACKLOG.md).
 
 ## 1. Objective — Mục tiêu
 
@@ -82,6 +82,7 @@ Lỗi validation/nghiệp vụ phải hiển thị lý do từ server; 401 yêu 
 | F13-TC-03 | Kiểm chứng: đánh dấu một/tất cả không đổi thông báo của người khác | F13-AC-03 | Planned |
 | F13-TC-04 | Kiểm chứng: dedupeKey không được chặn một sự kiện nghiệp vụ mới hợp lệ | F13-AC-04 | Planned |
 | F13-TC-05 | Kiểm chứng: targetPath/metadata giữ được ngữ cảnh kỳ và thực thể | F13-AC-05 | Planned |
+| F13-TC-06 | BL-021: Loại trừ $\rightarrow$ Khôi phục $\rightarrow$ Loại trừ lại: Tăng revision và sinh eventId cho dedupeKey, giải quyết triệt để lỗi trùng khóa P2002 của Prisma | BL-021; F13-AC-04 | Verified in `exclusion-and-restore.test.cjs` |
 
 Bổ sung ca biên ở mục 7 và regression của từng BL liên quan; xem [TEST_PLAN](../TEST_PLAN.md) để chọn môi trường và bằng chứng. Không gán Passed nếu chưa chạy.
 

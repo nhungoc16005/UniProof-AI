@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 
 const booleanFields = new Set([
+  'leadershipRole',
   'improvedFromPreviousTerm', 'academicWarning', 'eligibleMembership', 'tuitionCompliance',
   'studentWeekParticipation', 'requiredSurveyParticipation', 'disciplinaryViolation', 'healthInsurance',
   'residenceDeclaration', 'organizerConfirmation', 'advisorConfirmation',
@@ -34,6 +35,7 @@ const booleanFields = new Set([
 ]);
 
 const fieldLabels: Record<string, string> = {
+  leadershipRole: 'Có chức vụ cán bộ lớp / đoàn thể',
   attendanceViolations: 'Số lần vi phạm chuyên cần',
   classWarnings: 'Số lần bị nhắc nhở/không được vào lớp',
   examBans: 'Số học phần không được thi do vắng',
@@ -58,7 +60,7 @@ const fieldLabels: Record<string, string> = {
   collectiveApprovalPercent: 'Tỷ lệ tập thể bình chọn (%)',
 };
 
-const isNumberField = (key: string) => /Count|Violations|Bans|Absences|Failures|Percent|Points|Locks/i.test(key);
+const isNumberField = (key: string) => /Count|Violations|Bans|Absences|Failures|Percent|Points|Locks|Warnings|Deadlines/i.test(key);
 
 const getGradeClassification = (score: number) => {
   if (score >= 90) return { label: 'Xuất sắc', color: 'bg-emerald-50 text-emerald-800 border-emerald-200' };
@@ -68,7 +70,7 @@ const getGradeClassification = (score: number) => {
   return { label: 'Yếu', color: 'bg-rose-50 text-rose-800 border-rose-200' };
 };
 
-interface CardProps {
+export interface CardProps {
   studentId: string;
   termId: string;
   criterion: Criterion;
@@ -77,7 +79,7 @@ interface CardProps {
   onSaved: () => Promise<void>;
 }
 
-const CriterionCard: React.FC<CardProps> = ({ studentId, termId, criterion, assessment, readOnly, onSaved }) => {
+export const CriterionCard: React.FC<CardProps> = ({ studentId, termId, criterion, assessment, readOnly, onSaved }) => {
   const fields: string[] = criterion.scoringConfig?.requiredData || [];
   const [verifiedDraft, setVerifiedDraft] = useState<Record<string, string>>({});
   const [verificationNote, setVerificationNote] = useState(assessment?.verificationNote || '');

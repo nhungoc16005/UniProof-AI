@@ -219,7 +219,14 @@ export interface RubricDefinition {
     name: string;
     maxScore: number;
     position: number;
-    criteria: Array<{ code: string; name: string; description: string; maxScore: number; scoringConfig: Record<string, any> }>;
+    criteria: Array<{
+      code: string;
+      name: string;
+      description: string;
+      maxScore: number;
+      scoringConfig: Record<string, any>;
+      rolesScore?: Record<string, number> | null;
+    }>;
   }>;
 }
 
@@ -442,7 +449,7 @@ export interface Evidence {
 
   criterionId?: string;
   criterion?: Criterion;
-  criterionAssessment?: { criterion?: Pick<Criterion, 'id' | 'code' | 'name' | 'maxScore' | 'rubricVersionId'> | null } | null;
+  criterionAssessment?: { id?: string; criterionId?: string; criterion?: Pick<Criterion, 'id' | 'code' | 'name' | 'maxScore' | 'rubricVersionId'> | null } | null;
 
   files: EvidenceFile[];
   aiProcessingJobs?: Array<{

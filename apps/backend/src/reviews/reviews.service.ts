@@ -3,10 +3,11 @@ import { PrismaService } from '../common/prisma/prisma.service';
 import { WorkflowService } from '../evaluation-workflow/workflow.service';
 import { ReviewDecisionDto, VerificationSourceDto } from './dto/review.dto';
 import { EvidenceStatus, ReviewDecision, Role, TermStatus } from '@prisma/client';
+import { recomputeAndSaveActivityCriterion } from '../activities/activity-aggregator';
 
 @Injectable()
 export class ReviewsService {
-  constructor(private prisma: PrismaService, private workflow: WorkflowService) {}
+  constructor(private prisma: PrismaService, private workflow: WorkflowService) { }
 
   // ==========================================
   // REVIEW QUEUE (OFFICER)
@@ -239,16 +240,36 @@ export class ReviewsService {
         },
       });
 
-      // Any changed evidence invalidates the linked criterion calculation.
-      if (evidence.criterionAssessmentId) await tx.criterionAssessment.update({ where: { id: evidence.criterionAssessmentId }, data: { status: 'NEEDS_VERIFICATION', suggestedScore: null, suggestionReason: null, officialScore: null, officialReason: null, finalizedAt: null, finalReviewerId: null } });
-      await tx.auditLog.create({ data: {
-        userId: officer.id,
-        action: `EVIDENCE_${dto.action}`,
-        entityType: 'Evidence',
-        entityId: evidenceId,
-        oldValue: { status: evidence.status },
-        newValue: { status: newEvidenceStatus, criterionId: dto.criterionId || null, finalScore: null, reason: dto.comment || null },
-      } });
+      // Any changed evidence invalidates the linked criterion calculation or triggers aggregator.
+      if (evidence.criterionAssessmentId) {
+        const linkedAssessment = await tx.criterionAssessment.findUnique({
+          where: { id: evidence.criterionAssessmentId },
+          select: { criterionId: true, criterion: { select: { scoringConfig: true } } },
+        });
+        const config = linkedAssessment?.criterion?.scoringConfig as Record<string, any> | null;
+        if (config && ['activity_threshold', 'community_activity_tier'].includes(String(config.kind))) {
+          await recomputeAndSaveActivityCriterion(
+            tx,
+            { studentId: evidence.studentId, termId: evidence.termId, criterionId: linkedAssessment.criterionId },
+            'Dữ liệu được cập nhật tự động sau khi minh chứng có quyết định xét duyệt.'
+          );
+        } else {
+          await tx.criterionAssessment.update({
+            where: { id: evidence.criterionAssessmentId },
+            data: { status: 'NEEDS_VERIFICATION', suggestedScore: null, suggestionReason: null, officialScore: null, officialReason: null, finalizedAt: null, finalReviewerId: null },
+          });
+        }
+      }
+      await tx.auditLog.create({
+        data: {
+          userId: officer.id,
+          action: `EVIDENCE_${dto.action}`,
+          entityType: 'Evidence',
+          entityId: evidenceId,
+          oldValue: { status: evidence.status },
+          newValue: { status: newEvidenceStatus, criterionId: dto.criterionId || null, finalScore: null, reason: dto.comment || null },
+        }
+      });
 
       // 5. Tự động gửi thông báo cho Sinh viên
       await tx.notification.create({

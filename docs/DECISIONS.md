@@ -16,6 +16,10 @@ Dùng Observed / Supported / Proposed / Needs clarification như [README](README
 | DEC-004 | Giữ nguyên BL IDs và confidence/severity độc lập, backlog chưa Done khi chưa sửa/kiểm chứng; test cũ là historical | Quy ước tài liệu |
 | DEC-005 | Không có nguồn handoff cũ trong repo, ghi evidence gap thay vì phục dựng giả; 6 file cũ chỉ xóa sau hợp nhất vào bộ docs mới | Quy ước di chuyển |
 | DEC-006 | Người dùng xác nhận ngày 2026-11-15: rubric giữ nguyên khi không có thay đổi thực sự, kể cả kỳ mới; chỉ thay nội dung khi có nhu cầu thay đổi được xác nhận | Accepted — yêu cầu nghiệp vụ |
+| DEC-007 | Hoãn AI: không triển khai BL-008/BL-022, không thay đổi worker/pipeline hoặc cấu hình bật/tắt AI theo chỉ thị người dùng | Accepted — chỉ thị phạm vi |
+| DEC-008 | Gộp nguồn hoạt động (liên kết Q-01): trong cùng sinh viên/kỳ/tiêu chí, cùng `activityId` tính 1 lần; minh chứng không có `activityId` nhận diện riêng bằng `evidence.id`. Ưu tiên vai trò từ attendance `CONFIRMED`; nếu chỉ có nhiều evidence APPROVED cùng hoạt động nhưng vai trò mâu thuẫn thì giữ `NEEDS_VERIFICATION`, không tự chọn điểm cao nhất | Accepted — yêu cầu nghiệp vụ |
+| DEC-009 | Điểm vai trò và công thức cổ vũ (liên kết Q-02): Admin cấu hình `rolesScore`; giữ giá trị đã có, thiếu cấu hình báo blocker (không tự gán mặc định từ comment). Công thức cổ vũ giữ nguyên: điểm bậc nhóm tham gia chính + điểm bậc nhóm cổ vũ * hệ số, giới hạn trần | Accepted — yêu cầu nghiệp vụ |
+| DEC-010 | Mật khẩu tạm: tạo đơn hiển thị/copy một lần; import hiển thị bảng credential và nút tải file .xlsx do Admin chủ động bấm | Accepted — yêu cầu nghiệp vụ |
 
 DEC-006 là yêu cầu nghiệp vụ được người dùng xác nhận trực tiếp; các quyết định tổ chức tài liệu không tự thay quy chế. Các Q sau vẫn Open trong phạm vi chưa được giải quyết; chưa được gán người cụ thể hoặc ngày cam kết.
 
@@ -33,24 +37,17 @@ DEC-006 là yêu cầu nghiệp vụ được người dùng xác nhận trực 
 
 ### Q-01 — Định danh và hợp nhất hoạt động
 
-- **Trạng thái:** Open / Needs clarification.
-- **Cần xác nhận:** Một hoạt động có roster CONFIRMED và Evidence APPROVED được tính thế nào? Khóa định danh nào cho minh chứng ngoài trường; chống đếm trùng theo criterion hay toàn kỳ?
+- **Trạng thái:** Resolved theo DEC-008.
+- **Quyết định:** Trong cùng sinh viên/kỳ/tiêu chí, cùng `activityId` tính một lần. Minh chứng không có `activityId` được nhận diện riêng bằng `evidence.id`; không tự đoán trùng theo tên/ngày. Khi có điểm danh `CONFIRMED` thì ưu tiên vai trò điểm danh; nếu chỉ có nhiều evidence `APPROVED` cùng hoạt động nhưng vai trò mâu thuẫn thì ghi blocker, giữ `NEEDS_VERIFICATION, suggestedScore: null`, không tự chọn điểm cao nhất.
 - **Tác động:** R-15/R-16; BL-005; F07/F08.
-- **Vai trò cần trả lời:** Chủ nghiệp vụ Khoa/CTSV, kỹ thuật mô hình dữ liệu.
-- **Hiện trạng/căn cứ:** Hiện hai service ghi cùng verifiedData từ nguồn khác nhau; cần quyết định trước triển khai aggregator.
-- **Kết luận được duyệt:** Chưa có. Khi có, ghi người/vai trò xác nhận, ngày, quyết định và các R/F/AC/test phải cập nhật.
 
 <a id="q-02"></a>
 
 ### Q-02 — Điểm quy đổi và vai trò
 
-- **Trạng thái:** Open / Needs clarification.
-- **Cần xác nhận:** rolesScore theo từng vai trò của tiêu chí cộng đồng là bao nhiêu? Khi cùng sinh viên có tham gia chính và cổ vũ, áp hệ số theo từng hoạt động hay tổng tier?
+- **Trạng thái:** Resolved theo DEC-009.
+- **Quyết định:** `rolesScore` do Admin cấu hình cho 3 vai trò PARTICIPANT, ORGANIZER, CHEERLEADER; giữ giá trị đã có, thiếu cấu hình báo blocker (không tự gán mặc định từ comment). Công thức cổ vũ giữ nguyên: điểm bậc nhóm tham gia chính + điểm bậc nhóm cổ vũ * hệ số, sau đó giới hạn trần.
 - **Tác động:** R-09/R-16; BL-014; F04/F08.
-- **Vai trò cần trả lời:** Chủ quy chế/Khoa/CTSV.
-- **Hiện trạng/căn cứ:** Không tự đặt rate chỉ để qua validation; cấu hình lưu trữ thiếu đường hiện tại là gap riêng với giá trị chính sách.
-- **Giới hạn sau DEC-006:** Giữ nguyên rate/công thức đã có căn cứ trong rubric hiện hành. Chỉ hỏi phần còn thiếu hoặc mâu thuẫn; không yêu cầu xác định lại mức điểm vì đổi kỳ.
-- **Kết luận được duyệt:** Chưa có. Khi có, ghi người/vai trò xác nhận, ngày, quyết định và các R/F/AC/test phải cập nhật.
 
 <a id="q-03"></a>
 

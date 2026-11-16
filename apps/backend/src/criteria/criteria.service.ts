@@ -8,12 +8,205 @@ import { DUT_RUBRIC_CATEGORIES, DUT_RUBRIC_CRITERIA } from './dut-rubric';
 type RubricDefinition = {
   categories: Array<{
     code: string; name: string; maxScore: number; position: number;
-    criteria: Array<{ code: string; name: string; description: string; maxScore: number; scoringConfig: Record<string, unknown> }>;
+    criteria: Array<{
+      code: string;
+      name: string;
+      description: string;
+      maxScore: number;
+      scoringConfig: Record<string, unknown>;
+      rolesScore?: Record<string, number> | null;
+    }>;
   }>;
 };
 
 const compareCriterionCodes = <T extends { code: string }>(criteria: T[]) =>
   [...criteria].sort((left, right) => left.code.localeCompare(right.code, 'vi', { numeric: true }));
+
+const isPrismaNull = (val: unknown): boolean =>
+  val === null ||
+  val === undefined ||
+  val === Prisma.JsonNull ||
+  val === Prisma.DbNull;
+
+export function validateScoringConfig(
+  criterionCode: string,
+  maxScore: number,
+  config: Record<string, unknown>,
+  rolesScore?: unknown
+): void {
+  const allowedKinds = new Set([
+    'manual_verified', 'attendance_penalty', 'group_penalty', 'conduct_penalty',
+    'leadership_duty', 'academic_effort', 'verified_boolean', 'award_tier',
+    'activity_threshold', 'all_conditions', 'community_activity_tier',
+  ]);
+  if (typeof config.kind !== 'string' || !allowedKinds.has(config.kind)) {
+    throw new BadRequestException(`Quy tắc tính điểm mục ${criterionCode} có kind '${config.kind}' chưa được Backend hỗ trợ`);
+  }
+  if (!Array.isArray(config.requiredData) || config.requiredData.length === 0 || !config.requiredData.every((item) => typeof item === 'string' && item.trim())) {
+    throw new BadRequestException(`Quy tắc tính điểm mục ${criterionCode} phải có danh sách requiredData hợp lệ`);
+  }
+
+  const isNonNegativeNumber = (val: unknown): val is number =>
+    typeof val === 'number' && Number.isFinite(val) && val >= 0;
+
+  // Validate rolesScore (hỗ trợ cả criterion.rolesScore và config.rolesScore, bỏ qua Prisma.JsonNull)
+  const rawRolesScore = !isPrismaNull(rolesScore) ? rolesScore : config.rolesScore;
+  const effectiveRolesScore = !isPrismaNull(rawRolesScore) ? rawRolesScore : null;
+
+  if (effectiveRolesScore) {
+    if (typeof effectiveRolesScore !== 'object' || Array.isArray(effectiveRolesScore)) {
+      throw new BadRequestException(`Mục ${criterionCode} có cấu hình rolesScore không hợp lệ`);
+    }
+    const entries = Object.entries(effectiveRolesScore as Record<string, unknown>);
+    if (entries.length === 0 || !entries.every(([roleKey, pts]) => roleKey.trim() && isNonNegativeNumber(pts))) {
+      throw new BadRequestException(`Mục ${criterionCode} có điểm vai trò rolesScore không hợp lệ (phải là số không âm)`);
+    }
+  }
+
+  switch (config.kind) {
+    case 'attendance_penalty': {
+      if (!isNonNegativeNumber(config.baseScore)) {
+        throw new BadRequestException(`Mục ${criterionCode} (${config.kind}) yêu cầu baseScore là số không âm`);
+      }
+      if (!isNonNegativeNumber(config.examBanPenalty)) {
+        throw new BadRequestException(`Mục ${criterionCode} (${config.kind}) yêu cầu examBanPenalty là số không âm`);
+      }
+      if (!isNonNegativeNumber(config.warningPenalty)) {
+        throw new BadRequestException(`Mục ${criterionCode} (${config.kind}) yêu cầu warningPenalty là số không âm`);
+      }
+      const required = ['examBans', 'classWarnings'];
+      for (const req of required) {
+        if (!config.requiredData.includes(req)) {
+          throw new BadRequestException(`Mục ${criterionCode} (${config.kind}) thiếu requiredData '${req}'`);
+        }
+      }
+      break;
+    }
+    case 'group_penalty': {
+      if (!isNonNegativeNumber(config.baseScore)) {
+        throw new BadRequestException(`Mục ${criterionCode} (${config.kind}) yêu cầu baseScore là số không âm`);
+      }
+      if (!isNonNegativeNumber(config.unexcusedPenalty)) {
+        throw new BadRequestException(`Mục ${criterionCode} (${config.kind}) yêu cầu unexcusedPenalty là số không âm`);
+      }
+      if (!isNonNegativeNumber(config.excusedPenaltyFromSecond)) {
+        throw new BadRequestException(`Mục ${criterionCode} (${config.kind}) yêu cầu excusedPenaltyFromSecond là số không âm`);
+      }
+      const required = ['unexcusedAbsences', 'excusedAbsences', 'missedGroupDeadlines'];
+      for (const req of required) {
+        if (!config.requiredData.includes(req)) {
+          throw new BadRequestException(`Mục ${criterionCode} (${config.kind}) thiếu requiredData '${req}'`);
+        }
+      }
+      break;
+    }
+    case 'conduct_penalty': {
+      if (!isNonNegativeNumber(config.baseScore)) {
+        throw new BadRequestException(`Mục ${criterionCode} (${config.kind}) yêu cầu baseScore là số không âm`);
+      }
+      const required = [
+        'tuitionCompliance', 'studentWeekParticipation', 'disciplinaryViolation',
+        'nonCauseAccountLocks', 'classTaskFailures', 'unexcusedClassMeetingAbsences',
+        'excusedClassMeetingAbsences', 'requiredSurveyParticipation',
+      ];
+      for (const req of required) {
+        if (!config.requiredData.includes(req)) {
+          throw new BadRequestException(`Mục ${criterionCode} (${config.kind}) thiếu requiredData '${req}'`);
+        }
+      }
+      break;
+    }
+    case 'leadership_duty': {
+      if (!isNonNegativeNumber(config.passScore)) {
+        throw new BadRequestException(`Mục ${criterionCode} (${config.kind}) yêu cầu passScore là số không âm`);
+      }
+      const required = ['leadershipRole', 'collectiveApprovalPercent', 'advisorConfirmation'];
+      for (const req of required) {
+        if (!config.requiredData.includes(req)) {
+          throw new BadRequestException(`Mục ${criterionCode} (${config.kind}) thiếu requiredData '${req}'`);
+        }
+      }
+      break;
+    }
+    case 'verified_boolean': {
+      if (!isNonNegativeNumber(config.passScore)) {
+        throw new BadRequestException(`Mục ${criterionCode} (${config.kind}) yêu cầu passScore là số không âm`);
+      }
+      break;
+    }
+    case 'award_tier': {
+      if (!config.scores || typeof config.scores !== 'object' || Array.isArray(config.scores)) {
+        throw new BadRequestException(`Mục ${criterionCode} (${config.kind}) yêu cầu scores là một object bảng điểm`);
+      }
+      const entries = Object.entries(config.scores);
+      if (entries.length === 0 || !entries.every(([, score]) => isNonNegativeNumber(score))) {
+        throw new BadRequestException(`Mục ${criterionCode} (${config.kind}) có cấu hình scores không hợp lệ`);
+      }
+      if (!config.requiredData.includes('awardTier')) {
+        throw new BadRequestException(`Mục ${criterionCode} (${config.kind}) thiếu requiredData 'awardTier'`);
+      }
+      break;
+    }
+    case 'activity_threshold': {
+      if (!Array.isArray(config.tiers) || config.tiers.length === 0) {
+        throw new BadRequestException(`Mục ${criterionCode} (${config.kind}) yêu cầu tiers là danh sách không rỗng`);
+      }
+      for (const tier of config.tiers as any[]) {
+        if (!tier || typeof tier !== 'object' || !isNonNegativeNumber(tier.min) || !isNonNegativeNumber(tier.score)) {
+          throw new BadRequestException(`Mục ${criterionCode} (${config.kind}) có bậc tiers không hợp lệ`);
+        }
+      }
+      if (config.cheerleaderMultiplier !== undefined && (!isNonNegativeNumber(config.cheerleaderMultiplier) || config.cheerleaderMultiplier <= 0 || config.cheerleaderMultiplier > 1)) {
+        throw new BadRequestException(`Mục ${criterionCode} (${config.kind}) có cheerleaderMultiplier không hợp lệ (phải trong (0, 1])`);
+      }
+      if (!config.requiredData.includes('verifiedActivityCount')) {
+        throw new BadRequestException(`Mục ${criterionCode} (${config.kind}) thiếu requiredData 'verifiedActivityCount'`);
+      }
+      break;
+    }
+    case 'community_activity_tier': {
+      if (!Array.isArray(config.tiers) || config.tiers.length === 0) {
+        throw new BadRequestException(`Mục ${criterionCode} (${config.kind}) yêu cầu tiers là danh sách không rỗng`);
+      }
+      for (const tier of config.tiers as any[]) {
+        if (!tier || typeof tier !== 'object' || !isNonNegativeNumber(tier.minCount) || !isNonNegativeNumber(tier.minPoints) || !isNonNegativeNumber(tier.score)) {
+          throw new BadRequestException(`Mục ${criterionCode} (${config.kind}) có bậc tiers không hợp lệ`);
+        }
+      }
+      const required = ['verifiedActivityCount', 'convertedCommunityPoints'];
+      for (const req of required) {
+        if (!config.requiredData.includes(req)) {
+          throw new BadRequestException(`Mục ${criterionCode} (${config.kind}) thiếu requiredData '${req}'`);
+        }
+      }
+      break;
+    }
+    case 'all_conditions': {
+      if (!isNonNegativeNumber(config.passScore) || !isNonNegativeNumber(config.failScore)) {
+        throw new BadRequestException(`Mục ${criterionCode} (${config.kind}) yêu cầu passScore và failScore là số không âm`);
+      }
+      const required = ['healthInsurance', 'residenceDeclaration', 'communityViolations'];
+      for (const req of required) {
+        if (!config.requiredData.includes(req)) {
+          throw new BadRequestException(`Mục ${criterionCode} (${config.kind}) thiếu requiredData '${req}'`);
+        }
+      }
+      break;
+    }
+    case 'academic_effort': {
+      const required = ['academicTier', 'improvedFromPreviousTerm', 'academicWarning'];
+      for (const req of required) {
+        if (!config.requiredData.includes(req)) {
+          throw new BadRequestException(`Mục ${criterionCode} (${config.kind}) thiếu requiredData '${req}'`);
+        }
+      }
+      break;
+    }
+    case 'manual_verified': {
+      break;
+    }
+  }
+}
 
 function validateRubricDefinition(value: unknown): asserts value is RubricDefinition {
   if (!value || typeof value !== 'object' || !Array.isArray((value as any).categories) || !(value as any).categories.length) {
@@ -23,7 +216,6 @@ function validateRubricDefinition(value: unknown): asserts value is RubricDefini
   const categoryCodes = new Set<string>();
   const allCriterionCodes = new Set<string>();
   let total = 0;
-  const allowedKinds = new Set(['manual_verified', 'attendance_penalty', 'group_penalty', 'conduct_penalty', 'leadership_duty', 'academic_effort', 'verified_boolean', 'award_tier', 'activity_threshold', 'all_conditions', 'community_activity_tier']);
   for (const category of definition.categories) {
     if (!category.code?.trim() || !category.name?.trim() || categoryCodes.has(category.code)) throw new BadRequestException('Mã và tên khung phải có giá trị, mã khung không được trùng');
     categoryCodes.add(category.code);
@@ -34,7 +226,8 @@ function validateRubricDefinition(value: unknown): asserts value is RubricDefini
       allCriterionCodes.add(criterion.code);
       if (!Number.isFinite(criterion.maxScore) || criterion.maxScore < 0) throw new BadRequestException(`Điểm tối đa của mục ${criterion.code} không hợp lệ`);
       const config = criterion.scoringConfig;
-      if (!config || typeof config.kind !== 'string' || !allowedKinds.has(config.kind) || !Array.isArray(config.requiredData)) throw new BadRequestException(`Quy tắc tính điểm mục ${criterion.code} chưa hợp lệ hoặc chưa được Backend hỗ trợ`);
+      if (!config || typeof config !== 'object' || Array.isArray(config)) throw new BadRequestException(`Quy tắc tính điểm mục ${criterion.code} chưa hợp lệ hoặc chưa được Backend hỗ trợ`);
+      validateScoringConfig(criterion.code, criterion.maxScore, config as Record<string, unknown>, criterion.rolesScore);
       categoryTotal += criterion.maxScore;
     }
     if (Math.abs(categoryTotal - category.maxScore) > 0.001) throw new BadRequestException(`Tổng điểm tiêu chí của khung ${category.code} (${categoryTotal}) phải bằng ${category.maxScore}`);
@@ -132,7 +325,7 @@ export class CriteriaService {
     const term = await this.prisma.term.findUnique({ where: { id: termId }, select: { id: true, name: true, code: true, status: true } });
     if (!term) throw new NotFoundException('Không tìm thấy kỳ đánh giá');
     const version = await this.prisma.rubricVersion.findFirst({ where: { termId }, orderBy: { version: 'desc' }, include: { sourceTemplateVersion: { select: { id: true, version: true, status: true } }, categories: { orderBy: { position: 'asc' }, include: { criteria: true } } } });
-    return { term, rubricVersion: version, definition: version ? { categories: version.categories.map((category) => ({ code: category.code, name: category.name, maxScore: category.maxScore, position: category.position, criteria: compareCriterionCodes(category.criteria).map((criterion) => ({ code: criterion.code, name: criterion.name, description: criterion.description, maxScore: criterion.maxScore, scoringConfig: criterion.scoringConfig })) })) } : null };
+    return { term, rubricVersion: version, definition: version ? { categories: version.categories.map((category) => ({ code: category.code, name: category.name, maxScore: category.maxScore, position: category.position, criteria: compareCriterionCodes(category.criteria).map((criterion) => ({ code: criterion.code, name: criterion.name, description: criterion.description, maxScore: criterion.maxScore, scoringConfig: criterion.scoringConfig, rolesScore: !isPrismaNull((criterion as any).rolesScore) ? (criterion as any).rolesScore : null })) })) } : null };
   }
 
   async createTermRubricDraft(termId: string, source: { type: 'DEFAULT' | 'TERM'; sourceTermId?: string }, actorId: string) {
@@ -164,7 +357,22 @@ export class CriteriaService {
       if (!sourceTerm || !sourceVersion) throw new NotFoundException('Kỳ nguồn chưa có rubric đã ban hành');
       sourceTermCode = sourceTerm.code;
       sourceLabel = `Kế thừa kỳ ${sourceTerm.code} · phiên bản ${sourceVersion.version}`;
-      definition = { categories: sourceVersion.categories.map((category) => ({ code: category.code, name: category.name, maxScore: category.maxScore, position: category.position, criteria: category.criteria.map((criterion) => ({ code: criterion.code, name: criterion.name, description: criterion.description, maxScore: criterion.maxScore, scoringConfig: criterion.scoringConfig })) })) };
+      definition = {
+        categories: sourceVersion.categories.map((category) => ({
+          code: category.code,
+          name: category.name,
+          maxScore: category.maxScore,
+          position: category.position,
+          criteria: category.criteria.map((criterion) => ({
+            code: criterion.code,
+            name: criterion.name,
+            description: criterion.description,
+            maxScore: criterion.maxScore,
+            scoringConfig: criterion.scoringConfig,
+            rolesScore: !isPrismaNull((criterion as any).rolesScore) ? (criterion as any).rolesScore : null,
+          })),
+        })),
+      };
     }
     validateRubricDefinition(definition);
     await this.prisma.$transaction(async tx => { await this.workflow.lock(tx, termId); const id = await this.persistTermRubricDraft(tx, termId, definition as RubricDefinition, sourceLabel, sourceTemplateVersionId, sourceTermCode); await tx.auditLog.create({ data: { userId: actorId, action: 'TERM_RUBRIC_DRAFT_CREATED', entityType: 'RubricVersion', entityId: id, newValue: { termId, sourceLabel } } }); });
@@ -175,7 +383,20 @@ export class CriteriaService {
     const version = await tx.rubricVersion.create({ data: { termId, version: 1, status: RubricVersionStatus.DRAFT, source, sourceTemplateVersionId, sourceTermCode } });
     for (const category of definition.categories) {
       const createdCategory = await tx.rubricCategory.create({ data: { rubricVersionId: version.id, code: category.code, name: category.name, maxScore: category.maxScore, position: category.position } });
-      await tx.criterion.createMany({ data: category.criteria.map((criterion) => ({ rubricVersionId: version.id, categoryId: createdCategory.id, code: criterion.code, name: criterion.name, description: criterion.description, minScore: 0, maxScore: criterion.maxScore, category: category.code, scoringConfig: criterion.scoringConfig as Prisma.InputJsonValue })) });
+      await tx.criterion.createMany({
+        data: category.criteria.map((criterion) => ({
+          rubricVersionId: version.id,
+          categoryId: createdCategory.id,
+          code: criterion.code,
+          name: criterion.name,
+          description: criterion.description,
+          minScore: 0,
+          maxScore: criterion.maxScore,
+          category: category.code,
+          scoringConfig: criterion.scoringConfig as Prisma.InputJsonValue,
+          rolesScore: criterion.rolesScore ? (criterion.rolesScore as Prisma.InputJsonValue) : Prisma.JsonNull,
+        })),
+      });
     }
     return version.id;
   }
@@ -206,7 +427,20 @@ export class CriteriaService {
       await tx.rubricCategory.deleteMany({ where: { rubricVersionId: version.id } });
       for (const category of normalized.categories) {
         const createdCategory = await tx.rubricCategory.create({ data: { rubricVersionId: version.id, code: category.code, name: category.name, maxScore: category.maxScore, position: category.position } });
-        await tx.criterion.createMany({ data: category.criteria.map((criterion) => ({ rubricVersionId: version.id, categoryId: createdCategory.id, code: criterion.code, name: criterion.name, description: criterion.description, minScore: 0, maxScore: criterion.maxScore, category: category.code, scoringConfig: criterion.scoringConfig as Prisma.InputJsonValue })) });
+        await tx.criterion.createMany({
+          data: category.criteria.map((criterion) => ({
+            rubricVersionId: version.id,
+            categoryId: createdCategory.id,
+            code: criterion.code,
+            name: criterion.name,
+            description: criterion.description,
+            minScore: 0,
+            maxScore: criterion.maxScore,
+            category: category.code,
+            scoringConfig: criterion.scoringConfig as Prisma.InputJsonValue,
+            rolesScore: criterion.rolesScore ? (criterion.rolesScore as Prisma.InputJsonValue) : Prisma.JsonNull,
+          })),
+        });
       }
       await tx.rubricVersion.update({ where: { id: version.id }, data: { changeNote: changeNote?.trim() || null } });
     });
@@ -316,7 +550,7 @@ export class CriteriaService {
       const sourceTerm = await this.prisma.term.findUnique({ where: { id: dto.sourceTermId } });
       const sourceVersion = await this.prisma.rubricVersion.findFirst({ where: { termId: dto.sourceTermId, status: RubricVersionStatus.PUBLISHED }, orderBy: { version: 'desc' }, include: { categories: { orderBy: { position: 'asc' }, include: { criteria: { orderBy: { code: 'asc' } } } } } });
       if (!sourceTerm || !sourceVersion) throw new NotFoundException('Kỳ nguồn chưa có rubric đã ban hành');
-      definition = { categories: sourceVersion.categories.map((category) => ({ code: category.code, name: category.name, maxScore: category.maxScore, position: category.position, criteria: category.criteria.map((criterion) => ({ code: criterion.code, name: criterion.name, description: criterion.description, maxScore: criterion.maxScore, scoringConfig: criterion.scoringConfig })) })) };
+      definition = { categories: sourceVersion.categories.map((category) => ({ code: category.code, name: category.name, maxScore: category.maxScore, position: category.position, criteria: category.criteria.map((criterion) => ({ code: criterion.code, name: criterion.name, description: criterion.description, maxScore: criterion.maxScore, scoringConfig: criterion.scoringConfig, rolesScore: !isPrismaNull((criterion as any).rolesScore) ? (criterion as any).rolesScore : null })) })) };
       sourceTermCode = sourceTerm.code;
       sourceLabel = `Kế thừa kỳ ${sourceTerm.code} · phiên bản ${sourceVersion.version}`;
     }

@@ -22,6 +22,21 @@ export const AppLayout: React.FC = () => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const selectedTermId = new URLSearchParams(location.search).get('termId') || activeTerm?.id;
+  const handleTermChange = (newTermId: string) => {
+    const t = terms.find((item) => item.id === newTermId);
+    if (t) {
+      switchTerm(t);
+      const params = new URLSearchParams(location.search);
+      params.set('termId', t.id);
+      ['classId','facultyId','state','status','filter','q','page','returnTo','jobPage','jobStatus'].forEach(key => params.delete(key));
+      let pathname = location.pathname;
+      if (/^\/officer\/students\/[^/]+\/assessment$/.test(pathname)) pathname = '/officer/students';
+      else if (pathname.startsWith('/officer/review/')) pathname = '/officer/queue';
+      else if (pathname.startsWith('/admin/results/') || pathname.startsWith('/admin/evidence/')) pathname = '/admin/results';
+      else if (/^\/student\/evidence\/[^/]+/.test(pathname)) pathname = '/student/evidence';
+      navigate({ pathname, search: params.toString() });
+    }
+  };
   const [workCounts, setWorkCounts] = useState<{ key: string; evidence: number; appeals: number } | null>(null);
   const countsKey = user?.id + ':' + selectedTermId + ':' + location.pathname;
   useEffect(() => {
@@ -311,22 +326,8 @@ export const AppLayout: React.FC = () => {
             <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#FFFFFF] hover:bg-[#FAFAFA] border border-[#E8E8EC] rounded-[6px] text-xs font-medium text-[#0A0A0A] transition">
               <Calendar className="w-3.5 h-3.5 text-[#1D6FC2] shrink-0" />
               <select
-                value={user?.role === 'STUDENT' ? activeTerm?.id : selectedTermId}
-                onChange={(e) => {
-                  const t = terms.find((item) => item.id === e.target.value);
-                  if (t) {
-                    switchTerm(t);
-                    const params = new URLSearchParams(location.search);
-                    params.set('termId', t.id);
-                    ['classId','facultyId','state','status','filter','q','page','returnTo','jobPage','jobStatus'].forEach(key => params.delete(key));
-                    let pathname = location.pathname;
-                    if (/^\/officer\/students\/[^/]+\/assessment$/.test(pathname)) pathname = '/officer/students';
-                    else if (pathname.startsWith('/officer/review/')) pathname = '/officer/queue';
-                    else if (pathname.startsWith('/admin/results/') || pathname.startsWith('/admin/evidence/')) pathname = '/admin/results';
-                    else if (/^\/student\/evidence\/[^/]+/.test(pathname)) pathname = '/student/evidence';
-                    navigate({ pathname, search: params.toString() });
-                  }
-                }}
+                value={selectedTermId}
+                onChange={(e) => handleTermChange(e.target.value)}
                 className="bg-transparent border-none text-[#0A0A0A] font-semibold focus:outline-none cursor-pointer text-xs max-w-[125px] sm:max-w-none truncate"
                 title="Chọn kỳ học đánh giá"
               >
@@ -507,10 +508,10 @@ export const AppLayout: React.FC = () => {
                   <span>Kỳ đánh giá</span>
                 </div>
                 <select
-                  value={activeTerm?.id}
+                  value={selectedTermId}
                   onChange={(e) => {
-                    const t = terms.find((item) => item.id === e.target.value);
-                    if (t) switchTerm(t);
+                    handleTermChange(e.target.value);
+                    setMobileMenuOpen(false);
                   }}
                   className="w-full bg-[#FFFFFF] border border-[#E8E8EC] text-[#0A0A0A] font-semibold rounded-[6px] px-2 py-1.5 text-xs focus:outline-none"
                 >

@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { DeadlineExtensionType, Prisma, Role } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import { WorkflowQueryDto } from './dto/workflow-query.dto';
 import { classification, sendBlockers, sumCategory, unresolvedEvidenceStatuses } from './evaluation-policy';
 export { classification } from './evaluation-policy';
@@ -352,9 +353,36 @@ export class WorkflowService {
       if (term.status === 'CLOSED') throw new BadRequestException('Kỳ đã chốt');
       if (await tx.assessmentPublication.count({ where: { studentId, termId } })) throw new BadRequestException('Kết quả đã công bố; hãy dùng quy trình điều chỉnh');
       const row = await tx.assessmentHandoff.findUniqueOrThrow({ where: { studentId_termId: { studentId, termId } } });
-      const updated = await tx.assessmentHandoff.update({ where: { id: row.id }, data: { status: 'EXCLUDED', exclusionReason: reason.trim(), excludedById: actor.id, excludedAt: new Date() } });
-      await tx.notification.create({ data: { userId: studentId, type: 'ASSESSMENT_EXCLUDED', eventKey: 'ASSESSMENT_EXCLUDED', dedupeKey: `excluded:${row.id}:${row.revision}`, title: 'Cập nhật danh sách đánh giá', content: reason.trim(), targetPath: '/student', metadata: { termId } } });
-      await this.audit(tx, actor.id, 'ASSESSMENT_EXCLUDED', row.id, { studentId, termId, reason: reason.trim() });
+
+      // Idempotency: Nếu đã ở trạng thái EXCLUDED thì no-op trả về kết quả (không ghi đè lý do, không tạo notification thừa)
+      if (row.status === 'EXCLUDED') {
+        return row;
+      }
+
+      const eventId = randomUUID();
+      const updated = await tx.assessmentHandoff.update({
+        where: { id: row.id },
+        data: {
+          status: 'EXCLUDED',
+          exclusionReason: reason.trim(),
+          excludedById: actor.id,
+          excludedAt: new Date(),
+        },
+      });
+
+      await tx.notification.create({
+        data: {
+          userId: studentId,
+          type: 'ASSESSMENT_EXCLUDED',
+          eventKey: 'ASSESSMENT_EXCLUDED',
+          dedupeKey: `excluded:${row.id}:${eventId}`,
+          title: 'Cập nhật danh sách đánh giá',
+          content: reason.trim(),
+          targetPath: '/student',
+          metadata: { termId, eventId },
+        },
+      });
+      await this.audit(tx, actor.id, 'ASSESSMENT_EXCLUDED', row.id, { studentId, termId, reason: reason.trim(), eventId });
       return updated;
     });
   }
@@ -366,8 +394,31 @@ export class WorkflowService {
       if (term.status === 'CLOSED') throw new BadRequestException('Kỳ đã chốt');
       const row = await tx.assessmentHandoff.findUniqueOrThrow({ where: { studentId_termId: { studentId, termId } } });
       if (row.status !== 'EXCLUDED' || !row.exclusionReason) throw new BadRequestException('Sinh viên không thuộc trường hợp loại trừ có thể khôi phục');
-      const updated = await tx.assessmentHandoff.update({ where: { id: row.id }, data: { status: 'WORKING', exclusionReason: null, excludedById: null, excludedAt: null } });
-      await this.audit(tx, actor.id, 'ASSESSMENT_EXCLUSION_RESTORED', row.id, { studentId, termId });
+
+      const eventId = randomUUID();
+      const updated = await tx.assessmentHandoff.update({
+        where: { id: row.id },
+        data: {
+          status: 'WORKING',
+          exclusionReason: null,
+          excludedById: null,
+          excludedAt: null,
+        },
+      });
+
+      await tx.notification.create({
+        data: {
+          userId: studentId,
+          type: 'ASSESSMENT_RESTORED',
+          eventKey: 'ASSESSMENT_RESTORED',
+          dedupeKey: `restored:${row.id}:${eventId}`,
+          title: 'Khôi phục danh sách đánh giá',
+          content: 'Bạn đã được khôi phục vào danh sách đánh giá học kỳ.',
+          targetPath: '/student',
+          metadata: { termId, eventId },
+        },
+      });
+      await this.audit(tx, actor.id, 'ASSESSMENT_RESTORED', row.id, { studentId, termId, eventId });
       return updated;
     });
   }

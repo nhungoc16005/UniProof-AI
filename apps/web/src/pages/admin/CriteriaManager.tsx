@@ -61,7 +61,7 @@ const RubricEditor: React.FC<{
       categories: current.categories.map((category, i) => (i === index ? { ...category, [key]: value } : category)),
     }));
 
-  const changeCriterion = (categoryIndex: number, criterionIndex: number, key: string, value: string | number) =>
+  const changeCriterion = (categoryIndex: number, criterionIndex: number, key: string, value: any) =>
     setDefinition((current) => ({
       ...current,
       categories: current.categories.map((category, ci) =>
@@ -141,6 +141,7 @@ const RubricEditor: React.FC<{
           criteria: category.criteria.map((criterion, ki) => ({
             ...criterion,
             scoringConfig: JSON.parse(configTexts[`${ci}-${ki}`] || '{}'),
+            rolesScore: criterion.rolesScore ?? null,
           })),
         })),
       };
@@ -292,6 +293,75 @@ const RubricEditor: React.FC<{
                       className="mt-1 w-full rounded-[6px] border border-[#E8E8EC] bg-white px-2.5 py-1.5 text-xs text-[#0A0A0A] disabled:bg-[#F3F4F6] focus:border-[#1D6FC2] focus:outline-none"
                     />
                   </label>
+                  {(criterion.rolesScore || configTexts[`${ci}-${ki}`]?.includes('community_activity_tier') || (criterion.scoringConfig as any)?.kind === 'community_activity_tier') && (
+                    <div className="rounded-[6px] border border-blue-200 bg-blue-50/50 p-3 lg:col-span-4 space-y-2">
+                      <div className="text-xs font-semibold text-blue-900">
+                        Cấu hình điểm vai trò (rolesScore - cộng đồng):
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <label className="text-xs font-medium text-slate-700">
+                          Tham gia (PARTICIPANT)
+                          <input
+                            disabled={disabled}
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            value={criterion.rolesScore?.PARTICIPANT ?? ''}
+                            placeholder="Chưa cấu hình"
+                            onChange={(e) => {
+                              const val = e.target.value === '' ? undefined : Number(e.target.value);
+                              const currentRoles = { ...(criterion.rolesScore || {}) };
+                              if (val === undefined) delete currentRoles.PARTICIPANT;
+                              else currentRoles.PARTICIPANT = val;
+                              changeCriterion(ci, ki, 'rolesScore', Object.keys(currentRoles).length ? currentRoles : null);
+                            }}
+                            className="mt-1 w-full rounded-[6px] border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:border-[#1D6FC2] focus:outline-none"
+                          />
+                        </label>
+                        <label className="text-xs font-medium text-slate-700">
+                          Ban tổ chức (ORGANIZER)
+                          <input
+                            disabled={disabled}
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            value={criterion.rolesScore?.ORGANIZER ?? ''}
+                            placeholder="Chưa cấu hình"
+                            onChange={(e) => {
+                              const val = e.target.value === '' ? undefined : Number(e.target.value);
+                              const currentRoles = { ...(criterion.rolesScore || {}) };
+                              if (val === undefined) delete currentRoles.ORGANIZER;
+                              else currentRoles.ORGANIZER = val;
+                              changeCriterion(ci, ki, 'rolesScore', Object.keys(currentRoles).length ? currentRoles : null);
+                            }}
+                            className="mt-1 w-full rounded-[6px] border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:border-[#1D6FC2] focus:outline-none"
+                          />
+                        </label>
+                        <label className="text-xs font-medium text-slate-700">
+                          Cổ vũ (CHEERLEADER)
+                          <input
+                            disabled={disabled}
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            value={criterion.rolesScore?.CHEERLEADER ?? ''}
+                            placeholder="Chưa cấu hình"
+                            onChange={(e) => {
+                              const val = e.target.value === '' ? undefined : Number(e.target.value);
+                              const currentRoles = { ...(criterion.rolesScore || {}) };
+                              if (val === undefined) delete currentRoles.CHEERLEADER;
+                              else currentRoles.CHEERLEADER = val;
+                              changeCriterion(ci, ki, 'rolesScore', Object.keys(currentRoles).length ? currentRoles : null);
+                            }}
+                            className="mt-1 w-full rounded-[6px] border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:border-[#1D6FC2] focus:outline-none"
+                          />
+                        </label>
+                      </div>
+                      <p className="text-[11px] text-blue-800">
+                        * Cần cấu hình đủ điểm cho các vai trò để hệ thống tự động quy đổi điểm cộng đồng cho sinh viên mà không bị blocker.
+                      </p>
+                    </div>
+                  )}
                   <details className="rounded-[6px] border border-[#E8E8EC] bg-[#FAFAFA] p-3 lg:col-span-4">
                     <summary className="cursor-pointer text-xs font-semibold text-[#6B6B6B] hover:text-[#0A0A0A]">
                       Cấu hình tính điểm nâng cao (JSON)

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { useStudentAssessmentAccess } from '../../hooks/useStudentAssessmentAccess';
 import { StudentAssessmentNotice } from '../../components/StudentAssessmentNotice';
 import { useAuth } from '../../context/AuthContext';
@@ -18,12 +19,50 @@ const evidenceStatusLabels: Record<string, string> = {
 };
 
 export const ScoreReport: React.FC = () => {
-  const { user, activeTerm } = useAuth();
-  const access = useStudentAssessmentAccess(user?.id, activeTerm.id);
-  const pageKey = `${user?.id}:${activeTerm.id}`;
+  const { user, activeTerm, terms, isLoading: isAuthLoading } = useAuth();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const termIdParam = searchParams.get('termId');
+
+  // BL-024: Phân giải nguồn chọn kỳ thống nhất giữa URL, context và request
+  const { selectedTerm, termError, isTermLoading } = useMemo(() => {
+    if (isAuthLoading || terms.length === 0) {
+      return { selectedTerm: null, termError: null, isTermLoading: true };
+    }
+    if (termIdParam) {
+      const match = terms.find((t) => t.id === termIdParam);
+      if (!match) {
+        return {
+          selectedTerm: null,
+          termError: `Mã kỳ học "${termIdParam}" không hợp lệ hoặc không tồn tại trong hệ thống.`,
+          isTermLoading: false,
+        };
+      }
+      return { selectedTerm: match, termError: null, isTermLoading: false };
+    }
+    // Không có termId trên URL: dùng kỳ hiện tại đã xác thực
+    const fallback = activeTerm?.id ? activeTerm : (terms.find((t) => t.status === 'ACTIVE') || terms[0]);
+    return { selectedTerm: fallback, termError: null, isTermLoading: false };
+  }, [isAuthLoading, terms, termIdParam, activeTerm]);
+
+  // Chuẩn hóa URL bằng replace khi chưa có query termId
+  useEffect(() => {
+    if (selectedTerm && !termIdParam) {
+      const params = new URLSearchParams(location.search);
+      params.set('termId', selectedTerm.id);
+      navigate({ pathname: location.pathname, search: params.toString() }, { replace: true });
+    }
+  }, [selectedTerm, termIdParam, location.search, location.pathname, navigate]);
+
+  const effectiveTermId = selectedTerm?.id || '';
+  const access = useStudentAssessmentAccess(user?.id, effectiveTermId);
+  const pageKey = `${user?.id}:${effectiveTermId}`;
   const currentPage = useRef(pageKey);
   currentPage.current = pageKey;
   const loadVersion = useRef(0);
+  const autosaveTimerRef = useRef<number | null>(null);
+
   const [rubric, setRubric] = useState<RubricPayload | null>(null);
   const [summary, setSummary] = useState<any>(null);
   const [evidences, setEvidences] = useState<Evidence[]>([]);
@@ -42,10 +81,17 @@ export const ScoreReport: React.FC = () => {
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [autosaving, setAutosaving] = useState(false);
   const dirtyScores = useRef(false);
-  const [preflight, setPreflight] = useState<Awaited<ReturnType<typeof apiClient.getAssessmentPreflight>> | null>(null);
+  const [preflight, setPreflight] = useState<(Awaited<ReturnType<typeof apiClient.getAssessmentPreflight>> & { termId?: string }) | null>(null);
+  const currentTermRef = useRef(effectiveTermId);
+  const submitGenerationRef = useRef(0);
+
+  useEffect(() => {
+    currentTermRef.current = effectiveTermId;
+    setPreflight(null);
+  }, [effectiveTermId]);
 
   const load = async (quiet = false) => {
-    if (!user?.id || !activeTerm.id) return;
+    if (!user?.id || !effectiveTermId || termError || isTermLoading) return;
     const version = ++loadVersion.current;
     if (!quiet) { setLoading(true); setRubric(null); setDraftScores({}); setEvidenceCriterion(null); setEditingEvidence(null); setEvidenceFormFiles([]); }
     setLoadError('');
@@ -54,11 +100,11 @@ export const ScoreReport: React.FC = () => {
       const rubricData = await access.refresh();
       if (!rubricData || currentPage.current !== pageKey || loadVersion.current !== version) return;
       loadingStep = 'bảng điểm';
-      const scoreData = await apiClient.getConductDashboard(activeTerm.id);
+      const scoreData = await apiClient.getConductDashboard(effectiveTermId);
       const evidenceList: Evidence[] = [];
       for (let page = 1; ; page += 1) {
         loadingStep = 'danh sách minh chứng';
-        const items = await apiClient.getEvidences({ studentId: user.id, termId: activeTerm.id, page, pageSize: 200 });
+        const items = await apiClient.getEvidences({ studentId: user.id, termId: effectiveTermId, page, pageSize: 200 });
         evidenceList.push(...items);
         if (items.length < 200) break;
       }
@@ -86,7 +132,15 @@ export const ScoreReport: React.FC = () => {
     }
   };
 
-  useEffect(() => { void load(); }, [user?.id, activeTerm.id]);
+  useEffect(() => {
+    // Khi kỳ học thay đổi: hủy timer autosave cũ, reset state và tải lại
+    if (autosaveTimerRef.current) {
+      window.clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+    dirtyScores.current = false;
+    void load();
+  }, [user?.id, effectiveTermId, termError]);
 
   const categories: CategoryView[] = useMemo(() => (rubric?.categories || []).map((category) => ({
     ...category,
@@ -109,7 +163,7 @@ export const ScoreReport: React.FC = () => {
     })).filter((category) => category.criteria.length > 0);
   }, [categories, search]);
 
-  const canWrite = Boolean(!loading && rubric?.rubricVersion && access.canEdit);
+  const canWrite = Boolean(!loading && !termError && rubric?.rubricVersion && access.canEdit);
   const officialScore = summary?.officialScore;
 
   const scoreValue = (criterion: Criterion) => {
@@ -121,13 +175,29 @@ export const ScoreReport: React.FC = () => {
   const selfTotal = categories.reduce((total, category) => total + category.criteria.reduce((subtotal, criterion) => subtotal + (scoreValue(criterion) ?? 0), 0), 0);
   const selfEnteredCount = categories.flatMap((category) => category.criteria).filter((criterion) => scoreValue(criterion) !== null).length;
 
-  const evidenceFor = (criterion: Criterion) => evidences.filter((evidence) =>
-    evidence.criterionId === criterion.id || evidence.criterion?.id === criterion.id ||
-    evidence.criterion?.code === criterion.code || evidence.reviews?.some((review) => review.criterionId === criterion.id),
-  );
+  // BL-013: Ghép minh chứng theo liên kết trực tiếp, ưu tiên hơn review cũ và không ghép bằng criterion.code giữa các rubric
+  const evidenceFor = (criterion: Criterion) => evidences.filter((evidence) => {
+    const directCriterionId = evidence.criterionAssessment?.criterion?.id || evidence.criterionAssessment?.criterionId || evidence.criterionId;
+    if (directCriterionId) {
+      return directCriterionId === criterion.id;
+    }
+    // Fallback legacy nếu không có liên kết trực tiếp
+    if (evidence.reviews?.length) {
+      const matchedReview = evidence.reviews.find((r) => r.criterionId === criterion.id);
+      if (matchedReview && (!evidence.termId || evidence.termId === effectiveTermId)) {
+        return true;
+      }
+      return false;
+    }
+    if (evidence.criterion?.id) {
+      return evidence.criterion.id === criterion.id;
+    }
+    return false;
+  });
 
   const saveAllScores = async (quiet = false) => {
-    if (!canWrite || !rubric?.categories) return false;
+    if (!canWrite || !rubric?.categories || !effectiveTermId) return false;
+    const startTermId = effectiveTermId;
     const scores = rubric.categories.flatMap((category) => category.criteria.map((criterion) => ({
       criterionId: criterion.id,
       score: (draftScores[criterion.id] ?? '').trim() === '' ? null : Number(draftScores[criterion.id]),
@@ -142,7 +212,8 @@ export const ScoreReport: React.FC = () => {
     if (quiet) setAutosaving(true); else setSavingAll(true);
     setLoadError(''); if (!quiet) setNotice('');
     try {
-      const updated = await apiClient.saveSelfAssessments(activeTerm.id, scores);
+      const updated = await apiClient.saveSelfAssessments(startTermId, scores);
+      if (currentPage.current !== `${user?.id}:${startTermId}`) return false;
       setRubric(updated);
       access.accept(updated);
       dirtyScores.current = false;
@@ -150,6 +221,7 @@ export const ScoreReport: React.FC = () => {
       if (!quiet) setNotice('Đã lưu toàn bộ điểm tự đánh giá. Đây chưa phải điểm chính thức.');
       return true;
     } catch (error: any) {
+      if (currentPage.current !== `${user?.id}:${startTermId}`) return false;
       const message = error.response?.data?.message || 'Không lưu được phiếu tự đánh giá.';
       setLoadError(Array.isArray(message) ? message.join(' ') : message);
       return false;
@@ -157,20 +229,34 @@ export const ScoreReport: React.FC = () => {
   };
 
   const submitAll = async () => {
+    const generation = ++submitGenerationRef.current;
+    const targetTermId = effectiveTermId;
+    if (!targetTermId) return;
     if (!await saveAllScores()) return;
-    try { setPreflight(await apiClient.getAssessmentPreflight(activeTerm.id)); }
-    catch (error: any) { setLoadError(error.response?.data?.error?.message || 'Không kiểm tra được điều kiện nộp phiếu.'); }
+    if (currentTermRef.current !== targetTermId || submitGenerationRef.current !== generation) return;
+    try {
+      const pf = await apiClient.getAssessmentPreflight(targetTermId);
+      if (currentTermRef.current !== targetTermId || submitGenerationRef.current !== generation) return;
+      setPreflight({ ...pf, termId: targetTermId });
+    } catch (error: any) {
+      if (currentTermRef.current !== targetTermId || submitGenerationRef.current !== generation) return;
+      setLoadError(error.response?.data?.error?.message || 'Không kiểm tra được điều kiện nộp phiếu.');
+    }
   };
 
   const confirmSubmit = async () => {
-    if (!preflight?.canSubmit) return;
+    if (!preflight?.canSubmit || !effectiveTermId || preflight.termId !== currentTermRef.current) return;
+    const generation = ++submitGenerationRef.current;
+    const targetTermId = effectiveTermId;
     setSubmittingAll(true); setLoadError(''); setNotice('');
     try {
-      const result = await apiClient.submitSelfAssessment(activeTerm.id);
+      const result = await apiClient.submitSelfAssessment(targetTermId);
+      if (currentTermRef.current !== targetTermId || submitGenerationRef.current !== generation) return;
       setPreflight(null);
       await load(true);
       setNotice(`Đã nộp phiếu và ${result.submittedEvidenceCount} minh chứng. Phiếu hiện đang chờ xử lý.`);
     } catch (error: any) {
+      if (currentTermRef.current !== targetTermId || submitGenerationRef.current !== generation) return;
       const message = error.response?.data?.message || 'Không nộp được phiếu.';
       setLoadError(Array.isArray(message) ? message.join(' ') : message);
     } finally { setSubmittingAll(false); }
@@ -178,9 +264,14 @@ export const ScoreReport: React.FC = () => {
 
   useEffect(() => {
     if (!canWrite || !dirtyScores.current || savingAll || submittingAll) return;
-    const timer = window.setTimeout(() => { if (dirtyScores.current) void saveAllScores(true); }, 2000);
-    return () => window.clearTimeout(timer);
-  }, [draftScores, canWrite, savingAll, submittingAll]);
+    autosaveTimerRef.current = window.setTimeout(() => { if (dirtyScores.current) void saveAllScores(true); }, 2000);
+    return () => {
+      if (autosaveTimerRef.current) {
+        window.clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+    };
+  }, [draftScores, canWrite, savingAll, submittingAll, effectiveTermId]);
 
   const openEvidenceManager = (criterion: Criterion) => {
     setEvidenceCriterion(criterion);
@@ -212,7 +303,7 @@ export const ScoreReport: React.FC = () => {
     if (evidenceFormFiles.some((file) => file.size > 8 * 1024 * 1024)) { setLoadError('Mỗi tệp minh chứng phải nhỏ hơn 8 MB.'); return; }
     setEvidenceBusy(true); setLoadError(''); setNotice('');
     const payload = {
-      termId: activeTerm.id, criterionId: evidenceCriterion.id, criterionCode: evidenceCriterion.code,
+      termId: effectiveTermId, criterionId: evidenceCriterion.id, criterionCode: evidenceCriterion.code,
       declaredActivityName: evidenceForm.declaredActivityName.trim(), description: evidenceForm.description.trim(),
       declaredRole: evidenceForm.declaredRole, evidenceType: evidenceForm.evidenceType,
       participationDate: evidenceForm.participationDate ? new Date(`${evidenceForm.participationDate}T00:00:00`).toISOString() : new Date().toISOString(),
@@ -256,7 +347,7 @@ export const ScoreReport: React.FC = () => {
     <div className="space-y-6 pb-10">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">{activeTerm.name}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">{selectedTerm?.name || activeTerm.name}</p>
           <h1 className="mt-1 text-2xl font-bold text-slate-900">Phiếu đánh giá rèn luyện</h1>
           <p className="mt-1 text-sm text-slate-600">Tự đánh giá theo từng tiêu chí và nộp minh chứng để cán bộ xác minh, chốt điểm.</p>
         </div>
@@ -269,7 +360,7 @@ export const ScoreReport: React.FC = () => {
 
       {loadError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{loadError}<button type="button" onClick={() => void load(!loading && !!rubric)} className="ml-2 font-semibold underline">Thử lại</button></div>}
       {notice && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</div>}
-      <StudentAssessmentNotice access={access} termId={activeTerm.id} onRetry={() => { if (!rubric) void load(); else void access.refresh().catch(() => undefined); }} />
+      <StudentAssessmentNotice access={access} termId={effectiveTermId} onRetry={() => { if (!rubric) void load(); else void access.refresh().catch(() => undefined); }} />
 
       <section className="rounded-xl border border-blue-200 bg-blue-50 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-semibold text-blue-950">Tiến độ tự đánh giá: {selfEnteredCount}/{categories.reduce((sum, category) => sum + category.criteria.length, 0)} tiêu chí</p><p className="mt-1 text-xs text-blue-800">{autosaving ? 'Đang tự động lưu…' : dirtyScores.current ? 'Có thay đổi chưa đồng bộ' : lastSavedAt ? `Đã lưu lúc ${lastSavedAt.toLocaleTimeString('vi-VN')}` : 'Hệ thống tự lưu sau 2 giây ngừng nhập'}</p></div><div className="h-2 w-full max-w-xs overflow-hidden rounded-full bg-blue-100"><div className="h-full bg-blue-700 transition-all" style={{ width: `${categories.length ? Math.round(selfEnteredCount / Math.max(1, categories.reduce((sum, category) => sum + category.criteria.length, 0)) * 100) : 0}%` }} /></div></div>
@@ -327,7 +418,7 @@ export const ScoreReport: React.FC = () => {
             <section className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
               <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white p-4 sm:p-5"><div><p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Tiêu chí {evidenceCriterion.code} · tối đa {evidenceCriterion.maxScore} điểm</p><h2 id="evidence-modal-title" className="mt-1 text-lg font-bold text-slate-900">Quản lý minh chứng</h2><p className="mt-1 text-sm text-slate-600">{evidenceCriterion.name}</p></div><button type="button" aria-label="Đóng popup" onClick={() => { setEvidenceCriterion(null); setEditingEvidence(null); }} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button></header>
               <div className="space-y-5 p-4 sm:p-5">
-                {(!canWrite || access.error) && <StudentAssessmentNotice access={access} termId={activeTerm.id} />}
+                {(!canWrite || access.error) && <StudentAssessmentNotice access={access} termId={effectiveTermId} />}
                 <div className="space-y-2"><div className="flex items-center justify-between gap-2"><h3 className="text-sm font-bold text-slate-800">Danh sách minh chứng ({evidenceFor(evidenceCriterion).length})</h3><button type="button" disabled={!canWrite} onClick={() => { setEditingEvidence(null); setEvidenceForm({ declaredActivityName: '', description: '', declaredRole: 'PARTICIPANT', evidenceType: 'GIAY_XAC_NHAN', participationDate: new Date().toISOString().slice(0, 10) }); setEvidenceFormFiles([]); }} className="inline-flex items-center gap-1 rounded-lg bg-blue-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"><FilePlus2 className="h-4 w-4" />Thêm minh chứng</button></div>
                   {evidenceFor(evidenceCriterion).length ? evidenceFor(evidenceCriterion).map((evidence, index) => <article key={evidence.id} className="rounded-xl border border-slate-200 p-3"><div className="flex flex-wrap items-start justify-between gap-2"><div><h4 className="font-semibold text-slate-900">Minh chứng {index + 1}: {evidence.declaredActivityName || 'Chưa đặt tên'}</h4><p className="mt-1 text-xs text-slate-500">{evidenceStatusLabels[evidence.status] || evidence.status} · {evidence.evidenceType} · {evidence.participationDate ? new Date(evidence.participationDate).toLocaleDateString('vi-VN') : 'Chưa có ngày'}</p>{evidence.description && <p className="mt-2 whitespace-pre-line text-sm text-slate-700">{evidence.description}</p>}</div><div className="flex gap-1"><button type="button" disabled={!canWrite || evidence.status === 'APPROVED'} onClick={() => editEvidence(evidence)} className="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-40">Sửa</button><button type="button" disabled={!canWrite || evidence.status === 'APPROVED'} onClick={() => void removeEvidence(evidence)} className="rounded-md border border-rose-200 px-2.5 py-1.5 text-xs font-semibold text-rose-700 disabled:opacity-40"><Trash2 className="h-3.5 w-3.5" /></button></div></div>
                     {evidence.files?.length > 0 && <ul className="mt-2 space-y-1">{evidence.files.map((file) => {

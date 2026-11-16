@@ -4,12 +4,12 @@
 |---|---|
 | Phiên bản / đối chiếu | 1.1 / 2026-11-15, đã sửa BL-007 và bổ sung đối chứng race condition BL-026 |
 | Vai trò | STUDENT sở hữu; STAFF theo Khoa; ADMIN xem |
-| Trạng thái | Đã sửa BL-007; đối chứng kịch bản BL-026 đạt qua application lock, chờ test DB đa kết nối |
+| Trạng thái | Đã sửa BL-007 (Đợt 1), BL-015 (Đợt 5), BL-019 (Đợt 9); đối chứng kịch bản BL-026 đạt qua application lock, chờ test DB đa kết nối |
 | Quy tắc liên quan | [R-12](../BUSINESS_RULES.md#r-12), [R-13](../BUSINESS_RULES.md#r-13), [R-14](../BUSINESS_RULES.md#r-14) |
 
 Nguồn: [evidence/evidence.service.ts](../../apps/backend/src/evidence/evidence.service.ts), [evidence/evidence.controller.ts](../../apps/backend/src/evidence/evidence.controller.ts); [routes Web](../../apps/web/src/routes.tsx), [API client](../../apps/web/src/lib/apiClient.ts).
 
-Gap: Đã giải quyết [BL-007](../BUSINESS_LOGIC_AUDIT.md#bl-007); [BL-026](../BUSINESS_LOGIC_AUDIT.md#bl-026) (đã bọc khóa Term qua `workflow.studentEdit`, đọc file trong lock và dọn Storage sau commit, giữ nhãn Potential chờ test DB đa kết nối); [BL-015](../BUSINESS_LOGIC_AUDIT.md#bl-015), [BL-019](../BUSINESS_LOGIC_AUDIT.md#bl-019). Theo dõi trong [backlog](../BACKLOG.md).
+Gap: Đã giải quyết [BL-007](../BUSINESS_LOGIC_AUDIT.md#bl-007), [BL-015](../BUSINESS_LOGIC_AUDIT.md#bl-015), [BL-019](../BUSINESS_LOGIC_AUDIT.md#bl-019); [BL-026](../BUSINESS_LOGIC_AUDIT.md#bl-026) (đã bọc khóa Term qua `workflow.studentEdit`, đọc file trong lock và dọn Storage sau commit, giữ nhãn Potential chờ test DB đa kết nối). Theo dõi trong [backlog](../BACKLOG.md).
 
 ## 1. Objective — Mục tiêu
 
@@ -88,7 +88,8 @@ Lỗi validation/nghiệp vụ phải hiển thị lý do từ server; 401 yêu 
 | F06-TC-03 | Kiểm chứng: truy cập tệp phải kiểm tra quyền trước khi ký URL | F06-AC-03 | Planned |
 | F06-TC-04 | Kiểm chứng: nháp chưa từng xử lý mới được xóa cả hồ sơ | F06-AC-04 | Planned |
 | F06-TC-05 | Kiểm chứng: DB và Storage không bị mất liên kết khi ký URL thất bại (tách 3 bước, không xóa Storage khi signing fail, trả signedUrlAvailable: false; đối chứng đỏ/xanh) | F06-AC-05 | Passed (11/11 tests trong `data-protection.test.cjs`) |
-| F06-TC-06 | Kiểm chứng: thay đổi tệp không được giữ nguyên kết luận duyệt cũ | F06-AC-06 | Planned |
+| F06-TC-06 | Kiểm chứng: thay đổi tệp không được giữ nguyên kết luận duyệt cũ (cấm thêm/xóa tệp khi đã APPROVED hoặc đã thẩm định; khi bổ sung tệp chuyển trạng thái PENDING_REVIEW và vô hiệu hóa officialScore cũ) | F06-AC-06; BL-015 | Verified in `evidence-and-term-selection.test.cjs` |
+| F06-TC-07 | BL-019: Phân trang danh sách minh chứng sinh viên theo chuẩn `{ items, total, page, pageSize, counts }`, giữ counts phân nhóm tab toàn kỳ, tránh mất dữ liệu quá 20 hồ sơ | BL-019; F06-AC-01 | Verified in `pagination-and-filter.test.cjs` |
 
 Bổ sung ca biên ở mục 7 và regression của từng BL liên quan; xem [TEST_PLAN](../TEST_PLAN.md) để chọn môi trường và bằng chứng. Không gán Passed nếu chưa chạy.
 

@@ -6,6 +6,7 @@ import { LoginDto } from './dto/login.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { AllowFirstLogin } from '../common/decorators/allow-first-login.decorator';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -20,6 +21,7 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
+  @AllowFirstLogin()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Lấy thông tin người dùng hiện tại từ token' })
   async getProfile(@CurrentUser() user: any) {
@@ -28,6 +30,7 @@ export class AuthController {
 
   @Post('change-password')
   @UseGuards(JwtAuthGuard)
+  @AllowFirstLogin()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Đổi mật khẩu người dùng' })
   async changePassword(
@@ -45,6 +48,7 @@ export class AuthController {
 
   @Post('logout')
   @UseGuards(JwtAuthGuard)
+  @AllowFirstLogin()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Đăng xuất tài khoản' })
   async logout(@CurrentUser('id') userId: string) {

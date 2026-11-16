@@ -4,12 +4,12 @@
 |---|---|
 | Phiên bản / đối chiếu | 1.0 / 2026-11-15, mã nguồn tại baseline `93fb66c` |
 | Vai trò | STAFF theo Khoa; ADMIN chỉ xem trong workflow mới |
-| Trạng thái | Đã có implementation; còn gap trong audit, chưa nghiệm thu toàn bộ |
+| Trạng thái | Đã có implementation; các gap BL-002, BL-004, BL-005, BL-015, BL-017, BL-023 đã được giải quyết; BL-022 hoãn theo quyết định AI (DEC-007) |
 | Quy tắc liên quan | [R-01](../BUSINESS_RULES.md#r-01), [R-14](../BUSINESS_RULES.md#r-14), [R-15](../BUSINESS_RULES.md#r-15) |
 
 Nguồn: [reviews/reviews.service.ts](../../apps/backend/src/reviews/reviews.service.ts), [assessments/assessments.service.ts](../../apps/backend/src/assessments/assessments.service.ts), [evidence/evidence.service.ts](../../apps/backend/src/evidence/evidence.service.ts); [routes Web](../../apps/web/src/routes.tsx), [API client](../../apps/web/src/lib/apiClient.ts).
 
-Gap: [BL-002](../BUSINESS_LOGIC_AUDIT.md#bl-002) (Resolved), [BL-004](../BUSINESS_LOGIC_AUDIT.md#bl-004), [BL-005](../BUSINESS_LOGIC_AUDIT.md#bl-005), [BL-015](../BUSINESS_LOGIC_AUDIT.md#bl-015), [BL-017](../BUSINESS_LOGIC_AUDIT.md#bl-017), [BL-022](../BUSINESS_LOGIC_AUDIT.md#bl-022), [BL-023](../BUSINESS_LOGIC_AUDIT.md#bl-023). Đã xử lý BL-002 bằng projection select an toàn trong security-fixes.test.cjs; các gap còn lại theo dõi trong [backlog](../BACKLOG.md).
+Gap: [BL-002](../BUSINESS_LOGIC_AUDIT.md#bl-002) (Resolved), [BL-004](../BUSINESS_LOGIC_AUDIT.md#bl-004) (Resolved), [BL-005](../BUSINESS_LOGIC_AUDIT.md#bl-005) (Resolved), [BL-015](../BUSINESS_LOGIC_AUDIT.md#bl-015) (Resolved), [BL-017](../BUSINESS_LOGIC_AUDIT.md#bl-017) (Resolved), [BL-022](../BUSINESS_LOGIC_AUDIT.md#bl-022) (Hoãn AI - DEC-007), [BL-023](../BUSINESS_LOGIC_AUDIT.md#bl-023) (Resolved). Theo dõi trong [backlog](../BACKLOG.md).
 
 ## 1. Objective — Mục tiêu
 
@@ -86,6 +86,10 @@ Lỗi validation/nghiệp vụ phải hiển thị lý do từ server; 401 yêu 
 | F07-TC-04 | Kiểm chứng: thay đổi kết luận minh chứng làm mất hiệu lực điểm tiêu chí cũ | F07-AC-04 | Planned |
 | F07-TC-05 | Kiểm chứng: chốt điểm cần dữ liệu đủ, ghi chú xác minh và lý do; ADMIN không chấm trong workflow mới | F07-AC-05 | Planned |
 | F07-TC-06 | Kiểm chứng: yêu cầu bổ sung hiển thị đúng missingItem và deadline lưu trong DB | F07-AC-06 | Planned |
+| F07-TC-07 | BL-004: leadershipRole gửi boolean hợp lệ, giao diện hiển thị Có/Không, backend nhận boolean và tính đúng điểm tiêu chí 14/16 | BL-004; F07-AC-05 | Verified in `scoring-and-validation.test.cjs` |
+| F07-TC-08 | BL-017: Dữ liệu xác minh counter âm/thập phân/chuỗi rác, boolean sai kiểu bị chặn bởi validateVerifiedData trước transaction DB | BL-017; F07-AC-05 | Verified in `scoring-and-validation.test.cjs` |
+| F07-TC-09 | BL-005: Bộ tổng hợp nguồn hoạt động chung `aggregateStudentActivitySources` gộp theo `activityId`, ưu tiên `Attendance` `CONFIRMED`, phát hiện mâu thuẫn vai trò, tự động vô hiệu hóa `officialScore` khi căn cứ hoạt động thay đổi | BL-005; F07-AC-04; DEC-008 | Verified in `activity-and-roles-scoring.test.cjs` |
+| F07-TC-10 | BL-023: Giao diện SupplementEvidence hiển thị đúng missingItem và deadline hiệu lực từ API, xử lý đúng fallback và submit bổ sung minh chứng | BL-023; F07-AC-06 | Verified in `evidence-and-term-selection.test.cjs` |
 
 Bổ sung ca biên ở mục 7 và regression của từng BL liên quan; xem [TEST_PLAN](../TEST_PLAN.md) để chọn môi trường và bằng chứng. Không gán Passed nếu chưa chạy.
 

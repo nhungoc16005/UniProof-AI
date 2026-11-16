@@ -9,7 +9,7 @@
 
 Nguồn: [evaluation-workflow/workflow.service.ts](../../apps/backend/src/evaluation-workflow/workflow.service.ts), [evaluation-workflow/evaluation-policy.ts](../../apps/backend/src/evaluation-workflow/evaluation-policy.ts); [routes Web](../../apps/web/src/routes.tsx), [API client](../../apps/web/src/lib/apiClient.ts).
 
-Gap: [BL-001](../BUSINESS_LOGIC_AUDIT.md#bl-001) (Resolved), [BL-021](../BUSINESS_LOGIC_AUDIT.md#bl-021). Đã xử lý BL-001 giải quyết kỳ 1 lần và bảo toàn ranh giới Khoa lịch sử trong security-fixes.test.cjs; các gap còn lại theo dõi trong [backlog](../BACKLOG.md).
+Gap: [BL-001](../BUSINESS_LOGIC_AUDIT.md#bl-001) (Resolved), [BL-021](../BUSINESS_LOGIC_AUDIT.md#bl-021) (Resolved). Đã xử lý BL-001 trong security-fixes.test.cjs và BL-021 chu trình loại trừ/khôi phục/loại trừ lại chống trùng dedupeKey trong exclusion-and-restore.test.cjs; các gap còn lại theo dõi trong [backlog](../BACKLOG.md).
 
 ## 1. Objective — Mục tiêu
 

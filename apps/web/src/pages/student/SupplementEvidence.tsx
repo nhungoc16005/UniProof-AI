@@ -1,16 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { apiClient } from '../../lib/apiClient';
 import { Evidence } from '../../types';
-import { 
-  ArrowLeft, 
-  UploadCloud, 
-  Paperclip, 
-  Calendar, 
-  AlertCircle, 
-  CheckCircle2, 
-  Clock, 
-  FileText, 
+import {
+  ArrowLeft,
+  UploadCloud,
+  Paperclip,
+  Calendar,
+  AlertCircle,
+  CheckCircle2,
+  Clock,
+  FileText,
   ExternalLink,
   Send,
   HelpCircle,
@@ -23,10 +23,11 @@ export const SupplementEvidence: React.FC = () => {
 
   const [evidence, setEvidence] = useState<Evidence | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const activeIdRef = useRef(id);
 
   // Form states
-  const [selectedFile,setSelectedFile] = useState<File | null>(null);
-  const [error,setError] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [error, setError] = useState('');
   const [supplementFile, setSupplementFile] = useState<string | null>(null);
   const [supplementFileName, setSupplementFileName] = useState('');
   const [verificationUrl, setVerificationUrl] = useState('');
@@ -34,13 +35,65 @@ export const SupplementEvidence: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
+    activeIdRef.current = id;
+    setIsLoading(true);
+    setError('');
+    setSelectedFile(null);
+    setSupplementFile(null);
+    setSupplementFileName('');
+    setVerificationUrl('');
+    setStudentExplanation('');
+    setEvidence(null);
+
     if (id) {
       apiClient.getEvidenceById(id).then((data) => {
-        setEvidence(data);
-        setIsLoading(false);
-      }).catch(() => { setError('Không tải được yêu cầu bổ sung.'); setIsLoading(false); });
+        if (activeIdRef.current === id) {
+          setEvidence(data);
+          setIsLoading(false);
+        }
+      }).catch((err: any) => {
+        if (activeIdRef.current === id) {
+          setError(err.response?.data?.message || err.response?.data?.error?.message || 'Không tải được yêu cầu bổ sung từ máy chủ.');
+          setIsLoading(false);
+        }
+      });
+    } else {
+      setIsLoading(false);
     }
   }, [id]);
+
+  const activeRequest = useMemo(() => {
+    if (!evidence?.supplementRequests?.length) return null;
+    return evidence.supplementRequests.find((r) => !r.resolvedAt) || evidence.supplementRequests[0];
+  }, [evidence]);
+
+  const { hasOpenRequest, isExpired, deadlineText, deadlineWarning } = useMemo(() => {
+    if (!evidence || evidence.status !== 'NEEDS_SUPPLEMENT' || !activeRequest || activeRequest.resolvedAt) {
+      return { hasOpenRequest: false, isExpired: false, deadlineText: '', deadlineWarning: '' };
+    }
+    const deadline = activeRequest.deadline ? new Date(activeRequest.deadline) : (evidence.term?.reviewDeadline ? new Date(evidence.term.reviewDeadline) : null);
+    if (!deadline) {
+      return { hasOpenRequest: true, isExpired: false, deadlineText: 'Không đặt hạn riêng (áp dụng hạn rà soát của kỳ)', deadlineWarning: '' };
+    }
+    const now = new Date();
+    const isPast = now > deadline;
+    const dateFormatted = deadline.toLocaleDateString('vi-VN');
+    const timeFormatted = deadline.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    const fullText = `${timeFormatted} ngày ${dateFormatted}`;
+    const diffMs = deadline.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    const warning = isPast ? 'Đã quá hạn nộp bổ sung' : (diffDays <= 3 ? `(Còn ${diffDays} ngày)` : '');
+    return {
+      hasOpenRequest: true,
+      isExpired: isPast,
+      deadlineText: activeRequest.deadline ? fullText : `Không đặt hạn riêng (áp dụng hạn rà soát của kỳ: ${fullText})`,
+      deadlineWarning: warning,
+    };
+  }, [evidence, activeRequest]);
+
+  const missingItemContent = useMemo(() => {
+    return activeRequest?.missingItem?.trim() || activeRequest?.review?.reason?.trim() || evidence?.reviews?.[0]?.reason?.trim() || 'Cán bộ chưa ghi rõ nội dung cần bổ sung. Vui lòng kiểm tra lại minh chứng đã nộp.';
+  }, [activeRequest, evidence]);
 
   if (isLoading) {
     return (
@@ -81,8 +134,8 @@ export const SupplementEvidence: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      const fileData = selectedFile ? await new Promise<string>((resolve,reject) => { const reader=new FileReader(); reader.onload=()=>resolve(String(reader.result)); reader.onerror=()=>reject(new Error('Không đọc được tệp')); reader.readAsDataURL(selectedFile); }) : undefined;
-      await apiClient.supplementEvidence(evidence.id,{ explanation:studentExplanation || undefined, verificationUrl:verificationUrl || undefined, ...(fileData && selectedFile ? {fileData,fileName:selectedFile.name,fileType:selectedFile.type} : {}) });
+      const fileData = selectedFile ? await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(new Error('Không đọc được tệp')); reader.readAsDataURL(selectedFile); }) : undefined;
+      await apiClient.supplementEvidence(evidence.id, { explanation: studentExplanation || undefined, verificationUrl: verificationUrl || undefined, ...(fileData && selectedFile ? { fileData, fileName: selectedFile.name, fileType: selectedFile.type } : {}) });
       alert('Đã gửi bổ sung minh chứng thành công! Hồ sơ đã được chuyển lại vào hàng đợi thẩm định.');
       navigate(`/student/evidence/${evidence.id}`);
     } catch (err: any) {
@@ -94,7 +147,7 @@ export const SupplementEvidence: React.FC = () => {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 pb-16">
-      
+
       {error && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
       {/* 1. Header */}
       <div className="flex items-center gap-3 pb-3 border-b border-slate-200">
@@ -125,22 +178,35 @@ export const SupplementEvidence: React.FC = () => {
             <AlertCircle className="w-4 h-4 text-amber-600" />
             <span>Yêu cầu bổ sung từ Cán bộ xét duyệt</span>
           </div>
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-200 text-amber-900 text-xs font-bold">
-            <Clock className="w-3.5 h-3.5" />
-            <span>Hạn nộp: 25/10/2026 (Còn 3 ngày)</span>
-          </div>
+          {hasOpenRequest && (
+            <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${isExpired ? 'bg-rose-100 text-rose-800 border border-rose-200' : 'bg-amber-200 text-amber-900'
+              }`}>
+              <Clock className="w-3.5 h-3.5" />
+              <span>Hạn nộp: {deadlineText} {deadlineWarning && <span className="font-extrabold">{deadlineWarning}</span>}</span>
+            </div>
+          )}
         </div>
 
         <div className="p-3 bg-white rounded-xl border border-amber-200 text-xs text-slate-800 space-y-1">
           <span className="text-[11px] text-slate-400 block font-semibold">Nội dung yêu cầu cụ thể:</span>
-          <p className="font-medium text-amber-950 leading-relaxed">
-            "{evidence.reviews?.[0]?.reason || 'Ảnh giấy chứng nhận hiện tại bị mờ con dấu đỏ giáp lai và thiếu mã xác nhận của BTC. Vui lòng bổ sung ảnh chụp rõ nét hơn hoặc chụp thẻ đeo đại biểu / email xác nhận tham gia chính thức từ ban tổ chức.'}"
+          <p className="font-medium text-amber-950 leading-relaxed whitespace-pre-line">
+            "{missingItemContent}"
           </p>
         </div>
 
-        <p className="text-[11px] text-amber-800 italic">
-          * Sau khi bạn gửi bổ sung, AI sẽ kích hoạt quét lại OCR và đưa hồ sơ trở lại hàng đợi ưu tiên của Cán bộ phụ trách.
-        </p>
+        {!hasOpenRequest ? (
+          <p className="text-xs text-amber-900 font-semibold bg-amber-100/70 p-2.5 rounded-lg border border-amber-200">
+            Hồ sơ hiện không có yêu cầu bổ sung nào đang mở hoặc đã được giải quyết.
+          </p>
+        ) : isExpired ? (
+          <p className="text-xs text-rose-800 font-semibold bg-rose-50 p-2.5 rounded-lg border border-rose-200">
+            Thời hạn nộp bổ sung hồ sơ đã kết thúc. Vui lòng liên hệ cán bộ phụ trách nếu cần hỗ trợ.
+          </p>
+        ) : (
+          <p className="text-[11px] text-amber-800 italic">
+            * Sau khi gửi bổ sung, hồ sơ sẽ được chuyển lại vào hàng đợi thẩm định của Cán bộ phụ trách.
+          </p>
+        )}
       </div>
 
       {/* 3. Supplement Submission Form */}
@@ -162,14 +228,16 @@ export const SupplementEvidence: React.FC = () => {
               Kéo thả file hoặc bấm để chọn tệp bổ sung
             </p>
             <p className="text-[11px] text-slate-500 mb-3">
-              Hỗ trợ JPG, PNG, PDF (tối đa 10MB)
+              Hỗ trợ JPG, PNG, WebP, PDF (tối đa 8 MB)
             </p>
-            <label className="cursor-pointer px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow-sm transition">
+            <label className={`px-4 py-2 text-white text-xs font-bold rounded-xl shadow-sm transition ${!hasOpenRequest || isExpired ? 'bg-slate-400 cursor-not-allowed' : 'cursor-pointer bg-sky-600 hover:bg-sky-700'
+              }`}>
               <span>Chọn file từ máy</span>
               <input
                 type="file"
+                disabled={!hasOpenRequest || isExpired}
                 className="hidden"
-                accept="image/*,application/pdf"
+                accept="image/jpeg,image/png,image/webp,application/pdf"
                 onChange={handleFileUpload}
               />
             </label>
@@ -203,14 +271,15 @@ export const SupplementEvidence: React.FC = () => {
           <div className="relative">
             <input
               type="url"
+              disabled={!hasOpenRequest || isExpired}
               value={verificationUrl}
               onChange={(e) => setVerificationUrl(e.target.value)}
               placeholder="https://event.portal.edu.vn/verify?certId=VNISA-2026-098"
-              className="w-full px-3.5 py-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 font-medium"
+              className="w-full px-3.5 py-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 font-medium disabled:bg-slate-100 disabled:cursor-not-allowed"
             />
           </div>
           <span className="text-[10px] text-slate-400 block">
-            Cung cấp link tra cứu công khai giúp hồ sơ được nâng cấp xác thực L1/L2 và duyệt tự động.
+            Cung cấp link tra cứu công khai từ ban tổ chức để hỗ trợ đối chiếu thông tin.
           </span>
         </div>
 
@@ -221,10 +290,11 @@ export const SupplementEvidence: React.FC = () => {
           </label>
           <textarea
             rows={3}
+            disabled={!hasOpenRequest || isExpired}
             value={studentExplanation}
             onChange={(e) => setStudentExplanation(e.target.value)}
             placeholder="Nêu rõ thông tin cần giải thích thêm (ví dụ: lý do sai lệch thời gian, xác nhận từ bí thư chi đoàn...)"
-            className="w-full p-3 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500"
+            className="w-full p-3 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 disabled:bg-slate-100 disabled:cursor-not-allowed"
           />
         </div>
 
@@ -238,8 +308,8 @@ export const SupplementEvidence: React.FC = () => {
           </Link>
           <button
             type="submit"
-            disabled={isSubmitting}
-            className="inline-flex items-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition disabled:opacity-50"
+            disabled={isSubmitting || !hasOpenRequest || isExpired}
+            className="inline-flex items-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Send className="w-4 h-4" />
             <span>{isSubmitting ? 'Đang gửi bổ sung...' : 'Gửi bổ sung minh chứng'}</span>

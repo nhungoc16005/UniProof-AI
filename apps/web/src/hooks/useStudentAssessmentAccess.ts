@@ -97,9 +97,9 @@ export function useStudentAssessmentAccess(userId: string | undefined, termId: s
 
   const canEdit = Boolean(
     current?.verified &&
-      assessment?.rubricVersion &&
-      assessment.permissions?.canEdit &&
-      !deadlinePassed
+    assessment?.rubricVersion &&
+    assessment.permissions?.canEdit &&
+    !deadlinePassed
   );
   return { assessment, canEdit, isReturned, editDeadline, deadlinePassed, error: current?.error ?? '', checking, refresh, accept };
 }

@@ -26,7 +26,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       } else if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
         const resp = exceptionResponse as any;
         errorMessage = Array.isArray(resp.message) ? resp.message.join(', ') : resp.message || exception.message;
-        errorCode = resp.error || exception.name || 'HTTP_ERROR';
+        errorCode = resp.code || resp.error || exception.name || 'HTTP_ERROR';
         errorDetails = resp.details || (resp.blockers ? { blockers: resp.blockers, studentId: resp.studentId } : null) || (Array.isArray(resp.message) ? resp.message : null);
       }
     } else if (exception instanceof Prisma.PrismaClientKnownRequestError) {

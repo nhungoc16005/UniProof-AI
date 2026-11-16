@@ -9,7 +9,7 @@ Bộ tài liệu tiếng Việt, đối chiếu mã nguồn ngày **2026-11-15**
 | [PROJECT_OVERVIEW](PROJECT_OVERVIEW.md) | Hiểu hệ thống, module, DB, migrations, navigation, workflow và scaffold |
 | [BUSINESS_RULES](BUSINESS_RULES.md) | Kiểm quyền, tiền/hậu điều kiện, state transition, trần điểm, tính nhất quán |
 | [API_CONTRACT](API_CONTRACT.md) | Đọc 121 route,45 lớp DTO, body/query/validation và các dạng envelope |
-| [BUSINESS_LOGIC_AUDIT](BUSINESS_LOGIC_AUDIT.md) | Đọc 27 finding có vị trí và regression; 7 Resolved (BL-001, BL-002, BL-006, BL-007, BL-009, BL-010, BL-020), 20 Open |
+| [BUSINESS_LOGIC_AUDIT](BUSINESS_LOGIC_AUDIT.md) | Đọc 27 finding có vị trí và regression; 23 Resolved (BL-001 đến BL-007, BL-009 đến BL-021, BL-023 đến BL-025), 4 chưa đóng (2 hoãn AI: BL-008, BL-022 theo DEC-007; 2 Potential: BL-026, BL-027) |
 | [BACKLOG](BACKLOG.md) | Chọn việc, ưu tiên, trạng thái, điều kiện đóng và phụ thuộc quyết định |
 | [DECISIONS](DECISIONS.md) | Quyết định đã xác nhận, chính sách chưa rõ Q-01…Q-09 và chuyển tài liệu cũ |
 | [TEST_PLAN](TEST_PLAN.md) | Chọn kiểm tra an toàn, regression, môi trường và bằng chứng |

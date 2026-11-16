@@ -9,7 +9,7 @@
 
 Nguồn: [auth/auth.service.ts](../../apps/backend/src/auth/auth.service.ts), [auth/jwt.strategy.ts](../../apps/backend/src/auth/jwt.strategy.ts), [users/users.service.ts](../../apps/backend/src/users/users.service.ts); [routes Web](../../apps/web/src/routes.tsx), [API client](../../apps/web/src/lib/apiClient.ts).
 
-Gap: [BL-001](../BUSINESS_LOGIC_AUDIT.md#bl-001) (Resolved), [BL-002](../BUSINESS_LOGIC_AUDIT.md#bl-002) (Resolved), [BL-009](../BUSINESS_LOGIC_AUDIT.md#bl-009) (Resolved), [BL-011](../BUSINESS_LOGIC_AUDIT.md#bl-011), [BL-012](../BUSINESS_LOGIC_AUDIT.md#bl-012), [BL-016](../BUSINESS_LOGIC_AUDIT.md#bl-016), [BL-025](../BUSINESS_LOGIC_AUDIT.md#bl-025). Đã xử lý BL-001, BL-002, BL-009 bằng pure test trong security-fixes.test.cjs; các gap còn lại theo dõi trong [backlog](../BACKLOG.md).
+Gap: [BL-001](../BUSINESS_LOGIC_AUDIT.md#bl-001) (Resolved), [BL-002](../BUSINESS_LOGIC_AUDIT.md#bl-002) (Resolved), [BL-009](../BUSINESS_LOGIC_AUDIT.md#bl-009) (Resolved), [BL-011](../BUSINESS_LOGIC_AUDIT.md#bl-011) (Resolved), [BL-012](../BUSINESS_LOGIC_AUDIT.md#bl-012) (Resolved), [BL-016](../BUSINESS_LOGIC_AUDIT.md#bl-016) (Resolved), [BL-025](../BUSINESS_LOGIC_AUDIT.md#bl-025) (Resolved). Đã xử lý và kiểm chứng qua security-fixes.test.cjs và accounts-and-permissions.test.cjs; các gap còn lại theo dõi trong [backlog](../BACKLOG.md).
 
 ## 1. Objective — Mục tiêu
 

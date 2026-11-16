@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { apiClient } from '../lib/apiClient';
 import { User as UserIcon, KeyRound, LogOut, Check, AlertCircle, Building2, GraduationCap, ShieldCheck, Flag, X } from 'lucide-react';
@@ -10,6 +10,7 @@ export const Account: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
@@ -21,6 +22,12 @@ export const Account: React.FC = () => {
   const [issueContent, setIssueContent] = useState('');
   const [issueBusy, setIssueBusy] = useState(false);
   const [issueNotice, setIssueNotice] = useState('');
+
+  const isFirstLoginRequired = Boolean(
+    (location.state as any)?.firstLogin ||
+    searchParams.get('required') === 'true' ||
+    user?.isFirstLogin
+  );
 
   const submitIssue = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -90,9 +97,15 @@ export const Account: React.FC = () => {
         </p>
       </div>
 
-      {(location.state as any)?.firstLogin && (
-        <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          Đây là lần đăng nhập đầu tiên. Vui lòng đổi mật khẩu trước khi sử dụng các chức năng khác.
+      {isFirstLoginRequired && (
+        <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 flex items-start gap-3 shadow-sm">
+          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-amber-900">Yêu cầu đổi mật khẩu lần đầu</p>
+            <p className="mt-1 text-xs text-amber-800">
+              Đây là tài khoản mới khởi tạo hoặc được cấp lại mật khẩu. Bạn bắt buộc phải đổi mật khẩu bảo mật trước khi có thể sử dụng các chức năng khác của hệ thống.
+            </p>
+          </div>
         </div>
       )}
       {issueNotice && <div role="status" className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">{issueNotice}</div>}
@@ -158,7 +171,16 @@ export const Account: React.FC = () => {
 
           <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
             <span>* Thông tin hành chính do Nhà trường quản lý, không thể chỉnh sửa trực tiếp.</span>
-            <button type="button" onClick={() => { setIssueNotice(''); setIssueOpen(true); }} className="inline-flex items-center gap-1.5 font-semibold text-sky-700 hover:underline"><Flag className="h-3.5 w-3.5" />Báo sai thông tin</button>
+            <button
+              type="button"
+              disabled={isFirstLoginRequired}
+              title={isFirstLoginRequired ? 'Vui lòng đổi mật khẩu trước khi gửi phản ánh.' : undefined}
+              onClick={() => { setIssueNotice(''); setIssueOpen(true); }}
+              className="inline-flex items-center gap-1.5 font-semibold text-sky-700 hover:underline disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Flag className="h-3.5 w-3.5" />
+              Báo sai thông tin
+            </button>
             <button
               onClick={handleLogout}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg transition"
@@ -170,7 +192,7 @@ export const Account: React.FC = () => {
         </div>
 
         {/* Change Password Card */}
-        <details className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm" open={Boolean((location.state as any)?.firstLogin)}>
+        <details className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm" open={isFirstLoginRequired}>
           <div>
             <summary className="cursor-pointer list-none text-sm font-bold text-slate-800 uppercase tracking-wider pb-3 border-b border-slate-100 flex items-center gap-2">
               <KeyRound className="w-4 h-4 text-sky-600" />

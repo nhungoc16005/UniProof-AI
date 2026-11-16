@@ -7,7 +7,7 @@ import { randomUUID } from 'crypto';
 
 @Injectable()
 export class EvidenceService {
-  constructor(private prisma: PrismaService, private workflow: WorkflowService) {}
+  constructor(private prisma: PrismaService, private workflow: WorkflowService) { }
 
   async findAll(
     user: any,
@@ -16,13 +16,14 @@ export class EvidenceService {
       termId?: string;
       classId?: string;
       status?: EvidenceStatus;
+      statusGroup?: string;
       search?: string;
       sortOrder?: 'asc' | 'desc';
       page?: number;
       pageSize?: number;
     },
   ) {
-    const { termId, classId, status, search, sortOrder = 'desc', page = 1, pageSize = 20 } = params;
+    const { termId, classId, status, statusGroup, search, sortOrder = 'desc', page = 1, pageSize = 20 } = params;
     const skip = (page - 1) * pageSize;
 
     const where: any = {};
@@ -31,17 +32,32 @@ export class EvidenceService {
     if (params.studentId && user.role !== Role.STUDENT) where.studentId = params.studentId;
 
     if (termId) where.termId = termId;
-    if (status) where.status = status;
+
+    if (statusGroup === 'APPROVED') {
+      where.status = EvidenceStatus.APPROVED;
+    } else if (statusGroup === 'SUPPLEMENT') {
+      where.status = EvidenceStatus.NEEDS_SUPPLEMENT;
+    } else if (statusGroup === 'REVIEWING') {
+      where.status = {
+        in: [EvidenceStatus.NEEDS_HUMAN_REVIEW, EvidenceStatus.PROCESSING, EvidenceStatus.PLAUSIBLE],
+      };
+    } else if (status && status !== ('ALL' as any)) {
+      where.status = status;
+    }
 
     if (search) {
       where.OR = [
+        { id: { contains: search, mode: 'insensitive' } },
         { declaredActivityName: { contains: search, mode: 'insensitive' } },
         { student: { fullName: { contains: search, mode: 'insensitive' } } },
         { student: { studentCode: { contains: search, mode: 'insensitive' } } },
       ];
     }
 
-    const [items, total] = await Promise.all([
+    const baseScopeWhere = { ...where };
+    delete baseScopeWhere.status;
+
+    const [items, total, countAll, countApproved, countSupplement, countReviewing] = await Promise.all([
       this.prisma.evidence.findMany({
         where,
         skip,
@@ -77,12 +93,50 @@ export class EvidenceService {
             },
             orderBy: { createdAt: 'desc' },
           },
+          criterionAssessment: {
+            select: {
+              id: true,
+              criterionId: true,
+              criterion: {
+                select: {
+                  id: true,
+                  code: true,
+                  name: true,
+                  maxScore: true,
+                  rubricVersionId: true,
+                },
+              },
+            },
+          },
+          supplementRequests: {
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          },
         },
       }),
       this.prisma.evidence.count({ where }),
+      this.prisma.evidence.count({ where: baseScopeWhere }),
+      this.prisma.evidence.count({ where: { ...baseScopeWhere, status: EvidenceStatus.APPROVED } }),
+      this.prisma.evidence.count({ where: { ...baseScopeWhere, status: EvidenceStatus.NEEDS_SUPPLEMENT } }),
+      this.prisma.evidence.count({
+        where: {
+          ...baseScopeWhere,
+          status: { in: [EvidenceStatus.NEEDS_HUMAN_REVIEW, EvidenceStatus.PROCESSING, EvidenceStatus.PLAUSIBLE] },
+        },
+      }),
     ]);
 
-    return { items: await Promise.all(items.map((item) => this.withSignedFiles(item))), total, page, pageSize };
+    return {
+      items: await Promise.all(items.map((item) => this.withSignedFiles(item))),
+      total,
+      page,
+      pageSize,
+      counts: {
+        all: countAll,
+        approved: countApproved,
+        supplement: countSupplement,
+        reviewing: countReviewing,
+      },
+    };
   }
 
   async findOne(id: string, user: any) {
@@ -125,7 +179,7 @@ export class EvidenceService {
           orderBy: { createdAt: 'desc' },
         },
         supplementRequests: {
-          orderBy: { createdAt: 'desc' },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         },
         appeals: {
           orderBy: { createdAt: 'desc' },
@@ -141,7 +195,7 @@ export class EvidenceService {
       this.prisma.assessmentHandoff.findUnique({ where: { studentId_termId: { studentId: evidence.studentId, termId: evidence.termId } } }),
       this.prisma.assessmentSubmission.count({ where: { studentId: evidence.studentId, termId: evidence.termId, status: 'SUBMITTED' } }),
     ]);
-    const canReview = user.role === Role.STAFF && ['ACTIVE','REVIEWING'].includes(evidence.term.status) && !['DRAFT','WITHDRAWN','APPROVED','REJECTED'].includes(evidence.status) && !['SENT','EXCLUDED'].includes(handoff?.status ?? '') && (!evidence.term.workflowEnabled || !!handoff && submitted > 0);
+    const canReview = user.role === Role.STAFF && ['ACTIVE', 'REVIEWING'].includes(evidence.term.status) && !['DRAFT', 'WITHDRAWN', 'APPROVED', 'REJECTED'].includes(evidence.status) && !['SENT', 'EXCLUDED'].includes(handoff?.status ?? '') && (!evidence.term.workflowEnabled || !!handoff && submitted > 0);
     const signed = await this.withSignedFiles(evidence);
     const latestRun = evidence.aiProcessingJobs?.[0]?.pipelineRuns?.[0];
     const currentRubric = evidence.criterionAssessment?.criterion?.rubricVersionId;
@@ -269,30 +323,30 @@ export class EvidenceService {
       }
       return tx.evidence.create({
         data: {
-        studentId,
-        termId,
-        criterionAssessmentId,
-        activityId: dto.activityId || null,
-        declaredActivityName: dto.declaredActivityName.trim(),
-        description: dto.description?.trim() || null,
-        declaredRole: dto.declaredRole || 'THAM_GIA_CHINH',
-        evidenceType: dto.evidenceType,
-        participationDate: dto.participationDate ? new Date(dto.participationDate) : new Date(),
-        status: publishedVersion || dto.draft ? EvidenceStatus.DRAFT : EvidenceStatus.NEEDS_HUMAN_REVIEW,
-        files: dto.fileUrls && dto.fileUrls.length > 0
-          ? {
+          studentId,
+          termId,
+          criterionAssessmentId,
+          activityId: dto.activityId || null,
+          declaredActivityName: dto.declaredActivityName.trim(),
+          description: dto.description?.trim() || null,
+          declaredRole: dto.declaredRole || 'THAM_GIA_CHINH',
+          evidenceType: dto.evidenceType,
+          participationDate: dto.participationDate ? new Date(dto.participationDate) : new Date(),
+          status: publishedVersion || dto.draft ? EvidenceStatus.DRAFT : EvidenceStatus.NEEDS_HUMAN_REVIEW,
+          files: dto.fileUrls && dto.fileUrls.length > 0
+            ? {
               create: dto.fileUrls.map((url) => ({
                 fileUrl: url,
                 fileType: url.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg',
               })),
             }
-          : undefined,
+            : undefined,
         },
         include: {
-        files: true,
-        term: true,
-        criterionAssessment: { include: { criterion: true } },
-        aiSuggestions: { include: { criterion: true } },
+          files: true,
+          term: true,
+          criterionAssessment: { include: { criterion: true } },
+          aiSuggestions: { include: { criterion: true } },
         },
       });
     });
@@ -332,7 +386,7 @@ export class EvidenceService {
       const current = await tx.evidence.findUniqueOrThrow({ where: { id } });
       const request = await tx.supplementRequest.findFirst({ where: { evidenceId: id, resolvedAt: null }, orderBy: { createdAt: 'desc' } });
       const handoff = await tx.assessmentHandoff.findUnique({ where: { studentId_termId: { studentId, termId: evidence.termId } } });
-      if (!['ACTIVE','REVIEWING'].includes(term.status) || current.status !== 'NEEDS_SUPPLEMENT' || !request || new Date() > (request.deadline ?? term.reviewDeadline) || ['SENT','EXCLUDED'].includes(handoff?.status ?? '')) throw new BadRequestException('Hồ sơ không nhận bổ sung hoặc đã quá hạn');
+      if (!['ACTIVE', 'REVIEWING'].includes(term.status) || current.status !== 'NEEDS_SUPPLEMENT' || !request || new Date() > (request.deadline ?? term.reviewDeadline) || ['SENT', 'EXCLUDED'].includes(handoff?.status ?? '')) throw new BadRequestException('Hồ sơ không nhận bổ sung hoặc đã quá hạn');
       return current;
     };
     await this.prisma.$transaction(validate);
@@ -340,7 +394,7 @@ export class EvidenceService {
     let cleanup: (() => Promise<unknown>) | undefined;
     if (dto.fileData) {
       const match = dto.fileData.match(/^data:([^;,]+);base64,([A-Za-z0-9+/=]+)$/);
-      if (!match || !dto.fileName || !dto.fileType || !['application/pdf','image/jpeg','image/png','image/webp'].includes(dto.fileType)) throw new BadRequestException('Chỉ nhận PDF hoặc ảnh JPEG/PNG/WebP có tên tệp');
+      if (!match || !dto.fileName || !dto.fileType || !['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(dto.fileType)) throw new BadRequestException('Chỉ nhận PDF hoặc ảnh JPEG/PNG/WebP có tên tệp');
       const buffer = Buffer.from(match[2], 'base64');
       if (!buffer.length || buffer.length > 8 * 1024 * 1024) throw new BadRequestException('Tệp phải nhỏ hơn 8 MB');
       const { baseUrl, key, bucket } = this.getStorageConfig();
@@ -357,7 +411,7 @@ export class EvidenceService {
         const current = await validate(tx);
         if (storage) await tx.evidenceFile.create({ data: { evidenceId: id, ...storage } });
         await tx.supplementRequest.updateMany({ where: { evidenceId: id, resolvedAt: null }, data: { resolvedAt: new Date() } });
-        await tx.aiProcessingJob.updateMany({ where: { evidenceId: id, status: { in: ['QUEUED','PROCESSING'] } }, data: { status: 'CANCELLED', error: 'Sinh viên đã bổ sung phiên bản mới', completedAt: new Date() } });
+        await tx.aiProcessingJob.updateMany({ where: { evidenceId: id, status: { in: ['QUEUED', 'PROCESSING'] } }, data: { status: 'CANCELLED', error: 'Sinh viên đã bổ sung phiên bản mới', completedAt: new Date() } });
         await tx.evidence.update({ where: { id }, data: { status: 'PROCESSING', version: { increment: 1 }, lockedById: null, lockedAt: null, description: [current.description, dto.explanation?.trim(), dto.verificationUrl?.trim()].filter(Boolean).join('\n') } });
         if (current.criterionAssessmentId) await tx.criterionAssessment.update({ where: { id: current.criterionAssessmentId }, data: { status: 'NEEDS_VERIFICATION', officialScore: null, officialReason: null, finalReviewerId: null, finalizedAt: null, suggestedScore: null, suggestionReason: null } });
         await tx.aiProcessingJob.create({ data: { evidenceId: id } });
@@ -386,16 +440,24 @@ export class EvidenceService {
     const evidence = await this.prisma.evidence.findUnique({ where: { id } });
     if (!evidence) throw new NotFoundException('Không tìm thấy hồ sơ');
     if (evidence.studentId !== studentId) throw new ForbiddenException('Không có quyền thao tác');
+    if (evidence.status === EvidenceStatus.APPROVED) throw new BadRequestException('Hồ sơ đã được phê duyệt chính thức, không thể thêm tệp');
 
     await this.ensureEvidenceEditable(id, studentId);
     if (!dto.fileUrl.startsWith(`evidence/${studentId}/${evidence.termId}/${id}/`)) throw new BadRequestException('Tệp phải được tải lên kho minh chứng của hồ sơ này');
-    return this.workflow.studentEdit(studentId, evidence.termId, tx => tx.evidenceFile.create({
-      data: {
-        evidenceId: id,
-        fileUrl: dto.fileUrl,
-        fileType: dto.fileType,
-      },
-    }));
+    return this.workflow.studentEdit(studentId, evidence.termId, async (tx) => {
+      const currentEvidence = await tx.evidence.findUnique({ where: { id } });
+      if (!currentEvidence) throw new NotFoundException('Không tìm thấy hồ sơ');
+      if (currentEvidence.studentId !== studentId) throw new ForbiddenException('Không có quyền thao tác');
+      if (currentEvidence.status === EvidenceStatus.APPROVED) throw new BadRequestException('Hồ sơ đã được phê duyệt chính thức, không thể thêm tệp');
+
+      return tx.evidenceFile.create({
+        data: {
+          evidenceId: id,
+          fileUrl: dto.fileUrl,
+          fileType: dto.fileType,
+        },
+      });
+    });
   }
 
   async uploadDraftFile(id: string, studentId: string, dto: UploadEvidenceFileDto) {
@@ -422,9 +484,16 @@ export class EvidenceService {
     // 2. Lưu bản ghi vào cơ sở dữ liệu qua transaction khóa Term
     let file: any;
     try {
-      file = await this.workflow.studentEdit(studentId, evidence.termId, tx => tx.evidenceFile.create({
-        data: { evidenceId: id, fileUrl: storageUrl, fileType: dto.fileType, fileName: dto.fileName, fileSize: buffer.length },
-      }));
+      file = await this.workflow.studentEdit(studentId, evidence.termId, async (tx) => {
+        const currentEvidence = await tx.evidence.findUnique({ where: { id } });
+        if (!currentEvidence) throw new NotFoundException('Không tìm thấy hồ sơ minh chứng');
+        if (currentEvidence.studentId !== studentId) throw new ForbiddenException('Không có quyền thao tác');
+        if (currentEvidence.status !== EvidenceStatus.DRAFT) throw new BadRequestException('Chỉ có thể thêm tệp khi hồ sơ còn là bản nháp');
+
+        return tx.evidenceFile.create({
+          data: { evidenceId: id, fileUrl: storageUrl, fileType: dto.fileType, fileName: dto.fileName, fileSize: buffer.length },
+        });
+      });
     } catch (dbError) {
       // Kiểm tra xem liệu DB có thực sự tạo bản ghi hay chưa (phòng trường hợp commit xong nhưng kết nối bị ngắt)
       const existingFile = await this.prisma.evidenceFile.findFirst({ where: { fileUrl: storageUrl } });
@@ -461,21 +530,28 @@ export class EvidenceService {
     }
     if (user.role === Role.STUDENT) await this.ensureEvidenceEditable(id, user.id);
 
-    return this.workflow.studentEdit(user.id, evidence.termId, tx => tx.evidence.update({
-      where: { id },
-      data: {
-        version: { increment: 1 },
-        declaredActivityName: dto.declaredActivityName !== undefined ? dto.declaredActivityName.trim() : undefined,
-        description: dto.description !== undefined ? dto.description.trim() || null : undefined,
-        declaredRole: dto.declaredRole !== undefined ? dto.declaredRole : undefined,
-        evidenceType: dto.evidenceType !== undefined ? dto.evidenceType : undefined,
-        participationDate: dto.participationDate ? new Date(dto.participationDate) : undefined,
-      },
-      include: {
-        files: true,
-        term: true,
-      },
-    }));
+    return this.workflow.studentEdit(user.id, evidence.termId, async (tx) => {
+      const currentEvidence = await tx.evidence.findUnique({ where: { id } });
+      if (!currentEvidence) throw new NotFoundException('Không tìm thấy hồ sơ');
+      if (currentEvidence.studentId !== user.id) throw new ForbiddenException('Không có quyền thao tác');
+      if (currentEvidence.status === EvidenceStatus.APPROVED) throw new BadRequestException('Hồ sơ đã được phê duyệt chính thức, không thể sửa');
+
+      return tx.evidence.update({
+        where: { id },
+        data: {
+          version: { increment: 1 },
+          declaredActivityName: dto.declaredActivityName !== undefined ? dto.declaredActivityName.trim() : undefined,
+          description: dto.description !== undefined ? dto.description.trim() || null : undefined,
+          declaredRole: dto.declaredRole !== undefined ? dto.declaredRole : undefined,
+          evidenceType: dto.evidenceType !== undefined ? dto.evidenceType : undefined,
+          participationDate: dto.participationDate ? new Date(dto.participationDate) : undefined,
+        },
+        include: {
+          files: true,
+          term: true,
+        },
+      });
+    });
   }
 
   private async ensureEvidenceEditable(evidenceId: string, studentId: string) {

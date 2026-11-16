@@ -30,8 +30,12 @@ export class ProfileDataIssuesController {
 
   @Get()
   @Roles(Role.ADMIN)
-  list(@Query('status') status?: ProfileDataIssueStatus, @Query('page') page?: string) {
-    return this.service.list(status, Number(page) || 1);
+  list(
+    @Query('status') status?: ProfileDataIssueStatus,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.service.list(status, Number(page) || 1, Number(pageSize) || 25);
   }
 
   @Patch(':id/resolve')

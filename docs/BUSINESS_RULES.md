@@ -107,7 +107,7 @@ Workflow UI có 8 state suy diễn từ submission, handoff, pending evidence/ap
 - **Hiện trạng nguồn:** CriteriaService + RubricVersion schema; [tạo/copy draft](../apps/backend/src/criteria/criteria.service.ts#L138), [tạo kỳ](../apps/backend/src/criteria/criteria.service.ts#L297). Code tạo bản DRAFT riêng cho kỳ rồi yêu cầu DRAFT→PUBLISHED trước sử dụng; đây là hiện trạng, không phải yêu cầu thay nội dung mỗi kỳ.
 - **Tiền điều kiện/quyền:** ADMIN quản lý; có rubric hiện hành đã ban hành để tiếp tục áp dụng. Việc sửa nội dung cần có thay đổi thực sự được xác nhận.
 - **Hậu điều kiện/bất biến:** Không thay đổi→kỳ mới áp dụng nguyên nội dung rubric hiện hành. Có thay đổi→quản lý phiên bản/phạm vi áp dụng, giữ lịch sử; không chỉnh đè rubric/kết quả kỳ cũ đã dùng. Phiếu/handoff/publication cần truy vết được rubric áp dụng.
-- **Ca biên/gap:** Bản ghi/snapshot kỹ thuật theo kỳ không tự là phiên bản nghiệp vụ mới; cách tái sử dụng ID/chụp bản sao chưa được chọn. Theo dõi REQ-002. ScoringConfig vẫn cần đủ dữ liệu theo kind; các gap baseScore/rolesScore BL-003/014 còn mở.
+- **Ca biên/gap:** Bản ghi/snapshot kỹ thuật theo kỳ không tự là phiên bản nghiệp vụ mới; cách tái sử dụng ID/chụp bản sao chưa được chọn. Theo dõi REQ-002. ScoringConfig vẫn cần đủ dữ liệu theo kind; gap baseScore BL-003 đã Resolved (đã bổ sung baseScore: 3 vào tiêu chí 2 dut-rubric, validateScoringConfig bảo vệ các kind penalty/duty/award); gap rolesScore BL-014 còn mở chờ Q-02.
 
 <a id="r-09"></a>
 
@@ -116,7 +116,7 @@ Workflow UI có 8 state suy diễn từ submission, handoff, pending evidence/ap
 - **Căn cứ:** evaluateRubricCriterion; [nguồn](../apps/backend/src/criteria/rubric-scoring.ts#L10).
 - **Tiền điều kiện/quyền:** Có config và verifiedData đủ requiredData.
 - **Hậu điều kiện và chuyển trạng thái:** Thiếu dữ liệu→NEEDS_VERIFICATION; dữ liệu hợp lệ→gợi ý trong trần; officialScore chỉ qua cán bộ chốt.
-- **Bất biến/ca biên/gap:** Cần boolean/số đúng kiểu; BL-004/017 chứng minh hợp đồng hiện chưa đủ; AI không là điểm chính thức.
+- **Bất biến/ca biên/gap:** Cần boolean/số đúng kiểu; BL-004 và BL-017 đã Resolved (đồng bộ leadershipRole kiểu boolean giữa Web và Backend, validateVerifiedData từ chối chuỗi rác/số âm/thập phân cho counter, evaluator không ép 0 nuốt lỗi); AI không là điểm chính thức.
 
 <a id="r-10"></a>
 

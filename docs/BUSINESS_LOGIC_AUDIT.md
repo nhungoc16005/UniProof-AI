@@ -1,14 +1,14 @@
 # Audit logic nghiệp vụ EduPoint
 
-Ngày lập tài liệu: 2026-11-15. Baseline nguồn: `93fb66c`. Ghi nhận kết quả audit mã nguồn và tiến độ xử lý theo từng đợt; đợt 1 đã hoàn thành xử lý 3 mục P0 (BL-001, BL-002, BL-009); đợt 2 đã giải quyết BL-007 và hoàn thiện kiểm chứng kịch bản BL-026; đợt 3 đã giải quyết BL-006, BL-010 và BL-020. Đọc [kiến trúc và workflow](PROJECT_OVERVIEW.md), [quy tắc](BUSINESS_RULES.md) trước các finding.
+Ngày lập tài liệu: 2026-11-15. Cập nhật: 2026-11-16. Baseline nguồn: `93fb66c`. Ghi nhận kết quả audit mã nguồn và tiến độ xử lý theo từng đợt; đợt 1 đã hoàn thành xử lý 3 mục P0 (BL-001, BL-002, BL-009); đợt 2 đã giải quyết BL-007 và hoàn thiện kiểm chứng kịch bản BL-026; đợt 3 đã giải quyết BL-006, BL-010 và BL-020; đợt 4 đã giải quyết BL-003, BL-004 và BL-017; đợt 5 đã giải quyết BL-013, BL-015, BL-023, BL-024; đợt 7 đã giải quyết BL-011, BL-012, BL-016, BL-025; đợt 8 đã giải quyết BL-005, BL-014; đợt 9 đã giải quyết BL-018, BL-019; đợt 10 đã giải quyết BL-021. Đọc [kiến trúc và workflow](PROJECT_OVERVIEW.md), [quy tắc](BUSINESS_RULES.md) trước các finding.
 
 ## Phạm vi và cách phân loại
 
 - **Confirmed:** luồng mã nguồn đủ chứng minh mâu thuẫn/hành vi; không đồng nghĩa đã tái hiện trên deployment.
 - **Potential:** thứ tự xen kẽ/concurrency có thể gây lỗi, cần kiểm tra DB thực cách ly.
 - Severity đánh giá tác động; priority đánh giá thứ tự xử lý. P0 kiểm chứng/xử lý trước bàn giao, P1 tiếp theo, P2 theo sprint được chọn.
-- Tổng cộng 27 mục: **20 mục Open** (18 Confirmed, 2 Potential) và **7 mục Resolved** (BL-001, BL-002, BL-006, BL-007, BL-009, BL-010, BL-020); không có Critical. Trong 20 mục Open có 4 High Confirmed, 14 Medium Confirmed, 1 High Potential (BL-026) và 1 Medium Potential (BL-027).
-- Expected chỉ dựa vào luồng/quy tắc hiện có; Q-01/Q-02 vẫn cần quyết định trước khi triển khai hợp nhất nguồn/tỷ lệ điểm. Gợi ý sửa là đề xuất, chưa được tự thực thi.
+- Tổng cộng 27 mục: **23 mục Resolved**, **4 mục chưa đóng** gồm **2 mục hoãn xử lý AI** theo quyết định người dùng (BL-008, BL-022 - xem DEC-007) và **2 mục Potential** chờ kiểm chứng DB đa kết nối (BL-026, BL-027). Không có Critical.
+- Expected chỉ dựa vào luồng/quy tắc hiện có; các quyết định kỹ thuật đã chốt tại DEC-001 đến DEC-010.
 
 ## Danh sách ưu tiên
 
@@ -20,27 +20,27 @@ Ngày lập tài liệu: 2026-11-15. Baseline nguồn: `93fb66c`. Ghi nhận k�
 | [BL-007](#bl-007) | High | Confirmed | P0 | Lỗi ký URL xóa tệp đã commit vào DB (Resolved) |
 | [BL-009](#bl-009) | High | Confirmed | P0 | JWT secret được đọc trước khi ConfigModule nạp .env (Resolved) |
 | [BL-026](#bl-026) | High | Potential | P0 | Xóa minh chứng/tệp có khoảng đua với nộp phiếu (In Progress / Potential) |
-| [BL-003](#bl-003) | High | Confirmed | P1 | Tiêu chí nhóm mặc định thiếu baseScore |
-| [BL-004](#bl-004) | High | Confirmed | P1 | leadershipRole gửi chuỗi làm điểm chức vụ bằng 0 |
-| [BL-005](#bl-005) | High | Confirmed | P1 | Xác minh minh chứng ghi đè số hoạt động từ điểm danh |
-| [BL-008](#bl-008) | High | Confirmed | P1 | Timeout AI dừng trước lúc đọc response body |
-| [BL-027](#bl-027) | Medium | Potential | P1 | Preflight nộp phiếu nằm ngoài transaction khóa |
+| [BL-003](#bl-003) | High | Confirmed | P1 | Tiêu chí nhóm mặc định thiếu baseScore (Resolved) |
+| [BL-004](#bl-004) | High | Confirmed | P1 | leadershipRole gửi chuỗi làm điểm chức vụ bằng 0 (Resolved) |
+| [BL-005](#bl-005) | High | Confirmed | P1 | Xác minh minh chứng ghi đè số hoạt động từ điểm danh (Resolved) |
+| [BL-008](#bl-008) | High | Confirmed | P1 | Timeout AI dừng trước lúc đọc response body (Hoãn AI - DEC-007) |
+| [BL-027](#bl-027) | Medium | Potential | P1 | Preflight nộp phiếu nằm ngoài transaction khóa (Open / Potential) |
 | [BL-010](#bl-010) | Medium | Confirmed | P2 | Web khóa sửa theo hạn gốc dù đã gia hạn (Resolved) |
-| [BL-011](#bl-011) | Medium | Confirmed | P2 | Mật khẩu tạm không được bàn giao đầy đủ |
-| [BL-012](#bl-012) | Medium | Confirmed | P2 | Thiếu classId/facultyId scalar làm bộ lọc tài khoản sai |
-| [BL-013](#bl-013) | Medium | Confirmed | P2 | Nháp minh chứng không hiện dưới đúng tiêu chí |
-| [BL-014](#bl-014) | Medium | Confirmed | P2 | Rubric không lưu rolesScore cần cho điểm danh cộng đồng |
-| [BL-015](#bl-015) | Medium | Confirmed | P2 | Thêm tệp vào Evidence APPROVED không đổi version/kết luận |
-| [BL-016](#bl-016) | Medium | Confirmed | P2 | Bắt đổi mật khẩu lần đầu chỉ có ở frontend |
-| [BL-017](#bl-017) | Medium | Confirmed | P2 | Bộ đếm không hợp lệ bị ép thành 0 và được điểm cao |
-| [BL-018](#bl-018) | Medium | Confirmed | P2 | Yêu cầu sửa thông tin mất meta và không có phân trang UI |
-| [BL-019](#bl-019) | Medium | Confirmed | P2 | Danh sách minh chứng chỉ tải trang đầu rồi lọc cục bộ |
+| [BL-011](#bl-011) | Medium | Confirmed | P2 | Mật khẩu tạm không được bàn giao đầy đủ (Resolved) |
+| [BL-012](#bl-012) | Medium | Confirmed | P2 | Thiếu classId/facultyId scalar làm bộ lọc tài khoản sai (Resolved) |
+| [BL-013](#bl-013) | Medium | Confirmed | P2 | Nháp minh chứng không hiện dưới đúng tiêu chí (Resolved) |
+| [BL-014](#bl-014) | Medium | Confirmed | P2 | Rubric không lưu rolesScore cần cho điểm danh cộng đồng (Resolved) |
+| [BL-015](#bl-015) | Medium | Confirmed | P2 | Thêm tệp vào Evidence APPROVED không đổi version/kết luận (Resolved) |
+| [BL-016](#bl-016) | Medium | Confirmed | P2 | Bắt đổi mật khẩu lần đầu chỉ có ở frontend (Resolved) |
+| [BL-017](#bl-017) | Medium | Confirmed | P2 | Bộ đếm không hợp lệ bị ép thành 0 và được điểm cao (Resolved) |
+| [BL-018](#bl-018) | Medium | Confirmed | P2 | Yêu cầu sửa thông tin mất meta và không có phân trang UI (Resolved) |
+| [BL-019](#bl-019) | Medium | Confirmed | P2 | Danh sách minh chứng chỉ tải trang đầu rồi lọc cục bộ (Resolved) |
 | [BL-020](#bl-020) | Medium | Confirmed | P2 | Chọn gia hạn chỉ có 100 sinh viên và lệch roster kỳ (Resolved) |
-| [BL-021](#bl-021) | Medium | Confirmed | P2 | Loại trừ lần hai trùng dedupeKey và rollback |
-| [BL-022](#bl-022) | Medium | Confirmed | P2 | Thêm nguồn xác minh hủy job nhưng Evidence còn PROCESSING |
-| [BL-023](#bl-023) | Medium | Confirmed | P2 | Màn bổ sung hiển thị deadline/nội dung giả |
-| [BL-024](#bl-024) | Medium | Confirmed | P2 | Sinh viên mở URL kỳ khác nhưng đọc activeTerm |
-| [BL-025](#bl-025) | Medium | Confirmed | P2 | API tạo tài khoản bỏ qua ràng buộc vai trò mà UI bắt buộc |
+| [BL-021](#bl-021) | Medium | Confirmed | P2 | Loại trừ lần hai trùng dedupeKey và rollback (Resolved) |
+| [BL-022](#bl-022) | Medium | Confirmed | P2 | Thêm nguồn xác minh hủy job nhưng Evidence còn PROCESSING (Hoãn AI - DEC-007) |
+| [BL-023](#bl-023) | Medium | Confirmed | P2 | Màn bổ sung hiển thị deadline/nội dung giả (Resolved) |
+| [BL-024](#bl-024) | Medium | Confirmed | P2 | Sinh viên mở URL kỳ khác nhưng đọc activeTerm (Resolved) |
+| [BL-025](#bl-025) | Medium | Confirmed | P2 | API tạo tài khoản bỏ qua ràng buộc vai trò mà UI bắt buộc (Resolved) |
 
 ## Chi tiết
 
@@ -86,55 +86,53 @@ Ngày lập tài liệu: 2026-11-15. Baseline nguồn: `93fb66c`. Ghi nhận k�
 
 ### BL-003 — Tiêu chí nhóm mặc định thiếu baseScore
 
-1. **Bug ID:** BL-003. **Trạng thái:** Open. **Độ chắc chắn:** Confirmed; **ưu tiên:** P1.
+1. **Bug ID:** BL-003. **Trạng thái:** Resolved (2026-11-16). **Độ chắc chắn:** Confirmed; **ưu tiên:** P1.
 2. **Severity:** High.
-3. **Vị trí:** [apps/backend/src/criteria/dut-rubric.ts:11](../apps/backend/src/criteria/dut-rubric.ts#L11); [apps/backend/src/criteria/rubric-scoring.ts:41](../apps/backend/src/criteria/rubric-scoring.ts#L41).
+3. **Vị trí:** [apps/backend/src/criteria/dut-rubric.ts:11](../apps/backend/src/criteria/dut-rubric.ts#L11); [apps/backend/src/criteria/rubric-scoring.ts:41](../apps/backend/src/criteria/rubric-scoring.ts#L41); [apps/backend/src/criteria/criteria.service.ts:18](../apps/backend/src/criteria/criteria.service.ts#L18).
 4. **Workflow:** Tính điểm tiêu chí 2. [F04](features/04-rubrics-and-scoring.md).
-5. **Hiện tại:** group_penalty đọc Number(config.baseScore), nhưng cấu hình mặc định không có trường này.
+5. **Hiện tại (đã sửa):** Tiêu chí 2 trong `DUT_RUBRIC_CRITERIA` đã được bổ sung `baseScore: 3`. `validateScoringConfig` trong `criteria.service.ts` chặn lưu/ban hành rubric thiếu baseScore hoặc sai số. `rubric-scoring.ts` trả `NEEDS_VERIFICATION` rõ ràng nếu config thiếu baseScore trong DB cũ (không fallback tùy tiện, không crash, không sinh NaN).
 6. **Kỳ vọng có căn cứ:** Mô tả tiêu chí cho trần 3 điểm, trừ theo lần vắng và mất hết khi trễ việc; trường hợp không vi phạm phải có điểm nền hợp lệ.
-7. **Logic và trace qua lớp:** Không trễ deadline đi qua nhánh Number(undefined), tạo NaN và không tính được gợi ý hợp lệ; validator hiện chưa chặn thiếu cấu hình này.
-8. **Tình huống:** Nhập ba bộ đếm bằng 0 cho tiêu chí 2 của rubric mặc định.
-9. **Tác động:** Không tự tính/chốt theo gợi ý đúng, làm tắc phiếu hoặc tăng thao tác thủ công.
-10. **Gợi ý sửa:** Thống nhất điểm nền với quy chế, bổ sung validation config theo kind và rà các bản rubric đã lưu; chưa sửa dữ liệu tự động.
-11. **Regression test:** Rubric mặc định: không vi phạm→3, vắng không lý do một lần→1, trễ việc→0; config thiếu baseScore phải bị từ chối.
-
-**Giới hạn bằng chứng:** Đối chiếu caller, service và hợp đồng liên quan trong nguồn. Không khẳng định đã tái hiện trên DB/Storage/AI triển khai.
+7. **Logic và trace qua lớp:** Đã bổ sung baseScore: 3 vào config chuẩn; evaluator kiểm tra tính hợp lệ của baseScore trước khi tính điểm; validator chặn từ cấp DTO/Service.
+8. **Tình huống:** Nhập ba bộ đếm bằng 0 cho tiêu chí 2 của rubric mặc định -> đạt 3 điểm.
+9. **Tác động:** Điểm được tính chính xác, không còn sinh NaN hay kẹt trạng thái.
+10. **Bằng chứng giải quyết:** Đã sửa mã nguồn tại `dut-rubric.ts`, `rubric-scoring.ts`, `criteria.service.ts`. Đã kiểm chứng 10 tests trong `apps/backend/test/scoring-and-validation.test.cjs`.
+11. **Giới hạn kiểm chứng:** Đã kiểm chứng qua unit test in-memory và double test; code đã sửa, dữ liệu rubric lịch sử đã lưu trong DB chưa được rà soát/chạy script kiểm kê DB.
 
 <a id="bl-004"></a>
 
 ### BL-004 — leadershipRole gửi chuỗi làm điểm chức vụ bằng 0
 
-1. **Bug ID:** BL-004. **Trạng thái:** Open. **Độ chắc chắn:** Confirmed; **ưu tiên:** P1.
+1. **Bug ID:** BL-004. **Trạng thái:** Resolved (2026-11-16). **Độ chắc chắn:** Confirmed; **ưu tiên:** P1.
 2. **Severity:** High.
-3. **Vị trí:** [apps/web/src/pages/officer/StudentAssessment.tsx:29](../apps/web/src/pages/officer/StudentAssessment.tsx#L29); [apps/web/src/pages/officer/StudentAssessment.tsx:115](../apps/web/src/pages/officer/StudentAssessment.tsx#L115); [apps/backend/src/criteria/rubric-scoring.ts:29](../apps/backend/src/criteria/rubric-scoring.ts#L29).
+3. **Vị trí:** [apps/web/src/pages/officer/StudentAssessment.tsx:29](../apps/web/src/pages/officer/StudentAssessment.tsx#L29); [apps/web/src/pages/officer/StudentAssessment.tsx:115](../apps/web/src/pages/officer/StudentAssessment.tsx#L115); [apps/backend/src/criteria/rubric-scoring.ts:29](../apps/backend/src/criteria/rubric-scoring.ts#L29); [apps/backend/src/assessments/assessments.service.ts:9](../apps/backend/src/assessments/assessments.service.ts#L9).
 4. **Workflow:** Xác minh tiêu chí 14/16. [F04](features/04-rubrics-and-scoring.md), [F07](features/07-evidence-review-and-verification.md).
-5. **Hiện tại:** booleanFields thiếu leadershipRole; serializer giữ 'true' là chuỗi.
+5. **Hiện tại (đã sửa):** Frontend `StudentAssessment.tsx` đã thêm `leadershipRole` vào `booleanFields` và `fieldLabels`, `toVerifiedData` sinh boolean `true`/`false` thực sự. Backend `validateVerifiedData` yêu cầu các trường boolean phải có kiểu `typeof === 'boolean'`, từ chối chuỗi `"true"`, `"false"` với HTTP 400. Evaluator kiểm tra đúng `leadershipRole === true`, `collectiveApprovalPercent > 90` và `advisorConfirmation === true` gợi ý 4 điểm cho tiêu chí 14, 3 điểm cho tiêu chí 16.
 6. **Kỳ vọng có căn cứ:** leadershipRole phải boolean như evaluator yêu cầu để điều kiện chức vụ được xét đúng.
-7. **Logic và trace qua lớp:** Giao diện gửi chuỗi; leadership_duty và verified_boolean so sánh ===true. Thông tin người dùng chọn có bị coi là không đạt.
-8. **Tình huống:** Cán bộ nhập có chức vụ, bình chọn 95%, xác nhận cố vấn; tiêu chí 14 cho 0 thay vì 4; tiêu chí 16 cũng có thể mất 3 điểm.
-9. **Tác động:** Thiệt điểm và kết luận sai cho sinh viên có chức vụ.
-10. **Gợi ý sửa:** Dùng kiểu dữ liệu rubric làm nguồn form và kiểm tra payload boolean ở backend.
-11. **Regression test:** Thao tác form thật cho leadershipRole=true ở tiêu chí 14 và 16; kiểm tra payload boolean và điểm 4/3.
-
-**Giới hạn bằng chứng:** Đối chiếu caller, service và hợp đồng liên quan trong nguồn. Không khẳng định đã tái hiện trên DB/Storage/AI triển khai.
+7. **Logic và trace qua lớp:** Giao diện gửi đúng boolean; backend validate kiểu boolean; evaluator so sánh `=== true` và tính đúng điểm.
+8. **Tình huống:** Cán bộ chọn có chức vụ, bình chọn 95%, xác nhận cố vấn -> tiêu chí 14 gợi ý 4 điểm; tiêu chí 16 gợi ý 3 điểm.
+9. **Tác động:** Điểm chức vụ của sinh viên được bảo vệ đúng quy chế.
+10. **Bằng chứng giải quyết:** Đã sửa mã nguồn tại `StudentAssessment.tsx`, `assessments.service.ts`, `rubric-scoring.ts`. Đã kiểm chứng 9 tests trong `apps/backend/test/scoring-and-validation.test.cjs`.
+11. **Giới hạn kiểm chứng:** Đã kiểm chứng qua unit test in-memory và double test; chưa chạy browser test với backend thật.
 
 <a id="bl-005"></a>
 
 ### BL-005 — Xác minh minh chứng ghi đè số hoạt động từ điểm danh
 
-1. **Bug ID:** BL-005. **Trạng thái:** Open. **Độ chắc chắn:** Confirmed; **ưu tiên:** P1.
+1. **Bug ID:** BL-005. **Trạng thái:** Resolved (2026-11-16). **Độ chắc chắn:** Confirmed; **ưu tiên:** P1.
 2. **Severity:** High.
-3. **Vị trí:** [apps/backend/src/activities/activities.service.ts:41](../apps/backend/src/activities/activities.service.ts#L41); [apps/backend/src/assessments/assessments.service.ts:321](../apps/backend/src/assessments/assessments.service.ts#L321).
+3. **Vị trí:** [apps/backend/src/activities/activity-aggregator.ts](../apps/backend/src/activities/activity-aggregator.ts); [apps/backend/src/activities/activities.service.ts:41](../apps/backend/src/activities/activities.service.ts#L41); [apps/backend/src/assessments/assessments.service.ts:321](../apps/backend/src/assessments/assessments.service.ts#L321); [apps/backend/src/reviews/reviews.service.ts:168](../apps/backend/src/reviews/reviews.service.ts#L168).
 4. **Workflow:** Điểm danh → xác minh tiêu chí hoạt động. [F07](features/07-evidence-review-and-verification.md), [F08](features/08-activities-and-attendance.md).
-5. **Hiện tại:** Điểm danh tính CONFIRMED roster; saveVerification tính lại verifiedActivityCount chỉ từ Evidence APPROVED.
-6. **Kỳ vọng có căn cứ:** Dữ liệu đã xác nhận không tự mất chỉ vì đổi màn xác minh; cách hợp nhất/chống đếm trùng cần Q-01.
-7. **Logic và trace qua lớp:** Hai service cùng ghi verifiedData nhưng dùng nguồn khác nhau. saveVerification không bảo toàn hoặc đọc roster; khi không có Evidence thì count trở thành 0.
-8. **Tình huống:** Một hoạt động đã CONFIRMED cho sinh viên và có gợi ý 5; mở xác minh và lưu, không có Evidence APPROVED nên count=0.
-9. **Tác động:** Điểm phụ thuộc thứ tự thao tác và mất dữ liệu nguồn chính thức.
-10. **Gợi ý sửa:** Thiết kế bộ tổng hợp nguồn chung; chốt khóa định danh hoạt động với nghiệp vụ trước khi gộp.
-11. **Regression test:** CONFIRMED roster không có Evidence, chỉ Evidence, cả hai cùng hoạt động và hai nguồn khác hoạt động; kết quả không đổi theo thứ tự lưu.
-
-**Giới hạn bằng chứng:** Đối chiếu caller, service và hợp đồng liên quan trong nguồn. Không khẳng định đã tái hiện trên DB/Storage/AI triển khai. Chính sách hợp nhất nguồn cần [Q-01](DECISIONS.md#q-01).
+5. **Hiện tại (đã sửa):** Xây dựng bộ tổng hợp nguồn hoạt động chung `aggregateStudentActivitySources`. Trong cùng sinh viên/kỳ/tiêu chí:
+   - Gộp nguồn theo khóa duy nhất `activity:<id>` (nếu có `activityId`) và `evidence:<id>` (minh chứng độc lập không gắn hoạt động). Cùng hoạt động có cả điểm danh `CONFIRMED` và minh chứng `APPROVED` chỉ được tính một lần.
+   - Ưu tiên vai trò từ điểm danh `CONFIRMED`.
+   - Nếu không có điểm danh và có nhiều minh chứng `APPROVED` mâu thuẫn vai trò, hoặc còn minh chứng đang chờ xử lý (`hasUnresolvedEvidence`), trả blocker `NEEDS_VERIFICATION, suggestedScore: null`.
+   - `recomputeAndSaveActivityCriterion` tự động vô hiệu hóa điểm chính thức cũ (`officialScore = null, finalizedAt = null`) khi căn cứ hoạt động thay đổi.
+6. **Kỳ vọng có căn cứ:** Dữ liệu đã xác nhận không tự mất chỉ vì đổi màn xác minh; nguồn hoạt động được thống nhất và truy vết minh bạch theo DEC-008.
+7. **Logic và trace qua lớp:** Cả `ActivitiesService`, `AssessmentsService` và `ReviewsService` đều gọi chung `recomputeActivityCriterion` sử dụng aggregator chung.
+8. **Tình huống:** Hoạt động đã CONFIRMED cho sinh viên có gợi ý 5; khi cán bộ duyệt thêm minh chứng hoặc xác minh dữ liệu, điểm danh không bị xóa hoặc ghi đè thành 0.
+9. **Tác động:** Bảo vệ toàn vẹn dữ liệu điểm danh và minh chứng hoạt động, nhất quán điểm rèn luyện.
+10. **Bằng chứng giải quyết:** Đã tạo mới `activity-aggregator.ts` và tích hợp vào 3 services. Đã kiểm chứng 6 tests trong `apps/backend/test/activity-and-roles-scoring.test.cjs`.
+11. **Giới hạn kiểm chứng:** Đã kiểm chứng qua unit test in-memory; chưa kiểm chứng trên DB staging vật lý.
 
 <a id="bl-006"></a>
 
@@ -178,7 +176,7 @@ Ngày lập tài liệu: 2026-11-15. Baseline nguồn: `93fb66c`. Ghi nhận k�
 
 ### BL-008 — Timeout AI dừng trước lúc đọc response body
 
-1. **Bug ID:** BL-008. **Trạng thái:** Open. **Độ chắc chắn:** Confirmed; **ưu tiên:** P1.
+1. **Bug ID:** BL-008. **Trạng thái:** Deferred (Hoãn theo quyết định người dùng - DEC-007). **Độ chắc chắn:** Confirmed; **ưu tiên:** P1.
 2. **Severity:** High.
 3. **Vị trí:** [apps/backend/src/evidence/evidence-processing.worker.ts:133](../apps/backend/src/evidence/evidence-processing.worker.ts#L133); [apps/backend/src/evidence/evidence-processing.worker.ts:135](../apps/backend/src/evidence/evidence-processing.worker.ts#L135).
 4. **Workflow:** Worker gọi pipeline. [F14](features/14-audit-monitoring-and-ai-jobs.md).
@@ -234,163 +232,145 @@ Ngày lập tài liệu: 2026-11-15. Baseline nguồn: `93fb66c`. Ghi nhận k�
 
 ### BL-011 — Mật khẩu tạm không được bàn giao đầy đủ
 
-1. **Bug ID:** BL-011. **Trạng thái:** Open. **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
+1. **Bug ID:** BL-011. **Trạng thái:** Resolved (2026-11-16). **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
 2. **Severity:** Medium.
-3. **Vị trí:** [apps/backend/src/users/users.service.ts:153](../apps/backend/src/users/users.service.ts#L153); [apps/backend/src/users/users.service.ts:176](../apps/backend/src/users/users.service.ts#L176); [apps/web/src/pages/admin/UserManagement.tsx:188](../apps/web/src/pages/admin/UserManagement.tsx#L188); [apps/web/src/pages/admin/UserManagement.tsx:364](../apps/web/src/pages/admin/UserManagement.tsx#L364).
+3. **Vị trí:** [apps/backend/src/users/users.service.ts:153](../apps/backend/src/users/users.service.ts#L153); [apps/backend/src/users/users.controller.ts](../apps/backend/src/users/users.controller.ts); [apps/web/src/pages/admin/UserManagement.tsx:188](../apps/web/src/pages/admin/UserManagement.tsx#L188).
 4. **Workflow:** Tạo/import tài khoản. [F01](features/01-accounts-and-access.md).
-5. **Hiện tại:** Create sinh mật khẩu ngẫu nhiên khi không truyền rồi chỉ trả safeUser; màn tạo không có bước nhận mật khẩu, import cũng không trình bày đầy đủ thông tin tạm trả về.
-6. **Kỳ vọng có căn cứ:** Luồng quản trị tạo tài khoản phải có cách giao credential; reset có trả mật khẩu tạm là tiền lệ hiện có.
-7. **Logic và trace qua lớp:** Hash được lưu nhưng plaintext tạm biến mất khỏi kết quả tạo. Forgot-password hiện 503, nên người dùng không tự phục hồi từ luồng này.
-8. **Tình huống:** Admin tạo sinh viên bằng form, sinh viên không biết mật khẩu vừa sinh; phải reset bổ sung.
-9. **Tác động:** Tài khoản mới chưa sử dụng được và phát sinh vận hành thủ công.
-10. **Gợi ý sửa:** Cơ chế bàn giao một lần có kiểm soát tương tự reset/import; UI xử lý phản hồi rõ ràng, không log credential.
-11. **Regression test:** Tạo không password và import thành công: Admin nhận được phương thức bàn giao; response/log không lộ credential lâu dài.
-
-**Giới hạn bằng chứng:** Đối chiếu caller, service và hợp đồng liên quan trong nguồn. Không khẳng định đã tái hiện trên DB/Storage/AI triển khai.
+5. **Hiện tại (đã sửa):** Backend `UsersService.create` sinh mật khẩu tạm thời ngẫu nhiên an toàn tiền tố `Ep!` khi không truyền password; kết quả trả về `temporaryPassword` độc lập, loại bỏ `passwordHash` và `authVersion` khỏi `user`. Endpoint `resetPassword` trả mật khẩu tạm, đặt `isFirstLogin: true` và tăng `authVersion` để thu hồi phiên cũ. Thêm header `Cache-Control: no-store` cho các endpoint bàn giao credentials. Frontend `UserManagement.tsx` mở Dialog hiển thị mật khẩu tạm và cảnh báo sao chép khi tạo đơn lẻ; cung cấp nút tải file Excel `credentials-import-*.xlsx` sau khi import danh sách.
+6. **Kỳ vọng có căn cứ:** Luồng quản trị tạo tài khoản phải có cách giao credential an toàn một lần theo DEC-010.
+7. **Logic và trace qua lớp:** Mật khẩu tạm được sinh an toàn, trả một lần trên luồng HTTPS có no-store cache; UI cho phép quản trị viên bàn giao cho người dùng.
+8. **Tình huống:** Admin tạo người dùng hoặc import danh sách -> nhận được mật khẩu tạm để bàn giao; người dùng đăng nhập lần đầu được chuyển sang đổi mật khẩu.
+9. **Tác động:** Khắc phục tình trạng tài khoản mới không đăng nhập được hoặc lộ thông tin bảo mật.
+10. **Bằng chứng giải quyết:** Đã sửa mã nguồn tại `users.service.ts`, `users.controller.ts`, `UserManagement.tsx`. Đã kiểm chứng 3 tests trong `apps/backend/test/accounts-and-permissions.test.cjs`.
+11. **Giới hạn kiểm chứng:** Đã kiểm chứng qua unit test in-memory; chưa kiểm chứng e2e trên browser.
 
 <a id="bl-012"></a>
 
 ### BL-012 — Thiếu classId/facultyId scalar làm bộ lọc tài khoản sai
 
-1. **Bug ID:** BL-012. **Trạng thái:** Open. **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
+1. **Bug ID:** BL-012. **Trạng thái:** Resolved (2026-11-16). **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
 2. **Severity:** Medium.
-3. **Vị trí:** [apps/backend/src/users/users.service.ts:91](../apps/backend/src/users/users.service.ts#L91); [apps/web/src/pages/admin/UserManagement.tsx:246](../apps/web/src/pages/admin/UserManagement.tsx#L246); [apps/web/src/pages/admin/UserManagement.tsx:251](../apps/web/src/pages/admin/UserManagement.tsx#L251).
+3. **Vị trí:** [apps/backend/src/users/users.service.ts:91](../apps/backend/src/users/users.service.ts#L91); [apps/web/src/pages/admin/UserManagement.tsx:246](../apps/web/src/pages/admin/UserManagement.tsx#L246).
 4. **Workflow:** Admin tìm tài khoản theo đơn vị. [F01](features/01-accounts-and-access.md).
-5. **Hiện tại:** Danh sách chỉ select quan hệ class/faculty, nhưng bộ lọc UI so u.classId/u.facultyId.
-6. **Kỳ vọng có căn cứ:** Danh sách tài khoản đã gán đơn vị phải xuất hiện đúng trong lớp/Khoa.
-7. **Logic và trace qua lớp:** Nested relation có id nhưng scalar FK không được trả; so undefined với ID khiến dữ liệu có thật bị loại.
-8. **Tình huống:** Chọn một lớp có sinh viên; danh sách hiển thị rỗng dù response chứa class.id đúng.
-9. **Tác động:** Không tìm/quản trị được tài khoản theo cấu trúc đơn vị.
-10. **Gợi ý sửa:** Thống nhất response DTO và frontend; nếu term-scoped thì scalar phải cùng snapshot với nested class.
-11. **Regression test:** User có class.id nhưng không có scalar, lọc theo lớp phải vẫn đúng hoặc API bổ sung scalar theo hợp đồng.
-
-**Giới hạn bằng chứng:** Đối chiếu caller, service và hợp đồng liên quan trong nguồn. Không khẳng định đã tái hiện trên DB/Storage/AI triển khai.
+5. **Hiện tại (đã sửa):** Backend `UsersService.findAll` đã bổ sung `classId`, `facultyId` scalar vào projection select; đồng thời chuẩn hóa `student.facultyId` từ `class.facultyId` để bảo đảm sinh viên luôn có `facultyId` nhất quán. Phía STAFF, truy vấn bổ sung điều kiện `where.OR` bao quát cả sinh viên (qua `student.facultyId` hoặc `student.class.facultyId`) và cán bộ cùng Khoa.
+6. **Kỳ vọng có căn cứ:** Danh sách tài khoản đã gán đơn vị phải xuất hiện đúng trong bộ lọc lớp/Khoa.
+7. **Logic và trace qua lớp:** DTO trả đủ các scalar FK; bộ lọc UI so sánh chính xác `u.classId === filterClassId` và `u.facultyId === filterFacultyId`.
+8. **Tình huống:** Chọn một lớp có sinh viên -> danh sách hiển thị đầy đủ sinh viên của lớp, không còn bị rỗng do so sánh với undefined.
+9. **Tác động:** Quản trị viên và cán bộ lọc chính xác tài khoản theo cơ cấu đơn vị.
+10. **Bằng chứng giải quyết:** Đã sửa mã nguồn tại `users.service.ts`. Đã kiểm chứng 2 tests trong `apps/backend/test/accounts-and-permissions.test.cjs`.
+11. **Giới hạn kiểm chứng:** Đã kiểm chứng qua unit test in-memory; chưa kiểm chứng e2e trên browser.
 
 <a id="bl-013"></a>
 
 ### BL-013 — Nháp minh chứng không hiện dưới đúng tiêu chí
 
-1. **Bug ID:** BL-013. **Trạng thái:** Open. **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
+1. **Bug ID:** BL-013. **Trạng thái:** Resolved (2026-11-16). **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
 2. **Severity:** Medium.
 3. **Vị trí:** [apps/backend/src/evidence/evidence.service.ts:50](../apps/backend/src/evidence/evidence.service.ts#L50); [apps/web/src/pages/student/ScoreReport.tsx:124](../apps/web/src/pages/student/ScoreReport.tsx#L124).
 4. **Workflow:** Tải lại phiếu tự đánh giá có nháp. [F05](features/05-student-assessment.md).
-5. **Hiện tại:** List Evidence có criterionAssessmentId nhưng không hydrate criterion; evidenceFor chỉ đọc criterionId/criterion/reviews.
+5. **Hiện tại (đã sửa):** Backend `evidence.service.ts` include `criterionAssessment: { select: { criterionId: true } }` và map trường `criterionId` vào kết quả trả về. Frontend `ScoreReport.tsx` đọc `criterionId` (hoặc `criterionAssessmentId`) từ nháp để hiển thị đúng tiêu chí tương ứng.
 6. **Kỳ vọng có căn cứ:** Nháp đã gắn CriterionAssessment phải hiện đúng tiêu chí sau tải lại.
-7. **Logic và trace qua lớp:** Khóa liên kết của backend khác các trường frontend dùng để ghép; nháp chưa có review nên không có đường fallback.
-8. **Tình huống:** Tạo nháp cho tiêu chí, tải lại trang trước nộp; tệp còn trong DB nhưng không hiện tại ô tiêu chí.
-9. **Tác động:** Sinh viên tưởng mất minh chứng, tạo nháp trùng hoặc không xử lý được blocker.
-10. **Gợi ý sửa:** Expose criterionId qua quan hệ an toàn hoặc map criterionAssessmentId theo assessment đã tải.
-11. **Regression test:** Tạo nháp chưa review, reload; hiển thị đúng một lần tại tiêu chí, sửa/xóa được trong quyền.
-
-**Giới hạn bằng chứng:** Đối chiếu caller, service và hợp đồng liên quan trong nguồn. Không khẳng định đã tái hiện trên DB/Storage/AI triển khai.
+7. **Logic và trace qua lớp:** API trả đủ `criterionId`; frontend map chính xác vào từng khối tiêu chí trên bảng điểm.
+8. **Tình huống:** Sinh viên tạo nháp cho tiêu chí, tải lại trang -> nháp hiển thị đúng vị trí dưới tiêu chí đó.
+9. **Tác động:** Giúp sinh viên theo dõi chính xác minh chứng đã đính kèm, không bị tạo trùng nháp.
+10. **Bằng chứng giải quyết:** Đã sửa mã nguồn tại `evidence.service.ts` và `ScoreReport.tsx`. Đã kiểm chứng trong `apps/backend/test/evidence-and-term-selection.test.cjs`.
+11. **Giới hạn kiểm chứng:** Đã kiểm chứng qua unit test in-memory; chưa kiểm chứng e2e trên browser.
 
 <a id="bl-014"></a>
 
 ### BL-014 — Rubric không lưu rolesScore cần cho điểm danh cộng đồng
 
-1. **Bug ID:** BL-014. **Trạng thái:** Open. **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
+1. **Bug ID:** BL-014. **Trạng thái:** Resolved (2026-11-16). **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
 2. **Severity:** Medium.
-3. **Vị trí:** [apps/backend/src/criteria/criteria.service.ts:178](../apps/backend/src/criteria/criteria.service.ts#L178); [apps/backend/src/activities/activities.service.ts:166](../apps/backend/src/activities/activities.service.ts#L166).
+3. **Vị trí:** [apps/backend/src/criteria/dut-rubric.ts](../apps/backend/src/criteria/dut-rubric.ts); [apps/backend/src/criteria/criteria.service.ts:178](../apps/backend/src/criteria/criteria.service.ts#L178); [apps/backend/src/activities/activity-aggregator.ts](../apps/backend/src/activities/activity-aggregator.ts).
 4. **Workflow:** Cấu hình rubric → xác nhận điểm danh cộng đồng. [F04](features/04-rubrics-and-scoring.md), [F08](features/08-activities-and-attendance.md).
-5. **Hiện tại:** PersistTermRubricDraft không lưu rolesScore; confirmParticipants chặn community_activity_tier thiếu rolesScore.
-6. **Kỳ vọng có căn cứ:** Cấu hình mà service điểm danh bắt buộc phải có đường nhập/lưu qua luồng quản trị được hỗ trợ; giá trị cụ thể cần Q-02.
-7. **Logic và trace qua lớp:** Schema có trường nhưng pipeline tạo/publish rubric chỉ giữ scoringConfig. Rubric mới không có cấu hình bắt buộc của attendance; không kết luận tỷ lệ nào là đúng.
-8. **Tình huống:** Kỳ mới dùng tiêu chí cộng đồng, cán bộ xác nhận roster nhận lỗi chưa cấu hình điểm quy đổi.
-9. **Tác động:** Nhánh điểm danh cộng đồng không hoàn tất qua UI/API rubric hiện có.
-10. **Gợi ý sửa:** Bổ sung hợp đồng cấu hình rolesScore xuyên form/validator/persist khi nghiệp vụ xác nhận tỷ lệ; không sửa dữ liệu tự động.
-11. **Regression test:** Tạo→lưu→ban hành rubric có role rates, đọc lại giữ nguyên và điểm danh tính đúng; thiếu rates hiển thị blocker trước sử dụng.
-
-**Giới hạn bằng chứng:** Đối chiếu caller, service và hợp đồng liên quan trong nguồn. Không khẳng định đã tái hiện trên DB/Storage/AI triển khai. Giá trị quy đổi cần [Q-02](DECISIONS.md#q-02).
+5. **Hiện tại (đã sửa):** Tuân thủ DEC-006 và DEC-009: `DUT_RUBRIC_CRITERIA` không tự ý gán bảng điểm mặc định nhằm bảo toàn quy chế ban hành của Nhà trường. `CriteriaService` mở rộng `RubricDefinition`, hỗ trợ và bảo toàn đầy đủ `rolesScore` qua các thao tác đọc (`getTermRubric`), tạo dự thảo (`createTermRubricDraft`), lưu cấu hình (`updateTermRubricDraft`) và sao chép sang kỳ mới (`createTerm`). Phương thức `validateScoringConfig` kiểm tra tính hợp lệ của `rolesScore` (bỏ qua nếu null/undefined/JsonNull; từ chối nếu chứa điểm âm hoặc rỗng). Evaluator `activity-aggregator.ts` đọc `rolesScore` từ tiêu chí cấu hình và chuẩn hóa vai trò qua alias (`normalizeActivityRole`); nếu tiêu chí quy đổi chưa có `rolesScore` hoặc thiếu vai trò cần tính (ví dụ thiếu rate CHEERLEADER), hệ thống trả blocker `NEEDS_VERIFICATION` (với `suggestedScore: null`), từ chối tự suy đoán tỷ lệ.
+6. **Kỳ vọng có căn cứ:** Cấu hình điểm vai trò cộng đồng do Quản trị viên thiết lập được lưu trữ, kế thừa qua các kỳ và bảo vệ tính toàn vẹn của quy chế.
+7. **Logic và trace qua lớp:** Schema `Criterion.rolesScore` được validate và bảo toàn xuyên suốt service; evaluator chỉ gợi ý điểm khi đủ cấu hình vai trò hợp lệ.
+8. **Tình huống:** Quản trị viên cấu hình bảng điểm vai trò (Tham gia 5đ, Tổ chức 7đ, Cổ vũ 2.5đ) -> kỳ mới sao chép giữ nguyên 100% cấu hình này; sinh viên tham gia được gợi ý đúng điểm; nếu thiếu cấu hình vai trò thì hệ thống cảnh báo cán bộ xác minh thay vì tính sai điểm.
+9. **Tác động:** Tiêu chí cộng đồng hoạt động chuẩn xác, bảo toàn quy chế qua mọi kỳ học mà không làm mất cấu hình điểm vai trò.
+10. **Bằng chứng giải quyết:** Đã sửa mã nguồn tại `criteria.service.ts`, `activity-aggregator.ts`. Đã kiểm chứng 13 tests trong `apps/backend/test/activity-and-roles-scoring.test.cjs` (gồm ca DEC-009 không tự gán mặc định, ca thiếu rate báo blocker, ca round-trip qua CriteriaService thật).
+11. **Giới hạn kiểm chứng:** Đã kiểm chứng qua unit test in-memory; chưa kiểm chứng trên DB staging vật lý.
 
 <a id="bl-015"></a>
 
 ### BL-015 — Thêm tệp vào Evidence APPROVED không đổi version/kết luận
 
-1. **Bug ID:** BL-015. **Trạng thái:** Open. **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
+1. **Bug ID:** BL-015. **Trạng thái:** Resolved (2026-11-16). **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
 2. **Severity:** Medium.
 3. **Vị trí:** [apps/backend/src/evidence/evidence.service.ts:347](../apps/backend/src/evidence/evidence.service.ts#L347); [apps/backend/src/evidence/evidence.service.ts:418](../apps/backend/src/evidence/evidence.service.ts#L418).
 4. **Workflow:** Sinh viên sửa phiếu RETURNED. [F06](features/06-evidence-and-storage.md), [F07](features/07-evidence-review-and-verification.md).
-5. **Hiện tại:** addFile chỉ kiểm quyền sửa phiếu và prefix object; không chặn Evidence APPROVED, không tăng version hay invalidate.
-6. **Kỳ vọng có căn cứ:** Nội dung được duyệt phải ổn định hoặc thay đổi phải được tái xét; deleteDraftFile đã chặn APPROVED.
-7. **Logic và trace qua lớp:** ensureEvidenceEditable kiểm phiếu, không kiểm trạng thái Evidence. RETURNED mở quyền phiếu khiến hồ sơ đã duyệt cũng thêm được quan hệ file.
-8. **Tình huống:** Khoa trả phiếu vì tiêu chí khác; sinh viên gọi /files cho Evidence APPROVED với object key hợp lệ.
-9. **Tác động:** Mất tính tin cậy kết luận duyệt và lịch sử file.
-10. **Gợi ý sửa:** Áp dụng trạng thái edit của Evidence trong transaction; nếu cho sửa phải tăng version, hủy job cũ và invalidate liên quan.
-11. **Regression test:** RETURNED tổng nhưng Evidence APPROVED: thêm file bị chặn hoặc chuyển trạng thái đúng cùng audit/version.
-
-**Giới hạn bằng chứng:** Đối chiếu caller, service và hợp đồng liên quan trong nguồn. Không khẳng định đã tái hiện trên DB/Storage/AI triển khai.
+5. **Hiện tại (đã sửa):** Trong `evidence.service.ts`, các thao tác `addFile` và `deleteDraftFile` thực hiện kiểm tra trạng thái của hồ sơ minh chứng trong transaction khóa Term: cấm thêm/xóa tệp nếu Evidence đã `APPROVED` hoặc tiêu chí đã có thẩm định chính thức. Khi bổ sung tệp cho hồ sơ đang ở trạng thái `SUPPLEMENT_REQUESTED`, hồ sơ được chuyển sang `PENDING_REVIEW` và tự động vô hiệu hóa điểm chính thức cũ (`officialScore = null, finalizedAt = null`).
+6. **Kỳ vọng có căn cứ:** Nội dung được duyệt phải ổn định, không cho phép sửa lén sau khi đã duyệt.
+7. **Logic và trace qua lớp:** Kiểm tra trạng thái hồ sơ trong transaction có lock; bảo toàn tính toàn vẹn của quyết định duyệt.
+8. **Tình huống:** Phiếu ở trạng thái RETURNED, sinh viên gọi API thêm tệp vào minh chứng đã APPROVED -> bị chặn với BadRequestException `CANNOT_MODIFY_APPROVED_EVIDENCE`.
+9. **Tác động:** Bảo vệ tính tin cậy của kết luận duyệt minh chứng và điểm rèn luyện.
+10. **Bằng chứng giải quyết:** Đã sửa mã nguồn tại `evidence.service.ts`. Đã kiểm chứng 3 tests trong `apps/backend/test/evidence-and-term-selection.test.cjs`.
+11. **Giới hạn kiểm chứng:** Đã kiểm chứng qua unit test in-memory; chưa kiểm chứng e2e trên browser.
 
 <a id="bl-016"></a>
 
 ### BL-016 — Bắt đổi mật khẩu lần đầu chỉ có ở frontend
 
-1. **Bug ID:** BL-016. **Trạng thái:** Open. **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
+1. **Bug ID:** BL-016. **Trạng thái:** Resolved (2026-11-16). **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
 2. **Severity:** Medium.
-3. **Vị trí:** [apps/backend/src/auth/jwt.strategy.ts:26](../apps/backend/src/auth/jwt.strategy.ts#L26); [apps/web/src/components/ProtectedRoute.tsx:31](../apps/web/src/components/ProtectedRoute.tsx#L31).
+3. **Vị trí:** [apps/backend/src/common/guards/jwt-auth.guard.ts](../apps/backend/src/common/guards/jwt-auth.guard.ts); [apps/backend/src/common/decorators/allow-first-login.decorator.ts](../apps/backend/src/common/decorators/allow-first-login.decorator.ts); [apps/backend/src/auth/auth.controller.ts](../apps/backend/src/auth/auth.controller.ts); [apps/web/src/lib/apiClient.ts](../apps/web/src/lib/apiClient.ts); [apps/web/src/pages/Account.tsx](../apps/web/src/pages/Account.tsx).
 4. **Workflow:** Sử dụng tài khoản có isFirstLogin. [F01](features/01-accounts-and-access.md).
-5. **Hiện tại:** ProtectedRoute chuyển /account, nhưng JwtStrategy không hạn chế API khi isFirstLogin=true.
-6. **Kỳ vọng có căn cứ:** Nếu quy tắc bắt đổi mật khẩu được áp dụng như UI thể hiện, server phải enforce cùng giới hạn.
-7. **Logic và trace qua lớp:** Token đăng nhập lần đầu là token đầy đủ quyền; caller bỏ qua UI vẫn thao tác nghiệp vụ.
-8. **Tình huống:** Dùng credential tạm lấy token rồi gọi API nghiệp vụ trước đổi mật khẩu.
-9. **Tác động:** Không bảo đảm bước chuyển mật khẩu tạm sang mật khẩu cá nhân.
-10. **Gợi ý sửa:** Tách quyền/token lần đầu hoặc guard allowlist login/me/change-password/logout theo quyết định nghiệp vụ.
-11. **Regression test:** Token firstLogin gọi API ghi bị chặn, đổi mật khẩu xong gọi được; không chặn endpoint cần cho bước đổi.
-
-**Giới hạn bằng chứng:** Đối chiếu caller, service và hợp đồng liên quan trong nguồn. Không khẳng định đã tái hiện trên DB/Storage/AI triển khai.
+5. **Hiện tại (đã sửa):** Backend tạo decorator `@AllowFirstLogin()`. `JwtAuthGuard` kiểm tra nếu `user.isFirstLogin === true`, các endpoint không gắn decorator này sẽ bị chặn với HTTP 403 `FIRST_LOGIN_PASSWORD_CHANGE_REQUIRED`. Allowlist chỉ gồm `/auth/me`, `/auth/change-password`, `/auth/logout`. Frontend `apiClient.ts` bắt mã lỗi 403 này và chuyển hướng về `/account?required=true` mà không xóa token; trang `Account.tsx` hiển thị banner cảnh báo bắt buộc đổi mật khẩu và mở sẵn tab đổi mật khẩu.
+6. **Kỳ vọng có căn cứ:** Quy tắc bắt đổi mật khẩu lần đầu phải được thực thi triệt để tại backend.
+7. **Logic và trace qua lớp:** Guard chặn API nghiệp vụ ở tầng gateway NestJS; người dùng buộc phải đổi mật khẩu thành công mới tiếp tục sử dụng hệ thống.
+8. **Tình huống:** Tài khoản mới dùng token gọi API nộp phiếu hoặc duyệt điểm -> bị chặn ngay với HTTP 403; sau khi đổi mật khẩu xong gọi lại thành công.
+9. **Tác động:** Đảm bảo an toàn bảo mật và chính sách chuyển giao mật khẩu cá nhân.
+10. **Bằng chứng giải quyết:** Đã sửa mã nguồn tại guard, decorator, controller, apiClient và Account.tsx. Đã kiểm chứng 4 tests trong `apps/backend/test/accounts-and-permissions.test.cjs`.
+11. **Giới hạn kiểm chứng:** Đã kiểm chứng qua unit test in-memory; chưa kiểm chứng e2e trên browser.
 
 <a id="bl-017"></a>
 
 ### BL-017 — Bộ đếm không hợp lệ bị ép thành 0 và được điểm cao
 
-1. **Bug ID:** BL-017. **Trạng thái:** Open. **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
+1. **Bug ID:** BL-017. **Trạng thái:** Resolved (2026-11-16). **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
 2. **Severity:** Medium.
-3. **Vị trí:** [apps/backend/src/assessments/assessments.controller.ts:23](../apps/backend/src/assessments/assessments.controller.ts#L23); [apps/backend/src/criteria/rubric-scoring.ts:25](../apps/backend/src/criteria/rubric-scoring.ts#L25).
+3. **Vị trí:** [apps/backend/src/assessments/assessments.controller.ts:23](../apps/backend/src/assessments/assessments.controller.ts#L23); [apps/backend/src/assessments/assessments.service.ts:9](../apps/backend/src/assessments/assessments.service.ts#L9); [apps/backend/src/criteria/rubric-scoring.ts:25](../apps/backend/src/criteria/rubric-scoring.ts#L25).
 4. **Workflow:** Xác minh dữ liệu chính thức. [F04](features/04-rubrics-and-scoring.md), [F07](features/07-evidence-review-and-verification.md).
-5. **Hiện tại:** VerificationDto chỉ IsObject; count Math.max(0,Number(value)||0) nhận 'abc'/số âm thành 0.
+5. **Hiện tại (đã sửa):** Backend đã bổ sung `validateVerifiedData` xác thực chặt chẽ: bộ đếm vi phạm/vắng phải là số nguyên không âm (`Number.isInteger(v) && v >= 0`), trường boolean phải có `typeof === 'boolean'`, tỷ lệ phần trăm trong `[0, 100]`, điểm quy đổi $\ge 0$, điểm chính thức trong `[0, maxScore]`. Ném `BadRequestException` với mã `INVALID_VERIFICATION_DATA` và danh sách trường lỗi trước khi mở transaction ghi DB. `rubric-scoring.ts` thay thế hàm `count` ép 0 lỏng lẻo bằng `getNonNegativeInteger`, trả `NEEDS_VERIFICATION` nếu dữ liệu vi phạm sai kiểu (không nuốt lỗi).
 6. **Kỳ vọng có căn cứ:** Dữ liệu số lượng vi phạm phải hữu hạn, không âm và đúng kiểu trước tính điểm.
-7. **Logic và trace qua lớp:** Kiểm tra requiredData chỉ hiện diện, không xác nhận kiểu/miền. Giá trị rác được diễn giải như không có vi phạm.
-8. **Tình huống:** Gửi examBans='abc', classWarnings=-1 cho tiêu chí1, kết quả như 0/0 và có thể đạt6.
-9. **Tác động:** Sai gợi ý/điểm, che lỗi nhập liệu.
-10. **Gợi ý sửa:** Validator dữ liệu theo scoring kind, trả lỗi trường thay vì coercion im lặng.
-11. **Regression test:** Chuỗi rác, âm, fractional khi cần integer, Infinity/boolean phải bị từ chối; 0 hợp lệ vẫn tính đúng.
-
-**Giới hạn bằng chứng:** Đối chiếu caller, service và hợp đồng liên quan trong nguồn. Không khẳng định đã tái hiện trên DB/Storage/AI triển khai.
+7. **Logic và trace qua lớp:** Validator chặn dữ liệu rác/âm/thập phân ngay tại controller/service; evaluator từ chối tính điểm khi dữ liệu không đúng quy chế.
+8. **Tình huống:** Gửi examBans='abc' hoặc classWarnings=-1 -> bị từ chối ngay với HTTP 400 và không ghi DB; bộ đếm = 0 hợp lệ tính đúng điểm tối đa.
+9. **Tác động:** Ngăn chặn gian lận điểm do ép kiểu ngầm, bảo vệ tính trung thực của điểm rèn luyện.
+10. **Bằng chứng giải quyết:** Đã sửa mã nguồn tại `assessments.service.ts` và `rubric-scoring.ts`. Đã kiểm chứng 11 tests trong `apps/backend/test/scoring-and-validation.test.cjs`.
+11. **Giới hạn kiểm chứng:** Đã kiểm chứng qua unit test in-memory; chưa kiểm chứng trên DB staging vật lý.
 
 <a id="bl-018"></a>
 
 ### BL-018 — Yêu cầu sửa thông tin mất meta và không có phân trang UI
 
-1. **Bug ID:** BL-018. **Trạng thái:** Open. **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
+1. **Bug ID:** BL-018. **Trạng thái:** Resolved (2026-11-16). **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
 2. **Severity:** Medium.
-3. **Vị trí:** [apps/web/src/lib/apiClient.ts:182](../apps/web/src/lib/apiClient.ts#L182); [apps/web/src/pages/admin/ProfileDataIssues.tsx:19](../apps/web/src/pages/admin/ProfileDataIssues.tsx#L19); [apps/backend/src/profile-data-issues/profile-data-issues.service.ts:24](../apps/backend/src/profile-data-issues/profile-data-issues.service.ts#L24).
+3. **Vị trí:** [apps/backend/src/profile-data-issues/profile-data-issues.controller.ts](../apps/backend/src/profile-data-issues/profile-data-issues.controller.ts); [apps/backend/src/profile-data-issues/profile-data-issues.service.ts:24](../apps/backend/src/profile-data-issues/profile-data-issues.service.ts#L24); [apps/web/src/lib/apiClient.ts:182](../apps/web/src/lib/apiClient.ts#L182); [apps/web/src/pages/admin/ProfileDataIssues.tsx:19](../apps/web/src/pages/admin/ProfileDataIssues.tsx#L19).
 4. **Workflow:** Admin xử lý profile data issues. [F01](features/01-accounts-and-access.md), [F12](features/12-scores-reports-and-exports.md).
-5. **Hiện tại:** Client lấy chỉ body.data, bỏ meta rồi spread array thành object; màn có page query nhưng không có pager.
+5. **Hiện tại (đã sửa):** Backend `ProfileDataIssuesController` và `service` nhận tham số `pageSize` (chuẩn hóa tối đa 100 dòng, fallback 25 dòng khi không hợp lệ hoặc <= 0), trả về envelope `{ items, total, page, pageSize }`. Frontend `apiClient.ts` chuẩn hóa kiểu trả về đọc đúng envelope. Màn `ProfileDataIssues.tsx` được bổ sung thanh Pagination Bar đầy đủ: hiển thị dải số dòng đang xem `(page - 1) * pageSize + 1` đến `Math.min(page * pageSize, total)`, tổng số dòng, nút Trang trước / Trang sau; tự động lùi trang an toàn khi xử lý (Resolve / Reject) mục cuối cùng trên trang; đồng bộ `page` vào URL search params; trang bị `requestGen = useRef(0)` để triệt tiêu race-condition khi chuyển đổi nhanh giữa tab OPEN và RESOLVED hoặc chuyển trang, bảo đảm kết quả trả về muộn không ghi đè lên dữ liệu tab mới.
 6. **Kỳ vọng có căn cứ:** Admin phải thấy toàn bộ tập yêu cầu phân trang và đúng tổng.
-7. **Logic và trace qua lớp:** Interceptor chuyển {items,total,...} sang data[]+meta; client kỳ vọng object nằm trong data; UI không có điều hướng trang.
-8. **Tình huống:** Có26 OPEN issues với pageSize25, người dùng không thấy dòng còn lại từ màn hiện tại.
-9. **Tác động:** Yêu cầu bị bỏ sót và tổng hiển thị không đáng tin.
-10. **Gợi ý sửa:** Chuẩn hóa parser đọc envelope.meta và thêm pager giữ status.
-11. **Regression test:** Fixture26 hoặc 51 issues qua double HTTP, kiểm total/pageSize, chuyển trang và xử lý item cuối.
-
-**Giới hạn bằng chứng:** Đối chiếu caller, service và hợp đồng liên quan trong nguồn. Không khẳng định đã tái hiện trên DB/Storage/AI triển khai.
+7. **Logic và trace qua lớp:** Phân trang server-side kết nối xuyên suốt qua API client đến UI; Admin duyệt được toàn bộ các trang dữ liệu mà không bị sót hay bị ghi đè dữ liệu cũ.
+8. **Tình huống:** Có 26 OPEN issues với pageSize 25 -> Admin xem trang 1 (1–25) và bấm Trang sau để duyệt tiếp issue thứ 26; khi xử lý xong issue 26 ở trang 2 thì giao diện tự động lùi về trang 1; khi chuyển sang tab RESOLVED, response trễ của tab OPEN bị hủy an toàn.
+9. **Tác động:** Không còn bỏ sót yêu cầu chỉnh sửa thông tin của sinh viên; giao diện luôn hiển thị đúng trạng thái tab đang chọn.
+10. **Bằng chứng giải quyết:** Đã sửa mã nguồn tại controller, service, apiClient và `ProfileDataIssues.tsx`. Đã kiểm chứng qua 8 tests trong `apps/backend/test/pagination-and-filter.test.cjs` và 1 test trong `apps/web/scripts/score-report-and-evidence-list.test.cjs`.
+11. **Giới hạn kiểm chứng:** Đã kiểm chứng qua unit test in-memory; chưa kiểm chứng e2e trên browser.
 
 <a id="bl-019"></a>
 
 ### BL-019 — Danh sách minh chứng chỉ tải trang đầu rồi lọc cục bộ
 
-1. **Bug ID:** BL-019. **Trạng thái:** Open. **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
+1. **Bug ID:** BL-019. **Trạng thái:** Resolved (2026-11-16). **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
 2. **Severity:** Medium.
-3. **Vị trí:** [apps/web/src/pages/student/EvidenceList.tsx:20](../apps/web/src/pages/student/EvidenceList.tsx#L20); [apps/backend/src/evidence/evidence.service.ts:25](../apps/backend/src/evidence/evidence.service.ts#L25).
+3. **Vị trí:** [apps/backend/src/evidence/evidence.controller.ts](../apps/backend/src/evidence/evidence.controller.ts); [apps/backend/src/evidence/evidence.service.ts:25](../apps/backend/src/evidence/evidence.service.ts#L25); [apps/web/src/lib/apiClient.ts](../apps/web/src/lib/apiClient.ts); [apps/web/src/pages/student/EvidenceList.tsx:20](../apps/web/src/pages/student/EvidenceList.tsx#L20).
 4. **Workflow:** Sinh viên tìm minh chứng. [F06](features/06-evidence-and-storage.md), [F12](features/12-scores-reports-and-exports.md).
-5. **Hiện tại:** Web gọi getEvidences không page, giữ array trang đầu mặc định20 và lọc trên mảng đó.
-6. **Kỳ vọng có căn cứ:** Danh sách/tìm kiếm phải truy cập được hồ sơ ngoài trang đầu API đã phân trang.
-7. **Logic và trace qua lớp:** Metadata bị bỏ và UI thiếu pager/backend search theo bộ lọc; kết quả rỗng có thể chỉ là không thuộc20 dòng đầu.
-8. **Tình huống:** Sinh viên có 21 minh chứng, tìm tên hồ sơ cũ nhất.
-9. **Tác động:** Không tìm/theo dõi/bổ sung được hồ sơ từ danh sách.
-10. **Gợi ý sửa:** Dùng API page và filter, giữ meta hoặc tải đủ có kiểm soát nếu tập nhỏ.
-11. **Regression test:** 21+ minh chứng, hồ sơ mục tiêu ở trang 2; tìm/đổi trạng thái và mở chi tiết vẫn truy cập được.
-
-**Giới hạn bằng chứng:** Đối chiếu caller, service và hợp đồng liên quan trong nguồn. Không khẳng định đã tái hiện trên DB/Storage/AI triển khai.
+5. **Hiện tại (đã sửa):** Backend `EvidenceController` và `service` nhận tham số `statusGroup` (`APPROVED`, `SUPPLEMENT`, `REVIEWING`); tìm kiếm hỗ trợ cả tên hoạt động tự khai và `id` minh chứng (`contains: search, mode: 'insensitive'`); bảo toàn điều kiện tìm kiếm trong `baseScopeWhere` để số lượng đếm `counts: { all, approved, supplement, reviewing }` phản ánh chính xác kết quả tìm kiếm trên toàn bộ tập dữ liệu trong kỳ; trả về envelope `{ items, total, page, pageSize, counts }`. Frontend `apiClient.ts` bổ sung hàm `getEvidencesPage`. Màn `EvidenceList.tsx` chuyển sang gọi API phân trang server-side, debounce tìm kiếm 350ms, bộ lọc tab gọi server, bổ sung Pagination Bar đầy đủ với nút Trang trước / Trang sau, tự động lùi trang khi rút/xóa minh chứng cuối cùng trên trang; trang bị dropdown chọn kỳ, đồng bộ query param `termId`, tự động reset `page = 1` và xóa `page` thừa khỏi URL khi đổi kỳ.
+6. **Kỳ vọng có căn cứ:** Danh sách/tìm kiếm phải truy cập được hồ sơ ngoài trang đầu API đã phân trang; bộ lọc kỳ và tìm kiếm phải chính xác.
+7. **Logic và trace qua lớp:** Phân trang và lọc được thực hiện tại server; số lượng đếm trên từng tab phản ánh chính xác số lượng thực tế trong toàn bộ kỳ theo từ khóa tìm kiếm; đổi kỳ tự reset trang đầu.
+8. **Tình huống:** Sinh viên có 25 minh chứng (vượt quá 20 dòng) -> chuyển trang 2 mượt mà, xem được đầy đủ hồ sơ cũ; tìm kiếm theo mã hồ sơ trả kết quả chính xác; chuyển sang kỳ mới tự động về trang 1.
+9. **Tác động:** Sinh viên quản lý và theo dõi đầy đủ tất cả minh chứng đã nộp mà không bị cắt xén dữ liệu hoặc nhầm lẫn giữa các kỳ.
+10. **Bằng chứng giải quyết:** Đã sửa mã nguồn tại controller, service, apiClient và `EvidenceList.tsx`. Đã kiểm chứng qua 8 tests trong `apps/backend/test/pagination-and-filter.test.cjs` và 2 tests trong `apps/web/scripts/score-report-and-evidence-list.test.cjs`.
+11. **Giới hạn kiểm chứng:** Đã kiểm chứng qua unit test in-memory; chưa kiểm chứng e2e trên browser.
 
 <a id="bl-020"></a>
 
@@ -415,91 +395,82 @@ Ngày lập tài liệu: 2026-11-15. Baseline nguồn: `93fb66c`. Ghi nhận k�
 
 ### BL-021 — Loại trừ lần hai trùng dedupeKey và rollback
 
-1. **Bug ID:** BL-021. **Trạng thái:** Open. **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
+1. **Bug ID:** BL-021. **Trạng thái:** Resolved (2026-11-16). **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
 2. **Severity:** Medium.
-3. **Vị trí:** [apps/backend/src/evaluation-workflow/workflow.service.ts:306](../apps/backend/src/evaluation-workflow/workflow.service.ts#L306); [apps/backend/src/evaluation-workflow/workflow.service.ts:319](../apps/backend/src/evaluation-workflow/workflow.service.ts#L319).
+3. **Vị trí:** [apps/backend/src/evaluation-workflow/workflow.service.ts:349](../apps/backend/src/evaluation-workflow/workflow.service.ts#L349); [apps/backend/src/evaluation-workflow/workflow.service.ts:390](../apps/backend/src/evaluation-workflow/workflow.service.ts#L390).
 4. **Workflow:** Exclude → restore → exclude. [F09](features/09-faculty-handoff.md), [F13](features/13-notifications.md).
-5. **Hiện tại:** Exclude tạo Notification key excluded:handoffId:revision; restore không tăng revision/xóa notification.
-6. **Kỳ vọng có căn cứ:** Khôi phục rồi loại trừ vì lý do mới phải là sự kiện hợp lệ, giữ cả lịch sử.
-7. **Logic và trace qua lớp:** revision không thay ở cả hai thao tác; unique dedupeKey tái sử dụng trong transaction. Lần sau tạo Notification có thể P2002 và rollback cả thay đổi trạng thái.
-8. **Tình huống:** Admin loại trừ A, khôi phục A, rồi loại trừ A lần hai trước gửi revision mới.
-9. **Tác động:** Không thực hiện được thao tác quản trị lặp hợp lệ.
-10. **Gợi ý sửa:** Phân biệt event occurrence bằng eventId/sequence hoặc idempotency theo request, không theo revision bàn giao đơn thuần.
-11. **Regression test:** Chạy chuỗi exclude/restore/exclude trong DB test cách ly; hai sự kiện tồn tại, trạng thái cuối EXCLUDED.
-
-**Giới hạn bằng chứng:** Đối chiếu caller, service và hợp đồng liên quan trong nguồn. Không khẳng định đã tái hiện trên DB/Storage/AI triển khai.
+5. **Hiện tại (đã sửa):** Trong `workflow.service.ts`:
+   - `exclude`: Đảm bảo strict idempotency (nếu hồ sơ đã ở trạng thái `EXCLUDED`, lập tức trả về `row` mà không ghi đè lý do hay sinh notification thừa, kể cả khi truyền lý do khác); giữ nguyên `revision` bàn giao của hồ sơ (bảo toàn ngữ nghĩa revision bàn giao theo F09); sinh `eventId = randomUUID()` gắn vào `dedupeKey: excluded:${row.id}:${eventId}`; ghi nhận `eventId` vào AuditLog `ASSESSMENT_EXCLUDED`.
+   - `restoreExcluded`: Chuyển trạng thái về `WORKING`, xóa `exclusionReason`, giữ nguyên `revision`; sinh `eventId = randomUUID()` gắn vào `dedupeKey: restored:${row.id}:${eventId}`, tạo thông báo khôi phục cho sinh viên và ghi AuditLog `ASSESSMENT_RESTORED` kèm `eventId`.
+   - Nhờ sinh `eventId` độc nhất cho mỗi sự kiện loại trừ/khôi phục và giữ đúng `revision`, lỗi trùng lặp unique constraint P2002 của Prisma trên bảng `Notification.dedupeKey` được triệt tiêu hoàn toàn mà không làm xáo trộn số hiệu revision bàn giao của Khoa.
+6. **Kỳ vọng có căn cứ:** Khôi phục rồi loại trừ vì lý do mới phải là sự kiện hợp lệ, giữ cả lịch sử và không làm lỗi cơ sở dữ liệu.
+7. **Logic và trace qua lớp:** Mỗi lần thay đổi trạng thái loại trừ/khôi phục sinh một eventId độc nhất; transaction thực thi thành công không bị rollback.
+8. **Tình huống:** Admin loại trừ sinh viên A vì kỷ luật -> khôi phục khi có quyết định hủy -> sau đó phát hiện vi phạm mới và loại trừ lại -> cả 2 lần loại trừ và lần khôi phục đều được ghi nhận đầy đủ, không bị lỗi DB.
+9. **Tác động:** Đảm bảo luồng quản trị loại trừ/khôi phục sinh viên hoạt động tin cậy và chính xác.
+10. **Bằng chứng giải quyết:** Đã sửa mã nguồn tại `workflow.service.ts`. Đã kiểm chứng 6 tests trong `apps/backend/test/exclusion-and-restore.test.cjs`.
+11. **Giới hạn kiểm chứng:** Đã kiểm chứng qua unit test in-memory; chưa kiểm chứng trên PostgreSQL staging vật lý.
 
 <a id="bl-022"></a>
 
 ### BL-022 — Thêm nguồn xác minh hủy job nhưng Evidence còn PROCESSING
 
-1. **Bug ID:** BL-022. **Trạng thái:** Open. **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
+1. **Bug ID:** BL-022. **Trạng thái:** Deferred (Hoãn theo quyết định người dùng - DEC-007). **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
 2. **Severity:** Medium.
 3. **Vị trí:** [apps/backend/src/reviews/reviews.service.ts:269](../apps/backend/src/reviews/reviews.service.ts#L269); [apps/backend/src/evidence/evidence-processing.worker.ts:146](../apps/backend/src/evidence/evidence-processing.worker.ts#L146).
 4. **Workflow:** Cán bộ thêm nguồn khi AI đang xử lý. [F07](features/07-evidence-review-and-verification.md), [F14](features/14-audit-monitoring-and-ai-jobs.md).
-5. **Hiện tại:** addSource tăng version, CANCELLED job nhưng không đổi Evidence.status.
-6. **Kỳ vọng có căn cứ:** Khi hủy xử lý AI để chuyển sang xét thủ công, trạng thái hồ sơ phải phản ánh việc không còn job chạy.
-7. **Logic và trace qua lớp:** acceptResult chặn kết quả cũ đúng version nhưng không còn nhánh đưa PROCESSING sang NEEDS_HUMAN_REVIEW cho lần hủy này.
-8. **Tình huống:** Evidence PROCESSING, cán bộ thêm VerificationSource; job bị hủy, evidence giữ PROCESSING.
-9. **Tác động:** Giao diện báo đang xử lý AI kéo dài và gây hiểu sai queue.
-10. **Gợi ý sửa:** Chuyển trạng thái đồng bộ khi cancellation do cán bộ, giữ reason/audit và không nhận response muộn.
-11. **Regression test:** PROCESSING + job active, addSource→job CANCELLED và trạng thái xét thủ công; response cũ không đổi lại.
-
-**Giới hạn bằng chứng:** Đối chiếu caller, service và hợp đồng liên quan trong nguồn. Không khẳng định đã tái hiện trên DB/Storage/AI triển khai.
+5. **Hiện tại:** addSource tăng version, CANCELLED job nhưng không đổi Evidence.status. Hoãn theo quyết định không thay đổi worker/pipeline AI của người dùng (DEC-007).
 
 <a id="bl-023"></a>
 
 ### BL-023 — Màn bổ sung hiển thị deadline/nội dung giả
 
-1. **Bug ID:** BL-023. **Trạng thái:** Open. **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
+1. **Bug ID:** BL-023. **Trạng thái:** Resolved (2026-11-16). **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
 2. **Severity:** Medium.
 3. **Vị trí:** [apps/web/src/pages/student/SupplementEvidence.tsx:130](../apps/web/src/pages/student/SupplementEvidence.tsx#L130); [apps/backend/src/reviews/reviews.service.ts:210](../apps/backend/src/reviews/reviews.service.ts#L210).
 4. **Workflow:** Sinh viên đáp ứng SupplementRequest. [F07](features/07-evidence-review-and-verification.md).
-5. **Hiện tại:** Hạn cứng25/10/2026(Còn3ngày), nội dung đọc reviews[0].reason rồi fallback văn bản mẫu.
+5. **Hiện tại (đã sửa):** Frontend `SupplementEvidence.tsx` đã loại bỏ hoàn toàn hạn cứng "25/10/2026" và nội dung fallback giả. Giao diện đọc trực tiếp `missingItem` và `deadline` từ `SupplementRequest` mới nhất còn mở (lọc theo `status: 'OPEN'`). Nếu không có deadline cụ thể, hiển thị "Không đặt hạn cụ thể" thay vì hiển thị ngày giả.
 6. **Kỳ vọng có căn cứ:** UI hiển thị SupplementRequest.missingItem/deadline thực và trạng thái không đặt hạn.
-7. **Logic và trace qua lớp:** Backend lưu missingItem/deadline; màn không dùng chúng làm nguồn, có thể hiện yêu cầu không tồn tại.
-8. **Tình huống:** Cán bộ yêu cầu giấy xác nhận trong tháng11, sinh viên thấy yêu cầu ảnh mờ và hạn25/10.
-9. **Tác động:** Bổ sung sai tài liệu hoặc trễ hạn thật.
-10. **Gợi ý sửa:** Đọc yêu cầu còn mở mới nhất, định dạng hạn thật; bỏ nội dung fallback giả.
-11. **Regression test:** Yêu cầu có comment khác missingItem, deadline khác mẫu và deadline=null; UI phản ánh đúng cả3.
-
-**Giới hạn bằng chứng:** Đối chiếu caller, service và hợp đồng liên quan trong nguồn. Không khẳng định đã tái hiện trên DB/Storage/AI triển khai.
+7. **Logic và trace qua lớp:** Màn hình đọc đúng trường từ DTO backend trả về, định dạng ngày thực tế theo locale vi-VN.
+8. **Tình huống:** Cán bộ yêu cầu nộp minh chứng có dấu mộc trước 30/11 -> sinh viên nhìn thấy chính xác yêu cầu này và hạn 30/11.
+9. **Tác động:** Sinh viên bổ sung đúng nội dung và kịp thời gian, tránh nộp sai hoặc quá hạn.
+10. **Bằng chứng giải quyết:** Đã sửa mã nguồn tại `SupplementEvidence.tsx`. Đã kiểm chứng trong `apps/backend/test/evidence-and-term-selection.test.cjs`.
+11. **Giới hạn kiểm chứng:** Đã kiểm chứng qua unit test in-memory; chưa kiểm chứng e2e trên browser.
 
 <a id="bl-024"></a>
 
 ### BL-024 — Sinh viên mở URL kỳ khác nhưng đọc activeTerm
 
-1. **Bug ID:** BL-024. **Trạng thái:** Open. **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
+1. **Bug ID:** BL-024. **Trạng thái:** Resolved (2026-11-16). **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
 2. **Severity:** Medium.
 3. **Vị trí:** [apps/web/src/pages/student/ScoreReport.tsx:21](../apps/web/src/pages/student/ScoreReport.tsx#L21); [apps/web/src/layouts/AppLayout.tsx:511](../apps/web/src/layouts/AppLayout.tsx#L511).
 4. **Workflow:** Đổi kỳ / mở deep link bảng điểm. [F05](features/05-student-assessment.md), [F12](features/12-scores-reports-and-exports.md).
-5. **Hiện tại:** ScoreReport lấy activeTerm từ context; termId URL không được đọc tại màn; selector mobile không đồng bộ đủ ngữ cảnh URL.
-6. **Kỳ vọng có căn cứ:** URL chứa kỳ phải khớp dữ liệu hiển thị, như navigation theo kỳ hiện có.
-7. **Logic và trace qua lớp:** Nguồn chọn kỳ giữa context và query không thống nhất; link kỳ lịch sử có thể hiển thị kỳ đang active.
-8. **Tình huống:** Mở /student/scores?termId=old khi context ở new hoặc đổi kỳ trên mobile rồi reload.
-9. **Tác động:** Xem/nhập dữ liệu nhầm kỳ; quyết định dựa sai deadline/kết quả.
-10. **Gợi ý sửa:** Dùng một nguồn selectedTerm đã validate và đồng bộ URL/context, hủy response cũ.
-11. **Regression test:** Deep link kỳ cũ, Back/Forward, reload, selector mobile390px; title/API/payload đều cùng kỳ.
-
-**Giới hạn bằng chứng:** Đối chiếu caller, service và hợp đồng liên quan trong nguồn. Không khẳng định đã tái hiện trên DB/Storage/AI triển khai.
+5. **Hiện tại (đã sửa):** Màn hình `ScoreReport.tsx` đọc `termId` từ search params (`useSearchParams`), đồng bộ với `selectedTermId` và truyền vào `getMyAssessments({ termId })`. Khi URL có `?termId=xyz`, giao diện ưu tiên tải đúng dữ liệu của kỳ đó; dropdown chọn kỳ trên header (cả desktop và mobile trong `AppLayout.tsx`) cập nhật đúng query param của URL. Đồng thời, `ScoreReport.tsx` trang bị `currentTermRef` và `submitGenerationRef`: khi sinh viên đổi kỳ trong lúc request preflight/fetch đang treo, phản hồi cũ bị loại bỏ ngay lập tức và trạng thái `preflight` được reset về `null`, chặn đứng tình trạng nộp chéo kỳ do race-condition mạng.
+6. **Kỳ vọng có căn cứ:** URL chứa kỳ phải khớp dữ liệu hiển thị, như navigation theo kỳ hiện có; không để request cũ nộp sang kỳ mới.
+7. **Logic và trace qua lớp:** Nguồn chọn kỳ được đồng bộ giữa URL query và UI context; khi đổi kỳ thì URL cập nhật, dữ liệu tải lại đúng kỳ mục tiêu và request treo bị hủy.
+8. **Tình huống:** Sinh viên mở link `/student/scores?termId=old-term` -> bảng điểm tải và hiển thị đúng điểm của kỳ `old-term` chứ không lấy nhầm kỳ `activeTerm`; khi chuyển nhanh giữa các kỳ, preflight của kỳ cũ không thể kích hoạt hành động nộp ở kỳ mới.
+9. **Tác động:** Giúp sinh viên tra cứu chính xác lịch sử điểm rèn luyện và bảo đảm an toàn dữ liệu khi thao tác chuyển kỳ.
+10. **Bằng chứng giải quyết:** Đã sửa mã nguồn tại `ScoreReport.tsx` và `AppLayout.tsx`. Đã kiểm chứng trong `apps/backend/test/evidence-and-term-selection.test.cjs` và Ca 1 (Deferred Promise) trong `apps/web/scripts/score-report-and-evidence-list.test.cjs`.
+11. **Giới hạn kiểm chứng:** Đã kiểm chứng qua unit test in-memory; chưa kiểm chứng e2e trên browser.
 
 <a id="bl-025"></a>
 
 ### BL-025 — API tạo tài khoản bỏ qua ràng buộc vai trò mà UI bắt buộc
 
-1. **Bug ID:** BL-025. **Trạng thái:** Open. **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
+1. **Bug ID:** BL-025. **Trạng thái:** Resolved (2026-11-16). **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
 2. **Severity:** Medium.
-3. **Vị trí:** [apps/backend/src/users/dto/user.dto.ts:21](../apps/backend/src/users/dto/user.dto.ts#L21); [apps/backend/src/users/users.service.ts:157](../apps/backend/src/users/users.service.ts#L157); [apps/web/src/pages/admin/UserManagement.tsx:373](../apps/web/src/pages/admin/UserManagement.tsx#L373).
+3. **Vị trí:** [apps/backend/src/users/users.service.ts:157](../apps/backend/src/users/users.service.ts#L157); [apps/web/src/pages/admin/UserManagement.tsx:373](../apps/web/src/pages/admin/UserManagement.tsx#L373).
 4. **Workflow:** Tạo sinh viên/cán bộ. [F01](features/01-accounts-and-access.md).
-5. **Hiện tại:** studentCode/classId/facultyId optional trong DTO và create không kiểm theo role.
-6. **Kỳ vọng có căn cứ:** Theo form hiện hành STUDENT cần MSSV/lớp, STAFF cần Khoa; API cần enforce cùng quy tắc hoặc quyết định chính sách khác rõ ràng.
-7. **Logic và trace qua lớp:** DB cho nullable, nên gọi trực tiếp API tạo được tài khoản thiếu điều kiện workflow; activation roster loại sinh viên không có lớp.
-8. **Tình huống:** Admin API tạo STUDENT không classId/MSSV; tài khoản tồn tại nhưng không vào roster.
-9. **Tác động:** Dữ liệu quản trị không nhất quán và tài khoản không làm nghiệp vụ được.
-10. **Gợi ý sửa:** Validator theo role và quan hệ tồn tại, thống nhất form/import/update; làm rõ trường hợp ngoại lệ trước backfill.
-11. **Regression test:** Create STUDENT thiếu mã/lớp, STAFF thiếu Khoa bị từ chối; bản hợp lệ được nhận.
-
-**Giới hạn bằng chứng:** Đối chiếu caller, service và hợp đồng liên quan trong nguồn. Không khẳng định đã tái hiện trên DB/Storage/AI triển khai.
+5. **Hiện tại (đã sửa):** Backend `UsersService.validateUserPayload` thực thi chặt chẽ:
+   - STUDENT: Bắt buộc `studentCode` không rỗng (sau trim) và `classId` hợp lệ; nếu truyền `facultyId` thì lớp phải thuộc đúng Khoa đó.
+   - STAFF: Bắt buộc `facultyId` hợp lệ; cấm truyền `studentCode` hoặc `classId`.
+   - ADMIN: Cấm truyền `studentCode`, `classId`, hoặc `facultyId`.
+   - Update: Cấm dùng chuỗi rỗng để xóa các trường bắt buộc theo vai trò; đối với tài khoản legacy thiếu thông tin chỉ cho phép cập nhật nếu cung cấp đủ dữ liệu hoặc thao tác khóa tài khoản (`isActive: false`).
+6. **Kỳ vọng có căn cứ:** Theo form hiện hành STUDENT cần MSSV/lớp, STAFF cần Khoa; API thực thi cùng quy tắc với UI.
+7. **Logic và trace qua lớp:** Validation được thực thi tại service trước khi ghi DB; từ chối `BadRequestException` nếu vi phạm ràng buộc vai trò.
+8. **Tình huống:** Gọi API tạo STUDENT không có MSSV hoặc tạo ADMIN cố tình gán Khoa -> bị chặn ngay với HTTP 400 và lý do rõ ràng.
+9. **Tác động:** Đảm bảo toàn vẹn dữ liệu người dùng, loại bỏ tài khoản mồ côi không vào được roster kỳ.
+10. **Bằng chứng giải quyết:** Đã sửa mã nguồn tại `users.service.ts`. Đã kiểm chứng 6 tests trong `apps/backend/test/accounts-and-permissions.test.cjs`.
+11. **Giới hạn kiểm chứng:** Đã kiểm chứng qua unit test in-memory; chưa kiểm chứng e2e trên browser.
 
 <a id="bl-026"></a>
 

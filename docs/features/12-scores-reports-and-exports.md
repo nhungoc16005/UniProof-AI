@@ -4,12 +4,12 @@
 |---|---|
 | Phiên bản / đối chiếu | 1.0 / 2026-11-15, mã nguồn tại baseline `93fb66c` |
 | Vai trò | STUDENT của mình; STAFF theo Khoa; ADMIN toàn hệ thống |
-| Trạng thái | Đã có implementation; còn gap trong audit, chưa nghiệm thu toàn bộ |
+| Trạng thái | Đã có implementation; các gap BL-001, BL-018, BL-019, BL-020, BL-024 đã được xử lý và kiểm chứng |
 | Quy tắc liên quan | [R-01](../BUSINESS_RULES.md#r-01), [R-23](../BUSINESS_RULES.md#r-23), [R-24](../BUSINESS_RULES.md#r-24) |
 
 Nguồn: [conduct-scores/conduct-scores.service.ts](../../apps/backend/src/conduct-scores/conduct-scores.service.ts), [reports/reports.service.ts](../../apps/backend/src/reports/reports.service.ts), [evaluation-workflow/workflow.service.ts](../../apps/backend/src/evaluation-workflow/workflow.service.ts); [routes Web](../../apps/web/src/routes.tsx), [API client](../../apps/web/src/lib/apiClient.ts).
 
-Gap: [BL-001](../BUSINESS_LOGIC_AUDIT.md#bl-001) (Resolved), [BL-018](../BUSINESS_LOGIC_AUDIT.md#bl-018), [BL-019](../BUSINESS_LOGIC_AUDIT.md#bl-019), [BL-020](../BUSINESS_LOGIC_AUDIT.md#bl-020), [BL-024](../BUSINESS_LOGIC_AUDIT.md#bl-024). Đã xử lý BL-001 giải quyết kỳ 1 lần tại conduct-scores trong security-fixes.test.cjs; các gap còn lại theo dõi trong [backlog](../BACKLOG.md).
+Gap: [BL-001](../BUSINESS_LOGIC_AUDIT.md#bl-001) (Resolved), [BL-018](../BUSINESS_LOGIC_AUDIT.md#bl-018) (Resolved), [BL-019](../BUSINESS_LOGIC_AUDIT.md#bl-019) (Resolved), [BL-020](../BUSINESS_LOGIC_AUDIT.md#bl-020) (Resolved), [BL-024](../BUSINESS_LOGIC_AUDIT.md#bl-024) (Resolved). Theo dõi trong [backlog](../BACKLOG.md).
 
 ## 1. Objective — Mục tiêu
 
@@ -85,6 +85,10 @@ Lỗi validation/nghiệp vụ phải hiển thị lý do từ server; 401 yêu 
 | F12-TC-03 | Kiểm chứng: summary theo toàn tập lọc, không theo trang | F12-AC-03 | Planned |
 | F12-TC-04 | Kiểm chứng: export toàn bộ tập lọc có quyền, giữ kỳ/lớp/Khoa/trạng thái | F12-AC-04 | Planned |
 | F12-TC-05 | Kiểm chứng: không chuyển lỗi tải một phần thành thống kê 0 hoặc biểu đồ hoàn chỉnh | F12-AC-05 | Planned |
+| F12-TC-06 | BL-020: DeadlineExtensionsDialog hiển thị đúng sinh viên ngoài trang đầu 100 người, lấy đúng danh sách và snapshot kỳ, không bị undefined | BL-020; F12-AC-04 | Verified in `deadline-dialog-and-access.test.cjs` |
+| F12-TC-07 | BL-024: Mở đúng kỳ theo URL (?termId=...) cho các màn sinh viên, đồng bộ ngữ cảnh chọn kỳ giữa giao diện và API | BL-024; F12-AC-01 | Verified in `evidence-and-term-selection.test.cjs` |
+| F12-TC-08 | BL-018: Phân trang danh sách yêu cầu chỉnh sửa thông tin profile, hỗ trợ pageSize chuẩn hóa tối đa 100 dòng, lùi trang khi xử lý dòng cuối | BL-018; F12-AC-03 | Verified in `pagination-and-filter.test.cjs` |
+| F12-TC-09 | BL-019: Phân trang danh sách minh chứng sinh viên, bảo đảm số lượng vượt 20 dòng không bị cắt mất dữ liệu | BL-019; F12-AC-03 | Verified in `pagination-and-filter.test.cjs` |
 
 Bổ sung ca biên ở mục 7 và regression của từng BL liên quan; xem [TEST_PLAN](../TEST_PLAN.md) để chọn môi trường và bằng chứng. Không gán Passed nếu chưa chạy.
 
