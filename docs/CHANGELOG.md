@@ -2,6 +2,29 @@
 
 Mỗi công việc trong dự án thêm mục mới ở đầu với ngày, phạm vi, feature/bug/quyết định liên quan, thay đổi thực tế, kiểm tra đã chạy và giới hạn. Không ghi test dự kiến như đã Passed, không ghi credential hoặc dữ liệu sinh viên.
 
+## 2026-11-16 — Browser và PostgreSQL trên môi trường thử nghiệm riêng
+
+- Theo sự đồng ý của người dùng, tạo container PostgreSQL localhost `_test`, áp dụng 12 migration từ bản sao tạm, chạy integration và Chrome; đã dừng container `--rm`, không dùng Supabase.
+- Migration gốc thất bại trên DB mới: thiếu extension vector, tiếp đó PostgreSQL 16 không hỗ trợ `transaction_timeout`; sau bật vector, bản sao tạm bỏ lệnh này và dòng đặt `search_path` rỗng mới chạy hết 12 migrations. Không sửa migrations gốc; không coi đây là kiểm chứng migration production.
+- `workflow.integration.test.cjs`: 11 subtest đạt, 2 subtest lỗi (test tổng cũng fail): create user dùng response ID cũ dẫn tới `/users/undefined`; fixture activity thiếu `startDate`. Các phần sau lỗi trong hai subtest chưa được kiểm chứng.
+- `navigation-smoke.cjs`: Chrome qua 9 trang admin (/admin, results, reports, users, terms, criteria, knowledge-base, monitoring audit/health), sau đó timeout tại trang chi tiết kết quả admin; suite không hoàn tất, không kết luận các luồng còn lại. Phải ngắt tiến trình sau timeout. Không kiểm browser BL-014/025, Storage hoặc AI thực.
+- Không sửa application code/schema repo hoặc thay trạng thái finding. Spec/API/rules không đổi vì đây là kiểm thử. Log tạm trong `/tmp/edupoint-integration-review.log` và `/tmp/edupoint-browser-review.log`.
+
+## 2026-11-16 — Chuẩn bị kiểm thử browser với database cách ly
+
+- Đã kiểm tra harness: cần `TEST_DATABASE_URL` trỏ localhost và database `_test`; hiện biến chưa có. Docker và image PostgreSQL có sẵn; PostgreSQL cổng 5432 là SSH tunnel nên không dùng.
+- Lệnh tạo container PostgreSQL cục bộ bị hệ thống xét duyệt tự động từ chối; chưa tạo container, chạy migration/fixture/backend hoặc thực hiện browser end-to-end. Không dùng Supabase hay sửa code/schema; spec/API/rules không đổi.
+
+## 2026-11-16 — Kiểm tra trình duyệt frontend
+
+- Chạy Vite trên localhost và Chrome headless với profile tạm; trang gốc render màn hình đăng nhập EduPoint thành công. Đã dừng Vite sau kiểm tra.
+- Chưa kiểm login, role, BL-014/025 hoặc nghiệp vụ end-to-end: chưa có `TEST_DATABASE_URL` và fixture localhost `_test`; cổng PostgreSQL hiện là SSH tunnel, không dùng cho test. Không chạy backend, migration, seed, DB hay AI. Đây chỉ là browser smoke, không thay đổi trạng thái bug/spec/API.
+
+## 2026-11-16 — Review bổ sung BL-014 và BL-025 sau commit 6c605e2
+
+- Source cho thấy đã bổ sung validation rolesScore khi ban hành và xử lý legacy không truy vấn ID null trong service. Chưa nghiệm thu end-to-end: form UserManagement vẫn gửi classId/facultyId nguyên trạng, kể cả null, nên nhánh update có thể từ chối legacy; validator chấp nhận rolesScore trong scoringConfig trong khi aggregator đọc criterion.rolesScore, cần thống nhất contract và test round-trip.
+- Chạy `node --test apps/backend/test/accounts-and-permissions.test.cjs apps/backend/test/activity-and-roles-scoring.test.cjs`: 41 pass, 0 fail, 0 skipped; `git diff --check` đạt. Không chạy DB/browser/Storage/AI; không thay code, schema, spec hoặc trạng thái bug trong review.
+
 ## 2026-11-16 — Hoàn thiện khắc phục BL-014 (Ban hành rubric cộng đồng) & BL-025 (Xử lý an toàn tài khoản legacy)
 
 - **Phạm vi & mục tiêu giải quyết theo kết quả review:**
