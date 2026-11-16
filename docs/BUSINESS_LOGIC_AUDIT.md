@@ -284,12 +284,18 @@ Ngày lập tài liệu: 2026-11-15. Cập nhật: 2026-11-16. Baseline nguồn:
 2. **Severity:** Medium.
 3. **Vị trí:** [apps/backend/src/criteria/dut-rubric.ts](../apps/backend/src/criteria/dut-rubric.ts); [apps/backend/src/criteria/criteria.service.ts:178](../apps/backend/src/criteria/criteria.service.ts#L178); [apps/backend/src/activities/activity-aggregator.ts](../apps/backend/src/activities/activity-aggregator.ts).
 4. **Workflow:** Cấu hình rubric → xác nhận điểm danh cộng đồng. [F04](features/04-rubrics-and-scoring.md), [F08](features/08-activities-and-attendance.md).
-5. **Hiện tại (đã sửa):** Tuân thủ DEC-006 và DEC-009: `DUT_RUBRIC_CRITERIA` không tự ý gán bảng điểm mặc định nhằm bảo toàn quy chế ban hành của Nhà trường. `CriteriaService` mở rộng `RubricDefinition`, hỗ trợ và bảo toàn đầy đủ `rolesScore` qua các thao tác đọc (`getTermRubric`), tạo dự thảo (`createTermRubricDraft`), lưu cấu hình (`updateTermRubricDraft`) và sao chép sang kỳ mới (`createTerm`). Phương thức `validateScoringConfig` kiểm tra tính hợp lệ của `rolesScore` (bỏ qua nếu null/undefined/JsonNull; từ chối nếu chứa điểm âm hoặc rỗng). Evaluator `activity-aggregator.ts` đọc `rolesScore` từ tiêu chí cấu hình và chuẩn hóa vai trò qua alias (`normalizeActivityRole`); nếu tiêu chí quy đổi chưa có `rolesScore` hoặc thiếu vai trò cần tính (ví dụ thiếu rate CHEERLEADER), hệ thống trả blocker `NEEDS_VERIFICATION` (với `suggestedScore: null`), từ chối tự suy đoán tỷ lệ.
-6. **Kỳ vọng có căn cứ:** Cấu hình điểm vai trò cộng đồng do Quản trị viên thiết lập được lưu trữ, kế thừa qua các kỳ và bảo vệ tính toàn vẹn của quy chế.
-7. **Logic và trace qua lớp:** Schema `Criterion.rolesScore` được validate và bảo toàn xuyên suốt service; evaluator chỉ gợi ý điểm khi đủ cấu hình vai trò hợp lệ.
-8. **Tình huống:** Quản trị viên cấu hình bảng điểm vai trò (Tham gia 5đ, Tổ chức 7đ, Cổ vũ 2.5đ) -> kỳ mới sao chép giữ nguyên 100% cấu hình này; sinh viên tham gia được gợi ý đúng điểm; nếu thiếu cấu hình vai trò thì hệ thống cảnh báo cán bộ xác minh thay vì tính sai điểm.
+5. **Hiện tại (đã sửa):** Tuân thủ DEC-006, DEC-009 và kết quả review:
+   - `DUT_RUBRIC_CRITERIA` không tự ý gán bảng điểm mặc định nhằm bảo toàn quy chế ban hành của Nhà trường.
+   - `CriteriaService` mở rộng `RubricDefinition`, hỗ trợ và bảo toàn đầy đủ `rolesScore` qua các thao tác đọc (`getTermRubric`), tạo dự thảo (`createTermRubricDraft`), lưu cấu hình (`updateTermRubricDraft`) và sao chép sang kỳ mới (`createTerm`).
+   - **Bản nháp (DRAFT, `isPublishing = false`):** Cho phép thiếu `rolesScore` (không chặn khi Admin đang biên soạn hoặc khởi tạo dự thảo từ bộ chuẩn).
+   - **Khi ban hành (`publishTermRubric` / `publishRubricTemplateDraft`, `isPublishing = true`):** Bắt buộc tiêu chí cộng đồng (`community_activity_tier`) phải có `rolesScore` đầy đủ 3 vai trò: PARTICIPANT (Tham gia), ORGANIZER (Ban tổ chức), CHEERLEADER (Cổ vũ); điểm số là số không âm; và tuyệt đối không có alias mâu thuẫn (ví dụ vừa có `CO_VU: 2.5` vừa có `CHEERLEADER: 3` sẽ bị từ chối ngay).
+   - Tuyệt đối không tự đặt mức điểm mặc định khi thiếu cấu hình.
+   - Evaluator `activity-aggregator.ts` đọc `rolesScore` từ tiêu chí cấu hình, chuẩn hóa alias vai trò; nếu tiêu chí quy đổi chưa có `rolesScore`, thiếu vai trò cần tính, hoặc có alias mâu thuẫn thì lập tức trả blocker `NEEDS_VERIFICATION` (với `suggestedScore: null`).
+6. **Kỳ vọng có căn cứ:** Cấu hình điểm vai trò cộng đồng do Quản trị viên thiết lập được lưu trữ, kế thừa qua các kỳ và bảo vệ tính toàn vẹn của quy chế; ban hành phải bảo đảm đủ dữ liệu hợp lệ.
+7. **Logic và trace qua lớp:** Schema `Criterion.rolesScore` được validate phân biệt giữa nháp và ban hành; evaluator chỉ gợi ý điểm khi đủ cấu hình vai trò hợp lệ.
+8. **Tình huống:** Quản trị viên tạo bản nháp chưa cấu hình vai trò -> lưu nháp thành công; khi bấm Ban hành -> hệ thống yêu cầu cấu hình đủ 3 vai trò; cấu hình alias mâu thuẫn bị chặn; cấu hình hợp lệ ban hành thành công và gợi ý điểm chính xác.
 9. **Tác động:** Tiêu chí cộng đồng hoạt động chuẩn xác, bảo toàn quy chế qua mọi kỳ học mà không làm mất cấu hình điểm vai trò.
-10. **Bằng chứng giải quyết:** Đã sửa mã nguồn tại `criteria.service.ts`, `activity-aggregator.ts`. Đã kiểm chứng 13 tests trong `apps/backend/test/activity-and-roles-scoring.test.cjs` (gồm ca DEC-009 không tự gán mặc định, ca thiếu rate báo blocker, ca round-trip qua CriteriaService thật).
+10. **Bằng chứng giải quyết:** Đã sửa mã nguồn tại `criteria.service.ts`, `activity-aggregator.ts`. Đã kiểm chứng 13 tests trong `apps/backend/test/activity-and-roles-scoring.test.cjs` qua `CriteriaService` thật (gồm bản nháp cho phép thiếu rolesScore, ban hành thiếu vai trò bị từ chối, ban hành có alias mâu thuẫn bị từ chối, alias tương đương cùng điểm được chấp nhận, và aggregator bắt alias mâu thuẫn).
 11. **Giới hạn kiểm chứng:** Đã kiểm chứng qua unit test in-memory; chưa kiểm chứng trên DB staging vật lý.
 
 <a id="bl-015"></a>
@@ -464,12 +470,15 @@ Ngày lập tài liệu: 2026-11-15. Cập nhật: 2026-11-16. Baseline nguồn:
    - STUDENT: Bắt buộc `studentCode` không rỗng (sau trim) và `classId` hợp lệ; nếu truyền `facultyId` thì lớp phải thuộc đúng Khoa đó.
    - STAFF: Bắt buộc `facultyId` hợp lệ; cấm truyền `studentCode` hoặc `classId`.
    - ADMIN: Cấm truyền `studentCode`, `classId`, hoặc `facultyId`.
-   - Update: Cấm dùng chuỗi rỗng để xóa các trường bắt buộc theo vai trò; đối với tài khoản legacy thiếu thông tin chỉ cho phép cập nhật nếu cung cấp đủ dữ liệu hoặc thao tác khóa tài khoản (`isActive: false`).
-6. **Kỳ vọng có căn cứ:** Theo form hiện hành STUDENT cần MSSV/lớp, STAFF cần Khoa; API thực thi cùng quy tắc với UI.
-7. **Logic và trace qua lớp:** Validation được thực thi tại service trước khi ghi DB; từ chối `BadRequestException` nếu vi phạm ràng buộc vai trò.
-8. **Tình huống:** Gọi API tạo STUDENT không có MSSV hoặc tạo ADMIN cố tình gán Khoa -> bị chặn ngay với HTTP 400 và lý do rõ ràng.
+   - Update: Cấm dùng chuỗi rỗng để xóa các trường bắt buộc theo vai trò; kiểm tra trùng lặp email và MSSV nếu có thay đổi.
+   - **Xử lý tài khoản legacy theo kết quả review:**
+     + Cho phép sửa thông tin không liên quan (như `fullName`, `email`) hoặc khóa tài khoản (`isActive: false`) của tài khoản legacy thiếu lớp/Khoa/MSSV mà **tuyệt đối không truy vấn class/faculty với ID null**.
+     + Khi **bổ sung định danh** (truyền `studentCode`, `classId`, hoặc `facultyId`) HOẶC **kích hoạt tài khoản** (`isActive: true` từ tài khoản đang bị khóa): bắt buộc kiểm tra dữ liệu đầy đủ và từ chối nếu thiếu thông tin bắt buộc.
+6. **Kỳ vọng có căn cứ:** Theo form hiện hành STUDENT cần MSSV/lớp, STAFF cần Khoa; API thực thi cùng quy tắc với UI; tài khoản legacy được cập nhật linh hoạt nhưng bảo đảm an toàn khi kích hoạt.
+7. **Logic và trace qua lớp:** Validation được thực thi tại service trước khi ghi DB; chỉ truy vấn quan hệ DB khi ID hợp lệ; từ chối `BadRequestException` nếu vi phạm ràng buộc vai trò.
+8. **Tình huống:** Sửa họ tên cho tài khoản legacy thiếu lớp -> thành công không query ID null; kích hoạt tài khoản legacy đang khóa mà chưa bổ sung MSSV -> bị chặn yêu cầu bổ sung dữ liệu đầy đủ.
 9. **Tác động:** Đảm bảo toàn vẹn dữ liệu người dùng, loại bỏ tài khoản mồ côi không vào được roster kỳ.
-10. **Bằng chứng giải quyết:** Đã sửa mã nguồn tại `users.service.ts`. Đã kiểm chứng 6 tests trong `apps/backend/test/accounts-and-permissions.test.cjs`.
+10. **Bằng chứng giải quyết:** Đã sửa mã nguồn tại `users.service.ts`. Đã kiểm chứng 12 tests trong `apps/backend/test/accounts-and-permissions.test.cjs` qua `UsersService` thật (gồm các ca sửa thông tin không liên quan không gọi ID null, bổ sung MSSV thiếu lớp bị từ chối, kích hoạt tài khoản thiếu MSSV/Khoa bị từ chối, và khóa tài khoản legacy thành công).
 11. **Giới hạn kiểm chứng:** Đã kiểm chứng qua unit test in-memory; chưa kiểm chứng e2e trên browser.
 
 <a id="bl-026"></a>

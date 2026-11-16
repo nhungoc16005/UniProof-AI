@@ -4,6 +4,7 @@ import { CreateTermDto, UpdateTermDto, CreateCriterionDto, UpdateCriterionDto } 
 import { Prisma, RubricVersionStatus, TermStatus } from '@prisma/client';
 import { WorkflowService } from '../evaluation-workflow/workflow.service';
 import { DUT_RUBRIC_CATEGORIES, DUT_RUBRIC_CRITERIA } from './dut-rubric';
+import { normalizeActivityRole } from '../activities/activity-aggregator';
 
 type RubricDefinition = {
   categories: Array<{
@@ -28,11 +29,92 @@ const isPrismaNull = (val: unknown): boolean =>
   val === Prisma.JsonNull ||
   val === Prisma.DbNull;
 
+export function validateRolesScoreConfig(
+  criterionCode: string,
+  rolesScore: unknown,
+  isPublishing = false
+): void {
+  const raw = !isPrismaNull(rolesScore) ? rolesScore : null;
+
+  if (!raw) {
+    if (isPublishing) {
+      throw new BadRequestException(
+        `Mục ${criterionCode} yêu cầu cấu hình bảng điểm vai trò rolesScore trước khi ban hành (cần đủ: Tham gia, Ban tổ chức, Cổ vũ)`
+      );
+    }
+    return;
+  }
+
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new BadRequestException(`Mục ${criterionCode} có cấu hình rolesScore không hợp lệ`);
+  }
+
+  const entries = Object.entries(raw as Record<string, unknown>);
+  if (entries.length === 0) {
+    if (isPublishing) {
+      throw new BadRequestException(
+        `Mục ${criterionCode} yêu cầu cấu hình bảng điểm vai trò rolesScore trước khi ban hành (cần đủ: Tham gia, Ban tổ chức, Cổ vũ)`
+      );
+    }
+    return;
+  }
+
+  const isNonNegativeNumber = (val: unknown): val is number =>
+    typeof val === 'number' && Number.isFinite(val) && val >= 0;
+
+  // 1. Kiểm tra từng entry: key không rỗng, điểm là số không âm
+  const canonicalMap = new Map<string, Array<{ rawKey: string; score: number }>>();
+
+  for (const [rawKey, pts] of entries) {
+    const key = rawKey.trim();
+    if (!key) {
+      throw new BadRequestException(`Mục ${criterionCode} có vai trò rỗng trong rolesScore`);
+    }
+    if (!isNonNegativeNumber(pts)) {
+      throw new BadRequestException(
+        `Mục ${criterionCode} có điểm vai trò rolesScore không hợp lệ (phải là số không âm)`
+      );
+    }
+    const canonical = normalizeActivityRole(key);
+    if (!canonicalMap.has(canonical)) {
+      canonicalMap.set(canonical, []);
+    }
+    canonicalMap.get(canonical)!.push({ rawKey: key, score: pts });
+  }
+
+  // 2. Kiểm tra alias mâu thuẫn (cùng vai trò nhưng điểm khác nhau, ví dụ CO_VU: 2.5 vs CHEERLEADER: 3)
+  for (const [canonical, list] of canonicalMap.entries()) {
+    if (list.length > 1) {
+      const firstScore = list[0].score;
+      for (let i = 1; i < list.length; i++) {
+        if (Math.abs(list[i].score - firstScore) > 0.0001) {
+          throw new BadRequestException(
+            `Mục ${criterionCode} có alias điểm vai trò mâu thuẫn cho vai trò ${canonical}: ${list[0].rawKey} (${firstScore}đ) khác ${list[i].rawKey} (${list[i].score}đ)`
+          );
+        }
+      }
+    }
+  }
+
+  // 3. Khi ban hành (isPublishing = true): bắt buộc đủ 3 vai trò PARTICIPANT, ORGANIZER, CHEERLEADER
+  if (isPublishing) {
+    const requiredRoles = ['PARTICIPANT', 'ORGANIZER', 'CHEERLEADER'];
+    for (const reqRole of requiredRoles) {
+      if (!canonicalMap.has(reqRole)) {
+        throw new BadRequestException(
+          `Mục ${criterionCode} thiếu điểm vai trò ${reqRole} trước khi ban hành (cần đủ: Tham gia, Ban tổ chức, Cổ vũ)`
+        );
+      }
+    }
+  }
+}
+
 export function validateScoringConfig(
   criterionCode: string,
   maxScore: number,
   config: Record<string, unknown>,
-  rolesScore?: unknown
+  rolesScore?: unknown,
+  isPublishing = false
 ): void {
   const allowedKinds = new Set([
     'manual_verified', 'attendance_penalty', 'group_penalty', 'conduct_penalty',
@@ -53,14 +135,10 @@ export function validateScoringConfig(
   const rawRolesScore = !isPrismaNull(rolesScore) ? rolesScore : config.rolesScore;
   const effectiveRolesScore = !isPrismaNull(rawRolesScore) ? rawRolesScore : null;
 
-  if (effectiveRolesScore) {
-    if (typeof effectiveRolesScore !== 'object' || Array.isArray(effectiveRolesScore)) {
-      throw new BadRequestException(`Mục ${criterionCode} có cấu hình rolesScore không hợp lệ`);
-    }
-    const entries = Object.entries(effectiveRolesScore as Record<string, unknown>);
-    if (entries.length === 0 || !entries.every(([roleKey, pts]) => roleKey.trim() && isNonNegativeNumber(pts))) {
-      throw new BadRequestException(`Mục ${criterionCode} có điểm vai trò rolesScore không hợp lệ (phải là số không âm)`);
-    }
+  if (config.kind === 'community_activity_tier') {
+    validateRolesScoreConfig(criterionCode, effectiveRolesScore, isPublishing);
+  } else if (effectiveRolesScore) {
+    validateRolesScoreConfig(criterionCode, effectiveRolesScore, false);
   }
 
   switch (config.kind) {
@@ -208,7 +286,7 @@ export function validateScoringConfig(
   }
 }
 
-function validateRubricDefinition(value: unknown): asserts value is RubricDefinition {
+function validateRubricDefinition(value: unknown, isPublishing = false): asserts value is RubricDefinition {
   if (!value || typeof value !== 'object' || !Array.isArray((value as any).categories) || !(value as any).categories.length) {
     throw new BadRequestException('Rubric phải có ít nhất một khung điểm');
   }
@@ -227,7 +305,7 @@ function validateRubricDefinition(value: unknown): asserts value is RubricDefini
       if (!Number.isFinite(criterion.maxScore) || criterion.maxScore < 0) throw new BadRequestException(`Điểm tối đa của mục ${criterion.code} không hợp lệ`);
       const config = criterion.scoringConfig;
       if (!config || typeof config !== 'object' || Array.isArray(config)) throw new BadRequestException(`Quy tắc tính điểm mục ${criterion.code} chưa hợp lệ hoặc chưa được Backend hỗ trợ`);
-      validateScoringConfig(criterion.code, criterion.maxScore, config as Record<string, unknown>, criterion.rolesScore);
+      validateScoringConfig(criterion.code, criterion.maxScore, config as Record<string, unknown>, criterion.rolesScore, isPublishing);
       categoryTotal += criterion.maxScore;
     }
     if (Math.abs(categoryTotal - category.maxScore) > 0.001) throw new BadRequestException(`Tổng điểm tiêu chí của khung ${category.code} (${categoryTotal}) phải bằng ${category.maxScore}`);
@@ -309,12 +387,12 @@ export class CriteriaService {
     const draft = await this.prisma.rubricTemplateVersion.findUnique({ where: { id: versionId } });
     if (!draft) throw new NotFoundException('Không tìm thấy phiên bản bộ tiêu chí');
     if (draft.status !== RubricVersionStatus.DRAFT) throw new BadRequestException('Chỉ có thể ban hành phiên bản Nháp');
-    validateRubricDefinition(draft.definition);
+    validateRubricDefinition(draft.definition, true);
     return this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT "id" FROM "RubricTemplate" WHERE "id" = ${draft.templateId} FOR UPDATE`;
       const current = await tx.rubricTemplateVersion.findUniqueOrThrow({ where: { id: versionId } });
       if (current.status !== 'DRAFT') throw new BadRequestException('Phiên bản đã được ban hành');
-      validateRubricDefinition(current.definition);
+      validateRubricDefinition(current.definition, true);
       await tx.auditLog.create({ data: { userId: actorId, action: 'RUBRIC_TEMPLATE_PUBLISHED', entityType: 'RubricTemplateVersion', entityId: versionId, oldValue: { status: 'DRAFT' }, newValue: { status: 'PUBLISHED', version: current.version } } });
       await tx.rubricTemplateVersion.updateMany({ where: { templateId: draft.templateId, status: RubricVersionStatus.PUBLISHED }, data: { status: RubricVersionStatus.ARCHIVED } });
       return tx.rubricTemplateVersion.update({ where: { id: versionId }, data: { status: RubricVersionStatus.PUBLISHED, publishedAt: new Date() } });
@@ -452,8 +530,17 @@ export class CriteriaService {
     if (!draft) throw new NotFoundException('Kỳ này chưa có bản nháp rubric');
     if (draft.status !== RubricVersionStatus.DRAFT) throw new BadRequestException('Chỉ có thể ban hành phiên bản Nháp');
     if (Math.abs(draft.categories.reduce((sum, category) => sum + category.maxScore, 0) - 100) > 0.001) throw new BadRequestException('Tổng điểm các khung phải bằng 100');
-    const definition = { categories: draft.categories.map((category) => ({ ...category, criteria: category.criteria.map((criterion) => ({ ...criterion, scoringConfig: criterion.scoringConfig as Record<string, unknown> })) })) };
-    validateRubricDefinition(definition);
+    const definition = {
+      categories: draft.categories.map((category) => ({
+        ...category,
+        criteria: category.criteria.map((criterion) => ({
+          ...criterion,
+          scoringConfig: criterion.scoringConfig as Record<string, unknown>,
+          rolesScore: !isPrismaNull((criterion as any).rolesScore) ? (criterion as any).rolesScore : null,
+        })),
+      })),
+    };
+    validateRubricDefinition(definition, true);
     const term = await this.prisma.term.findUnique({ where: { id: termId } });
     if (!term || term.status === TermStatus.CLOSED) throw new BadRequestException('Không thể ban hành rubric cho kỳ đã chốt');
     return this.auditMaster(actorId, 'RubricVersion', draft.id, 'TERM_RUBRIC_PUBLISHED', tx => tx.rubricVersion.update({ where: { id: draft.id }, data: { status: RubricVersionStatus.PUBLISHED, publishedAt: new Date() } }));

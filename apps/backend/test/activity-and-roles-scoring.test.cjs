@@ -656,4 +656,255 @@ describe('BL-014: Lưu và sử dụng rolesScore xuyên suốt Rubric & Round-t
       CHEERLEADER: 2.5,
     }, 'createTerm khi copy rubric từ kỳ nguồn phải bảo toàn 100% rolesScore');
   });
+
+  test('Ca 8: Bản nháp (draft: isPublishing = false) cho phép thiếu rolesScore; updateTermRubricDraft lưu nháp thành công', async () => {
+    // 1. Kiểm tra trực tiếp validateScoringConfig với isPublishing = false
+    assert.doesNotThrow(() => {
+      validateScoringConfig('12', 10, {
+        kind: 'community_activity_tier',
+        requiredData: ['verifiedActivityCount', 'convertedCommunityPoints'],
+        tiers: [{ minCount: 1, minPoints: 5, score: 5 }],
+      }, null, false);
+    });
+
+    // 2. Kiểm tra qua CriteriaService thật: lưu bản nháp thiếu rolesScore
+    const terms = [{ id: 'term-draft', code: '2026_HKDRAFT', name: 'Kỳ Nháp', status: 'UPCOMING' }];
+    let rubricVersions = [{ id: 'ver-draft', termId: 'term-draft', version: 1, status: 'DRAFT' }];
+    let categories = [];
+    let criteria = [];
+
+    const mockTx = {
+      term: { findUnique: async () => terms[0] },
+      rubricVersion: {
+        findFirst: async () => rubricVersions[0],
+        findUniqueOrThrow: async () => rubricVersions[0],
+        update: async ({ data }) => Object.assign(rubricVersions[0], data),
+      },
+      rubricCategory: {
+        create: async ({ data }) => { const c = { id: `cat-${categories.length + 1}`, ...data }; categories.push(c); return c; },
+        deleteMany: async () => { categories = []; },
+      },
+      criterion: {
+        createMany: async ({ data }) => { for (const d of data) criteria.push({ id: `cr-${criteria.length + 1}`, ...d }); },
+        findMany: async () => criteria,
+        deleteMany: async () => { criteria = []; },
+      },
+      aiSuggestion: { updateMany: async () => ({ count: 0 }) },
+      review: { updateMany: async () => ({ count: 0 }) },
+      auditLog: { create: async () => ({ id: 'audit-1' }) },
+    };
+
+    const mockPrisma = {
+      ...mockTx,
+      $transaction: async (fn) => fn(mockTx),
+      term: { findUnique: async () => terms[0] },
+      rubricVersion: {
+        findFirst: async () => ({
+          ...rubricVersions[0],
+          categories: categories.map((c) => ({ ...c, criteria: criteria.filter((cr) => cr.categoryId === c.id) })),
+        }),
+      },
+      criterionAssessment: { count: async () => 0 },
+      evidence: { count: async () => 0 },
+    };
+
+    const service = new CriteriaService(mockPrisma, { lock: async () => terms[0] });
+
+    const draftDefinition = {
+      categories: [
+        {
+          code: 'CAT_1', name: 'Khung 1', maxScore: 20, position: 1,
+          criteria: [{ code: '1', name: 'Học tập', description: 'Mô tả', maxScore: 20, scoringConfig: { kind: 'manual_verified', requiredData: ['v'] } }],
+        },
+        {
+          code: 'CAT_2', name: 'Khung 2', maxScore: 80, position: 2,
+          criteria: [{
+            code: '12', name: 'Cộng đồng', description: 'Mô tả', maxScore: 80,
+            scoringConfig: { kind: 'community_activity_tier', requiredData: ['verifiedActivityCount', 'convertedCommunityPoints'], tiers: [{ minCount: 1, minPoints: 5, score: 80 }] },
+            rolesScore: null, // Bản nháp cho phép thiếu rolesScore
+          }],
+        },
+      ],
+    };
+
+    await assert.doesNotReject(async () => {
+      await service.updateTermRubricDraft('term-draft', draftDefinition, 'admin-1');
+    });
+
+    const saved = await service.getTermRubric('term-draft');
+    const commCrit = saved.definition.categories[1].criteria[0];
+    assert.equal(commCrit.rolesScore, null, 'Bản nháp lưu thành công với rolesScore: null');
+  });
+
+  test('Ca 9: Khi ban hành (publishTermRubric / isPublishing = true), tiêu chí cộng đồng thiếu rolesScore -> Ném BadRequestException', async () => {
+    // 1. Trực tiếp qua validateScoringConfig
+    assert.throws(
+      () => {
+        validateScoringConfig('12', 10, {
+          kind: 'community_activity_tier',
+          requiredData: ['verifiedActivityCount', 'convertedCommunityPoints'],
+          tiers: [{ minCount: 1, minPoints: 5, score: 5 }],
+        }, null, true);
+      },
+      (err) => {
+        assert(err instanceof BadRequestException);
+        assert(err.message.includes('yêu cầu cấu hình bảng điểm vai trò rolesScore trước khi ban hành'));
+        return true;
+      }
+    );
+
+    // 2. Qua CriteriaService.publishTermRubric
+    const mockPrisma = {
+      rubricVersion: {
+        findFirst: async () => ({
+          id: 'ver-draft',
+          status: 'DRAFT',
+          categories: [
+            { id: 'cat-1', code: 'CAT_1', name: 'Khung 1', maxScore: 20, criteria: [{ code: '1', name: 'Học tập', description: 'Mô tả', maxScore: 20, scoringConfig: { kind: 'manual_verified', requiredData: ['v'] } }] },
+            { id: 'cat-2', code: 'CAT_2', name: 'Khung 2', maxScore: 80, criteria: [{ code: '12', name: 'Cộng đồng', description: 'Mô tả', maxScore: 80, scoringConfig: { kind: 'community_activity_tier', requiredData: ['verifiedActivityCount', 'convertedCommunityPoints'], tiers: [{ minCount: 1, minPoints: 5, score: 80 }] }, rolesScore: null }] },
+          ],
+        }),
+      },
+      term: { findUnique: async () => ({ id: 'term-1', status: 'UPCOMING' }) },
+      auditLog: { create: async () => ({ id: 'audit-1' }) },
+    };
+    const service = new CriteriaService(mockPrisma, null);
+
+    await assert.rejects(
+      async () => service.publishTermRubric('term-1', 'admin-1'),
+      (err) => {
+        assert(err instanceof BadRequestException);
+        assert(err.message.includes('yêu cầu cấu hình bảng điểm vai trò rolesScore trước khi ban hành'));
+        return true;
+      }
+    );
+  });
+
+  test('Ca 10: Khi ban hành, tiêu chí cộng đồng thiếu vai trò CHEERLEADER -> Ném BadRequestException yêu cầu đủ 3 vai trò', async () => {
+    assert.throws(
+      () => {
+        validateScoringConfig('12', 10, {
+          kind: 'community_activity_tier',
+          requiredData: ['verifiedActivityCount', 'convertedCommunityPoints'],
+          tiers: [{ minCount: 1, minPoints: 5, score: 5 }],
+          rolesScore: {
+            PARTICIPANT: 5,
+            ORGANIZER: 7,
+            // Thiếu CHEERLEADER
+          },
+        }, null, true);
+      },
+      (err) => {
+        assert(err instanceof BadRequestException);
+        assert(err.message.includes('thiếu điểm vai trò CHEERLEADER'));
+        return true;
+      }
+    );
+  });
+
+  test('Ca 11: Khi ban hành, tiêu chí cộng đồng có alias mâu thuẫn (CO_VU: 2.5 vs CHEERLEADER: 3) -> Ném BadRequestException', () => {
+    assert.throws(
+      () => {
+        validateScoringConfig('12', 10, {
+          kind: 'community_activity_tier',
+          requiredData: ['verifiedActivityCount', 'convertedCommunityPoints'],
+          tiers: [{ minCount: 1, minPoints: 5, score: 5 }],
+          rolesScore: {
+            PARTICIPANT: 5,
+            ORGANIZER: 7,
+            CO_VU: 2.5,
+            CHEERLEADER: 3, // Mâu thuẫn với CO_VU (2.5đ khác 3đ)
+          },
+        }, null, true);
+      },
+      (err) => {
+        assert(err instanceof BadRequestException);
+        assert(err.message.includes('alias điểm vai trò mâu thuẫn'));
+        return true;
+      }
+    );
+  });
+
+  test('Ca 12: Khi ban hành, tiêu chí cộng đồng có đủ 3 vai trò và alias tương đương không mâu thuẫn -> Ban hành thành công', async () => {
+    const rolesConfigWithEquivalentAliases = {
+      PARTICIPANT: 5,
+      THAM_GIA: 5,       // Alias cùng điểm với PARTICIPANT
+      ORGANIZER: 7,
+      BAN_TO_CHUC: 7,    // Alias cùng điểm với ORGANIZER
+      CHEERLEADER: 2.5,
+      CO_VU: 2.5,        // Alias cùng điểm với CHEERLEADER
+    };
+
+    assert.doesNotThrow(() => {
+      validateScoringConfig('12', 10, {
+        kind: 'community_activity_tier',
+        requiredData: ['verifiedActivityCount', 'convertedCommunityPoints'],
+        tiers: [{ minCount: 1, minPoints: 5, score: 5 }],
+        rolesScore: rolesConfigWithEquivalentAliases,
+      }, null, true);
+    });
+
+    let published = false;
+    const mockPrisma = {
+      rubricVersion: {
+        findFirst: async () => ({
+          id: 'ver-draft',
+          status: 'DRAFT',
+          categories: [
+            { id: 'cat-1', code: 'CAT_1', name: 'Khung 1', maxScore: 20, criteria: [{ code: '1', name: 'Học tập', description: 'Mô tả', maxScore: 20, scoringConfig: { kind: 'manual_verified', requiredData: ['v'] } }] },
+            { id: 'cat-2', code: 'CAT_2', name: 'Khung 2', maxScore: 80, criteria: [{ code: '12', name: 'Cộng đồng', description: 'Mô tả', maxScore: 80, scoringConfig: { kind: 'community_activity_tier', requiredData: ['verifiedActivityCount', 'convertedCommunityPoints'], tiers: [{ minCount: 1, minPoints: 5, score: 80 }] }, rolesScore: rolesConfigWithEquivalentAliases }] },
+          ],
+        }),
+        update: async ({ data }) => {
+          if (data.status === 'PUBLISHED') published = true;
+          return { id: 'ver-draft', status: 'PUBLISHED' };
+        },
+      },
+      term: { findUnique: async () => ({ id: 'term-1', status: 'UPCOMING' }) },
+      auditLog: { create: async () => ({ id: 'audit-1' }) },
+      $queryRaw: async () => [{ id: 'ver-draft', status: 'DRAFT' }],
+      $transaction: async (fn) => fn(mockPrisma),
+    };
+
+    const service = new CriteriaService(mockPrisma, null);
+    await service.publishTermRubric('term-1', 'admin-1');
+    assert.equal(published, true, 'Ban hành thành công khi đủ 3 vai trò và alias hợp lệ');
+  });
+
+  test('Ca 13: aggregateStudentActivitySources phát hiện alias mâu thuẫn trong rubric -> Báo blocker NEEDS_VERIFICATION', async () => {
+    const conflictingCriterion = {
+      id: 'crit-conflict',
+      maxScore: 10,
+      scoringConfig: {
+        kind: 'community_activity_tier',
+        requiredData: ['verifiedActivityCount', 'convertedCommunityPoints'],
+        tiers: [{ minCount: 1, minPoints: 5, score: 5 }],
+      },
+      rolesScore: {
+        PARTICIPANT: 5,
+        ORGANIZER: 7,
+        CO_VU: 2.5,
+        CHEERLEADER: 3, // Mâu thuẫn
+      },
+    };
+
+    const mockTx = {
+      criterion: { findUniqueOrThrow: async () => conflictingCriterion },
+      activityParticipant: {
+        findMany: async () => [{ id: 'att-1', activityId: 'act-1', studentId: 'student-1', formRole: 'PARTICIPANT', status: 'CONFIRMED' }],
+      },
+      criterionAssessment: { findUnique: async () => null },
+      evidence: { findMany: async () => [] },
+    };
+
+    const res = await aggregateStudentActivitySources(mockTx, {
+      studentId: 'student-1',
+      termId: 'term-1',
+      criterionId: 'crit-conflict',
+    });
+
+    assert.equal(res.evaluation.status, 'NEEDS_VERIFICATION');
+    assert.equal(res.evaluation.suggestedScore, null);
+    assert(res.evaluation.reason.includes('mâu thuẫn cho vai trò CHEERLEADER'));
+  });
 });

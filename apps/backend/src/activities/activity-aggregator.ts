@@ -169,27 +169,46 @@ export async function aggregateStudentActivitySources(
         : null;
 
     const normalizedRoleScores: Record<string, number> = {};
+    const aliasMap = new Map<string, Array<{ key: string; score: number }>>();
+
     if (roleScores) {
       for (const [key, val] of Object.entries(roleScores)) {
         if (typeof val === 'number' && Number.isFinite(val) && val >= 0) {
           const normKey = normalizeActivityRole(key);
           normalizedRoleScores[normKey] = val;
           normalizedRoleScores[key.trim().toUpperCase()] = val;
+          if (!aliasMap.has(normKey)) aliasMap.set(normKey, []);
+          aliasMap.get(normKey)!.push({ key, score: val });
         }
       }
     }
 
-    if (!roleScores || Object.keys(normalizedRoleScores).length === 0) {
-      blockerReason = 'Tiêu chí cộng đồng chưa cấu hình bảng điểm vai trò rolesScore trong rubric.';
-    } else {
-      for (const item of sourceMap.values()) {
-        const normRole = normalizeActivityRole(item.role);
-        const configuredPoints = normalizedRoleScores[normRole];
-        if (configuredPoints === undefined || configuredPoints === null) {
-          blockerReason = `Tiêu chí cộng đồng thiếu cấu hình điểm cho vai trò '${item.role || normRole}' trong rubric rolesScore.`;
+    // Kiểm tra alias mâu thuẫn trong cấu hình điểm vai trò
+    let hasAliasConflict = false;
+    for (const [normKey, list] of aliasMap.entries()) {
+      if (list.length > 1) {
+        const first = list[0].score;
+        if (list.some((item) => Math.abs(item.score - first) > 0.0001)) {
+          hasAliasConflict = true;
+          blockerReason = `Tiêu chí cộng đồng có cấu hình điểm vai trò mâu thuẫn cho vai trò ${normKey} (${list.map((i) => `${i.key}=${i.score}đ`).join(', ')}).`;
           break;
         }
-        convertedCommunityPoints += configuredPoints;
+      }
+    }
+
+    if (!hasAliasConflict) {
+      if (!roleScores || Object.keys(normalizedRoleScores).length === 0) {
+        blockerReason = 'Tiêu chí cộng đồng chưa cấu hình bảng điểm vai trò rolesScore trong rubric.';
+      } else {
+        for (const item of sourceMap.values()) {
+          const normRole = normalizeActivityRole(item.role);
+          const configuredPoints = normalizedRoleScores[normRole];
+          if (configuredPoints === undefined || configuredPoints === null) {
+            blockerReason = `Tiêu chí cộng đồng thiếu cấu hình điểm cho vai trò '${item.role || normRole}' trong rubric rolesScore.`;
+            break;
+          }
+          convertedCommunityPoints += configuredPoints;
+        }
       }
     }
   }

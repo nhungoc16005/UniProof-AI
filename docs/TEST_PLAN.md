@@ -18,28 +18,38 @@
    - File test: [apps/web/scripts/score-report-and-evidence-list.test.cjs](../apps/web/scripts/score-report-and-evidence-list.test.cjs) (**4/4 tests pass 100%**).
    - Kiểm chứng Deferred Promise: khi bắt đầu nộp ở kỳ A và đổi sang kỳ B trong lúc request preflight đang treo, `submitGenerationRef` và `currentTermRef` hủy kết quả kỳ A, `preflight` bị xóa sạch khi đổi kỳ và tuyệt đối không hiển thị xác nhận nộp kỳ A trên màn hình kỳ B.
 
-3. **BL-011, BL-012, BL-025 (Accounts, Permissions & Scope):**
-   - File test: [apps/backend/test/accounts-and-permissions.test.cjs](../apps/backend/test/accounts-and-permissions.test.cjs) (**16/16 tests pass 100%**).
+1. **BL-005 & BL-014 (Activity Aggregator & Roles Scoring):**
+   - File test: [apps/backend/test/activity-and-roles-scoring.test.cjs](../apps/backend/test/activity-and-roles-scoring.test.cjs) (**19/19 tests pass 100%**).
+   - Kiểm chứng round-trip qua `CriteriaService` thật: bảo toàn 100% `rolesScore` qua các chặng draft -> getTermRubric -> createTerm (kế thừa kỳ nguồn).
+   - Tuân thủ DEC-006 & DEC-009: `DUT_RUBRIC_CRITERIA` không tự ý gán mặc định bảng điểm vai trò.
+   - Bản nháp (draft: isPublishing = false) cho phép thiếu `rolesScore` (Ca 8).
+   - Khi ban hành (publishTermRubric / isPublishing = true): bắt buộc đủ 3 vai trò (Tham gia, Ban tổ chức, Cổ vũ), điểm hợp lệ không âm; thiếu vai trò hoặc có alias mâu thuẫn (như CO_VU: 2.5 vs CHEERLEADER: 3) bị từ chối ngay lập tức (Ca 9, 10, 11).
+   - Alias tương đương cùng điểm (ví dụ THAM_GIA/PARTICIPANT: 5, BAN_TO_CHUC/ORGANIZER: 7, CO_VU/CHEERLEADER: 2.5) ban hành thành công (Ca 12).
+   - Aggregator phát hiện alias mâu thuẫn và thiếu vai trò báo blocker `NEEDS_VERIFICATION, suggestedScore: null` (Ca 2, Ca 13).
+
+2. **BL-011, BL-012, BL-025 (Accounts, Permissions & Scope):**
+   - File test: [apps/backend/test/accounts-and-permissions.test.cjs](../apps/backend/test/accounts-and-permissions.test.cjs) (**21/21 tests pass 100%**).
    - Kiểm chứng `bulkImport` áp dụng `validateUserPayload` từng dòng trước khi mở transaction; khi rollback không tăng `importedCount` và không trả `temporaryCredentials`.
    - `findAll` giữ nguyên `facultyId` trực tiếp gán trên User; cán bộ Khoa chỉ xem sinh viên thuộc Khoa mình.
-   - Cho phép cập nhật tài khoản legacy STUDENT thiếu `studentCode`/`classId` khi chỉ sửa `fullName`.
+   - Cho phép sửa thông tin không liên quan (như `fullName`, `email`) hoặc khóa tài khoản (`isActive: false`) của tài khoản legacy STUDENT/STAFF thiếu lớp/Khoa/MSSV mà tuyệt đối **không truy vấn class/faculty với ID null** (Ca 8, Ca 9).
+   - Khi bổ sung định danh (studentCode) hoặc kích hoạt tài khoản (`isActive: true` từ tài khoản đang bị khóa) thì bắt buộc kiểm tra dữ liệu đầy đủ và từ chối nếu thiếu thông tin bắt buộc (Ca 10, Ca 11, Ca 12).
    - Kiểm chứng `JwtAuthGuard` thật chạy qua prototype không monkey-patch đè lên `canActivate`.
 
-4. **BL-021 (Chu trình Loại trừ → Khôi phục → Loại trừ lại):**
+3. **BL-021 (Chu trình Loại trừ → Khôi phục → Loại trừ lại):**
    - File test: [apps/backend/test/exclusion-and-restore.test.cjs](../apps/backend/test/exclusion-and-restore.test.cjs) (**6/6 tests pass 100%**).
    - Giữ nguyên `revision` bàn giao của Handoff (không tự tăng revision sai ngữ cảnh); sinh `eventId = randomUUID()` cho `dedupeKey` bảo đảm tính duy nhất tuyệt đối.
    - Đã ở trạng thái `EXCLUDED` là strict no-op: gọi lặp lại kể cả với lý do khác không ghi đè lý do cũ và không sinh notification thừa; ghi nhận `eventId` vào audit log.
 
-5. **BL-018 & BL-019 (Pagination, Filter & Evidence List):**
+4. **BL-018 & BL-019 (Pagination, Filter & Evidence List):**
    - File test: [apps/backend/test/pagination-and-filter.test.cjs](../apps/backend/test/pagination-and-filter.test.cjs) (**8/8 tests pass 100%**) và [apps/web/scripts/score-report-and-evidence-list.test.cjs](../apps/web/scripts/score-report-and-evidence-list.test.cjs).
    - `ProfileDataIssues.tsx`: `requestGen` chặn triệt để phản hồi cũ từ tab `OPEN` ghi đè lên tab `RESOLVED`.
    - `EvidenceList.tsx`: đồng bộ query `?termId=...` vào URL; tự động reset `page = 1` khi đổi kỳ.
    - `evidence.service.ts`: hỗ trợ tìm kiếm theo ID minh chứng; không xóa filter search khỏi `baseScopeWhere` để tab counts phản ánh đúng số lượng theo từ khóa.
 
 **Tổng kết kiểm thử tự động:**
-- Backend: **158 tests (157 passed, 1 skipped isolated DB)** trong 10 suites (`node --test apps/backend/test/*.test.cjs`).
+- Backend: **169 tests (168 passed, 1 skipped isolated DB)** trong 10 suites (`node --test apps/backend/test/*.test.cjs`).
 - Web: **21 tests passed 100%** trong 4 suites (`node --test apps/web/scripts/*.test.cjs`).
-- Toàn bộ **178 pure/in-memory unit tests đạt 100%**, không có failure hay timeout.
+- Toàn bộ **189 pure/in-memory unit tests đạt 100%**, không có failure hay timeout.
 - TypeScript compiler: **0 lỗi** trên cả `apps/web` và `apps/backend`.
 - `git diff --check`: **sạch sẽ, 0 lỗi whitespace**.
 

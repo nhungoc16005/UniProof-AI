@@ -320,6 +320,193 @@ describe('BL-025: Ràng buộc dữ liệu người dùng theo Role & Legacy han
     );
     assert.equal(updated.fullName, 'Tên Mới Được Cập Nhật');
   });
+
+  test('Ca 8: Sửa thông tin không liên quan của tài khoản legacy STUDENT thiếu cả lớp và MSSV mà KHÔNG truy vấn ID null', async () => {
+    let queriedNullClassId = false;
+    const mockPrisma = createMockPrisma();
+    mockPrisma.user.findUnique = async ({ where }) => {
+      if (where.id === 'legacy-student-noclass-nocode') {
+        return {
+          id: 'legacy-student-noclass-nocode',
+          email: 'legacy_noclass@dut.udn.vn',
+          fullName: 'Tên Cũ Không Lớp',
+          role: Role.STUDENT,
+          studentCode: null, // Legacy thiếu MSSV
+          classId: null,      // Legacy thiếu Lớp
+          facultyId: null,
+          isActive: true,
+        };
+      }
+      return null;
+    };
+    mockPrisma.class.findUnique = async ({ where }) => {
+      if (where.id === null || where.id === undefined) {
+        queriedNullClassId = true;
+        throw new Error('Prisma Error: Argument id for where.id must not be null');
+      }
+      return null;
+    };
+
+    const service = new UsersService(mockPrisma, null);
+    const updated = await service.update(
+      'legacy-student-noclass-nocode',
+      {
+        fullName: 'Tên Mới Được Phép Cập Nhật',
+      },
+      adminActor
+    );
+
+    assert.equal(queriedNullClassId, false, 'Tuyệt đối không được truy vấn class với ID null');
+    assert.equal(updated.fullName, 'Tên Mới Được Phép Cập Nhật');
+  });
+
+  test('Ca 9: Sửa thông tin không liên quan của tài khoản legacy STAFF thiếu Khoa mà KHÔNG truy vấn ID null', async () => {
+    let queriedNullFacultyId = false;
+    const mockPrisma = createMockPrisma();
+    mockPrisma.user.findUnique = async ({ where }) => {
+      if (where.id === 'legacy-staff-nofaculty') {
+        return {
+          id: 'legacy-staff-nofaculty',
+          email: 'legacy_staff@dut.udn.vn',
+          fullName: 'Cán Bộ Cũ Không Khoa',
+          role: Role.STAFF,
+          studentCode: null,
+          classId: null,
+          facultyId: null, // Legacy thiếu Khoa
+          isActive: true,
+        };
+      }
+      return null;
+    };
+    mockPrisma.faculty.findUnique = async ({ where }) => {
+      if (where.id === null || where.id === undefined) {
+        queriedNullFacultyId = true;
+        throw new Error('Prisma Error: Argument id for where.id must not be null');
+      }
+      return null;
+    };
+
+    const service = new UsersService(mockPrisma, null);
+    const updated = await service.update(
+      'legacy-staff-nofaculty',
+      {
+        fullName: 'Cán Bộ Đã Đổi Tên',
+      },
+      adminActor
+    );
+
+    assert.equal(queriedNullFacultyId, false, 'Tuyệt đối không được truy vấn faculty với ID null');
+    assert.equal(updated.fullName, 'Cán Bộ Đã Đổi Tên');
+  });
+
+  test('Ca 10: Bổ sung định danh (studentCode) cho tài khoản legacy STUDENT thiếu lớp -> Bắt buộc kiểm tra dữ liệu đầy đủ và từ chối vì thiếu classId', async () => {
+    const mockPrisma = createMockPrisma();
+    mockPrisma.user.findUnique = async ({ where }) => {
+      if (where.id === 'legacy-student-noclass') {
+        return {
+          id: 'legacy-student-noclass',
+          email: 'legacy_noclass@dut.udn.vn',
+          fullName: 'Sinh Viên Thiếu Lớp',
+          role: Role.STUDENT,
+          studentCode: null,
+          classId: null, // Thiếu lớp
+          isActive: true,
+        };
+      }
+      return null;
+    };
+
+    const service = new UsersService(mockPrisma, null);
+    await assert.rejects(
+      async () => {
+        await service.update(
+          'legacy-student-noclass',
+          {
+            studentCode: '102210099', // Bổ sung MSSV
+          },
+          adminActor
+        );
+      },
+      (err) => {
+        assert(err instanceof BadRequestException);
+        assert(err.message.includes('Lớp'), 'Khi bổ sung định danh, bắt buộc phải có đủ Lớp');
+        return true;
+      }
+    );
+  });
+
+  test('Ca 11: Kích hoạt tài khoản legacy STUDENT (isActive: true) khi còn thiếu studentCode hoặc classId -> Bắt buộc kiểm tra dữ liệu đầy đủ và từ chối', async () => {
+    const mockPrisma = createMockPrisma();
+    mockPrisma.user.findUnique = async ({ where }) => {
+      if (where.id === 'legacy-student-inactive') {
+        return {
+          id: 'legacy-student-inactive',
+          email: 'legacy_inactive@dut.udn.vn',
+          fullName: 'Sinh Viên Đang Bị Khóa',
+          role: Role.STUDENT,
+          studentCode: null, // Thiếu MSSV
+          classId: 'class-it-1',
+          isActive: false,   // Đang bị khóa
+        };
+      }
+      return null;
+    };
+
+    const service = new UsersService(mockPrisma, null);
+    await assert.rejects(
+      async () => {
+        await service.update(
+          'legacy-student-inactive',
+          {
+            isActive: true, // Kích hoạt tài khoản
+          },
+          adminActor
+        );
+      },
+      (err) => {
+        assert(err instanceof BadRequestException);
+        assert(err.message.includes('Mã sinh viên'), 'Khi kích hoạt tài khoản, bắt buộc phải có đầy đủ định danh MSSV');
+        return true;
+      }
+    );
+  });
+
+  test('Ca 12: Kích hoạt tài khoản legacy STAFF (isActive: true) khi còn thiếu facultyId -> Bắt buộc kiểm tra dữ liệu đầy đủ và từ chối', async () => {
+    const mockPrisma = createMockPrisma();
+    mockPrisma.user.findUnique = async ({ where }) => {
+      if (where.id === 'legacy-staff-inactive') {
+        return {
+          id: 'legacy-staff-inactive',
+          email: 'legacy_staff_inactive@dut.udn.vn',
+          fullName: 'Cán Bộ Đang Bị Khóa',
+          role: Role.STAFF,
+          studentCode: null,
+          classId: null,
+          facultyId: null, // Thiếu Khoa
+          isActive: false,  // Đang bị khóa
+        };
+      }
+      return null;
+    };
+
+    const service = new UsersService(mockPrisma, null);
+    await assert.rejects(
+      async () => {
+        await service.update(
+          'legacy-staff-inactive',
+          {
+            isActive: true, // Kích hoạt tài khoản
+          },
+          adminActor
+        );
+      },
+      (err) => {
+        assert(err instanceof BadRequestException);
+        assert(err.message.includes('Khoa'), 'Khi kích hoạt tài khoản cán bộ, bắt buộc phải có đầy đủ Khoa');
+        return true;
+      }
+    );
+  });
 });
 
 describe('BL-011: Bàn giao mật khẩu tạm thời & An toàn bảo mật', () => {

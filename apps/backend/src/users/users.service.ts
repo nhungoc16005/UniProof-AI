@@ -39,49 +39,92 @@ export class UsersService {
       }
     }
 
+    const isUpdate = Boolean(data.isUpdate && data.existingUser);
+
+    // Bổ sung hoặc thay đổi định danh/đơn vị:
+    const isModifyingIdentity = isUpdate && (
+      data.studentCode !== undefined ||
+      data.classId !== undefined ||
+      data.facultyId !== undefined
+    );
+
+    // Kích hoạt tài khoản (tài khoản đang bị khóa được mở lại isActive: true):
+    const isActivating = isUpdate && (
+      data.isActive === true && data.existingUser?.isActive === false
+    );
+
+    // Bắt buộc kiểm tra dữ liệu đầy đủ khi:
+    // - Tạo mới (!isUpdate)
+    // - Bổ sung/sửa định danh (isModifyingIdentity)
+    // - Kích hoạt tài khoản (isActivating)
+    const requiresFullValidation = !isUpdate || isModifyingIdentity || isActivating;
+
     if (role === Role.STUDENT) {
-      const studentCode = data.studentCode !== undefined
+      const effectiveStudentCode = data.studentCode !== undefined
         ? (data.studentCode ? String(data.studentCode).trim() : '')
-        : (data.existingUser?.studentCode ?? '');
-      const classId = data.classId !== undefined ? data.classId : (data.existingUser?.classId ?? null);
+        : (data.existingUser?.studentCode ? String(data.existingUser.studentCode).trim() : '');
 
-      if (data.isUpdate && data.studentCode === undefined && !data.existingUser?.studentCode) {
-        // Tài khoản legacy thiếu studentCode trong DB: không chặn khi chỉ sửa trường khác
-      } else if (!studentCode) {
-        throw new BadRequestException('Sinh viên bắt buộc phải có Mã sinh viên (studentCode)');
-      }
+      const effectiveClassId = data.classId !== undefined
+        ? data.classId
+        : (data.existingUser?.classId ?? null);
 
-      if (data.isUpdate && data.classId === undefined && !data.existingUser?.classId) {
-        // Tài khoản legacy thiếu classId trong DB: không chặn khi chỉ sửa trường khác
-      } else if (!classId) {
-        throw new BadRequestException('Sinh viên bắt buộc phải thuộc một Lớp (classId)');
-      }
+      if (requiresFullValidation) {
+        if (!effectiveStudentCode) {
+          throw new BadRequestException('Sinh viên bắt buộc phải có Mã sinh viên (studentCode)');
+        }
+        if (!effectiveClassId) {
+          throw new BadRequestException('Sinh viên bắt buộc phải thuộc một Lớp (classId)');
+        }
+        const cls = await this.prisma.class.findUnique({ where: { id: effectiveClassId } });
+        if (!cls) {
+          throw new BadRequestException(`Không tìm thấy Lớp với ID: ${effectiveClassId}`);
+        }
 
-      const cls = await this.prisma.class.findUnique({ where: { id: classId } });
-      if (!cls) {
-        throw new BadRequestException(`Không tìm thấy Lớp với ID: ${classId}`);
-      }
-
-      const facultyId = data.facultyId !== undefined ? data.facultyId : (data.existingUser?.facultyId ?? null);
-      if (facultyId && cls.facultyId !== facultyId) {
-        throw new BadRequestException('Lớp học không thuộc Khoa đã chọn');
+        const effectiveFacultyId = data.facultyId !== undefined
+          ? data.facultyId
+          : (data.existingUser?.facultyId ?? null);
+        if (effectiveFacultyId && cls.facultyId !== effectiveFacultyId) {
+          throw new BadRequestException('Lớp học không thuộc Khoa đã chọn');
+        }
+      } else {
+        // Sửa thông tin không liên quan của tài khoản legacy thiếu lớp/Khoa:
+        // TUYỆT ĐỐI KHÔNG truy vấn class với ID null!
+        if (effectiveClassId) {
+          const cls = await this.prisma.class.findUnique({ where: { id: effectiveClassId } });
+          if (!cls) {
+            throw new BadRequestException(`Không tìm thấy Lớp với ID: ${effectiveClassId}`);
+          }
+        }
       }
     } else if (role === Role.STAFF) {
-      const facultyId = data.facultyId !== undefined ? data.facultyId : (data.existingUser?.facultyId ?? null);
-      if (data.isUpdate && data.facultyId === undefined && !data.existingUser?.facultyId) {
-        // Tài khoản legacy thiếu facultyId trong DB: không chặn khi chỉ sửa trường khác
-      } else if (!facultyId) {
-        throw new BadRequestException('Cán bộ bắt buộc phải thuộc một Khoa (facultyId)');
-      }
-      const faculty = await this.prisma.faculty.findUnique({ where: { id: facultyId } });
-      if (!faculty) {
-        throw new BadRequestException(`Không tìm thấy Khoa với ID: ${facultyId}`);
-      }
       if (data.classId) {
         throw new BadRequestException('Cán bộ quản lý Khoa không được gán vào lớp sinh viên');
       }
       if (data.studentCode) {
         throw new BadRequestException('Cán bộ không có Mã sinh viên');
+      }
+
+      const effectiveFacultyId = data.facultyId !== undefined
+        ? data.facultyId
+        : (data.existingUser?.facultyId ?? null);
+
+      if (requiresFullValidation) {
+        if (!effectiveFacultyId) {
+          throw new BadRequestException('Cán bộ bắt buộc phải thuộc một Khoa (facultyId)');
+        }
+        const faculty = await this.prisma.faculty.findUnique({ where: { id: effectiveFacultyId } });
+        if (!faculty) {
+          throw new BadRequestException(`Không tìm thấy Khoa với ID: ${effectiveFacultyId}`);
+        }
+      } else {
+        // Sửa thông tin không liên quan của tài khoản legacy STAFF thiếu facultyId:
+        // TUYỆT ĐỐI KHÔNG truy vấn faculty với ID null!
+        if (effectiveFacultyId) {
+          const faculty = await this.prisma.faculty.findUnique({ where: { id: effectiveFacultyId } });
+          if (!faculty) {
+            throw new BadRequestException(`Không tìm thấy Khoa với ID: ${effectiveFacultyId}`);
+          }
+        }
       }
     } else if (role === Role.ADMIN) {
       if (data.classId) {
@@ -316,16 +359,29 @@ export class UsersService {
       }
     }
 
-    // Nếu chỉ khóa tài khoản (isActive: false) mà không đổi định danh/đơn vị thì cho phép khóa dữ liệu legacy
-    const isOnlyDeactivating = dto.isActive === false && dto.fullName === undefined && dto.email === undefined && dto.studentCode === undefined && dto.classId === undefined && dto.facultyId === undefined;
-    if (!isOnlyDeactivating) {
-      await this.validateUserPayload({
-        ...dto,
-        role: existing.role,
-        isUpdate: true,
-        existingUser: existing,
+    // Kiểm tra trùng lặp email và mã sinh viên nếu có thay đổi
+    if (dto.email !== undefined && dto.email.trim().toLowerCase() !== existing.email.toLowerCase()) {
+      const dup = await this.prisma.user.findFirst({
+        where: { email: dto.email.trim().toLowerCase(), id: { not: id } },
       });
+      if (dup) throw new BadRequestException('Email đã tồn tại trong hệ thống');
     }
+    if (dto.studentCode !== undefined && dto.studentCode?.trim()) {
+      const normalizedCode = dto.studentCode.trim();
+      if (normalizedCode !== existing.studentCode) {
+        const dup = await this.prisma.user.findFirst({
+          where: { studentCode: normalizedCode, id: { not: id } },
+        });
+        if (dup) throw new BadRequestException('Mã sinh viên đã tồn tại trong hệ thống');
+      }
+    }
+
+    await this.validateUserPayload({
+      ...dto,
+      role: existing.role,
+      isUpdate: true,
+      existingUser: existing,
+    });
 
     const updated = await this.prisma.$transaction(async tx => {
       const updated = await tx.user.update({

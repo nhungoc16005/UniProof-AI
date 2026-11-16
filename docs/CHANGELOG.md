@@ -2,6 +2,40 @@
 
 Mỗi công việc trong dự án thêm mục mới ở đầu với ngày, phạm vi, feature/bug/quyết định liên quan, thay đổi thực tế, kiểm tra đã chạy và giới hạn. Không ghi test dự kiến như đã Passed, không ghi credential hoặc dữ liệu sinh viên.
 
+## 2026-11-16 — Hoàn thiện khắc phục BL-014 (Ban hành rubric cộng đồng) & BL-025 (Xử lý an toàn tài khoản legacy)
+
+- **Phạm vi & mục tiêu giải quyết theo kết quả review:**
+  1. **BL-014 (Rubric & Roles Scoring):**
+     - Cho phép bản nháp (`isPublishing = false` trong `createTermRubricDraft`, `updateTermRubricDraft`) thiếu `rolesScore` để Admin có thể soạn thảo linh hoạt hoặc khởi tạo từ bộ chuẩn.
+     - Khi **ban hành** (`publishTermRubric`, `publishRubricTemplateDraft`, `isPublishing = true`): bắt buộc mọi tiêu chí `community_activity_tier` phải cấu hình `rolesScore` đầy đủ 3 vai trò (PARTICIPANT / THAM_GIA, ORGANIZER / BAN_TO_CHUC / BTC, CHEERLEADER / CO_VU); điểm số là số không âm; và tuyệt đối không có alias mâu thuẫn (như `CO_VU: 2.5` khác `CHEERLEADER: 3`).
+     - Tuyệt đối không tự đặt mức điểm mặc định (bảo toàn quy chế DUT theo DEC-006 & DEC-009).
+     - Evaluator `activity-aggregator.ts` bổ sung phát hiện alias mâu thuẫn để trả blocker `NEEDS_VERIFICATION, suggestedScore: null`.
+  2. **BL-025 (Tài khoản Legacy & Phân quyền):**
+     - Cho phép sửa thông tin không liên quan (như `fullName`, `email`) hoặc khóa tài khoản (`isActive: false`) của tài khoản legacy STUDENT/STAFF thiếu lớp/Khoa/MSSV mà tuyệt đối **không truy vấn `class`/`faculty` với ID null**.
+     - Khi **bổ sung định danh** (`studentCode`, `classId`, hoặc `facultyId`) HOẶC **kích hoạt tài khoản** (`isActive: true` từ tài khoản đang bị khóa): bắt buộc kiểm tra dữ liệu đầy đủ và từ chối nếu thiếu thông tin bắt buộc.
+- **Thay đổi thực tế mã nguồn:**
+  - `apps/backend/src/criteria/criteria.service.ts`:
+    + Thêm hàm `validateRolesScoreConfig(criterionCode, rolesScore, isPublishing)`.
+    + `validateScoringConfig` và `validateRubricDefinition` nhận cờ `isPublishing` (mặc định `false`).
+    + `publishTermRubric` và `publishRubricTemplateDraft` gọi validation với `isPublishing = true`, map đầy đủ `rolesScore` từ database.
+  - `apps/backend/src/activities/activity-aggregator.ts`:
+    + Bổ sung kiểm tra alias mâu thuẫn trong `rolesScore`, báo blocker `NEEDS_VERIFICATION` nếu phát hiện điểm khác nhau giữa các alias.
+  - `apps/backend/src/users/users.service.ts`:
+    + Trong `validateUserPayload`: phân biệt `requiresFullValidation = !isUpdate || isModifyingIdentity || isActivating`.
+    + Chỉ truy vấn `class`/`faculty` khi ID hợp lệ (khác null/undefined); không query ID null khi sửa thông tin không liên quan của tài khoản legacy.
+    + Kiểm tra trùng lặp email và MSSV trong `update` khi có thay đổi.
+- **Kiểm thử thực chạy và kết quả:**
+  - Suite [apps/backend/test/activity-and-roles-scoring.test.cjs](../apps/backend/test/activity-and-roles-scoring.test.cjs): bổ sung Ca 8 đến Ca 13, đạt **19/19 tests pass 100%**.
+  - Suite [apps/backend/test/accounts-and-permissions.test.cjs](../apps/backend/test/accounts-and-permissions.test.cjs): bổ sung Ca 8 đến Ca 12, đạt **21/21 tests pass 100%**.
+  - Toàn bộ test suite dự án: **190 tests (189 passed, 1 skipped isolated DB)** trên 28 suites, 0 failed.
+  - Typecheck: Web `tsc -p apps/web/tsconfig.json --noEmit` **0 lỗi**, Backend `tsc -p apps/backend/tsconfig.json --noEmit` **0 lỗi**.
+  - `git diff --check`: **sạch sẽ, 0 lỗi whitespace**.
+- **Giới hạn kiểm chứng:** Đã kiểm chứng qua unit test in-memory và transaction doubles với service thật; chưa chạy trên PostgreSQL vật lý đa kết nối. Hoãn AI theo DEC-007.
+
+- Đối chiếu source và báo cáo: đã thấy các thay đổi bảo toàn rolesScore ở đường đọc/copy, ngăn fallback thiếu rate được dùng, bảo vệ preflight, ghi credential sau transaction và giữ revision khi exclude/restore. Đây chưa phải nghiệm thu toàn bộ.
+- Tái hiện in-memory với service thật: `publishTermRubric` vẫn cho ban hành tiêu chí cộng đồng không có rolesScore (stub chặn ghi); `UsersService.update` sửa tên sinh viên legacy thiếu lớp vẫn lỗi `Không tìm thấy Lớp với ID: null`. Validator cũng chưa từ chối alias trùng có giá trị khác nhau. Test guard dùng method thật nhưng stub `SuperGuard.canActivate`, chưa chứng minh Passport/HTTP thật.
+- Chạy 14 file test unit/component được chọn: 178 pass, 0 fail, 0 skipped; typecheck frontend/backend (backend tắt incremental) và `git diff --check` đạt. Không chạy glob DB integration, browser, Storage hoặc AI. Chưa sửa application code, spec/API/rules hay đổi trạng thái backlog vì đây là review.
+
 ## 2026-11-16 — Khắc phục triệt để 7 điểm khiếm khuyết sau review Đợt 5, 7, 8, 9, 10
 
 - **Phạm vi & mục tiêu giải quyết:**
