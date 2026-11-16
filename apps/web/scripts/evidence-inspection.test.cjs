@@ -1,244 +1,512 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const Module = require('node:module');
 
-// Harness mô phỏng chính xác logic hooks và lifecycle của EvidenceInspection.tsx
-function createEvidenceInspectionHarness(apiClient) {
-  const state = {
-    id: undefined,
-    data: null,
-    error: '',
-    loading: true,
-  };
-  const activeRequestIdRef = { current: 0 };
-
-  const loadData = (targetId) => {
-    const currentId = typeof targetId === 'string' ? targetId : state.id;
-    if (!currentId) {
-      state.data = null;
-      state.loading = false;
-      return Promise.resolve();
-    }
-    const requestId = ++activeRequestIdRef.current;
-    state.loading = true;
-    state.error = '';
-    state.data = null; // Xóa dữ liệu cũ khi đổi hồ sơ hoặc bắt đầu tải mới
-
-    return apiClient.getEvidenceById(currentId)
-      .then((value) => {
-        if (requestId === activeRequestIdRef.current) {
-          state.data = value;
-        }
-      })
-      .catch((err) => {
-        if (requestId === activeRequestIdRef.current) {
-          state.error = err?.message || 'Có lỗi xảy ra';
-        }
-      })
-      .finally(() => {
-        if (requestId === activeRequestIdRef.current) {
-          state.loading = false;
-        }
-      });
-  };
-
-  const changeId = (newId) => {
-    // Tương ứng useEffect cleanup khi dependency `id` thay đổi
-    activeRequestIdRef.current++;
-    state.id = newId;
-    return loadData(newId);
-  };
-
-  return {
-    getState: () => ({ ...state }),
-    loadData,
-    changeId,
-    activeRequestIdRef,
+// Cung cấp stub window cho môi trường Node.js (dành cho hotkey addEventListener trong ReviewDetail)
+if (typeof global.window === 'undefined') {
+  global.window = {
+    addEventListener: () => {},
+    removeEventListener: () => {}
   };
 }
 
-// Harness mô phỏng logic của ReviewDetail.tsx
-function createReviewDetailHarness(apiClient) {
-  const state = {
-    id: 'evidence-1',
-    evidence: null,
-    loadError: '',
-    isLoading: true,
-  };
+const React = require('../node_modules/react');
+const ts = require('../node_modules/typescript');
 
-  const fetchEvidence = () => {
-    if (state.id) {
-      state.isLoading = true;
-      state.loadError = '';
-      return apiClient.getEvidenceById(state.id)
-        .then((data) => {
-          state.evidence = data;
-          state.loadError = '';
-          state.isLoading = false;
-        })
-        .catch(() => {
-          state.loadError = 'Không tải được minh chứng.';
-          state.isLoading = false;
-        });
-    }
-    return Promise.resolve();
-  };
-
-  const setId = (newId) => {
-    state.id = newId;
-    return fetchEvidence();
-  };
-
-  return {
-    getState: () => ({ ...state }),
-    fetchEvidence,
-    setId,
-  };
+/**
+ * Deferred Promise hỗ trợ điều khiển thủ công thời điểm resolve/reject
+ */
+function createDeferred() {
+  let resolve, reject;
+  const promise = new Promise((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
 }
 
-test('EvidenceInspection: B trả trước, A trả sau -> màn hình vẫn giữ B, A bị bỏ qua', async () => {
-  const delays = { 'evidence-A': 50, 'evidence-B': 10 };
-  const apiClient = {
-    getEvidenceById: (id) => new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({ id, declaredActivityName: `Hoạt động của ${id}` });
-      }, delays[id] || 0);
-    }),
-  };
+/**
+ * React Component Harness:
+ * Render component React thực tế của ứng dụng trong môi trường Node.js không cần DOM,
+ * quản lý hooks (useState, useRef, useCallback, useMemo, useEffect) theo đúng lifecycle của React.
+ */
+function createReactHarness() {
+  let hooks = [];
+  let hookIndex = 0;
+  let effectsToRun = [];
+  let currentComponent = null;
+  let rerenderScheduled = false;
+  let lastVdom = null;
 
-  const harness = createEvidenceInspectionHarness(apiClient);
-
-  // 1. Mở hồ sơ A (chạy mất 50ms)
-  const promiseA = harness.changeId('evidence-A');
-
-  // 2. Ngay sau đó (chưa đầy 5ms), người dùng chuyển sang xem hồ sơ B
-  await new Promise(r => setTimeout(r, 5));
-  const promiseB = harness.changeId('evidence-B');
-
-  // Đợi cả 2 promise hoàn tất (B sau 10ms, A sau 50ms)
-  await Promise.all([promiseA, promiseB]);
-
-  const state = harness.getState();
-  assert.equal(state.id, 'evidence-B');
-  assert.notEqual(state.data, null);
-  assert.equal(state.data.id, 'evidence-B', 'Dữ liệu hiển thị phải là của B, không bị A đè lên');
-  assert.equal(state.data.declaredActivityName, 'Hoạt động của evidence-B');
-  assert.equal(state.loading, false);
-  assert.equal(state.error, '');
-});
-
-test('EvidenceInspection: Khi đổi sang hồ sơ B, dữ liệu cũ của A bị xóa ngay lập tức', async () => {
-  let resolveA;
-  const apiClient = {
-    getEvidenceById: (id) => new Promise((resolve) => {
-      if (id === 'evidence-A') {
-        resolveA = () => resolve({ id: 'evidence-A', declaredActivityName: 'A' });
-      } else {
-        setTimeout(() => resolve({ id: 'evidence-B', declaredActivityName: 'B' }), 10);
+  const dispatcher = {
+    useState(initial) {
+      const idx = hookIndex++;
+      if (hooks[idx] === undefined) {
+        hooks[idx] = typeof initial === 'function' ? initial() : initial;
       }
-    }),
-  };
-
-  const harness = createEvidenceInspectionHarness(apiClient);
-
-  // Mở A và chờ A tải xong
-  const promiseA = harness.changeId('evidence-A');
-  resolveA();
-  await promiseA;
-
-  assert.equal(harness.getState().data?.id, 'evidence-A');
-
-  // Chuyển sang B
-  const promiseB = harness.changeId('evidence-B');
-
-  // Kiểm tra ngay lập tức: data cũ của A phải bị xóa (null) và loading bật lại
-  const intermediateState = harness.getState();
-  assert.equal(intermediateState.data, null, 'Data phải là null trong khi đang tải B');
-  assert.equal(intermediateState.loading, true, 'Loading phải bật true khi tải hồ sơ mới');
-
-  await promiseB;
-  assert.equal(harness.getState().data?.id, 'evidence-B');
-});
-
-test('EvidenceInspection: Tải lại lần 1 trễ, tải lại lần 2 trả nhanh -> kết quả lần 1 bị bỏ qua', async () => {
-  let callCount = 0;
-  const apiClient = {
-    getEvidenceById: () => {
-      callCount++;
-      const currentCall = callCount;
-      return new Promise((resolve) => {
-        // Lần 1 trễ 40ms, lần 2 trễ 10ms
-        const delay = currentCall === 1 ? 40 : 10;
-        setTimeout(() => {
-          resolve({ id: 'evidence-1', version: currentCall });
-        }, delay);
-      });
+      const setState = (action) => {
+        const next = typeof action === 'function' ? action(hooks[idx]) : action;
+        if (hooks[idx] !== next) {
+          hooks[idx] = next;
+          scheduleRerender();
+        }
+      };
+      return [hooks[idx], setState];
     },
+    useRef(initial) {
+      const idx = hookIndex++;
+      if (!hooks[idx]) {
+        hooks[idx] = { current: initial };
+      }
+      return hooks[idx];
+    },
+    useCallback(fn, deps) {
+      const idx = hookIndex++;
+      const prev = hooks[idx];
+      if (prev && deps && prev.deps.every((d, i) => Object.is(d, deps[i]))) {
+        return prev.fn;
+      }
+      hooks[idx] = { fn, deps };
+      return fn;
+    },
+    useMemo(fn, deps) {
+      const idx = hookIndex++;
+      const prev = hooks[idx];
+      if (prev && deps && prev.deps.every((d, i) => Object.is(d, deps[i]))) {
+        return prev.value;
+      }
+      const value = fn();
+      hooks[idx] = { value, deps };
+      return value;
+    },
+    useEffect(effect, deps) {
+      const idx = hookIndex++;
+      const prev = hooks[idx];
+      const hasChanged = !prev || !deps || !prev.deps.every((d, i) => Object.is(d, deps[i]));
+      if (hasChanged) {
+        effectsToRun.push({ idx, effect, deps, cleanup: prev?.cleanup });
+      }
+    }
   };
 
-  const harness = createEvidenceInspectionHarness(apiClient);
-  await harness.changeId('evidence-1'); // Tải ban đầu xong (version 1)
+  function render() {
+    hookIndex = 0;
+    effectsToRun = [];
+    React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.ReactCurrentDispatcher.current = dispatcher;
+    lastVdom = currentComponent();
+    for (const item of effectsToRun) {
+      if (typeof item.cleanup === 'function') {
+        item.cleanup();
+      }
+      const cleanup = item.effect();
+      hooks[item.idx] = { effect: item.effect, deps: item.deps, cleanup };
+    }
+    return lastVdom;
+  }
 
-  // Gọi thử tải lại lần 1 (sẽ là call 2, delay 40ms)
-  const retry1 = harness.loadData();
-  // Ngay sau 5ms, bấm thử tải lại lần 2 (sẽ là call 3, delay 10ms)
-  await new Promise(r => setTimeout(r, 5));
-  const retry2 = harness.loadData();
+  function scheduleRerender() {
+    if (!rerenderScheduled) {
+      rerenderScheduled = true;
+      queueMicrotask(() => {
+        rerenderScheduled = false;
+        render();
+      });
+    }
+  }
 
-  await Promise.all([retry1, retry2]);
+  function unmount() {
+    for (const hook of hooks) {
+      if (hook && typeof hook.cleanup === 'function') {
+        hook.cleanup();
+      }
+    }
+  }
 
-  const finalState = harness.getState();
-  assert.equal(finalState.data?.version, 3, 'Phải hiển thị dữ liệu của lần tải lại mới nhất (call 3)');
+  return {
+    mount(Component) {
+      currentComponent = Component;
+      return render();
+    },
+    rerender() {
+      return render();
+    },
+    unmount,
+    getHooks: () => hooks,
+    getVdom: () => lastVdom,
+    flush: async (delay = 10) => {
+      await new Promise(r => setTimeout(r, delay));
+    }
+  };
+}
+
+/**
+ * Duyệt đệ quy cây VDOM tìm node thỏa mãn điều kiện
+ */
+function findInVdom(node, predicate) {
+  if (!node) return null;
+  if (predicate(node)) return node;
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const res = findInVdom(child, predicate);
+      if (res) return res;
+    }
+  }
+  if (node && typeof node === 'object' && node.props) {
+    if (node.props.children) {
+      const res = findInVdom(node.props.children, predicate);
+      if (res) return res;
+    }
+  }
+  return null;
+}
+
+/**
+ * Nạp component thực tế từ TypeScript source file kèm module mock giả lập
+ */
+function loadRealComponent(filePath, mockModules = {}) {
+  const file = path.resolve(__dirname, filePath);
+  const compiled = ts.transpileModule(fs.readFileSync(file, 'utf8'), {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2020,
+      jsx: ts.JsxEmit.React,
+      esModuleInterop: true
+    }
+  }).outputText;
+
+  const mod = new Module(file, module);
+  mod.filename = file;
+  mod.paths = Module._nodeModulePaths(path.dirname(file));
+
+  mod.require = (request) => {
+    if (request === 'react') return React;
+    if (mockModules[request]) return mockModules[request];
+    for (const [key, val] of Object.entries(mockModules)) {
+      if (request.endsWith(key) || request === key) return val;
+    }
+    return require(request);
+  };
+
+  mod._compile(compiled, file);
+  return mod.exports;
+}
+
+// =========================================================================
+// TEST SUITE: Component thực tế EvidenceInspection & ReviewDetail
+// =========================================================================
+
+test('EvidenceInspection (component thật): B trả trước, A trả sau -> màn hình vẫn giữ B, A bị bỏ qua', async () => {
+  let currentParams = { id: 'evidence-A' };
+  const deferredA = createDeferred();
+  const deferredB = createDeferred();
+
+  const mockApiClient = {
+    getEvidenceById: (id) => {
+      if (id === 'evidence-A') return deferredA.promise;
+      if (id === 'evidence-B') return deferredB.promise;
+      return Promise.reject(new Error('Unknown id: ' + id));
+    }
+  };
+
+  const { EvidenceInspection } = loadRealComponent('../src/components/EvidenceInspection.tsx', {
+    'react-router-dom': {
+      useParams: () => currentParams,
+      useSearchParams: () => [new URLSearchParams()],
+      Link: ({ children }) => React.createElement('a', null, children)
+    },
+    '../lib/apiClient': { apiClient: mockApiClient },
+    './EvaluationBoard': { errorMessage: (e) => e?.message || 'Có lỗi xảy ra' },
+    './ui/StatusBadge': { StatusBadge: () => null }
+  });
+
+  const harness = createReactHarness();
+
+  // 1. Mount component thật với ID = evidence-A (đang chờ Deferred A)
+  harness.mount(EvidenceInspection);
+
+  // 2. Người dùng chuyển route sang xem evidence-B (đang chờ Deferred B)
+  currentParams = { id: 'evidence-B' };
+  harness.rerender();
+
+  // 3. Điều khiển thủ công: Cho Deferred B hoàn thành TRƯỚC
+  deferredB.resolve({
+    id: 'evidence-B',
+    declaredActivityName: 'Hoạt động của B',
+    files: []
+  });
+  await harness.flush();
+
+  let titleNode = findInVdom(harness.getVdom(), n => n?.type === 'h2');
+  assert.equal(titleNode?.props?.children, 'Hoạt động của B', 'Màn hình phải hiển thị nội dung hồ sơ B');
+
+  // 4. Bây giờ mới cho Deferred A hoàn thành SAU
+  deferredA.resolve({
+    id: 'evidence-A',
+    declaredActivityName: 'Hoạt động của A cũ bị trễ',
+    files: []
+  });
+  await harness.flush();
+
+  // 5. Kiểm tra: Component thật phải drop phản hồi của A, giữ nguyên B
+  titleNode = findInVdom(harness.getVdom(), n => n?.type === 'h2');
+  assert.equal(
+    titleNode?.props?.children,
+    'Hoạt động của B',
+    'Phản hồi muộn của hồ sơ A không được ghi đè lên hồ sơ B'
+  );
+  harness.unmount();
 });
 
-test('EvidenceInspection: Lỗi của request cũ về muộn không ghi đè vào hồ sơ mới', async () => {
-  const apiClient = {
-    getEvidenceById: (id) => new Promise((resolve, reject) => {
-      if (id === 'evidence-A') {
-        setTimeout(() => reject(new Error('Lỗi mạng tại hồ sơ A')), 40);
-      } else {
-        setTimeout(() => resolve({ id: 'evidence-B' }), 10);
-      }
-    }),
+test('EvidenceInspection (component thật): Khi đổi sang hồ sơ B, dữ liệu cũ của A bị xóa ngay lập tức', async () => {
+  let currentParams = { id: 'evidence-A' };
+  let deferredA = createDeferred();
+  let deferredB = createDeferred();
+
+  const mockApiClient = {
+    getEvidenceById: (id) => {
+      if (id === 'evidence-A') return deferredA.promise;
+      if (id === 'evidence-B') return deferredB.promise;
+      return Promise.reject(new Error('Unknown id'));
+    }
   };
 
-  const harness = createEvidenceInspectionHarness(apiClient);
-  const pA = harness.changeId('evidence-A');
-  await new Promise(r => setTimeout(r, 5));
-  const pB = harness.changeId('evidence-B');
+  const { EvidenceInspection } = loadRealComponent('../src/components/EvidenceInspection.tsx', {
+    'react-router-dom': {
+      useParams: () => currentParams,
+      useSearchParams: () => [new URLSearchParams()],
+      Link: ({ children }) => React.createElement('a', null, children)
+    },
+    '../lib/apiClient': { apiClient: mockApiClient },
+    './EvaluationBoard': { errorMessage: (e) => e?.message || 'Có lỗi' },
+    './ui/StatusBadge': { StatusBadge: () => null }
+  });
 
-  await Promise.allSettled([pA, pB]);
+  const harness = createReactHarness();
+  harness.mount(EvidenceInspection);
 
-  const state = harness.getState();
-  assert.equal(state.data?.id, 'evidence-B');
-  assert.equal(state.error, '', 'Lỗi từ A về muộn không được ghi vào error của B');
+  // Cho A tải xong
+  deferredA.resolve({ id: 'evidence-A', declaredActivityName: 'Hoạt động A' });
+  await harness.flush();
+
+  let title = findInVdom(harness.getVdom(), n => n?.type === 'h2');
+  assert.equal(title?.props?.children, 'Hoạt động A');
+
+  // Đổi sang B
+  currentParams = { id: 'evidence-B' };
+  harness.rerender();
+  await harness.flush();
+
+  // Kiểm tra: dữ liệu cũ của A phải bị xóa (không còn h2), hiển thị trạng thái đang tải
+  title = findInVdom(harness.getVdom(), n => n?.type === 'h2');
+  assert.equal(title, null, 'Dữ liệu của A phải bị xóa ngay lập tức khi chuyển sang B');
+
+  const loadingText = findInVdom(harness.getVdom(), n => n?.props?.role === 'status');
+  assert.notEqual(loadingText, null, 'Phải hiển thị trạng thái đang tải hồ sơ B');
+
+  // Cho B giải quyết xong
+  deferredB.resolve({ id: 'evidence-B', declaredActivityName: 'Hoạt động B' });
+  await harness.flush();
+
+  title = findInVdom(harness.getVdom(), n => n?.type === 'h2');
+  assert.equal(title?.props?.children, 'Hoạt động B');
+  harness.unmount();
 });
 
-test('ReviewDetail: Xóa thông báo lỗi sau khi thử lại thành công', async () => {
-  let shouldFail = true;
-  const apiClient = {
-    getEvidenceById: (id) => new Promise((resolve, reject) => {
-      if (shouldFail) {
-        reject(new Error('Mạng chập chờn'));
-      } else {
-        resolve({ id, declaredActivityName: 'Minh chứng hợp lệ' });
+test('EvidenceInspection (component thật): Thử tải lại thủ công - retry 2 hoàn thành trước, retry 1 trả về sau không ghi đè', async () => {
+  let callCount = 0;
+  let retryDeferred1 = null;
+  let retryDeferred2 = null;
+
+  const mockApiClient = {
+    getEvidenceById: (id) => {
+      callCount++;
+      if (callCount === 1) {
+        // Tải ban đầu: có tệp chưa ký để component hiển thị nút "Thử tải lại"
+        return Promise.resolve({
+          id,
+          declaredActivityName: 'Bản ban đầu',
+          files: [{ id: 'f1', fileName: 'minh-chung.pdf', fileUrl: 'evidence/1.pdf', signedUrlAvailable: false }]
+        });
       }
-    }),
+      if (callCount === 2) {
+        retryDeferred1 = createDeferred();
+        return retryDeferred1.promise;
+      }
+      if (callCount === 3) {
+        retryDeferred2 = createDeferred();
+        return retryDeferred2.promise;
+      }
+      return Promise.reject(new Error('Unexpected call'));
+    }
   };
 
-  const harness = createReviewDetailHarness(apiClient);
+  const { EvidenceInspection } = loadRealComponent('../src/components/EvidenceInspection.tsx', {
+    'react-router-dom': {
+      useParams: () => ({ id: 'ev-test-1' }),
+      useSearchParams: () => [new URLSearchParams()],
+      Link: ({ children }) => React.createElement('a', null, children)
+    },
+    '../lib/apiClient': { apiClient: mockApiClient },
+    './EvaluationBoard': { errorMessage: (e) => e?.message || 'Có lỗi' },
+    './ui/StatusBadge': { StatusBadge: () => null }
+  });
 
-  // Lần 1: fetch thất bại
-  await harness.fetchEvidence();
-  let state = harness.getState();
-  assert.equal(state.loadError, 'Không tải được minh chứng.', 'Phải hiển thị thông báo lỗi khi tải thất bại');
-  assert.equal(state.evidence, null);
+  const harness = createReactHarness();
+  harness.mount(EvidenceInspection);
+  await harness.flush();
 
-  // Lần 2: mạng phục hồi, bấm "Thử tải lại"
+  // Tìm nút "Thử tải lại" trong VDOM render thực tế của component
+  const retryBtn = findInVdom(harness.getVdom(), n => n?.type === 'button' && JSON.stringify(n).includes('Thử tải lại'));
+  assert.notEqual(retryBtn, null, 'Component phải render nút Thử tải lại khi có tệp chưa ký URL');
+
+  // 1. Người dùng bấm "Thử tải lại" lần 1 (request đang chờ xử lý trên mạng)
+  retryBtn.props.onClick();
+  assert.equal(callCount, 2, 'API phải được gọi cho lần thử tải lại 1');
+
+  // 2. Người dùng sốt ruột bấm tiếp "Thử tải lại" lần 2 (request 2 cũng được gửi đi)
+  retryBtn.props.onClick();
+  assert.equal(callCount, 3, 'API phải được gọi cho lần thử tải lại 2');
+
+  // 3. Điều khiển thủ công: Cho retry 2 hoàn thành TRƯỚC với dữ liệu mới
+  retryDeferred2.resolve({
+    id: 'ev-test-1',
+    declaredActivityName: 'Bản tải lại v2 (mới nhất)',
+    files: [{ id: 'f1', fileName: 'minh-chung.pdf', fileUrl: 'https://storage/signed-v2.pdf', signedUrlAvailable: true }]
+  });
+  await harness.flush();
+
+  let title = findInVdom(harness.getVdom(), n => n?.type === 'h2');
+  assert.equal(title?.props?.children, 'Bản tải lại v2 (mới nhất)', 'Màn hình phải cập nhật dữ liệu của retry 2');
+
+  // 4. Bây giờ mới cho retry 1 hoàn thành SAU với dữ liệu cũ
+  retryDeferred1.resolve({
+    id: 'ev-test-1',
+    declaredActivityName: 'Bản tải lại v1 (cũ bị trễ)',
+    files: [{ id: 'f1', fileName: 'minh-chung.pdf', fileUrl: 'evidence/1.pdf', signedUrlAvailable: false }]
+  });
+  await harness.flush();
+
+  // 5. Kiểm tra: Dữ liệu trên màn hình VẪN PHẢI GIỮ bản v2, không bị bản v1 cũ đè lên
+  title = findInVdom(harness.getVdom(), n => n?.type === 'h2');
+  assert.equal(
+    title?.props?.children,
+    'Bản tải lại v2 (mới nhất)',
+    'Phản hồi của lần thử tải lại cũ trả về sau tuyệt đối không được ghi đè dữ liệu mới'
+  );
+  harness.unmount();
+});
+
+test('EvidenceInspection (component thật): Lỗi mạng của request A cũ về muộn không ghi đè vào hồ sơ B', async () => {
+  let currentParams = { id: 'evidence-A' };
+  const deferredA = createDeferred();
+  const deferredB = createDeferred();
+
+  const mockApiClient = {
+    getEvidenceById: (id) => {
+      if (id === 'evidence-A') return deferredA.promise;
+      if (id === 'evidence-B') return deferredB.promise;
+      return Promise.reject(new Error('Unknown'));
+    }
+  };
+
+  const { EvidenceInspection } = loadRealComponent('../src/components/EvidenceInspection.tsx', {
+    'react-router-dom': {
+      useParams: () => currentParams,
+      useSearchParams: () => [new URLSearchParams()],
+      Link: ({ children }) => React.createElement('a', null, children)
+    },
+    '../lib/apiClient': { apiClient: mockApiClient },
+    './EvaluationBoard': { errorMessage: (e) => e?.message || 'Có lỗi' },
+    './ui/StatusBadge': { StatusBadge: () => null }
+  });
+
+  const harness = createReactHarness();
+  harness.mount(EvidenceInspection);
+
+  // Đổi sang B
+  currentParams = { id: 'evidence-B' };
+  harness.rerender();
+
+  // B trả về thành công
+  deferredB.resolve({ id: 'evidence-B', declaredActivityName: 'Hoạt động B' });
+  await harness.flush();
+
+  // Sau đó A bị lỗi mạng
+  deferredA.reject(new Error('Mạng đứt tại hồ sơ A'));
+  await harness.flush();
+
+  // Màn hình vẫn hiển thị B và không có alert error
+  const title = findInVdom(harness.getVdom(), n => n?.type === 'h2');
+  assert.equal(title?.props?.children, 'Hoạt động B');
+
+  const alertNode = findInVdom(harness.getVdom(), n => n?.props?.role === 'alert');
+  assert.equal(alertNode, null, 'Lỗi của hồ sơ A cũ không được hiển thị trên hồ sơ B');
+  harness.unmount();
+});
+
+test('ReviewDetail (component thật): Sau khi thử tải lại thành công, thông báo lỗi loadError được xóa sạch hoàn toàn', async () => {
+  let shouldFail = false;
+
+  const mockApiClient = {
+    getEvidenceById: async (id) => {
+      if (shouldFail) throw new Error('Mạng bị ngắt');
+      return {
+        id,
+        declaredActivityName: 'Minh chứng duyệt ' + id,
+        studentId: 'student-1',
+        termId: 'term-1',
+        status: 'SUBMITTED',
+        files: [{ id: 'f1', fileUrl: 'evidence/test.pdf', signedUrlAvailable: false }]
+      };
+    },
+    getRubric: async () => ({ id: 'r1', categories: [] })
+  };
+
+  const { ReviewDetail } = loadRealComponent('../src/pages/officer/ReviewDetail.tsx', {
+    'react-router-dom': {
+      useParams: () => ({ id: 'ev-review-1' }),
+      useNavigate: () => () => {},
+      useSearchParams: () => [new URLSearchParams()],
+      Link: ({ children }) => React.createElement('a', null, children)
+    },
+    'lucide-react': new Proxy({}, { get: () => () => null }),
+    '../../lib/apiClient': { apiClient: mockApiClient },
+    '../../components/ui/StatusBadge': { StatusBadge: () => null },
+    '../../components/ui/VerificationBadge': { VerificationBadge: () => null, TwoQuestionsVerification: () => null },
+    '../../components/ui/ConfidenceBar': { ConfidenceBar: () => null }
+  });
+
+  const harness = createReactHarness();
+
+  // 1. Tải ban đầu thành công (có file chưa ký, hiển thị nút "Thử tải lại")
+  harness.mount(ReviewDetail);
+  await harness.flush();
+
+  let alertNode = findInVdom(harness.getVdom(), n => n?.props?.role === 'alert');
+  assert.equal(alertNode, null, 'Ban đầu không có thông báo lỗi');
+
+  const retryBtn = findInVdom(harness.getVdom(), n => n?.type === 'button' && JSON.stringify(n).includes('Thử tải lại'));
+  assert.notEqual(retryBtn, null, 'Màn hình cán bộ phải hiển thị nút Thử tải lại khi có tệp chưa ký');
+
+  // 2. Mạng bị ngắt, người dùng bấm "Thử tải lại" -> thất bại
+  shouldFail = true;
+  retryBtn.props.onClick();
+  await harness.flush();
+
+  alertNode = findInVdom(harness.getVdom(), n => n?.props?.role === 'alert');
+  assert.notEqual(alertNode, null, 'Phải hiển thị alert cảnh báo lỗi sau khi thử tải lại thất bại');
+  assert.equal(alertNode?.props?.children, 'Không tải được minh chứng.');
+
+  // 3. Mạng phục hồi, người dùng bấm "Thử tải lại" lần nữa -> thành công
   shouldFail = false;
-  await harness.fetchEvidence();
+  retryBtn.props.onClick();
+  await harness.flush();
 
-  state = harness.getState();
-  assert.equal(state.loadError, '', 'Thông báo lỗi phải được xóa sạch sau khi thử lại thành công');
-  assert.notEqual(state.evidence, null);
-  assert.equal(state.evidence.id, 'evidence-1');
+  // 4. Kiểm tra: setLoadError('') đã được gọi, thông báo lỗi phải biến mất hoàn toàn
+  alertNode = findInVdom(harness.getVdom(), n => n?.props?.role === 'alert');
+  assert.equal(alertNode, null, 'Thông báo lỗi phải được xóa sạch hoàn toàn sau khi thử tải lại thành công');
+
+  harness.unmount();
 });

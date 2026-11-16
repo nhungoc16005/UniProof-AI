@@ -35,13 +35,14 @@ Mỗi công việc trong dự án thêm mục mới ở đầu với ngày, ph�
       * Ca 8: Danh sách tệp cần xóa được đọc BÊN TRONG transaction có khóa Term.
       * Ca 9: Cleanup Storage trả lỗi HTTP 500/mất mạng $\rightarrow$ DB commit xóa thành công, ghi nhận `filesPendingCleanup: 1` / `storageCleaned: false`, không crash.
     + Kết quả: 11/11 tests pass (thời gian chạy: 3.5s).
-  - Tạo bộ test cô lập [apps/web/scripts/evidence-inspection.test.cjs](../apps/web/scripts/evidence-inspection.test.cjs) chạy bằng Node.js test runner (`node --test`), bao gồm 5 ca kiểm thử:
-    + Ca 1: Mở hồ sơ A (delay 50ms), chuyển sang hồ sơ B (delay 10ms); B trả trước $\rightarrow$ màn hình hiển thị B; khi A trả về sau $\rightarrow$ màn hình vẫn giữ B, A bị bỏ qua hoàn toàn.
-    + Ca 2: Khi chuyển từ hồ sơ A sang B, dữ liệu của A bị xóa ngay lập tức (`data === null`) và bật lại `loading === true`, không giữ lại hồ sơ cũ.
-    + Ca 3: Bấm thử tải lại lần 1 trễ (40ms), bấm tiếp lần 2 trả nhanh (10ms) $\rightarrow$ kết quả lần 1 bị bỏ qua, màn hình hiển thị kết quả lần 2.
+  - Tạo bộ test cô lập [apps/web/scripts/evidence-inspection.test.cjs](../apps/web/scripts/evidence-inspection.test.cjs) chạy bằng Node.js test runner (`node --test`), gọi trực tiếp component thực tế của ứng dụng (`EvidenceInspection.tsx` và `ReviewDetail.tsx`) qua React harness quản lý hook/lifecycle và mock API `apiClient.getEvidenceById`, bao gồm 5 ca kiểm thử:
+    + Ca 1: Mở hồ sơ A (Deferred A), chuyển sang hồ sơ B (Deferred B); điều khiển thủ công cho B giải quyết trước $\rightarrow$ màn hình hiển thị B; khi A giải quyết sau $\rightarrow$ component thực tế bỏ qua phản hồi A, màn hình vẫn giữ B.
+    + Ca 2: Khi chuyển từ hồ sơ A sang B, dữ liệu của A bị xóa ngay lập tức (`data === null`) và bật lại `loading === true`, hiển thị trạng thái đang tải hồ sơ B.
+    + Ca 3: Thử tải lại thủ công bằng Deferred Promise: bấm retry 1 (Deferred 1 treo), bấm tiếp retry 2 (Deferred 2 treo); cho Deferred 2 hoàn thành trước với phiên bản v2 $\rightarrow$ màn hình cập nhật v2; sau đó mới cho Deferred 1 hoàn thành sau với bản v1 cũ $\rightarrow$ component thực tế bỏ qua bản cũ, dữ liệu màn hình vẫn giữ nguyên v2.
     + Ca 4: Lỗi mạng của request A cũ về muộn không ghi đè vào `state.error` của hồ sơ B mới.
-    + Ca 5: ReviewDetail: ban đầu lỗi mạng (`loadError`), sau đó bấm thử tải lại thành công $\rightarrow$ thông báo lỗi được xóa sạch (`loadError === ''`).
-    + Kết quả: 5/5 tests pass (thời gian chạy: 0.22s).
+    + Ca 5: ReviewDetail: sau khi thử tải lại thành công, hàm `fetchEvidence` của component thực tế gọi `setLoadError('')`, thông báo alert lỗi được xóa sạch hoàn toàn.
+    + Bằng chứng đối chứng đỏ: Nếu tạm bỏ `if (requestId === activeRequestIdRef.current)` trong `EvidenceInspection.tsx`, Ca 1 và Ca 3 lập tức FAIL (`ERR_ASSERTION`). Nếu tạm bỏ `setLoadError('')` trong `ReviewDetail.tsx`, Ca 5 lập tức FAIL (`ERR_ASSERTION`).
+    + Kết quả: 5/5 tests pass (thời gian chạy: 0.43s).
   - Chạy regression toàn bộ các suite hiện có:
     + `node --test apps/web/scripts/evidence-inspection.test.cjs` $\rightarrow$ 5/5 tests pass.
     + `node --test apps/backend/test/data-protection.test.cjs` $\rightarrow$ 11/11 tests pass.
