@@ -2,6 +2,19 @@
 
 Mỗi công việc trong dự án thêm mục mới ở đầu với ngày, phạm vi, feature/bug/quyết định liên quan, thay đổi thực tế, kiểm tra đã chạy và giới hạn. Không ghi test dự kiến như đã Passed, không ghi credential hoặc dữ liệu sinh viên.
 
+## 2026-11-17 — Bổ sung điểm chấm mẫu cho các hồ sơ DEMO
+
+- Theo yêu cầu của người dùng, gán cán bộ CNTT hiện có cho điểm giả lập của 60 phiếu DEMO đã nộp thuộc kỳ `2026_1`: TC1, TC3, TC7, tổng 180 tiêu chí `FINALIZED`, ghi rõ `[DEMO]` trong căn cứ/lý do. Đây là dữ liệu được gán theo yêu cầu tạo mẫu, không khẳng định cán bộ thực sự đã thực hiện lượt chấm. Không tạo cán bộ mới.
+- Điểm được tính bằng `evaluateRubricCriterion` theo scoringConfig đã ban hành; không thay rubric, không đặt rolesScore, không công bố và không chấm 13 tiêu chí còn lại. 40 tài khoản DEMO chưa nộp được giữ nguyên.
+- Trước khi ghi đã thử trên PostgreSQL localhost `_test` (schema bản sao tương thích PG16), kiểm tra 60 phiếu/180 điểm và chạy lại bị chặn để không ghi đè; sau ghi kiểm tra chỉ đọc trên Supabase có 60 bản ghi mỗi TC, đều có người chấm và nhãn DEMO. Đã dừng container test. Không kiểm browser; không chạy migration trên Supabase, không sửa application code/contract/spec.
+
+## 2026-11-17 — Tạo dữ liệu trình diễn trong kỳ 2026_1
+
+- Theo yêu cầu và xác nhận của người dùng, thêm dữ liệu tổng hợp `[DEMO]` vào Supabase EduPoint: 5 lớp Khoa CNTT, 100 sinh viên giả, 100 snapshot roster, 80 phiếu (20 nháp, 60 đã nộp), 1.280 điểm tự đánh giá, 5 hoạt động và 40 dòng điểm danh nháp. 20 sinh viên chưa tạo phiếu. Không tạo điểm chính thức, publication, minh chứng giả hay job AI; không thay rubric/kỳ hiện có.
+- Mã lớp `DEMO_26_CNTT_1`…`DEMO_26_CNTT_5`; MSSV mẫu `990260001`…`990260100`. Tài khoản mẫu phải đổi mật khẩu khi đăng nhập lần đầu. Dữ liệu mẫu có ảnh hưởng thống kê kỳ hiện hành.
+- Trước khi ghi đã thử trên PostgreSQL localhost `_test`: 5 lớp mỗi lớp 20, kiểm tra mật khẩu/mốc đổi lần đầu, điểm không vượt trần và chạy lại không ghi đè. Sau khi ghi đã kiểm tra chỉ đọc trên Supabase: đủ 100 tài khoản, 5 lớp mỗi lớp 20, 20 chưa tạo phiếu/20 nháp/60 đã nộp; xác thực mẫu bằng bcrypt. Container test đã dừng.
+- Script tạm `/tmp/edupoint-create-demo-20261117.cjs` dừng khi có mã trùng và ghi trong một transaction. Không áp dụng migrations mới lên Supabase; hai migration F15 chưa có trên database tại thời điểm kiểm tra. Không sửa application code, feature spec hoặc contract; chưa kiểm browser E2E.
+
 ## 2026-11-17 — Sửa các lỗi review F15
 
 - Ô trống/sai kiểu trong file học vụ được giữ là thiếu/sai, không tự chuyển thành 0, true, false hoặc AVERAGE; vai trò không hợp lệ không tự đổi sang tham gia, hỗ trợ alias THAM_GIA_CHINH.
