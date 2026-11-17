@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../../lib/apiClient';
-import { Criterion, CriterionAssessment, RubricPayload, User } from '../../types';
+import { Criterion, CriterionAssessment, RubricPayload, User, PreviewFinalizeResult } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import {
   ArrowLeft,
@@ -538,6 +538,41 @@ export const StudentAssessment: React.FC = () => {
   const isAdmin = user.role === 'ADMIN';
   const isReadOnly = isAdmin || !payload?.permissions?.canReview;
 
+  const [showFinalizeModal, setShowFinalizeModal] = useState(false);
+  const [previewFinalize, setPreviewFinalize] = useState<PreviewFinalizeResult | null>(null);
+  const [loadingPreviewFinalize, setLoadingPreviewFinalize] = useState(false);
+  const [isFinalizing, setIsFinalizing] = useState(false);
+  const [finalizeError, setFinalizeError] = useState('');
+
+  const handleOpenFinalizeModal = async () => {
+    setShowFinalizeModal(true);
+    setLoadingPreviewFinalize(true);
+    setFinalizeError('');
+    try {
+      const data = await apiClient.previewFinalizeStudent(studentId, termId);
+      setPreviewFinalize(data);
+    } catch (err: any) {
+      setFinalizeError(err.response?.data?.message || err.message || 'Lỗi khi kiểm tra điều kiện chốt phiếu.');
+    } finally {
+      setLoadingPreviewFinalize(false);
+    }
+  };
+
+  const handleConfirmFinalize = async () => {
+    setIsFinalizing(true);
+    setFinalizeError('');
+    try {
+      const res = await apiClient.finalizeStudent(studentId, { termId });
+      setShowFinalizeModal(false);
+      await load();
+      window.alert(`Đã chốt thành công ${res.finalizedCount} tiêu chí. Tổng điểm chính thức: ${res.officialTotalScore} điểm.`);
+    } catch (err: any) {
+      setFinalizeError(err.response?.data?.message || err.message || 'Không thể chốt phiếu.');
+    } finally {
+      setIsFinalizing(false);
+    }
+  };
+
   const load = async () => {
     setLoading(true);
     setError('');
@@ -840,6 +875,14 @@ export const StudentAssessment: React.FC = () => {
             />
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <button
+              disabled={busy}
+              onClick={handleOpenFinalizeModal}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3.5 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+              <span>Chốt phiếu sinh viên</span>
+            </button>
             <button
               disabled={busy || !returnReason.trim()}
               onClick={() => void act(() => apiClient.returnSelfAssessment(studentId, termId, returnReason))}
@@ -1249,6 +1292,131 @@ export const StudentAssessment: React.FC = () => {
               readOnly={isReadOnly}
               onSaved={load}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Modal Chốt Phiếu Sinh Viên */}
+      {showFinalizeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-xl max-w-2xl w-full p-5 shadow-xl border border-slate-200 space-y-4 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div>
+                <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  Chốt phiếu đánh giá sinh viên
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {student?.fullName} ({student?.studentCode}) · Lớp {student?.class?.code}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFinalizeModal(false)}
+                className="text-slate-400 hover:text-slate-700 p-1 rounded-md"
+              >
+                ✕
+              </button>
+            </div>
+
+            {loadingPreviewFinalize ? (
+              <div className="p-8 text-center text-xs text-slate-500">
+                Đang kiểm tra điều kiện chốt và tổng hợp tiêu chí...
+              </div>
+            ) : previewFinalize ? (
+              <div className="space-y-3 flex-1 overflow-y-auto">
+                {/* Blockers */}
+                {previewFinalize.blockers.length > 0 && (
+                  <div className="rounded-lg bg-rose-50 border border-rose-200 p-3 text-xs text-rose-800 space-y-1">
+                    <strong className="block font-semibold">Chưa thể chốt phiếu do còn các vấn đề sau:</strong>
+                    <ul className="list-disc pl-4 space-y-0.5">
+                      {previewFinalize.blockers.map((b, idx) => (
+                        <li key={idx}>{b}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Warnings */}
+                {previewFinalize.warnings.length > 0 && (
+                  <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 space-y-1">
+                    <strong className="block font-semibold">Lưu ý khi chốt:</strong>
+                    <ul className="list-disc pl-4 space-y-0.5">
+                      {previewFinalize.warnings.map((w, idx) => (
+                        <li key={idx}>{w}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Bảng xem trước 16 tiêu chí */}
+                <div className="border border-slate-200 rounded-lg overflow-hidden">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-[11px] font-bold text-slate-600 border-b border-slate-200">
+                      <tr>
+                        <th className="px-2.5 py-2">Mã</th>
+                        <th className="px-2.5 py-2">Tên tiêu chí</th>
+                        <th className="px-2 py-2 text-center">SV chấm</th>
+                        <th className="px-2 py-2 text-center">Gợi ý</th>
+                        <th className="px-2 py-2 text-center">Chốt đề xuất</th>
+                        <th className="px-2.5 py-2">Trạng thái / Ghi chú</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {previewFinalize.criteria.map((c) => (
+                        <tr key={c.id} className="hover:bg-slate-50">
+                          <td className="px-2.5 py-2 font-mono font-bold text-slate-800">{c.code}</td>
+                          <td className="px-2.5 py-2 text-slate-700 max-w-[200px] truncate" title={c.name}>
+                            {c.name}
+                          </td>
+                          <td className="px-2 py-2 text-center font-mono">
+                            {c.selfScore !== null ? c.selfScore : '—'}
+                          </td>
+                          <td className="px-2 py-2 text-center font-mono font-semibold text-blue-700">
+                            {c.suggestedScore !== null ? c.suggestedScore : '—'}
+                          </td>
+                          <td className="px-2 py-2 text-center font-mono font-bold text-emerald-800">
+                            {c.canFinalize ? c.suggestedScore : (c.officialScore !== null ? c.officialScore : '—')}
+                          </td>
+                          <td className="px-2.5 py-2">
+                            {c.canFinalize ? (
+                              <span className="text-emerald-700 font-semibold text-[11px]">Sẵn sàng chốt</span>
+                            ) : (
+                              <span className="text-slate-500 text-[11px]">{c.reason || c.status}</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {finalizeError && (
+                  <div className="rounded-lg bg-rose-50 border border-rose-200 p-3 text-xs text-rose-800">
+                    {finalizeError}
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 text-xs">
+              <button
+                type="button"
+                disabled={isFinalizing}
+                onClick={() => setShowFinalizeModal(false)}
+                className="px-3.5 py-2 rounded-lg border border-slate-200 font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                disabled={isFinalizing || !previewFinalize?.canFinalize}
+                onClick={handleConfirmFinalize}
+                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 font-bold text-white transition disabled:opacity-40"
+              >
+                {isFinalizing ? 'Đang chốt phiếu...' : 'Xác nhận Chốt phiếu'}
+              </button>
+            </div>
           </div>
         </div>
       )}

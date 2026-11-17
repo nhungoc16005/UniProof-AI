@@ -16,6 +16,7 @@ import { AssessmentsModule } from './assessments/assessments.module';
 import { WorkflowModule } from './evaluation-workflow/workflow.module';
 import { ProfileDataIssuesModule } from './profile-data-issues/profile-data-issues.module';
 import { DeadlineExtensionsModule } from './deadline-extensions/deadline-extensions.module';
+import { GroundingImportModule } from './grounding-import/grounding-import.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { DeadlineExtensionsModule } from './deadline-extensions/deadline-extensi
     AssessmentsModule,
     ProfileDataIssuesModule,
     DeadlineExtensionsModule,
+    GroundingImportModule,
   ],
 })
 export class AppModule {}

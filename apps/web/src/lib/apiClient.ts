@@ -18,6 +18,13 @@ import {
   RubricTemplateVersionSummary,
   DeadlineExtensionTargetItem,
   DeadlineExtensionRow,
+  GroundingImportBatch,
+  PreviewImportResult,
+  ConfirmImportResult,
+  PreviewFinalizeResult,
+  FinalizeStudentResult,
+  BatchFinalizeResult,
+  ImportBatchType,
 } from '../types';
 
 export const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3001/api';
@@ -812,6 +819,52 @@ export const apiClient = {
 
   async getSystemHealth(): Promise<any> {
     const res = await http.get('/health');
+    return res.data.data;
+  },
+
+  // ==========================================
+  // GROUNDING DATA IMPORT & BATCHES
+  // ==========================================
+  async previewGroundingImport(data: { termId: string; type: ImportBatchType; rows: any[]; source?: string; activityId?: string }): Promise<PreviewImportResult> {
+    const res = await http.post('/grounding-import/preview', data);
+    return res.data.data;
+  },
+
+  async confirmGroundingImport(data: { termId: string; type: ImportBatchType; rows?: any[]; validRows?: any[]; source?: string; idempotencyKey?: string; activityId?: string }): Promise<ConfirmImportResult> {
+    const res = await http.post('/grounding-import/confirm', data);
+    return res.data.data;
+  },
+
+  async listGroundingBatches(termId: string): Promise<GroundingImportBatch[]> {
+    const res = await http.get('/grounding-import/batches', { params: { termId } });
+    return extractArray<GroundingImportBatch>(res.data.data);
+  },
+
+  async getGroundingBatch(id: string): Promise<GroundingImportBatch> {
+    const res = await http.get(`/grounding-import/batches/${id}`);
+    return res.data.data;
+  },
+
+  async revokeGroundingBatch(id: string, data: { reason: string }): Promise<{ batchId: string; status: string; revokedCount: number }> {
+    const res = await http.post(`/grounding-import/batches/${id}/revoke`, data);
+    return res.data.data;
+  },
+
+  // ==========================================
+  // ASSESSMENT FINALIZATION & BATCH FINALIZATION
+  // ==========================================
+  async previewFinalizeStudent(studentId: string, termId: string): Promise<PreviewFinalizeResult> {
+    const res = await http.get(`/assessments/students/${studentId}/${termId}/preview-finalize`);
+    return res.data.data;
+  },
+
+  async finalizeStudent(studentId: string, data: { termId: string }): Promise<FinalizeStudentResult> {
+    const res = await http.post(`/assessments/students/${studentId}/${data.termId}/finalize`, data);
+    return res.data.data;
+  },
+
+  async batchFinalizeAssessments(data: { termId: string; studentIds: string[] }): Promise<BatchFinalizeResult> {
+    const res = await http.post('/assessments/batch-finalize', data, { params: { termId: data.termId } });
     return res.data.data;
   },
 };

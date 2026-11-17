@@ -7,6 +7,7 @@ export const roleNavigation: Record<string, NavigationItem[]> = {
     ] },
     { label: 'Phúc khảo', path: '/officer/appeals', matches: ['/officer/appeals'] },
     { label: 'Hoạt động & điểm danh', path: '/officer/activities', matches: ['/officer/activities', '/officer/external-activities'] },
+    { label: 'Căn cứ chấm điểm', path: '/officer/grounding-import', matches: ['/officer/grounding-import'] },
     { label: 'Tiêu chí & quy chế', path: '/officer/criteria' },
   ],
   ADMIN: [

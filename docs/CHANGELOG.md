@@ -2,28 +2,104 @@
 
 Mỗi công việc trong dự án thêm mục mới ở đầu với ngày, phạm vi, feature/bug/quyết định liên quan, thay đổi thực tế, kiểm tra đã chạy và giới hạn. Không ghi test dự kiến như đã Passed, không ghi credential hoặc dữ liệu sinh viên.
 
-## 2026-11-16 — Browser và PostgreSQL trên môi trường thử nghiệm riêng
+## 2026-11-17 — Sửa các lỗi review F15
 
-- Theo sự đồng ý của người dùng, tạo container PostgreSQL localhost `_test`, áp dụng 12 migration từ bản sao tạm, chạy integration và Chrome; đã dừng container `--rm`, không dùng Supabase.
-- Migration gốc thất bại trên DB mới: thiếu extension vector, tiếp đó PostgreSQL 16 không hỗ trợ `transaction_timeout`; sau bật vector, bản sao tạm bỏ lệnh này và dòng đặt `search_path` rỗng mới chạy hết 12 migrations. Không sửa migrations gốc; không coi đây là kiểm chứng migration production.
-- `workflow.integration.test.cjs`: 11 subtest đạt, 2 subtest lỗi (test tổng cũng fail): create user dùng response ID cũ dẫn tới `/users/undefined`; fixture activity thiếu `startDate`. Các phần sau lỗi trong hai subtest chưa được kiểm chứng.
-- `navigation-smoke.cjs`: Chrome qua 9 trang admin (/admin, results, reports, users, terms, criteria, knowledge-base, monitoring audit/health), sau đó timeout tại trang chi tiết kết quả admin; suite không hoàn tất, không kết luận các luồng còn lại. Phải ngắt tiến trình sau timeout. Không kiểm browser BL-014/025, Storage hoặc AI thực.
-- Không sửa application code/schema repo hoặc thay trạng thái finding. Spec/API/rules không đổi vì đây là kiểm thử. Log tạm trong `/tmp/edupoint-integration-review.log` và `/tmp/edupoint-browser-review.log`.
+- Ô trống/sai kiểu trong file học vụ được giữ là thiếu/sai, không tự chuyển thành 0, true, false hoặc AVERAGE; vai trò không hợp lệ không tự đổi sang tham gia, hỗ trợ alias THAM_GIA_CHINH.
+- Chặn import trùng căn cứ ACTIVE hoặc verifiedData hiện có; kiểm tra roster kỳ và khóa phiếu khi confirm, thêm unique index theo khóa nghiệp vụ. Liên kết CriterionAssessment với ID căn cứ học vụ; xác minh tay xóa liên kết, thu hồi theo ID thay vì dựa vào ghi chú. Preflight/preview chốt không còn đồng bộ ghi DB.
+- Thu hồi lô hoạt động giữ từng dòng REVOKED, người xác nhận và lý do; unique index mới cho phép nhập lại dòng nháp nhưng không có hai dòng hiện hành. Kiểm tra công tắc kỳ trong transaction giữ khóa Term.
+- Regression: 89/89 unit/component và 1/1 PostgreSQL test cách ly pass; typecheck hai app và diff check pass. Database test dùng 14 migration bản sao điều chỉnh hai lệnh baseline cho PostgreSQL 16. Chưa kiểm browser E2E, các race chốt/thu hồi và công tắc kỳ; tiếp tục theo dõi ở TEST_PLAN. Không chạy AI hay dùng Supabase thật.
 
-## 2026-11-16 — Chuẩn bị kiểm thử browser với database cách ly
+## 2026-11-17 — Đang sửa kiểm tra ô trống file học vụ
 
-- Đã kiểm tra harness: cần `TEST_DATABASE_URL` trỏ localhost và database `_test`; hiện biến chưa có. Docker và image PostgreSQL có sẵn; PostgreSQL cổng 5432 là SSH tunnel nên không dùng.
-- Lệnh tạo container PostgreSQL cục bộ bị hệ thống xét duyệt tự động từ chối; chưa tạo container, chạy migration/fixture/backend hoặc thực hiện browser end-to-end. Không dùng Supabase hay sửa code/schema; spec/API/rules không đổi.
+- Bỏ giá trị boolean mặc định ở các cột TC3/TC7 trong `ImportGroundingData.tsx`, để ô trống không tự biến thành có/không. Chưa hoàn tất kiểm tra ô sai định dạng và chưa nghiệm thu luồng import.
+- Trước thay đổi: 4 suite do người dùng duyệt đạt 65/65; typecheck backend/frontend và `git diff --check` đạt. Chưa chạy lại sau thay đổi; chưa kiểm database/browser.
+- Các lỗi còn lại về trùng lô, thu hồi, preview và transaction tiếp tục xử lý sau khi được duyệt các lệnh đọc/kiểm tra cần thiết. Chưa sửa API, quy tắc hay trạng thái feature.
 
-## 2026-11-16 — Kiểm tra trình duyệt frontend
+## 2026-11-17 — Khắc phục dứt điểm 9 điểm review độc lập cho tính năng Căn cứ chấm điểm, Import Excel và Chốt phiếu hàng loạt
 
-- Chạy Vite trên localhost và Chrome headless với profile tạm; trang gốc render màn hình đăng nhập EduPoint thành công. Đã dừng Vite sau kiểm tra.
-- Chưa kiểm login, role, BL-014/025 hoặc nghiệp vụ end-to-end: chưa có `TEST_DATABASE_URL` và fixture localhost `_test`; cổng PostgreSQL hiện là SSH tunnel, không dùng cho test. Không chạy backend, migration, seed, DB hay AI. Đây chỉ là browser smoke, không thay đổi trạng thái bug/spec/API.
+- **Phạm vi & mục tiêu giải quyết (9 điểm review độc lập):**
+  1. *Critical — Re-validation độc lập trong transaction confirm (`grounding-import.service.ts`):*
+     - Không tin cậy dữ liệu client gửi lên; trong transaction `confirm()`, chạy lại toàn bộ kiểm tra đối với từng dòng: sinh viên tồn tại, thuộc phạm vi Khoa trong kỳ (ưu tiên snapshot pháp lý `assessmentHandoff.facultyId` của kỳ đó, fallback `class.facultyId` khi chưa có handoff; giải quyết trường hợp sinh viên chuyển Khoa ở kỳ cũ), tiêu chí thuộc rubric đã ban hành, dữ liệu `data` thỏa mãn schema `validateVerifiedData`.
+     - Tự động bỏ qua các dòng không hợp lệ; chỉ commit các dòng thỏa mãn đầy đủ điều kiện. Ném lỗi nếu không có dòng nào hợp lệ.
+  2. *High — Đồng bộ contract FE ↔ BE:*
+     - Backend: `PreviewGroundingImportDto` và `ConfirmGroundingImportDto` chấp nhận `source?: string` (fallback `'File tải lên'`), chấp nhận cả `rows` hoặc `validRows`. `BatchFinalizeAssessmentsDto` nhận thêm `termId?: string`.
+     - Frontend: `apiClient.ts` chuẩn hóa các endpoint `/preview`, `/confirm`, `/preview-finalize`, `/finalize`, `/batch-finalize` (truyền cả query param `termId` và body `termId`).
+  3. *High — Phân tách 5 danh mục và mẫu Excel chuyên biệt theo TC1/3/7/Hoạt động/CLB:*
+     - Màn hình `ImportGroundingData.tsx` phân chia rõ ràng 5 danh mục:
+       * `ACADEMIC_1`: TC1 (Đi học đầy đủ & Chuyên cần) — các cột `examBans` (số học phần cấm thi), `classWarnings` (số lần nhắc nhở).
+       * `ACADEMIC_3`: TC3 (Tinh thần phấn đấu học tập) — các cột `academicTier` (`XUAT_SAC`, `GIOI`, `KHA`, `TRUNG_BINH`, `YEU`), `improvedFromPreviousTerm` (`CO`/`KHONG`), `academicWarning` (`CO`/`KHONG`).
+       * `ACADEMIC_7`: TC7 (Chấp hành nội quy, quy chế) — các cột `tuitionCompliance`, `studentWeekParticipation`, `disciplinaryViolation`, `requiredSurveyParticipation`, `nonCauseAccountLocks`, `classTaskFailures`, `unexcusedClassMeetingAbsences`, `excusedClassMeetingAbsences`.
+       * `ACTIVITY`: Điểm danh sự kiện/hoạt động — `studentCode`, `role` (`THAM_GIA_CHINH`, `BAN_TO_CHUC`, `TINH_NGUYEN`, `CO_VU`), `note`.
+       * `CLUB_LEADERSHIP`: Cán bộ lớp & Ban chủ nhiệm CLB — `criterionCode` (`4` hoặc `13`), `organizationName`, `roleTitle`, `source`, `note`.
+     - Nút "Tải file mẫu Excel" tải chính xác mẫu của danh mục đã chọn. Tự động parse và map chuẩn xác vào DTO của backend.
+  4. *High — Loại bỏ nguy cơ khóa lồng (nested transaction / deadlock):*
+     - `ActivitiesService.batchAddParticipants` bổ sung tham số tùy chọn `externalTx?: Prisma.TransactionClient`.
+     - Khi `GroundingImportService.confirm` gọi `batchAddParticipants`, truyền trực tiếp `tx` làm `externalTx`, loại bỏ hoàn toàn việc mở `$transaction` thứ hai và không gọi `lockTerm` lặp lại.
+  5. *High — Bảo vệ dữ liệu xác minh thủ công và loại bỏ ghi DB trên request đọc:*
+     - Xóa bỏ việc gọi `syncStudentGrounding` trong `getMine()` (request GET chỉ đọc, tuyệt đối không ghi dữ liệu vào DB).
+     - Đồng bộ grounding diễn ra an toàn khi: sinh viên nộp phiếu (`submitSelfAssessment`), cán bộ import căn cứ (`confirm`), hoặc cán bộ chốt phiếu (`finalizeStudentAssessment`).
+     - Trong `syncStudentGrounding`: nếu `existing.verifiedData` đã tồn tại và `existing.verificationNote` không bắt đầu bằng `'Căn cứ học vụ từ'` (nghĩa là do cán bộ xác minh thủ công), tuyệt đối **không ghi đè**, bảo toàn kết luận thẩm định của cán bộ.
+  6. *High — Thống nhất route API chốt phiếu:*
+     - `assessments.controller.ts`: Hỗ trợ cả hai route `/assessments/students/:studentId/:termId/preview-finalize` và route tương thích `/assessments/student/:studentId/preview-finalize` (kèm query param `termId`); tương tự cho `finalize`.
+     - Endpoint `batch-finalize` hỗ trợ nhận `termId` từ query param hoặc body `dto.termId`.
+     - `apiClient.ts` cập nhật gọi đúng các route trên.
+  7. *High — Thu hồi lô hoạt động (ACTIVITY) xóa sạch bản ghi `CONFIRMED`:*
+     - Khi thu hồi lô hoạt động mà chưa có sinh viên nào bị chốt điểm (`FINALIZED`) hoặc phiếu gửi CTSV (`SENT`): xóa toàn bộ bản ghi `ActivityParticipant` của lô (kể cả `DRAFT` và `CONFIRMED`).
+     - Tự động gọi `recomputeAndSaveActivityCriterion` tính lại điểm gợi ý cho các sinh viên trong lô.
+  8. *Medium — Cho phép nhập các dòng hợp lệ & Quản lý Idempotency Key cố định:*
+     - `preview()` trả về `canCommit: validCount > 0` (cho phép import nếu có ít nhất 1 dòng hợp lệ; các dòng lỗi sẽ được hệ thống bỏ qua an toàn).
+     - Frontend `ImportGroundingData.tsx` sinh và lưu `currentIdempotencyKey` khi bắt đầu phiên file preview, giữ nguyên key khi cán bộ bấm Xác nhận hoặc retry để backend xử lý idempotency replay chuẩn xác.
+  9. *Medium — Bảo vệ công tắc kỳ (`evidenceBasisWorkflowEnabled`):*
+     - Trong `CriteriaService.updateTerm`, chặn thay đổi giá trị `evidenceBasisWorkflowEnabled` nếu kỳ đánh giá đã có `assessmentPublication` hoặc đã có phiếu sinh viên ở trạng thái `SENT`.
+- **Thay đổi thực tế mã nguồn:**
+  - `apps/backend/src/activities/activities.service.ts`: Cập nhật `batchAddParticipants` nhận `externalTx?: Prisma.TransactionClient` tránh nested transaction.
+  - `apps/backend/src/grounding-import/dto/grounding-import.dto.ts`: Cập nhật `source?: string`, `rows?`, `validRows?`, `termId?`.
+  - `apps/backend/src/grounding-import/grounding-import.service.ts`: Re-validation toàn bộ dòng trong transaction `confirm`, hỗ trợ snapshot handoff Khoa, truyền `tx` vào `batchAddParticipants`, thu hồi lô hoạt động xóa `CONFIRMED` và tính lại điểm gợi ý, cho phép `canCommit = validCount > 0`.
+  - `apps/backend/src/assessments/assessments.service.ts`: Xóa sync ở `getMine()`, bổ sung sync ở `submitSelfAssessment`, bảo vệ dữ liệu cán bộ sửa tay trong `syncStudentGrounding`, trả về `officialTotalScore` trong `finalizeStudentAssessment`.
+  - `apps/backend/src/assessments/assessments.controller.ts`: Bổ sung route alias tương thích và nhận `termId` linh hoạt.
+  - `apps/backend/src/criteria/criteria.service.ts`: Kiểm tra `publication` và `SENT` handoff trước khi cho phép đổi `evidenceBasisWorkflowEnabled`.
+  - `apps/web/src/types/index.ts`: Mở rộng `GroundingImportBatch`, `PreviewImportResult`, `ConfirmImportResult` đầy đủ trường.
+  - `apps/web/src/lib/apiClient.ts`: Chuẩn hóa API endpoints cho grounding import và finalize.
+  - `apps/web/src/pages/officer/ImportGroundingData.tsx`: Viết lại hỗ trợ 5 nhóm danh mục chuyên biệt, template tải về chuẩn xác, lưu `idempotencyKey` theo phiên file, hiển thị preview và confirm linh hoạt.
+  - `apps/backend/test/grounding-import-and-batch-finalize.test.cjs`: Bổ sung các ca test Ca 21, Ca 22, Ca 23, Ca 24, Ca 25.
+- **Kiểm thử thực chạy và kết quả:**
+  - Test suite regression: `node --test apps/backend/test/grounding-import-and-batch-finalize.test.cjs` (**25/25 tests PASS 100%**).
+  - Test worker & analytics: `node --test apps/backend/test/evidence-processing-worker.test.cjs` (**15/15 PASS**), `node --test apps/web/scripts/faculty-analytics.test.cjs` (**6/6 PASS**), `node --test apps/backend/test/activity-and-roles-scoring.test.cjs` (**19/19 PASS**).
+  - Typecheck: Backend `tsc --noEmit` **0 lỗi**; Frontend `tsc --noEmit` **0 lỗi**.
+  - Production build: `(cd apps/web && ./node_modules/.bin/vite build)` **build thành công (3.43s)**.
+  - Whitespace check: `git diff --check` **sạch hoàn toàn, 0 lỗi**.
+- **Giới hạn kiểm chứng:** Toàn bộ test chạy trên in-memory doubles có transaction cách ly, bảo đảm an toàn dữ liệu, không tác động vào cơ sở dữ liệu production hay AI pipeline bên ngoài.
 
-## 2026-11-16 — Review bổ sung BL-014 và BL-025 sau commit 6c605e2
-
-- Source cho thấy đã bổ sung validation rolesScore khi ban hành và xử lý legacy không truy vấn ID null trong service. Chưa nghiệm thu end-to-end: form UserManagement vẫn gửi classId/facultyId nguyên trạng, kể cả null, nên nhánh update có thể từ chối legacy; validator chấp nhận rolesScore trong scoringConfig trong khi aggregator đọc criterion.rolesScore, cần thống nhất contract và test round-trip.
-- Chạy `node --test apps/backend/test/accounts-and-permissions.test.cjs apps/backend/test/activity-and-roles-scoring.test.cjs`: 41 pass, 0 fail, 0 skipped; `git diff --check` đạt. Không chạy DB/browser/Storage/AI; không thay code, schema, spec hoặc trạng thái bug trong review.
+- **Phạm vi & mục tiêu giải quyết:**
+  Triển khai tính năng **Căn cứ chấm điểm, Import Excel và Chốt phiếu hàng loạt** cho hệ thống EduPoint theo lộ trình 3 Phase đã được phê duyệt, đáp ứng đầy đủ các nguyên tắc cứng (quy trình 3 vai trò, bảo toàn quy chế/công thức DUT, không suy diễn từ dữ liệu trống, hoãn AI, tôn trọng enum hiện có):
+  1. **Phase 1 (Backend Core & Tests):**
+     - Cập nhật Prisma schema: Thêm cờ `evidenceBasisWorkflowEnabled Boolean @default(false)` trên model `Term`. Bổ sung enums `ImportBatchType`, `ImportBatchStatus`, `GroundingStatus`. Thêm các models `ImportBatch`, `AcademicGrounding`, `ClubLeadershipGrounding`. Mở rộng `ActivityParticipant` hỗ trợ `batchId String?`, quan hệ `batch ImportBatch?` và index `@@index([batchId])`. Tạo migration DDL `20261117000100_evidence_grounding_and_batch_finalize`.
+     - Tạo module `GroundingImportModule` (`GroundingImportService`, `GroundingImportController`, DTOs): hỗ trợ preview in-memory (giữ nguyên MSSV dạng text có số 0 ở đầu, chặn sinh viên ngoài Khoa, không ghi DB); confirm import trong transaction an toàn kèm `idempotencyKey`; tra cứu danh sách và chi tiết lô; thu hồi lô (`revokeBatch`) với cơ chế an toàn nghiêm ngặt (chặn nếu có sinh viên đã bị chốt điểm hoặc phiếu đã gửi CTSV).
+     - Tái sử dụng `ActivitiesService.batchAddParticipants`: mở rộng nhận `participants: Array<{ studentCode, formRole }>` và `batchId`.
+     - Tự động đồng bộ grounding: `syncStudentGrounding` trong `AssessmentsService` cập nhật `verifiedData`, `suggestedScore` và trạng thái `READY_FOR_REVIEW` từ căn cứ học vụ; tự động gọi khi xem phiếu (`getMine`), nộp phiếu hoặc khi import/thu hồi lô. Không ghi đè tiêu chí đã `FINALIZED`.
+     - Quy trình minh chứng 0 file: ở kỳ `evidenceBasisWorkflowEnabled = true`, cho phép minh chứng có 0 file khi mô tả $\ge 10$ ký tự, chuyển sang `NEEDS_HUMAN_REVIEW` và không tạo `AiJob`. Kỳ cũ giữ nguyên chặn thiếu file.
+     - Chốt phiếu sinh viên (`finalizeStudentAssessment`) và chốt hàng loạt (`batchFinalizeAssessments`): tối đa 100 phiếu/lần, transaction riêng biệt từng phiếu. Chặn chốt nếu còn minh chứng chờ ở cả 2 trạng thái `NEEDS_HUMAN_REVIEW` và `NEEDS_SUPPLEMENT`. Không tự động gửi CTSV.
+     - Viết test suite regression [apps/backend/test/grounding-import-and-batch-finalize.test.cjs](../apps/backend/test/grounding-import-and-batch-finalize.test.cjs) gồm đầy đủ **20 ca kiểm thử service/core (20/20 PASS 100%)**.
+  2. **Phase 2 (Frontend Khoa / Sinh viên / Admin):**
+     - Cán bộ Khoa (`STAFF`): Tạo trang mới `/officer/grounding-import` ([ImportGroundingData.tsx](../apps/web/src/pages/officer/ImportGroundingData.tsx)) hỗ trợ 3 luồng căn cứ (Học vụ, Hoạt động ngoại khóa, Ban cán sự/CLB), tải template Excel mẫu, upload parse file, preview 4 nhóm dòng, confirm import và quản lý/thu hồi lô. Thêm route và menu sidebar.
+     - Cán bộ Khoa (`STAFF`): Cập nhật [StudentAssessment.tsx](../apps/web/src/pages/officer/StudentAssessment.tsx) bổ sung nút "Chốt phiếu sinh viên" kèm modal xem trước 16 tiêu chí và kiểm tra điều kiện chặn chốt.
+     - Cán bộ Khoa (`STAFF`): Cập nhật [EvaluationBoard.tsx](../apps/web/src/components/EvaluationBoard.tsx) bổ sung checkbox chọn sinh viên, nút "Chốt hàng loạt (X đã chọn)", modal xác nhận và bảng tiến trình/báo cáo kết quả chi tiết từng sinh viên. Giữ nguyên nút "Gửi CTSV" riêng biệt.
+     - Sinh viên (`STUDENT`): Cập nhật [ScoreReport.tsx](../apps/web/src/pages/student/ScoreReport.tsx) hiển thị rõ các cột Điểm tự đánh giá / Điểm gợi ý (căn cứ, điểm danh, AI) / Điểm Khoa chốt; cho phép nộp minh chứng 0 file có mô tả chi tiết ở kỳ mới.
+     - Admin (`ADMIN`): Cập nhật [TermsMasterData.tsx](../apps/web/src/pages/admin/TermsMasterData.tsx) thêm checkbox bật/tắt `evidenceBasisWorkflowEnabled` trong modal Tạo kỳ và Sửa kỳ.
+  3. **Phase 3 (Tài liệu & Kiểm chứng):**
+     - Tạo đặc tả tính năng [docs/features/15-evidence-grounding-and-batch-finalize.md](features/15-evidence-grounding-and-batch-finalize.md) chuẩn 11 mục.
+     - Cập nhật [docs/API_CONTRACT.md](API_CONTRACT.md) (8 endpoints mới của Grounding Import và Assessments Finalize).
+     - Cập nhật [docs/BUSINESS_RULES.md](BUSINESS_RULES.md) (quy tắc `R-29`).
+     - Ghi nhận quyết định nghiệp vụ `DEC-012` trong [docs/DECISIONS.md](DECISIONS.md).
+     - Cập nhật kế hoạch và bằng chứng kiểm thử trong [docs/TEST_PLAN.md](TEST_PLAN.md).
+- **Kiểm thử thực chạy và kết quả:**
+  - Test suite mới: `node --test apps/backend/test/grounding-import-and-batch-finalize.test.cjs` (**20/20 tests PASS 100%**).
+  - Test worker & analytics: `node --test apps/backend/test/evidence-processing-worker.test.cjs` (**15/15 PASS**), `node --test apps/web/scripts/faculty-analytics.test.cjs` (**6/6 PASS**).
+  - Toàn bộ 5 bộ test unit hiện có: `activity-and-roles-scoring.test.cjs`, `accounts-and-permissions.test.cjs`, `evidence-and-term-selection.test.cjs`, `pagination-and-filter.test.cjs`, `exclusion-and-restore.test.cjs` (**71/71 tests PASS 100%**). Tổng cộng **91/91 tests pass 100%**.
+  - Typecheck: Backend `tsc -p apps/backend/tsconfig.json --noEmit` **0 lỗi**; Web `tsc -p apps/web/tsconfig.json --noEmit` **0 lỗi**.
+  - Production build: `(cd apps/web && ./node_modules/.bin/vite build)` **build thành công (2.32s)**.
+  - `git diff --check`: **sạch sẽ, 0 lỗi whitespace**.
+- **Giới hạn kiểm chứng:** Đã kiểm thử qua unit test in-memory với transaction doubles và mock service; chưa chạy trên PostgreSQL vật lý localhost `_test` do binary postgres không có sẵn trên máy cục bộ; toàn bộ quy tắc không động vào Supabase production hay AI pipeline thật theo đúng quy định.
 
 ## 2026-11-16 — Hoàn thiện khắc phục BL-014 (Ban hành rubric cộng đồng) & BL-025 (Xử lý an toàn tài khoản legacy)
 

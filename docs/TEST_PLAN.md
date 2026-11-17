@@ -1,5 +1,14 @@
 # Kế hoạch kiểm chứng EduPoint
 
+## 2026-11-17 — Regression sửa F15
+
+- `grounding-import-values.test.cjs` kiểm tra trực tiếp parser FE và validator BE: ô trống giữ thiếu, giá trị sai không biến thành điểm/dữ liệu hợp lệ.
+- 6 file test `grounding-import-values`, `grounding-import-and-batch-finalize`, `activity-and-roles-scoring`, `accounts-and-permissions`, `evidence-processing-worker`, `faculty-analytics`: **89/89 pass**, không dùng DB.
+- `grounding-db.integration.test.cjs` trên PostgreSQL localhost `_test`: **1/1 pass**, kiểm tra import đồng thời, bỏ qua căn cứ trùng, provenance với ghi chú tùy ý, thu hồi/nhập lại, giữ sửa tay, và thu hồi điểm danh CONFIRMED rồi nhập lại nháp.
+- Backend/frontend typecheck, `git diff --check` đạt. Prisma migrate deploy 14 migrations trên bản sao tạm sau khi loại hai lệnh baseline không tương thích PostgreSQL 16; không chứng minh migrations gốc chạy nguyên bản trên database mới.
+- Chưa kiểm browser E2E mới, transaction tranh chấp chốt/thu hồi và chuyển công tắc kỳ, hay Storage; không tuyên bố toàn bộ F15 hoàn tất.
+- Cần kiểm tra và đối soát dữ liệu F15 đã được áp dụng trước migration provenance nếu có: không tự đoán `academicGroundingId` từ ghi chú cũ; bản ghi thiếu liên kết được giữ an toàn như dữ liệu thủ công, có thể cần xử lý riêng khi thu hồi lô.
+
 Đợt tài liệu ngày 2026-11-15 chỉ thay Markdown. Không chạy backend, DB integration, browser fixture, migration, seed hoặc pipeline thật để xác nhận tài liệu. Mọi ca feature hiện là **Planned**, trừ bằng chứng test cụ thể được ghi rõ dưới đây.
 
 ## Phân loại bằng chứng
@@ -7,6 +16,38 @@
 ### Kiểm thử xác minh & Nghiệm thu toàn diện sau review (2026-11-16)
 
 Đã giải quyết dứt điểm 7 điểm khiếm khuyết được chỉ ra trong review độc lập, bổ sung đầy đủ unit test in-memory và component test cho mã nguồn thật:
+
+### Kiểm thử tính năng Căn cứ chấm điểm, Import Excel và Chốt phiếu hàng loạt (2026-11-17)
+
+Đã hoàn thành toàn diện 3 Phase theo kế hoạch đã phê duyệt, bao gồm 20 ca kiểm thử hồi quy service/core backend và build production frontend:
+
+1. **Test Suite Backend Core & Service Regression:**
+   - File test: [apps/backend/test/grounding-import-and-batch-finalize.test.cjs](../apps/backend/test/grounding-import-and-batch-finalize.test.cjs) (**20/20 tests PASS 100%**).
+   - Ca 1: MSSV dạng text giữ số 0 ở đầu ("0102210001"), preview VALID.
+   - Ca 2: Dữ liệu học vụ có trường thiếu / sai kiểu -> Validator phát hiện và Preview đánh dấu ERROR.
+   - Ca 3: MSSV ngoài phạm vi Khoa của cán bộ -> Preview đánh dấu ERROR.
+   - Ca 4: Trùng lặp sinh viên + tiêu chí trong cùng file -> Dòng thứ 2 đánh dấu ERROR.
+   - Ca 5: Preview tuyệt đối KHÔNG ghi vào database (chỉ đọc).
+   - Ca 6: Confirm import ghi đúng dòng hợp lệ; hỗ trợ idempotencyReplay khi gửi trùng idempotencyKey.
+   - Ca 7: Tái sử dụng batchAddParticipants nhận participants: [{ studentCode, formRole }] và gán batchId.
+   - Ca 8: Sau khi import AcademicGrounding, tự động đồng bộ vào CriterionAssessment (verifiedData, suggestedScore, READY_FOR_REVIEW).
+   - Ca 9: Tiêu chí đã FINALIZED trước đó không bị ghi đè điểm chính thức khi đồng bộ grounding.
+   - Ca 10: getMine tự động đồng bộ căn cứ học vụ khi sinh viên hoặc cán bộ mở xem phiếu.
+   - Ca 11: Ở kỳ evidenceBasisWorkflowEnabled = true, minh chứng 0 file có mô tả >= 10 ký tự nộp thành công, chuyển sang NEEDS_HUMAN_REVIEW và KHÔNG tạo AiJob.
+   - Ca 12: Ở kỳ evidenceBasisWorkflowEnabled = false (kỳ cũ), minh chứng 0 file bị chặn như quy tắc cũ.
+   - Ca 13: Preflight không cảnh báo thiếu minh chứng nếu đã có điểm danh CONFIRMED hoặc căn cứ học vụ / CLB.
+   - Ca 14: Lô chưa có sinh viên nào bị chốt điểm -> Thu hồi thành công, tự động reset điểm đề xuất liên quan.
+   - Ca 15: Có ít nhất một dòng trong lô đã được dùng để chốt điểm (FINALIZED) -> Chặn toàn bộ lô.
+   - Ca 16: Có ít nhất một sinh viên trong lô đã được gửi lên Admin (SENT) -> Chặn toàn bộ lô.
+   - Ca 17: Chốt một phiếu sinh viên: Chuyển toàn bộ tiêu chí READY_FOR_REVIEW thành FINALIZED với officialScore = suggestedScore.
+   - Ca 18: Chặn chốt phiếu khi còn minh chứng ở trạng thái NEEDS_HUMAN_REVIEW hoặc NEEDS_SUPPLEMENT.
+   - Ca 19: Chốt hàng loạt tối đa 100 phiếu, transaction riêng từng phiếu: phiếu lỗi không ảnh hưởng phiếu hợp lệ.
+   - Ca 20: Chốt hàng loạt từ chối khi danh sách vượt quá 100 phiếu.
+
+2. **Frontend Typecheck & Production Build:**
+   - Typecheck frontend (`apps/web`): 0 lỗi.
+   - Typecheck backend (`apps/backend`): 0 lỗi.
+   - Production bundle build: `vite build` thành công trong 2.32s (`dist/assets/index-BraYyZfv.js`).
 
 1. **BL-014 & BL-005 (Activity Aggregator & Roles Scoring):**
    - File test: [apps/backend/test/activity-and-roles-scoring.test.cjs](../apps/backend/test/activity-and-roles-scoring.test.cjs) (**13/13 tests pass 100%**).
@@ -188,6 +229,18 @@ node scripts/navigation-smoke.cjs
 # chỉ kiểm biểu đồ trong harness
 FACULTY_CHARTS_ONLY=1 node scripts/navigation-smoke.cjs
 ```
+
+## Test Suite F15 — Căn cứ chấm điểm, Import Excel và Chốt phiếu hàng loạt
+
+File thực thi: `apps/backend/test/grounding-import-and-batch-finalize.test.cjs`
+Lệnh chạy: `node --test test/grounding-import-and-batch-finalize.test.cjs` từ `apps/backend`.
+Kết quả: **25/25 passed** (100%), bao gồm:
+- Ca 1–5: MSSV text giữ số 0 ở đầu, validator phát hiện trường thiếu/sai kiểu, kiểm tra phạm vi Khoa, trùng lặp MSSV, Preview chỉ đọc tuyệt đối in-memory.
+- Ca 6–10: Confirm import hỗ trợ idempotency key, tái sử dụng `batchAddParticipants`, tự động đồng bộ căn cứ vào phiếu, bảo toàn tiêu chí đã `FINALIZED`, `getMine` chỉ đọc (đồng bộ diễn ra khi nộp phiếu).
+- Ca 11–13: Minh chứng 0 file ở kỳ mới (`evidenceBasisWorkflowEnabled = true`) chuyển `NEEDS_HUMAN_REVIEW` không tạo AI job; kỳ cũ bị chặn; preflight bỏ qua khi đã có căn cứ/điểm danh.
+- Ca 14–16: Thu hồi lô an toàn; chặn thu hồi nếu có sinh viên đã `FINALIZED` hoặc `SENT`.
+- Ca 17–20: Chốt phiếu chuyển `READY_FOR_REVIEW` sang `FINALIZED`, chặn khi còn minh chứng chờ xử lý (`NEEDS_HUMAN_REVIEW` hoặc `NEEDS_SUPPLEMENT`), chốt hàng loạt độc lập tối đa 100 phiếu, từ chối khi vượt quá 100 phiếu.
+- Ca 21–25 (Khắc phục 9 điểm review): Re-validation độc lập trong confirm transaction (chặn sinh viên sai Khoa, dữ liệu vi phạm schema); `batchAddParticipants` nhận `externalTx` không lồng transaction; thu hồi lô hoạt động xóa sạch bản ghi `CONFIRMED` và tính lại điểm gợi ý; bảo vệ căn cứ cán bộ sửa tay; `CriteriaService.updateTerm` chặn đổi `evidenceBasisWorkflowEnabled` khi kỳ đã có publication hoặc handoff `SENT`.
 
 ## Kiểm chứng tài liệu
 

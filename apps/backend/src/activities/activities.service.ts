@@ -100,7 +100,7 @@ export class ActivitiesService {
       const student = await tx.user.findUnique({ where: { studentCode: dto.studentCode.trim() } });
       if (!student || student.role !== Role.STUDENT) throw new NotFoundException('Không tìm thấy sinh viên');
       await this.workflow.scope(actor, student.id, activity.termId!, tx);
-      const existing = await tx.activityParticipant.findUnique({ where: { activityId_studentId: { activityId, studentId: student.id } } });
+      const existing = await tx.activityParticipant.findFirst({ where: { activityId, studentId: student.id, status: { not: ActivityParticipantStatus.REVOKED } } });
       if (existing) throw new BadRequestException('Sinh viên đã có tên trong danh sách điểm danh');
       return tx.activityParticipant.create({ data: { activityId, studentId: student.id, formRole: dto.formRole || 'THAM_GIA_CHINH', source: 'Nhập thủ công' }, include: { student: { select: { id: true, fullName: true, studentCode: true } } } });
     });
@@ -111,21 +111,64 @@ export class ActivitiesService {
     return this.prisma.activityParticipant.findMany({ where: { activityId, ...await this.participantFilter(activity, actor) }, include: { student: { select: { id: true, fullName: true, studentCode: true, email: true, class: { select: { code: true } } } } }, orderBy: { createdAt: 'desc' } });
   }
 
-  async batchAddParticipants(activityId: string, dto: BatchAttendanceDto, actor: WorkflowActor) {
-    return this.mutate(activityId, actor, 'ATTENDANCE_IMPORTED', async (tx, activity) => {
-      const codes = [...new Set(dto.studentCodes.map(c => c.trim()).filter(Boolean))];
+  async batchAddParticipants(activityId: string, dto: BatchAttendanceDto, actor: WorkflowActor, externalTx?: Prisma.TransactionClient) {
+    const execute = async (tx: Prisma.TransactionClient, activity: Activity) => {
+      const participantItems = dto.participants && dto.participants.length > 0
+        ? dto.participants
+        : (dto.studentCodes || []).map(code => ({ studentCode: code, formRole: dto.formRole }));
+
+      const codes = [...new Set(participantItems.map(c => c.studentCode.trim()).filter(Boolean))];
       if (!codes.length) throw new BadRequestException('Danh sách MSSV không được trống');
       const filter = await this.participantFilter(activity, actor, tx);
       const scope = 'studentId' in filter ? { id: filter.studentId } : 'student' in filter ? { class: filter.student!.class } : {};
       const students = await tx.user.findMany({ where: { studentCode: { in: codes }, role: Role.STUDENT, ...scope }, select: { id: true, studentCode: true } });
       const byCode = new Map(students.map(s => [s.studentCode, s]));
-      const existing = new Set((await tx.activityParticipant.findMany({ where: { activityId }, select: { studentId: true } })).map(p => p.studentId));
+      const existing = new Set((await tx.activityParticipant.findMany({ where: { activityId, status: { not: ActivityParticipantStatus.REVOKED } }, select: { studentId: true } })).map(p => p.studentId));
       const addedCodes = codes.filter(c => byCode.has(c) && !existing.has(byCode.get(c)!.id));
       const alreadyInListCodes = codes.filter(c => byCode.has(c) && existing.has(byCode.get(c)!.id));
       const notFoundCodes = codes.filter(c => !byCode.has(c));
-      await tx.activityParticipant.createMany({ data: addedCodes.map(c => ({ activityId, studentId: byCode.get(c)!.id, formRole: dto.formRole || 'THAM_GIA_CHINH', source: 'Import danh sách' })), skipDuplicates: true });
+
+      const roleMap = new Map<string, string | undefined>();
+      for (const item of participantItems) {
+        if (!roleMap.has(item.studentCode.trim())) {
+          roleMap.set(item.studentCode.trim(), item.formRole);
+        }
+      }
+
+      await tx.activityParticipant.createMany({
+        data: addedCodes.map(c => ({
+          activityId,
+          studentId: byCode.get(c)!.id,
+          formRole: roleMap.get(c) || dto.formRole || 'THAM_GIA_CHINH',
+          source: dto.source || 'Import danh sách',
+          batchId: dto.batchId || null,
+        })),
+        skipDuplicates: true,
+      });
       return { success: true, totalInput: codes.length, addedCount: addedCodes.length, addedCodes, alreadyInListCount: alreadyInListCodes.length, alreadyInListCodes, notFoundCount: notFoundCodes.length, notFoundCodes };
-    });
+    };
+
+    if (externalTx) {
+      const activity = await externalTx.activity.findUniqueOrThrow({ where: { id: activityId } });
+      if (actor.role !== Role.ADMIN && (actor.role !== Role.STAFF || !actor.facultyId || activity.facultyId !== actor.facultyId)) {
+        throw new ForbiddenException('Không có quyền sửa hoạt động này');
+      }
+      if (!activity.termId) throw new BadRequestException('Hoạt động lịch sử chưa gắn kỳ chỉ được tra cứu');
+      const result = await execute(externalTx, activity);
+      await externalTx.auditLog.create({
+        data: {
+          userId: actor.id,
+          action: 'ATTENDANCE_IMPORTED',
+          entityType: 'Activity',
+          entityId: activityId,
+          oldValue: JSON.parse(JSON.stringify(activity)),
+          newValue: JSON.parse(JSON.stringify(result)),
+        },
+      });
+      return result;
+    }
+
+    return this.mutate(activityId, actor, 'ATTENDANCE_IMPORTED', (tx, activity) => execute(tx, activity));
   }
 
   async deleteParticipant(activityId: string, participantId: string, actor: WorkflowActor) {

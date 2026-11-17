@@ -301,6 +301,10 @@ export const ScoreReport: React.FC = () => {
     if (!canWrite) return;
     if (!evidenceCriterion || !evidenceForm.declaredActivityName.trim()) { setLoadError('Vui lòng nhập tên hoạt động minh chứng.'); return; }
     if (evidenceFormFiles.some((file) => file.size > 8 * 1024 * 1024)) { setLoadError('Mỗi tệp minh chứng phải nhỏ hơn 8 MB.'); return; }
+    if (selectedTerm?.evidenceBasisWorkflowEnabled && !editingEvidence && !evidenceFormFiles.length && evidenceForm.description.trim().length < 10) {
+      setLoadError('Với quy trình căn cứ mới không đính kèm tệp, vui lòng nhập mô tả chi tiết tối thiểu 10 ký tự.');
+      return;
+    }
     setEvidenceBusy(true); setLoadError(''); setNotice('');
     const payload = {
       termId: effectiveTermId, criterionId: evidenceCriterion.id, criterionCode: evidenceCriterion.code,
@@ -390,8 +394,8 @@ export const ScoreReport: React.FC = () => {
             <table className="w-full table-fixed border-collapse text-left text-xs sm:text-sm">
               <colgroup><col className="w-[4%]" /><col className="w-[33%]" /><col className="w-[7%]" /><col className="w-[11%]" /><col className="w-[18%]" /><col className="w-[13%]" /><col className="w-[14%]" /></colgroup>
               <thead className="bg-slate-100 font-bold text-slate-700">
-                <tr><th rowSpan={2} className="border border-slate-300 px-1 py-3 text-center">STT</th><th rowSpan={2} className="border border-slate-300 px-2 py-3">Nội dung tiêu chí chấm điểm rèn luyện</th><th rowSpan={2} className="border border-slate-300 px-1 py-3 text-center">Điểm tối đa</th><th rowSpan={2} className="border border-slate-300 px-1 py-3 text-center">Sinh viên tự đánh giá</th><th rowSpan={2} className="border border-slate-300 px-2 py-3">Minh chứng</th><th className="border border-slate-300 px-1 py-2 text-center">AI</th><th className="border border-slate-300 px-1 py-2 text-center">Cán bộ đánh giá</th></tr>
-                <tr><th className="border border-slate-300 px-1 py-1 text-center text-[10px] font-medium">Phân tích hồ sơ</th><th className="border border-slate-300 px-1 py-1 text-center text-[10px] font-medium">Xác minh, chốt điểm</th></tr>
+                <tr><th rowSpan={2} className="border border-slate-300 px-1 py-3 text-center">STT</th><th rowSpan={2} className="border border-slate-300 px-2 py-3">Nội dung tiêu chí chấm điểm rèn luyện</th><th rowSpan={2} className="border border-slate-300 px-1 py-3 text-center">Điểm tối đa</th><th rowSpan={2} className="border border-slate-300 px-1 py-3 text-center">Sinh viên tự đánh giá</th><th rowSpan={2} className="border border-slate-300 px-2 py-3">Minh chứng & Căn cứ</th><th className="border border-slate-300 px-1 py-2 text-center">Điểm gợi ý</th><th className="border border-slate-300 px-1 py-2 text-center">Khoa chốt điểm</th></tr>
+                <tr><th className="border border-slate-300 px-1 py-1 text-center text-[10px] font-medium">Học vụ / Căn cứ / AI</th><th className="border border-slate-300 px-1 py-1 text-center text-[10px] font-medium">Kết luận chính thức</th></tr>
               </thead>
               <tbody>
                 {filteredCategories.map((category, index) => <React.Fragment key={category.key}>
@@ -405,7 +409,27 @@ export const ScoreReport: React.FC = () => {
                       <td className="border border-slate-300 px-1 py-2 text-center font-semibold">{criterion.maxScore}</td>
                       <td className="border border-slate-300 px-1 py-2 text-center"><input aria-label={`Điểm tự đánh giá tiêu chí ${criterion.code}`} type="number" min="0" max={criterion.maxScore} step="0.5" value={draftScores[criterion.id] ?? ''} disabled={!canWrite} onChange={(event) => { dirtyScores.current = true; setDraftScores((current) => ({ ...current, [criterion.id]: event.target.value })); }} className="w-full min-w-0 rounded border border-slate-300 px-1 py-1.5 text-center font-semibold disabled:bg-slate-100" />{(draftScores[criterion.id] ?? '').trim() !== '' && scoreValue(criterion) === null && <span className="mt-1 block text-[9px] text-rose-600">Vượt điểm tối đa</span>}</td>
                       <td className="border border-slate-300 px-1.5 py-2"><button type="button" disabled={!canWrite} onClick={() => openEvidenceManager(criterion)} className="inline-flex w-full items-center justify-center gap-1 rounded border border-blue-200 bg-blue-50 px-1 py-2 text-[10px] font-semibold text-blue-800 disabled:opacity-50"><FilePlus2 className="h-3.5 w-3.5" />Minh chứng ({criterionEvidences.length})</button>{criterionEvidences.map((evidence) => <div key={evidence.id} className="mt-1 break-words text-[9px] leading-3 text-slate-600"><strong>{evidence.declaredActivityName || 'Hồ sơ'}</strong><br />{evidenceStatusLabels[evidence.status] || evidence.status}</div>)}</td>
-                      <td className="border border-slate-300 px-1.5 py-2 text-[10px] leading-4">{criterionEvidences.length ? criterionEvidences.map((evidence) => { const suggestion = evidence.aiSuggestions?.find((item) => item.criterionId === criterion.id || item.criterion?.id === criterion.id) || evidence.aiSuggestions?.[0]; const job = evidence.aiProcessingJobs?.[0]; return <div key={evidence.id} className="mb-2 break-words border-b border-slate-100 pb-1 last:border-0"><strong className="text-violet-800">{suggestion ? `Đề xuất ${suggestion.suggestedScore ?? '—'}đ` : job?.status === 'PROCESSING' || job?.status === 'QUEUED' ? 'Đang phân tích' : job?.status === 'UNAVAILABLE' || job?.status === 'FAILED' ? 'AI chưa khả dụng · cán bộ sẽ xử lý' : evidence.status === 'PROCESSING' ? 'Đang phân tích' : 'Chưa có kết quả AI'}</strong>{suggestion?.reasoning && <p className="mt-1 line-clamp-3 text-slate-600">{suggestion.reasoning}</p>}</div>; }) : <span className="text-slate-400">Chưa có minh chứng</span>}</td>
+                      <td className="border border-slate-300 px-1.5 py-2 text-[10px] leading-4">
+                        {assessment?.suggestedScore != null ? (
+                          <div>
+                            <strong className="text-blue-800 font-bold text-xs">{assessment.suggestedScore} / {criterion.maxScore} đ</strong>
+                            <span className="block text-[9px] text-slate-500 mt-0.5">Theo căn cứ hệ thống</span>
+                          </div>
+                        ) : criterionEvidences.length ? (
+                          criterionEvidences.map((evidence) => {
+                            const suggestion = evidence.aiSuggestions?.find((item) => item.criterionId === criterion.id || item.criterion?.id === criterion.id) || evidence.aiSuggestions?.[0];
+                            const job = evidence.aiProcessingJobs?.[0];
+                            return (
+                              <div key={evidence.id} className="mb-2 break-words border-b border-slate-100 pb-1 last:border-0">
+                                <strong className="text-violet-800">{suggestion ? `Đề xuất ${suggestion.suggestedScore ?? '—'}đ` : job?.status === 'PROCESSING' || job?.status === 'QUEUED' ? 'Đang phân tích' : job?.status === 'UNAVAILABLE' || job?.status === 'FAILED' ? 'AI chưa khả dụng · cán bộ sẽ xử lý' : evidence.status === 'PROCESSING' ? 'Đang phân tích' : 'Chờ đối chiếu'}</strong>
+                                {suggestion?.reasoning && <p className="mt-1 line-clamp-3 text-slate-600">{suggestion.reasoning}</p>}
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <span className="text-slate-400">Chưa có căn cứ</span>
+                        )}
+                      </td>
                       <td className="border border-slate-300 px-1.5 py-2 text-[10px] leading-4">{assessment?.officialScore != null ? <><strong className="text-emerald-700">{assessment.officialScore}/{criterion.maxScore} điểm</strong>{assessment.officialReason && <p className="mt-1 break-words text-slate-600">{assessment.officialReason}</p>}</> : <><strong className="text-slate-700">{assessment?.status === 'READY_FOR_REVIEW' ? 'Chờ chốt điểm' : assessment?.status === 'NEEDS_VERIFICATION' || criterionEvidences.length ? 'Chờ xác minh' : 'Chưa đánh giá'}</strong>{assessment?.suggestedScore != null && <p className="mt-1 text-amber-800">Theo quy chế: {assessment.suggestedScore}đ</p>}</>}</td>
                     </tr>;
                   })}

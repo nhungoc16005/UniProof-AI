@@ -7,7 +7,7 @@ export function normalizeActivityRole(role?: string | null): string {
   const upper = String(role).trim().toUpperCase();
   if (upper === 'CO_VU' || upper === 'CHEERLEADER') return 'CHEERLEADER';
   if (upper === 'BAN_TO_CHUC' || upper === 'BTC' || upper === 'ORGANIZER') return 'ORGANIZER';
-  if (upper === 'THAM_GIA' || upper === 'PARTICIPANT' || !upper) return 'PARTICIPANT';
+  if (upper === 'THAM_GIA' || upper === 'THAM_GIA_CHINH' || upper === 'PARTICIPANT' || !upper) return 'PARTICIPANT';
   return upper;
 }
 

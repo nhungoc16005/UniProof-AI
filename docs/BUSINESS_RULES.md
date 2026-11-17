@@ -289,6 +289,22 @@ Workflow UI có 8 state suy diễn từ submission, handoff, pending evidence/ap
 - **Hậu điều kiện và chuyển trạng thái:** Chỉ ghi suggestions có criterion trong rubric, điểm trong trần, confidence0–1, reasoning; response muộn bị hủy thay vì ghi đè quyết định.
 - **Bất biến/ca biên/gap:** Không tự ghi OCR/VerificationResult/Anomaly từ output suggestions; không gọi pipeline thật để audit docs.
 
+<a id="r-29"></a>
+
+### R-29 — Căn cứ chấm điểm, Import Excel và Chốt phiếu hàng loạt
+
+- **Căn cứ:** GroundingImportService + AssessmentsService + ActivitiesService; [F15](features/15-evidence-grounding-and-batch-finalize.md).
+- **Tiền điều kiện/quyền:** `STAFF` (Cán bộ Khoa) chỉ thao tác trên sinh viên thuộc Khoa của mình; kỳ học đang mở và chưa `CLOSED`. Bật quy trình mới qua cờ `evidenceBasisWorkflowEnabled`.
+- **Hậu điều kiện và chuyển trạng thái:**
+  1. **Import Căn cứ:** Lưu trữ độc lập trong `ImportBatch` và các bảng `AcademicGrounding`, `ActivityParticipant` (với `batchId`), `ClubLeadershipGrounding`. Sau khi lưu, tự động kích hoạt đồng bộ (`syncStudentGrounding`) cập nhật `verifiedData`, `suggestedScore` và trạng thái `READY_FOR_REVIEW` cho các tiêu chí tương ứng.
+  2. **Minh chứng 0 file:** Ở kỳ `evidenceBasisWorkflowEnabled = true`, cho phép sinh viên nộp minh chứng 0 file khi có mô tả $\ge 10$ ký tự, chuyển trạng thái sang `NEEDS_HUMAN_REVIEW` và không tạo job AI. Kỳ `evidenceBasisWorkflowEnabled = false` giữ nguyên chặn thiếu file.
+  3. **Chốt phiếu (Cá nhân & Hàng loạt):** Chỉ chốt các tiêu chí `READY_FOR_REVIEW` có `suggestedScore !== null` thành `FINALIZED` với `officialScore = suggestedScore`. Chặn chốt toàn bộ nếu sinh viên còn minh chứng `NEEDS_HUMAN_REVIEW` hoặc `NEEDS_SUPPLEMENT`, hoặc có khiếu nại đang chờ giải quyết. Chốt hàng loạt tối đa 100 phiếu/lần, transaction riêng từng phiếu, không tự động gửi CTSV.
+  4. **Thu hồi lô (Batch Revoke):** Chặn toàn bộ nếu có bất kỳ sinh viên nào trong lô đã bị chốt điểm (`FINALIZED`), phiếu đã gửi CTSV (`SENT`), đã có publication hoặc kỳ đã đóng (`CLOSED`). Khi thu hồi thành công, chuyển trạng thái lô sang `REVOKED` và tự động tính toán lại điểm gợi ý.
+- **Bất biến/ca biên:**
+  - MSSV dạng text luôn bảo toàn số 0 ở đầu (`"0102210001"`).
+  - Không suy diễn từ dữ liệu trống: ô trống = "Chưa có dữ liệu" (giữ chờ).
+  - Không ghi đè điểm chính thức của tiêu chí đã `FINALIZED`.
+
 ## Yêu cầu nhất quán xuyên module
 
 Mọi ghi điểm, căn cứ, submission, handoff và publication phải cùng studentId/termId/rubricVersionId phù hợp. Foreign key chỉ bảo đảm tồn tại; phải kiểm sự phù hợp nghiệp vụ trong service. Schema có unique CriterionAssessment(student,term,criterion), Submission(student,term,rubric), Handoff(student,term), Publication(student,term,revision) và Notification.dedupeKey.

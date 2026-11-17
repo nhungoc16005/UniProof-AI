@@ -6,6 +6,8 @@ import { WorkflowQueryDto } from '../evaluation-workflow/dto/workflow-query.dto'
 import { evaluateRubricCriterion } from '../criteria/rubric-scoring';
 import { DeadlineExtensionsService } from '../deadline-extensions/deadline-extensions.service';
 import { aggregateStudentActivitySources } from '../activities/activity-aggregator';
+import { unresolvedEvidenceStatuses } from '../evaluation-workflow/evaluation-policy';
+import { lockTerm } from '../evaluation-workflow/workflow-lock.helper';
 
 export function validateVerifiedData(config: Record<string, unknown> | null, data: Record<string, unknown>, maxScore: number): void {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
@@ -86,6 +88,93 @@ export function validateVerifiedData(config: Record<string, unknown> | null, dat
 export class AssessmentsService {
   constructor(private readonly prisma: PrismaService, private readonly workflow: WorkflowService, private readonly deadlines: DeadlineExtensionsService) {}
 
+  async syncStudentGrounding(
+    tx: Prisma.TransactionClient,
+    studentId: string,
+    termId: string,
+    rubricVersionId?: string,
+  ): Promise<void> {
+    const version = rubricVersionId
+      ? await tx.rubricVersion.findUnique({ where: { id: rubricVersionId }, include: { criteria: true } })
+      : await tx.rubricVersion.findFirst({ where: { termId, status: 'PUBLISHED' }, orderBy: { version: 'desc' }, include: { criteria: true } });
+
+    if (!version) return;
+
+    const activeGroundings = await tx.academicGrounding.findMany({
+      where: { studentId, termId, status: 'ACTIVE' },
+    });
+
+    const activeByCode = new Map(activeGroundings.map((g) => [g.criterionCode, g]));
+
+    for (const criterion of version.criteria) {
+      if (!['1', '3', '7'].includes(criterion.code)) continue;
+
+      const existing = await tx.criterionAssessment.findUnique({
+        where: { studentId_termId_criterionId: { studentId, termId, criterionId: criterion.id } },
+      });
+
+      // Nếu tiêu chí ĐÃ được chốt chính thức (FINALIZED) thì không ghi đè
+      if (existing?.status === CriterionAssessmentStatus.FINALIZED) {
+        continue;
+      }
+
+      // Nếu cán bộ đã xác minh thủ công (verifiedData đã có và không phải do hệ thống căn cứ tự sinh),
+      // tuyệt đối KHÔNG ghi đè thay đổi thủ công của cán bộ
+      if (existing?.verifiedData && !existing.academicGroundingId) {
+        continue;
+      }
+
+      const grounding = activeByCode.get(criterion.code);
+      if (grounding) {
+        const evaluation = evaluateRubricCriterion(
+          criterion.maxScore,
+          criterion.scoringConfig,
+          grounding.data as Record<string, unknown>,
+        );
+
+        await tx.criterionAssessment.upsert({
+          where: { studentId_termId_criterionId: { studentId, termId, criterionId: criterion.id } },
+          create: {
+            studentId,
+            termId,
+            criterionId: criterion.id,
+            verifiedData: grounding.data as Prisma.InputJsonValue,
+            academicGroundingId: grounding.id,
+            verificationNote: grounding.note || `Căn cứ học vụ từ ${grounding.source || 'Khoa import'}`,
+            suggestedScore: evaluation.suggestedScore,
+            suggestionReason: evaluation.reason,
+            status: evaluation.status,
+          },
+          update: {
+            verifiedData: grounding.data as Prisma.InputJsonValue,
+            academicGroundingId: grounding.id,
+            verificationNote: grounding.note || `Căn cứ học vụ từ ${grounding.source || 'Khoa import'}`,
+            suggestedScore: evaluation.suggestedScore,
+            suggestionReason: evaluation.reason,
+            status: evaluation.status,
+            officialScore: null,
+            officialReason: null,
+            finalReviewerId: null,
+            finalizedAt: null,
+          },
+        });
+      } else if (existing?.academicGroundingId) {
+        // Lô cũ bị thu hồi -> reset điểm gợi ý và căn cứ
+        await tx.criterionAssessment.update({
+          where: { id: existing.id },
+          data: {
+            verifiedData: Prisma.DbNull,
+            academicGroundingId: null,
+            verificationNote: null,
+            suggestedScore: null,
+            suggestionReason: null,
+            status: CriterionAssessmentStatus.NEEDS_VERIFICATION,
+          },
+        });
+      }
+    }
+  }
+
   private async getCriterion(termId: string, criterionId: string) {
     const criterion = await this.prisma.criterion.findFirst({
       where: { id: criterionId, rubricVersion: { termId, status: 'PUBLISHED' } },
@@ -130,6 +219,7 @@ export class AssessmentsService {
       if (!term) throw new NotFoundException('Không tìm thấy kỳ đánh giá');
       return { rubricVersion: null, term, categories: [], submission: null };
     }
+
     const [assessments, submission, submissionWindow, reviewWindow, appealWindow] = await Promise.all([this.prisma.criterionAssessment.findMany({
       where: { studentId, termId, criterion: { rubricVersionId: version.id } },
       include: { evidences: { select: { id: true, declaredActivityName: true, status: true } } },
@@ -222,10 +312,20 @@ export class AssessmentsService {
   async preflight(studentId: string, termId: string) {
     const version = await this.prisma.rubricVersion.findFirst({ where: { termId, status: 'PUBLISHED' }, include: { categories: { include: { criteria: true } } } });
     if (!version) return { canSubmit: false, blockers: ['Kỳ chưa có bộ tiêu chí được ban hành'], warnings: [], completedCriteria: 0, totalCriteria: 0 };
-    const [assessments, drafts, effective] = await Promise.all([
+
+    const term = await this.prisma.term.findUnique({
+      where: { id: termId },
+      select: { evidenceBasisWorkflowEnabled: true },
+    });
+    const isNewWorkflow = term?.evidenceBasisWorkflowEnabled ?? false;
+
+    const [assessments, drafts, effective, attendances, academicGroundings, clubGroundings] = await Promise.all([
       this.prisma.criterionAssessment.findMany({ where: { studentId, termId, criterion: { rubricVersionId: version.id } } }),
       this.prisma.evidence.findMany({ where: { studentId, termId, status: EvidenceStatus.DRAFT }, include: { files: true } }),
       this.deadlines.resolve(termId, studentId, DeadlineExtensionType.SUBMISSION),
+      this.prisma.activityParticipant.findMany({ where: { studentId, status: 'CONFIRMED', activity: { termId } }, include: { activity: true } }),
+      this.prisma.academicGrounding.findMany({ where: { studentId, termId, status: 'ACTIVE' } }),
+      this.prisma.clubLeadershipGrounding.findMany({ where: { studentId, termId, status: 'ACTIVE' } }),
     ]);
     const byCriterion = new Map(assessments.map(row => [row.criterionId, row]));
     const blockers: string[] = [];
@@ -236,14 +336,33 @@ export class AssessmentsService {
       const sum = category.criteria.reduce((total, criterion) => total + (byCriterion.get(criterion.id)?.selfScore ?? 0), 0);
       if (sum > category.maxScore) blockers.push(`${category.name}: tổng điểm ${sum} vượt trần ${category.maxScore}`);
     }
-    const incompleteDrafts = drafts.filter(evidence => !evidence.files.length);
-    if (incompleteDrafts.length) blockers.push(`Có ${incompleteDrafts.length} minh chứng nháp chưa có tệp`);
-    const evidenceCriterionIds = new Set(drafts.filter(evidence => evidence.files.length).flatMap(evidence => evidence.criterionAssessmentId ? [evidence.criterionAssessmentId] : []));
+
+    const incompleteDrafts = drafts.filter(evidence => {
+      if (evidence.files.length > 0) return false;
+      if (isNewWorkflow && evidence.description && evidence.description.trim().length >= 10) return false;
+      return true;
+    });
+    if (incompleteDrafts.length) {
+      blockers.push(`Có ${incompleteDrafts.length} minh chứng nháp chưa có tệp hoặc thiếu mô tả chi tiết (tối thiểu 10 ký tự)`);
+    }
+
+    const evidenceCriterionIds = new Set(drafts.filter(evidence => evidence.files.length || (isNewWorkflow && evidence.description?.trim().length >= 10)).flatMap(evidence => evidence.criterionAssessmentId ? [evidence.criterionAssessmentId] : []));
+    const confirmedActivityCriterionIds = new Set(attendances.map(a => a.activity?.criterionId).filter(Boolean) as string[]);
+    const academicGroundingCodes = new Set(academicGroundings.map(g => g.criterionCode));
+    const clubGroundingCodes = new Set(clubGroundings.map(g => g.criterionCode));
+
     const activityWithoutEvidence = version.categories.flatMap(category => category.criteria).filter(criterion => {
       const config = criterion.scoringConfig as Record<string, unknown> | null;
       const score = byCriterion.get(criterion.id)?.selfScore ?? 0;
       const assessmentId = byCriterion.get(criterion.id)?.id;
-      return score > 0 && ['activity_threshold', 'community_activity_tier', 'verified_boolean', 'award_tier'].includes(String(config?.kind)) && (!assessmentId || !evidenceCriterionIds.has(assessmentId));
+      if (score <= 0) return false;
+
+      // Nếu đã có điểm danh xác nhận hoặc căn cứ học vụ / CLB tương ứng -> không cảnh báo thiếu minh chứng
+      if (confirmedActivityCriterionIds.has(criterion.id)) return false;
+      if (academicGroundingCodes.has(criterion.code)) return false;
+      if (clubGroundingCodes.has(criterion.code)) return false;
+
+      return ['activity_threshold', 'community_activity_tier', 'verified_boolean', 'award_tier'].includes(String(config?.kind)) && (!assessmentId || !evidenceCriterionIds.has(assessmentId));
     });
     if (activityWithoutEvidence.length) warnings.push(`${activityWithoutEvidence.length} tiêu chí có điểm nhưng chưa gắn minh chứng nháp`);
     try { await this.ensureStudentSubmissionOpen(studentId, termId); } catch (error: any) { blockers.push(error?.message || 'Không còn quyền nộp phiếu'); }
@@ -257,22 +376,53 @@ export class AssessmentsService {
     const version = await this.prisma.rubricVersion.findFirst({ where: { termId, status: 'PUBLISHED' }, include: { criteria: true } });
     if (!version) throw new BadRequestException('Kỳ này chưa có rubric được ban hành');
     await this.ensureSubmissionEditable(studentId, termId, version.id);
+
+    const term = await this.prisma.term.findUnique({
+      where: { id: termId },
+      select: { evidenceBasisWorkflowEnabled: true },
+    });
+    const isNewWorkflow = term?.evidenceBasisWorkflowEnabled ?? false;
+
     const drafts = await this.prisma.evidence.findMany({ where: { studentId, termId, status: EvidenceStatus.DRAFT }, include: { files: true } });
-    const incomplete = drafts.find((evidence) => evidence.files.length === 0);
-    if (incomplete) throw new BadRequestException(`Minh chứng “${incomplete.declaredActivityName || 'Chưa đặt tên'}” chưa có tệp; hãy bổ sung tệp hoặc xóa hồ sơ nháp trước khi nộp phiếu`);
+    const incomplete = drafts.find((evidence) => {
+      if (evidence.files.length > 0) return false;
+      if (isNewWorkflow && evidence.description && evidence.description.trim().length >= 10) return false;
+      return true;
+    });
+    if (incomplete) {
+      if (isNewWorkflow) {
+        throw new BadRequestException(`Minh chứng “${incomplete.declaredActivityName || 'Chưa đặt tên'}” chưa có tệp đính kèm và chưa có mô tả chi tiết (tối thiểu 10 ký tự); hãy bổ sung tệp hoặc mô tả trước khi nộp`);
+      } else {
+        throw new BadRequestException(`Minh chứng “${incomplete.declaredActivityName || 'Chưa đặt tên'}” chưa có tệp; hãy bổ sung tệp hoặc xóa hồ sơ nháp trước khi nộp phiếu`);
+      }
+    }
 
     return this.workflow.studentEdit(studentId, termId, async tx => {
       const currentDrafts = await tx.evidence.findMany({ where: { studentId, termId, status: 'DRAFT' }, include: { files: true } });
-      if (currentDrafts.some(e => !e.files.length)) throw new BadRequestException('Có minh chứng nháp chưa có tệp');
+      if (currentDrafts.some(e => !e.files.length && (!isNewWorkflow || !e.description || e.description.trim().length < 10))) {
+        throw new BadRequestException('Có minh chứng nháp chưa có tệp hoặc chưa có mô tả hợp lệ');
+      }
+
       const submission = await tx.assessmentSubmission.upsert({
         where: { studentId_termId_rubricVersionId: { studentId, termId, rubricVersionId: version.id } },
         create: { studentId, termId, rubricVersionId: version.id, status: 'SUBMITTED', submittedAt: new Date(), returnedAt: null, returnReason: null, returnedById: null },
         update: { status: 'SUBMITTED', submittedAt: new Date(), returnedAt: null, returnReason: null, returnedById: null },
       });
+
+      // Tự động đồng bộ căn cứ học vụ (nếu có) khi sinh viên nộp phiếu
+      await this.syncStudentGrounding(tx, studentId, termId, version.id);
+
       for (const evidence of currentDrafts) {
-        await tx.evidence.update({ where: { id: evidence.id }, data: { status: EvidenceStatus.PROCESSING, submittedAt: new Date() } });
-        await tx.aiProcessingJob.create({ data: { evidenceId: evidence.id } });
+        const hasFiles = evidence.files.length > 0;
+        if (hasFiles) {
+          await tx.evidence.update({ where: { id: evidence.id }, data: { status: EvidenceStatus.PROCESSING, submittedAt: new Date() } });
+          await tx.aiProcessingJob.create({ data: { evidenceId: evidence.id } });
+        } else {
+          // Kỳ mới cho phép 0 file khi có mô tả: chuyển sang NEEDS_HUMAN_REVIEW, KHÔNG tạo AI job
+          await tx.evidence.update({ where: { id: evidence.id }, data: { status: EvidenceStatus.NEEDS_HUMAN_REVIEW, submittedAt: new Date() } });
+        }
       }
+
       await tx.auditLog.create({ data: { userId: studentId, action: 'ASSESSMENT_SUBMITTED', entityType: 'AssessmentSubmission', entityId: submission.id, newValue: { status: 'SUBMITTED', rubricVersionId: version.id, evidenceCount: currentDrafts.length } } });
       return { submission, submittedEvidenceCount: currentDrafts.length };
     });
@@ -400,6 +550,7 @@ export class AssessmentsService {
         termId,
         criterionId,
         verifiedData: verifiedData as Prisma.InputJsonValue,
+        academicGroundingId: null,
         verificationNote: body.note.trim(),
         suggestedScore: evaluation.suggestedScore,
         suggestionReason: evaluation.reason,
@@ -407,6 +558,7 @@ export class AssessmentsService {
       },
       update: {
         verifiedData: verifiedData as Prisma.InputJsonValue,
+        academicGroundingId: null,
         verificationNote: body.note.trim(),
         suggestedScore: evaluation.suggestedScore,
         suggestionReason: evaluation.reason,
@@ -461,5 +613,413 @@ export class AssessmentsService {
       return result;
     });
     return finalized;
+  }
+
+  /**
+   * Xem trước bảng chốt 16 tiêu chí của một phiếu sinh viên
+   */
+  async previewFinalizeStudent(
+    staff: { id: string; role: Role; facultyId?: string | null },
+    studentId: string,
+    termId: string,
+  ) {
+    await this.workflow.scope(staff, studentId, termId);
+    const version = await this.prisma.rubricVersion.findFirst({
+      where: { termId, status: 'PUBLISHED' },
+      include: { criteria: true },
+      orderBy: { version: 'desc' },
+    });
+    if (!version) throw new NotFoundException('Kỳ này chưa có bộ tiêu chí được ban hành');
+
+    const submission = await this.prisma.assessmentSubmission.findFirst({
+      where: { studentId, termId, status: 'SUBMITTED' },
+    });
+    const handoff = await this.prisma.assessmentHandoff.findUnique({
+      where: { studentId_termId: { studentId, termId } },
+    });
+
+    const blockers: string[] = [];
+
+    if (!submission) {
+      blockers.push('Sinh viên chưa nộp phiếu rèn luyện');
+    }
+    if (handoff?.status === 'SENT') {
+      blockers.push('Phiếu sinh viên đã được gửi lên CTSV/Admin (SENT)');
+    }
+    if (handoff?.status === 'EXCLUDED') {
+      blockers.push('Sinh viên đã bị ghi nhận không nộp hoặc loại trừ');
+    }
+
+    // Chặn cả hai trạng thái NEEDS_HUMAN_REVIEW và NEEDS_SUPPLEMENT + các trạng thái chưa xử lý khác (Point 3)
+    const pendingEvidences = await this.prisma.evidence.findMany({
+      where: {
+        studentId,
+        termId,
+        status: { in: [...unresolvedEvidenceStatuses] as any },
+      },
+      select: { id: true, status: true, declaredActivityName: true },
+    });
+
+    const needsHumanReviewCount = pendingEvidences.filter((e) => e.status === EvidenceStatus.NEEDS_HUMAN_REVIEW).length;
+    const needsSupplementCount = pendingEvidences.filter((e) => e.status === EvidenceStatus.NEEDS_SUPPLEMENT).length;
+
+    if (pendingEvidences.length > 0) {
+      blockers.push(
+        `Còn ${pendingEvidences.length} minh chứng chưa giải quyết xong (${needsHumanReviewCount} chờ xem xét, ${needsSupplementCount} cần bổ sung giấy tờ)`,
+      );
+    }
+
+    const pendingAppeals = await this.prisma.appeal.count({
+      where: { studentId, termId, status: 'PENDING' },
+    });
+    if (pendingAppeals > 0) {
+      blockers.push(`Còn ${pendingAppeals} khiếu nại đang chờ xử lý`);
+    }
+
+    const assessments = await this.prisma.criterionAssessment.findMany({
+      where: { studentId, termId, criterion: { rubricVersionId: version.id } },
+      include: { criterion: true },
+    });
+    const byCriterionId = new Map(assessments.map((a) => [a.criterionId, a]));
+
+    const criteriaSummary = version.criteria
+      .sort((a, b) => a.code.localeCompare(b.code, 'vi', { numeric: true }))
+      .map((criterion) => {
+        const ca = byCriterionId.get(criterion.id);
+        const isFinalized = ca?.status === CriterionAssessmentStatus.FINALIZED;
+        const isReady = ca?.status === CriterionAssessmentStatus.READY_FOR_REVIEW && ca.suggestedScore !== null;
+        const currentOfficial = ca?.officialScore ?? null;
+        const suggested = ca?.suggestedScore ?? null;
+        const projectedScore = isFinalized ? currentOfficial : isReady ? suggested : null;
+
+        let statusText: 'ALREADY_FINALIZED' | 'READY_TO_FINALIZE' | 'BLOCKED';
+        if (isFinalized) {
+          statusText = 'ALREADY_FINALIZED';
+        } else if (isReady) {
+          statusText = 'READY_TO_FINALIZE';
+        } else {
+          statusText = 'BLOCKED';
+          blockers.push(`Tiêu chí ${criterion.code} (${criterion.name}): Chưa có căn cứ xác minh để đề xuất điểm`);
+        }
+
+        return {
+          criterionId: criterion.id,
+          id: criterion.id,
+          code: criterion.code,
+          name: criterion.name,
+          maxScore: criterion.maxScore,
+          selfScore: ca?.selfScore ?? null,
+          suggestedScore: suggested,
+          officialScore: currentOfficial,
+          projectedScore,
+          status: statusText,
+          canFinalize: isReady || isFinalized,
+          reason: ca?.suggestionReason || ca?.verificationNote || (isFinalized ? 'Đã chốt' : 'Chưa có điểm gợi ý'),
+          verificationNote: ca?.verificationNote ?? null,
+        };
+      });
+
+    const student = await this.prisma.user.findUnique({
+      where: { id: studentId },
+      select: { id: true, studentCode: true, fullName: true, class: { select: { code: true } } },
+    });
+
+    return {
+      student,
+      canFinalize: blockers.length === 0,
+      blockers,
+      warnings: [],
+      criteria: criteriaSummary,
+      criteriaSummary,
+      totalProjectedScore: criteriaSummary.reduce((sum, c) => sum + (c.projectedScore ?? 0), 0),
+    };
+  }
+
+  /**
+   * Chốt toàn bộ các tiêu chí đủ điều kiện của một phiếu sinh viên
+   */
+  async finalizeStudentAssessment(
+    staff: { id: string; role: Role; facultyId?: string | null },
+    studentId: string,
+    termId: string,
+  ) {
+    await this.workflow.scope(staff, studentId, termId);
+    await this.ensureWritable(termId);
+
+    return this.workflow.edit(staff, studentId, termId, async (tx) => {
+      const version = await tx.rubricVersion.findFirst({
+        where: { termId, status: 'PUBLISHED' },
+        include: { criteria: true },
+        orderBy: { version: 'desc' },
+      });
+      if (!version) throw new NotFoundException('Kỳ này chưa có bộ tiêu chí');
+
+      // Tự động đồng bộ căn cứ học vụ
+      await this.syncStudentGrounding(tx, studentId, termId, version.id);
+
+      const submission = await tx.assessmentSubmission.findFirst({
+        where: { studentId, termId, status: 'SUBMITTED' },
+      });
+      if (!submission) throw new BadRequestException('Sinh viên chưa nộp phiếu rèn luyện');
+
+      const handoff = await tx.assessmentHandoff.findUnique({
+        where: { studentId_termId: { studentId, termId } },
+      });
+      if (handoff?.status === 'SENT') throw new BadRequestException('Phiếu đã được gửi lên CTSV/Admin; không thể chỉnh sửa');
+      if (handoff?.status === 'EXCLUDED') throw new BadRequestException('Sinh viên đã bị loại trừ');
+
+      // Chặn nếu còn minh chứng chưa giải quyết (chặn cả NEEDS_HUMAN_REVIEW và NEEDS_SUPPLEMENT)
+      const pendingEvidences = await tx.evidence.count({
+        where: {
+          studentId,
+          termId,
+          status: { in: [...unresolvedEvidenceStatuses] as any },
+        },
+      });
+      if (pendingEvidences > 0) {
+        throw new BadRequestException(`Còn ${pendingEvidences} minh chứng đang chờ xử lý (chờ xem xét hoặc bổ sung); không thể chốt phiếu`);
+      }
+
+      const pendingAppeals = await tx.appeal.count({
+        where: { studentId, termId, status: 'PENDING' },
+      });
+      if (pendingAppeals > 0) {
+        throw new BadRequestException(`Còn ${pendingAppeals} khiếu nại đang chờ giải quyết; không thể chốt phiếu`);
+      }
+
+      const assessments = await tx.criterionAssessment.findMany({
+        where: { studentId, termId, criterion: { rubricVersionId: version.id } },
+      });
+      const byCriterionId = new Map(assessments.map((a) => [a.criterionId, a]));
+
+      const notReadyCriteria: string[] = [];
+      for (const criterion of version.criteria) {
+        const ca = byCriterionId.get(criterion.id);
+        if (ca?.status === CriterionAssessmentStatus.FINALIZED) continue;
+        if (!ca || ca.status !== CriterionAssessmentStatus.READY_FOR_REVIEW || ca.suggestedScore === null) {
+          notReadyCriteria.push(criterion.code);
+        }
+      }
+
+      if (notReadyCriteria.length > 0) {
+        throw new BadRequestException(
+          `Các tiêu chí [${notReadyCriteria.join(', ')}] chưa có điểm đề xuất hợp lệ để chốt`,
+        );
+      }
+
+      // Chốt tất cả các tiêu chí READY_FOR_REVIEW
+      let finalizedCount = 0;
+      for (const criterion of version.criteria) {
+        const ca = byCriterionId.get(criterion.id);
+        if (ca && ca.status === CriterionAssessmentStatus.READY_FOR_REVIEW && ca.suggestedScore !== null) {
+          await tx.criterionAssessment.update({
+            where: { id: ca.id },
+            data: {
+              officialScore: ca.suggestedScore,
+              officialReason: ca.officialReason?.trim() || 'Cán bộ xác nhận điểm đề xuất theo căn cứ đã xác minh',
+              status: CriterionAssessmentStatus.FINALIZED,
+              finalReviewerId: staff.id,
+              finalizedAt: new Date(),
+            },
+          });
+          finalizedCount++;
+        }
+      }
+
+      await tx.auditLog.create({
+        data: {
+          userId: staff.id,
+          action: 'STUDENT_ASSESSMENT_FINALIZED',
+          entityType: 'AssessmentHandoff',
+          entityId: handoff?.id || `${studentId}:${termId}`,
+          oldValue: null,
+          newValue: { studentId, termId, finalizedCount },
+        },
+      });
+
+      const allAssessments = await tx.criterionAssessment.findMany({
+        where: { studentId, termId, criterion: { rubricVersionId: version.id } },
+        select: { officialScore: true },
+      });
+      const officialTotalScore = allAssessments.reduce((sum, a) => sum + (a.officialScore ?? 0), 0);
+
+      return {
+        success: true,
+        studentId,
+        termId,
+        finalizedCount,
+        officialTotalScore,
+        message: `Đã chốt thành công ${finalizedCount} tiêu chí của sinh viên`,
+      };
+    });
+  }
+
+  /**
+   * Chốt phiếu hàng loạt (Tối đa 100 phiếu, transaction riêng biệt từng phiếu)
+   * TUYỆT ĐỐI KHÔNG TỰ ĐỘNG GỬI ADMIN HOẶC CÔNG BỐ
+   */
+  async batchFinalizeAssessments(
+    staff: { id: string; role: Role; facultyId?: string | null },
+    termId: string,
+    studentIds: string[],
+  ) {
+    if (!studentIds || !studentIds.length) {
+      throw new BadRequestException('Danh sách sinh viên không được rỗng');
+    }
+    if (studentIds.length > 100) {
+      throw new BadRequestException('Chỉ được chọn tối đa 100 phiếu mỗi lần chốt hàng loạt');
+    }
+
+    await this.ensureWritable(termId);
+
+    const version = await this.prisma.rubricVersion.findFirst({
+      where: { termId, status: 'PUBLISHED' },
+      include: { criteria: true },
+      orderBy: { version: 'desc' },
+    });
+    if (!version) throw new NotFoundException('Kỳ này chưa có bộ tiêu chí được ban hành');
+
+    const uniqueIds = [...new Set(studentIds)];
+    const results: Array<{
+      studentId: string;
+      studentCode?: string;
+      fullName?: string;
+      success: boolean;
+      finalizedCount: number;
+      blockers: string[];
+    }> = [];
+
+    let successCount = 0;
+    let failureCount = 0;
+
+    for (const studentId of uniqueIds) {
+      try {
+        const studentInfo = await this.prisma.user.findUnique({
+          where: { id: studentId },
+          select: { studentCode: true, fullName: true },
+        });
+
+        // Mỗi phiếu xử lý trong một transaction độc lập (Rule 6)
+        const outcome = await this.prisma.$transaction(
+          async (tx) => {
+            const term = await lockTerm(tx, termId);
+            if (term.status === TermStatus.CLOSED) {
+              throw new BadRequestException('Kỳ đã đóng');
+            }
+
+            await this.workflow.scope(staff, studentId, termId, tx);
+
+            const handoff = await tx.assessmentHandoff.findUnique({
+              where: { studentId_termId: { studentId, termId } },
+            });
+            if (!handoff) throw new BadRequestException('Sinh viên không thuộc roster kỳ');
+            if (handoff.status === 'SENT') throw new BadRequestException('Phiếu đã gửi CTSV');
+            if (handoff.status === 'EXCLUDED') throw new BadRequestException('Sinh viên đã bị loại trừ');
+
+            const submission = await tx.assessmentSubmission.findFirst({
+              where: { studentId, termId, status: 'SUBMITTED' },
+            });
+            if (!submission) throw new BadRequestException('Sinh viên chưa nộp phiếu');
+
+            // Đồng bộ grounding
+            await this.syncStudentGrounding(tx, studentId, termId, version.id);
+
+            // Kiểm tra minh chứng chờ (chặn cả NEEDS_HUMAN_REVIEW và NEEDS_SUPPLEMENT)
+            const pendingEvidences = await tx.evidence.count({
+              where: {
+                studentId,
+                termId,
+                status: { in: [...unresolvedEvidenceStatuses] as any },
+              },
+            });
+            if (pendingEvidences > 0) {
+              throw new BadRequestException(`Còn ${pendingEvidences} minh chứng chưa giải quyết`);
+            }
+
+            const pendingAppeals = await tx.appeal.count({
+              where: { studentId, termId, status: 'PENDING' },
+            });
+            if (pendingAppeals > 0) {
+              throw new BadRequestException(`Còn ${pendingAppeals} khiếu nại chưa giải quyết`);
+            }
+
+            const assessments = await tx.criterionAssessment.findMany({
+              where: { studentId, termId, criterion: { rubricVersionId: version.id } },
+            });
+            const byCriterionId = new Map(assessments.map((a) => [a.criterionId, a]));
+
+            const notReady: string[] = [];
+            for (const criterion of version.criteria) {
+              const ca = byCriterionId.get(criterion.id);
+              if (ca?.status === CriterionAssessmentStatus.FINALIZED) continue;
+              if (!ca || ca.status !== CriterionAssessmentStatus.READY_FOR_REVIEW || ca.suggestedScore === null) {
+                notReady.push(criterion.code);
+              }
+            }
+
+            if (notReady.length > 0) {
+              throw new BadRequestException(`Thiếu điểm đề xuất tiêu chí [${notReady.join(', ')}]`);
+            }
+
+            let finalizedCount = 0;
+            for (const criterion of version.criteria) {
+              const ca = byCriterionId.get(criterion.id);
+              if (ca && ca.status === CriterionAssessmentStatus.READY_FOR_REVIEW && ca.suggestedScore !== null) {
+                await tx.criterionAssessment.update({
+                  where: { id: ca.id },
+                  data: {
+                    officialScore: ca.suggestedScore,
+                    officialReason: ca.officialReason?.trim() || 'Cán bộ xác nhận điểm đề xuất theo căn cứ đã xác minh',
+                    status: CriterionAssessmentStatus.FINALIZED,
+                    finalReviewerId: staff.id,
+                    finalizedAt: new Date(),
+                  },
+                });
+                finalizedCount++;
+              }
+            }
+
+            await tx.auditLog.create({
+              data: {
+                userId: staff.id,
+                action: 'BATCH_STUDENT_ASSESSMENT_FINALIZED',
+                entityType: 'AssessmentHandoff',
+                entityId: handoff.id,
+                oldValue: null,
+                newValue: { studentId, termId, finalizedCount },
+              },
+            });
+
+            return { finalizedCount };
+          },
+          { timeout: 15000 },
+        );
+
+        results.push({
+          studentId,
+          studentCode: studentInfo?.studentCode || undefined,
+          fullName: studentInfo?.fullName || undefined,
+          success: true,
+          finalizedCount: outcome.finalizedCount,
+          blockers: [],
+        });
+        successCount++;
+      } catch (err: any) {
+        results.push({
+          studentId,
+          success: false,
+          finalizedCount: 0,
+          blockers: [err.message || 'Lỗi khi chốt phiếu'],
+        });
+        failureCount++;
+      }
+    }
+
+    return {
+      totalRequested: uniqueIds.length,
+      successCount,
+      failureCount,
+      results,
+    };
   }
 }

@@ -33,6 +33,7 @@ import { StudentAssessment } from './pages/officer/StudentAssessment';
 import { CriteriaRulesView } from './pages/officer/CriteriaRulesView';
 import { EvaluationsByClass } from './pages/officer/EvaluationsByClass';
 import { StudentsDirectory } from './pages/officer/StudentsDirectory';
+import { ImportGroundingData } from './pages/officer/ImportGroundingData';
 
 // Admin pages (A01 - A11)
 import { AdminDashboard } from './pages/admin/Dashboard';
@@ -120,6 +121,7 @@ export const AppRoutes: React.FC = () => {
           <Route path="review/:id" element={<ReviewDetail />} />
           <Route path="activities" element={<InternalActivities />} />
           <Route path="external-activities" element={<Navigate to="/officer/activities" replace />} />
+          <Route path="grounding-import" element={<ImportGroundingData />} />
           <Route path="appeals" element={<AppealsResolution />} />
           <Route path="criteria" element={<CriteriaRulesView />} />
           <Route path="students" element={<StudentLookup />} />

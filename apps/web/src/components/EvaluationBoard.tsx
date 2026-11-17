@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { useAuth } from '../context/AuthContext';
-import { ClipboardList, SearchX } from 'lucide-react';
+import { ClipboardList, SearchX, CheckCircle2, XCircle, AlertTriangle, Loader2 } from 'lucide-react';
 import { TableSkeleton } from './ui/Skeleton';
 import { apiClient } from '../lib/apiClient';
+import { BatchFinalizeResult } from '../types';
 
 export const evaluationStateLabels: Record<string, string> = {
   NOT_SUBMITTED: 'Chưa nộp', STUDENT_RETURNED: 'Chờ sinh viên sửa', REVIEWING: 'Đang chấm',
@@ -36,6 +37,40 @@ export const EvaluationBoard: React.FC<{ admin?: boolean; compact?: boolean }> =
   const [showPublish, setShowPublish] = useState(false);
   const [reason, setReason] = useState('');
   const [refresh, setRefresh] = useState(0);
+
+  const [showBatchFinalize, setShowBatchFinalize] = useState(false);
+  const [isBatchFinalizing, setIsBatchFinalizing] = useState(false);
+  const [batchFinalizeResult, setBatchFinalizeResult] = useState<BatchFinalizeResult | null>(null);
+  const [batchFinalizeError, setBatchFinalizeError] = useState('');
+
+  const handleOpenBatchFinalize = () => {
+    if (!selected.length) return;
+    if (selected.length > 100) {
+      window.alert('Hệ thống chỉ hỗ trợ chốt tối đa 100 phiếu mỗi lần để đảm bảo an toàn hiệu năng.');
+      return;
+    }
+    setBatchFinalizeResult(null);
+    setBatchFinalizeError('');
+    setShowBatchFinalize(true);
+  };
+
+  const handleConfirmBatchFinalize = async () => {
+    setIsBatchFinalizing(true);
+    setBatchFinalizeError('');
+    try {
+      const res = await apiClient.batchFinalizeAssessments({
+        termId,
+        studentIds: selected,
+      });
+      setBatchFinalizeResult(res);
+      setRefresh(v => v + 1);
+      setSelected([]);
+    } catch (err: any) {
+      setBatchFinalizeError(err.response?.data?.message || err.message || 'Lỗi khi chốt phiếu hàng loạt.');
+    } finally {
+      setIsBatchFinalizing(false);
+    }
+  };
   const state = params.get('state') || '';
   const classId = params.get('classId') || '';
   const facultyId = params.get('facultyId') || '';
@@ -140,17 +175,35 @@ export const EvaluationBoard: React.FC<{ admin?: boolean; compact?: boolean }> =
               In
             </button>
             {!admin && data && !closed && (
-              <button
-                disabled={loading || busy || !selected.length}
-                onClick={() => {
-                  if (window.confirm(`Gửi ${selected.length} kết quả đánh giá đến CTSV? Các kết quả sẽ được khóa sửa.`)) {
-                    void act(() => apiClient.sendFacultyResults(termId, selected), 'Đã gửi kết quả đến CTSV.');
-                  }
-                }}
-                className="rounded-lg bg-[#1D6FC2] hover:bg-[#175A9E] px-4 py-2 text-xs sm:text-sm font-bold text-white disabled:opacity-40 transition-colors shadow-2xs"
-              >
-                Gửi CTSV ({selected.length})
-              </button>
+              <>
+                <button
+                  type="button"
+                  disabled={loading || busy || !selected.length}
+                  onClick={handleOpenBatchFinalize}
+                  className="rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 px-3.5 py-2 text-xs sm:text-sm font-bold text-emerald-800 disabled:opacity-40 transition-colors shadow-2xs"
+                >
+                  Chốt hàng loạt ({selected.length})
+                </button>
+                <button
+                  disabled={loading || busy || !selected.length}
+                  onClick={() => {
+                    const readySelected = data.items.filter(r => selected.includes(r.studentId) && r.ready).map(r => r.studentId);
+                    if (!readySelected.length) {
+                      window.alert('Không có sinh viên nào trong danh sách đã chọn ở trạng thái Đủ điều kiện gửi CTSV (cần hoàn tất chấm tất cả tiêu chí).');
+                      return;
+                    }
+                    if (readySelected.length < selected.length) {
+                      if (!window.confirm(`Có ${readySelected.length}/${selected.length} sinh viên đã chọn đủ điều kiện gửi CTSV. Bạn có muốn gửi ${readySelected.length} sinh viên này không?`)) return;
+                    } else {
+                      if (!window.confirm(`Gửi ${readySelected.length} kết quả đánh giá đến CTSV? Các kết quả sẽ được khóa sửa.`)) return;
+                    }
+                    void act(() => apiClient.sendFacultyResults(termId, readySelected), 'Đã gửi kết quả đến CTSV.');
+                  }}
+                  className="rounded-lg bg-[#1D6FC2] hover:bg-[#175A9E] px-4 py-2 text-xs sm:text-sm font-bold text-white disabled:opacity-40 transition-colors shadow-2xs"
+                >
+                  Gửi CTSV ({selected.length})
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -204,9 +257,9 @@ export const EvaluationBoard: React.FC<{ admin?: boolean; compact?: boolean }> =
                 <th className="p-3.5 w-10">
                   <input
                     type="checkbox"
-                    aria-label="Chọn kết quả đủ điều kiện trên trang"
-                    checked={data.items.some(r => r.ready) && data.items.filter(r => r.ready).every(r => selected.includes(r.studentId))}
-                    onChange={e => setSelected(e.target.checked ? data.items.filter(r => r.ready).map(r => r.studentId) : [])}
+                    aria-label="Chọn kết quả trên trang"
+                    checked={data.items.some(r => !['SENT', 'PUBLISHED', 'NOT_SUBMITTED_RECORDED'].includes(r.state)) && data.items.filter(r => !['SENT', 'PUBLISHED', 'NOT_SUBMITTED_RECORDED'].includes(r.state)).every(r => selected.includes(r.studentId))}
+                    onChange={e => setSelected(e.target.checked ? data.items.filter(r => !['SENT', 'PUBLISHED', 'NOT_SUBMITTED_RECORDED'].includes(r.state)).map(r => r.studentId) : [])}
                     className="rounded border-[#CBD5E1] text-[#1D6FC2] focus:ring-[#1D6FC2] cursor-pointer"
                   />
                 </th>
@@ -226,7 +279,7 @@ export const EvaluationBoard: React.FC<{ admin?: boolean; compact?: boolean }> =
                     <input
                       type="checkbox"
                       aria-label={'Chọn ' + r.student?.fullName}
-                      disabled={!r.ready || closed || busy}
+                      disabled={['SENT', 'PUBLISHED', 'NOT_SUBMITTED_RECORDED'].includes(r.state) || closed || busy}
                       checked={selected.includes(r.studentId)}
                       onChange={e => setSelected(old => e.target.checked ? [...old, r.studentId] : old.filter(id => id !== r.studentId))}
                       className="rounded border-[#CBD5E1] text-[#1D6FC2] focus:ring-[#1D6FC2] cursor-pointer disabled:opacity-40"
@@ -352,5 +405,148 @@ export const EvaluationBoard: React.FC<{ admin?: boolean; compact?: boolean }> =
 
     {reasonAction && data && <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0A0A0A]/40 backdrop-blur-xs p-4"><form onSubmit={e => { e.preventDefault(); const operations = { return: () => apiClient.returnFacultyResult(termId, reasonAction.row.studentId, reason), 'not-submitted': () => apiClient.recordNonSubmission(termId, reasonAction.row.studentId, reason), correction: () => apiClient.requestPublicationCorrection(termId, reasonAction.row.studentId, reason), exclude: () => apiClient.excludeStudentFromTerm(termId, reasonAction.row.studentId, reason) }; void act(operations[reasonAction.type], 'Đã ghi nhận và lưu lịch sử.'); }} role="dialog" aria-modal="true" aria-label="Nhập lý do" className="w-full max-w-lg space-y-4 rounded-[12px] bg-[#FFFFFF] border border-[#E8E8EC] p-5 shadow-xl"><h2 className="font-bold font-heading text-sm sm:text-base text-[#0A0A0A]">{{ return: 'Trả kết quả cho Khoa', 'not-submitted': 'Ghi nhận không nộp', correction: 'Yêu cầu Khoa điều chỉnh sau công bố', exclude: 'Loại trừ sinh viên khỏi kỳ' }[reasonAction.type]} · {reasonAction.row.student?.fullName}</h2><textarea autoFocus required value={reason} onChange={e => setReason(e.target.value)} aria-label="Lý do bắt buộc" rows={3} className="w-full rounded-[6px] border border-[#E8E8EC] p-3 text-xs sm:text-sm text-[#0A0A0A] focus:outline-none focus:border-[#1D6FC2] focus:ring-2 focus:ring-[#1D6FC2]/15" /><div className="flex justify-end gap-3"><button type="button" disabled={loading || busy} onClick={() => setReasonAction(null)} className="px-3.5 py-2 text-xs font-medium text-[#6B6B6B] hover:text-[#0A0A0A]">Hủy</button><button disabled={loading || busy || !reason.trim()} className="rounded-[6px] bg-[#1D6FC2] hover:bg-[#175A9E] px-4 py-2 text-xs font-semibold text-white disabled:opacity-40 transition-colors btn-primary-lift">Xác nhận</button></div></form></div>}
     {showPublish && data && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"><div role="dialog" aria-modal="true" className="w-full max-w-lg rounded-2xl bg-white p-5 space-y-4"><h2 className="font-bold text-slate-900">Xác nhận công bố kết quả</h2><p className="text-sm text-slate-600">Hệ thống sẽ tạo revision mới cho các kết quả chưa công bố và gửi thông báo đến sinh viên. Nhập <strong>CÔNG BỐ</strong> để tiếp tục.</p><input autoFocus value={publishConfirm} onChange={e => setPublishConfirm(e.target.value)} className="w-full rounded-lg border p-3 font-semibold" placeholder="CÔNG BỐ"/><div className="flex justify-end gap-2"><button onClick={() => setShowPublish(false)} className="px-3 py-2 text-sm">Hủy</button><button disabled={publishConfirm !== 'CÔNG BỐ' || busy} onClick={() => void act(() => apiClient.publishResults(termId), 'Đã công bố kết quả.').then(() => setShowPublish(false))} className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">Công bố</button></div></div></div>}
+
+    {/* Modal Chốt Phiếu Hàng Loạt */}
+    {showBatchFinalize && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+        <div className="bg-white rounded-xl max-w-xl w-full p-5 shadow-xl border border-slate-200 space-y-4 max-h-[90vh] flex flex-col">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+            <div>
+              <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                Chốt phiếu đánh giá hàng loạt
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Đã chọn {selected.length} sinh viên
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={isBatchFinalizing}
+              onClick={() => setShowBatchFinalize(false)}
+              className="text-slate-400 hover:text-slate-700 p-1 rounded-md"
+            >
+              ✕
+            </button>
+          </div>
+
+          {!batchFinalizeResult ? (
+            <div className="space-y-3">
+              <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3.5 text-xs text-emerald-900 space-y-1.5">
+                <strong className="block font-semibold">Quy trình chốt hàng loạt:</strong>
+                <p>
+                  - Hệ thống sẽ duyệt qua từng phiếu đánh giá của {selected.length} sinh viên đã chọn.
+                </p>
+                <p>
+                  - Đối với mỗi phiếu: các tiêu chí có điểm gợi ý hợp lệ (từ căn cứ học vụ, điểm danh, CLB) sẽ được chốt chính thức.
+                </p>
+                <p>
+                  - Nếu sinh viên còn minh chứng đang chờ duyệt (NEEDS_HUMAN_REVIEW / NEEDS_SUPPLEMENT) hoặc có khiếu nại, phiếu đó sẽ được <strong>giữ nguyên và bỏ qua an toàn</strong>, không ảnh hưởng đến các phiếu hợp lệ khác.
+                </p>
+                <p className="font-semibold text-emerald-950">
+                  * Thao tác này KHÔNG tự động gửi CTSV. Cán bộ vẫn có thể kiểm tra lại sau khi chốt.
+                </p>
+              </div>
+
+              {batchFinalizeError && (
+                <div className="rounded-lg bg-rose-50 border border-rose-200 p-3 text-xs text-rose-800">
+                  {batchFinalizeError}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 text-xs">
+                <button
+                  type="button"
+                  disabled={isBatchFinalizing}
+                  onClick={() => setShowBatchFinalize(false)}
+                  className="px-3.5 py-2 rounded-lg border border-slate-200 font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="button"
+                  disabled={isBatchFinalizing}
+                  onClick={handleConfirmBatchFinalize}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 font-bold text-white transition disabled:opacity-40"
+                >
+                  {isBatchFinalizing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Đang chốt hàng loạt...
+                    </>
+                  ) : (
+                    'Bắt đầu chốt hàng loạt'
+                  )}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3 flex-1 overflow-y-auto">
+              {/* Thống kê kết quả */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3">
+                  <span className="text-[11px] text-emerald-700 font-medium block">Chốt thành công</span>
+                  <span className="text-xl font-bold text-emerald-800">{batchFinalizeResult.successCount} phiếu</span>
+                </div>
+                <div className="rounded-lg bg-rose-50 border border-rose-200 p-3">
+                  <span className="text-[11px] text-rose-700 font-medium block">Không thể chốt / Bỏ qua</span>
+                  <span className="text-xl font-bold text-rose-800">{batchFinalizeResult.failedCount} phiếu</span>
+                </div>
+              </div>
+
+              {/* Bảng chi tiết từng sinh viên */}
+              <div className="border border-slate-200 rounded-lg overflow-hidden max-h-[300px] overflow-y-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-[11px] font-bold text-slate-600 border-b border-slate-200 sticky top-0">
+                    <tr>
+                      <th className="px-3 py-2">MSSV</th>
+                      <th className="px-3 py-2">Họ và tên</th>
+                      <th className="px-3 py-2">Kết quả</th>
+                      <th className="px-3 py-2">Lý do / Điểm</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {batchFinalizeResult.results.map((res, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50">
+                        <td className="px-3 py-2 font-mono font-bold text-slate-800">{res.studentCode || '—'}</td>
+                        <td className="px-3 py-2 text-slate-700">{res.fullName || '—'}</td>
+                        <td className="px-3 py-2">
+                          {res.success ? (
+                            <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold text-[11px]">
+                              <CheckCircle2 className="h-3.5 w-3.5" /> Thành công
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-rose-700 font-semibold text-[11px]">
+                              <XCircle className="h-3.5 w-3.5" /> Thất bại
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-slate-600">
+                          {res.success ? (
+                            <span>Điểm chốt: <strong>{res.officialScore} đ</strong></span>
+                          ) : (
+                            <span className="text-rose-700">{res.reason || res.blockers?.join(', ')}</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex justify-end pt-2 border-t border-slate-200 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setShowBatchFinalize(false)}
+                  className="px-4 py-2 rounded-lg bg-[#1D6FC2] hover:bg-[#175A9E] font-bold text-white transition"
+                >
+                  Đóng
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
   </div>;
 };

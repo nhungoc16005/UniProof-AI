@@ -55,9 +55,18 @@ export class AddParticipantDto {
 }
 
 export class UpdateActivityDto extends PartialType(OmitType(CreateActivityDto, ['termId', 'criterionId', 'type'] as const)) {}
-export class BatchAttendanceDto {
-  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(1000) @IsString({ each: true }) studentCodes: string[];
+export class BatchAttendanceItemDto {
+  @IsString() @IsNotEmpty() studentCode: string;
   @IsOptional() @IsIn(['THAM_GIA_CHINH','BAN_TO_CHUC','CO_VU','PARTICIPANT','ORGANIZER','CHEERLEADER']) formRole?: string;
+  @IsOptional() @IsString() note?: string;
+}
+
+export class BatchAttendanceDto {
+  @IsOptional() @IsArray() @ArrayMaxSize(1000) @IsString({ each: true }) studentCodes?: string[];
+  @IsOptional() @IsIn(['THAM_GIA_CHINH','BAN_TO_CHUC','CO_VU','PARTICIPANT','ORGANIZER','CHEERLEADER']) formRole?: string;
+  @IsOptional() @IsArray() @ArrayMaxSize(1000) participants?: BatchAttendanceItemDto[];
+  @IsOptional() @IsString() batchId?: string;
+  @IsOptional() @IsString() source?: string;
 }
 
 export class ConfirmAttendanceDto {

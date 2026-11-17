@@ -652,6 +652,7 @@ export class CriteriaService {
         reviewDeadline: new Date(dto.reviewDeadline),
         appealDeadline: new Date(dto.appealDeadline),
         status: TermStatus.UPCOMING,
+        evidenceBasisWorkflowEnabled: dto.evidenceBasisWorkflowEnabled ?? false,
       } });
       await this.persistTermRubricDraft(tx, term.id, definition as RubricDefinition, sourceLabel, sourceTemplateVersionId, sourceTermCode);
       await tx.auditLog.create({ data: { userId: actorId, action: 'TERM_CREATED', entityType: 'Term', entityId: term.id, newValue: JSON.parse(JSON.stringify(term)) } });
@@ -677,7 +678,18 @@ export class CriteriaService {
       if (otherActiveTerm) throw new BadRequestException('Đang có kỳ khác hoạt động; hãy chuyển kỳ đó sang trạng thái phù hợp trước');
     }
 
-    return this.auditMaster(actorId, 'Term', id, 'TERM_UPDATED', tx => tx.term.update({
+    return this.auditMaster(actorId, 'Term', id, 'TERM_UPDATED', async tx => {
+      const lockedTerm = await tx.term.findUniqueOrThrow({ where: { id } });
+      if (dto.evidenceBasisWorkflowEnabled !== undefined && dto.evidenceBasisWorkflowEnabled !== lockedTerm.evidenceBasisWorkflowEnabled) {
+        const [publicationCount, sentHandoffCount] = await Promise.all([
+          tx.assessmentPublication.count({ where: { termId: id } }),
+          tx.assessmentHandoff.count({ where: { termId: id, status: 'SENT' } }),
+        ]);
+        if (publicationCount > 0 || sentHandoffCount > 0) {
+          throw new BadRequestException('Kỳ đánh giá đã có kết quả bàn giao hoặc công bố; không thể thay đổi quy trình căn cứ chấm điểm');
+        }
+      }
+      return tx.term.update({
       where: { id },
       data: {
         name: dto.name,
@@ -685,8 +697,10 @@ export class CriteriaService {
         reviewDeadline: dto.reviewDeadline ? new Date(dto.reviewDeadline) : undefined,
         appealDeadline: dto.appealDeadline ? new Date(dto.appealDeadline) : undefined,
         status: dto.status,
+        evidenceBasisWorkflowEnabled: dto.evidenceBasisWorkflowEnabled !== undefined ? dto.evidenceBasisWorkflowEnabled : undefined,
       },
-    }));
+      });
+    });
   }
 
   async closeTerm(id: string, actor: any) {

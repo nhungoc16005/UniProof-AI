@@ -95,7 +95,116 @@ export interface Term {
   appealDeadline: string;
   status: TermStatus;
   workflowEnabled?: boolean;
+  evidenceBasisWorkflowEnabled?: boolean;
   createdAt?: string;
+}
+
+export type ImportBatchType = 'ACADEMIC' | 'ACTIVITY' | 'CLUB_LEADERSHIP';
+export type ImportBatchStatus = 'ACTIVE' | 'REVOKED';
+
+export interface GroundingImportBatch {
+  id: string;
+  type: ImportBatchType;
+  termId: string;
+  facultyId?: string | null;
+  activityId?: string | null;
+  createdBy?: string;
+  source?: string | null;
+  status: ImportBatchStatus;
+  recordCount: number;
+  totalRows?: number;
+  validRows?: number;
+  revokedAt?: string | null;
+  revokedBy?: string | null;
+  revokeReason?: string | null;
+  createdAt: string;
+  creator?: { id: string; fullName: string; email: string };
+  importedBy?: { id: string; fullName: string; email: string };
+  revoker?: { id: string; fullName: string; email: string };
+  revokedByUser?: { id: string; fullName: string; email: string };
+  activity?: { id: string; name: string };
+  records?: any[];
+}
+
+export interface PreviewImportResult {
+  termId?: string;
+  type?: string;
+  source?: string;
+  totalRows: number;
+  validRows?: number;
+  validCount?: number;
+  errorRows?: number;
+  errorCount?: number;
+  ignoredRows?: number;
+  skippedCount?: number;
+  canCommit?: boolean;
+  previewItems?: Array<{
+    rowIndex: number;
+    studentCode: string;
+    fullName?: string;
+    studentName?: string;
+    criterionCode?: string;
+    status: 'VALID' | 'ERROR' | 'SKIPPED' | 'IGNORED';
+    reason?: string;
+    data?: Record<string, any>;
+  }>;
+  rows?: Array<{
+    rowIndex: number;
+    studentCode: string;
+    studentName?: string;
+    status: 'VALID' | 'ERROR' | 'IGNORED';
+    reason?: string;
+    data: Record<string, any>;
+  }>;
+}
+
+export interface ConfirmImportResult {
+  batchId: string;
+  recordCount?: number;
+  validRows?: number;
+  type: ImportBatchType;
+  termId?: string;
+  affectedStudentsCount?: number;
+  success?: boolean;
+}
+
+export interface PreviewFinalizeResult {
+  canFinalize: boolean;
+  blockers: string[];
+  warnings: string[];
+  criteria: Array<{
+    id: string;
+    code: string;
+    name: string;
+    maxScore: number;
+    selfScore: number | null;
+    suggestedScore: number | null;
+    officialScore: number | null;
+    status: string;
+    canFinalize: boolean;
+    reason?: string;
+  }>;
+}
+
+export interface FinalizeStudentResult {
+  studentId: string;
+  finalizedCount: number;
+  officialTotalScore: number;
+}
+
+export interface BatchFinalizeResult {
+  totalProcessed: number;
+  successCount: number;
+  failedCount: number;
+  results: Array<{
+    studentId: string;
+    studentCode?: string;
+    fullName?: string;
+    success: boolean;
+    officialScore?: number;
+    reason?: string;
+    blockers?: string[];
+  }>;
 }
 
 export interface Activity {

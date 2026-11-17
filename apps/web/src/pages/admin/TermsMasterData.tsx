@@ -129,6 +129,7 @@ export const TermsMasterData: React.FC = () => {
   const [formAppealDeadline, setFormAppealDeadline] = useState('');
   const [rubricSourceType, setRubricSourceType] = useState<'DEFAULT' | 'TERM'>('DEFAULT');
   const [sourceTermId, setSourceTermId] = useState('');
+  const [formEvidenceBasisWorkflowEnabled, setFormEvidenceBasisWorkflowEnabled] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const initDefaultDates = () => {
@@ -155,6 +156,7 @@ export const TermsMasterData: React.FC = () => {
     setFormCode('');
     setRubricSourceType('DEFAULT');
     setSourceTermId('');
+    setFormEvidenceBasisWorkflowEnabled(true);
     initDefaultDates();
     setShowCreateModal(true);
   };
@@ -178,6 +180,7 @@ export const TermsMasterData: React.FC = () => {
         status: 'UPCOMING',
         rubricSourceType,
         sourceTermId: rubricSourceType === 'TERM' ? sourceTermId : undefined,
+        evidenceBasisWorkflowEnabled: formEvidenceBasisWorkflowEnabled,
       });
       setShowCreateModal(false);
       await loadTerms();
@@ -196,6 +199,7 @@ export const TermsMasterData: React.FC = () => {
   const [editSubmissionDeadline, setEditSubmissionDeadline] = useState('');
   const [editReviewDeadline, setEditReviewDeadline] = useState('');
   const [editAppealDeadline, setEditAppealDeadline] = useState('');
+  const [editEvidenceBasisWorkflowEnabled, setEditEvidenceBasisWorkflowEnabled] = useState(false);
   const [isUpdatingDeadline, setIsUpdatingDeadline] = useState(false);
 
   const handleOpenEditModal = (t: Term) => {
@@ -209,6 +213,7 @@ export const TermsMasterData: React.FC = () => {
     setEditSubmissionDeadline(toYMD(t.submissionDeadline));
     setEditReviewDeadline(toYMD(t.reviewDeadline));
     setEditAppealDeadline(toYMD(t.appealDeadline));
+    setEditEvidenceBasisWorkflowEnabled(t.evidenceBasisWorkflowEnabled ?? false);
   };
 
   const handleSaveDeadlines = async (e: React.FormEvent) => {
@@ -220,6 +225,7 @@ export const TermsMasterData: React.FC = () => {
         submissionDeadline: editSubmissionDeadline ? new Date(editSubmissionDeadline).toISOString() : undefined,
         reviewDeadline: editReviewDeadline ? new Date(editReviewDeadline).toISOString() : undefined,
         appealDeadline: editAppealDeadline ? new Date(editAppealDeadline).toISOString() : undefined,
+        evidenceBasisWorkflowEnabled: editEvidenceBasisWorkflowEnabled,
       });
       setEditingTerm(null);
       await loadTerms();
@@ -515,6 +521,25 @@ export const TermsMasterData: React.FC = () => {
                 </div>
               </div>
 
+              <div className="rounded-lg bg-blue-50/60 border border-blue-100 p-3">
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formEvidenceBasisWorkflowEnabled}
+                    onChange={(e) => setFormEvidenceBasisWorkflowEnabled(e.target.checked)}
+                    className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <div>
+                    <span className="text-xs font-semibold text-slate-900 block">
+                      Bật quy trình căn cứ mới
+                    </span>
+                    <span className="text-[11px] text-slate-600 block mt-0.5 leading-relaxed">
+                      Cho phép import dữ liệu học vụ / hoạt động / CLB, sinh viên nộp minh chứng 0 file có mô tả chi tiết, và cán bộ chốt phiếu hàng loạt.
+                    </span>
+                  </div>
+                </label>
+              </div>
+
               <div className="pt-3 flex justify-end gap-2 border-t border-slate-100">
                 <button
                   type="button"
@@ -582,6 +607,25 @@ export const TermsMasterData: React.FC = () => {
                   onChange={(e) => setEditAppealDeadline(e.target.value)}
                   className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500"
                 />
+              </div>
+
+              <div className="rounded-lg bg-blue-50/60 border border-blue-100 p-2.5">
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editEvidenceBasisWorkflowEnabled}
+                    onChange={(e) => setEditEvidenceBasisWorkflowEnabled(e.target.checked)}
+                    className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <div>
+                    <span className="text-xs font-semibold text-slate-900 block">
+                      Quy trình căn cứ mới
+                    </span>
+                    <span className="text-[11px] text-slate-600 block mt-0.5 leading-relaxed">
+                      Bật/tắt tính năng import căn cứ, minh chứng 0 file và chốt phiếu hàng loạt cho kỳ này.
+                    </span>
+                  </div>
+                </label>
               </div>
 
               <div className="pt-3 flex justify-end gap-2 border-t border-slate-100">

@@ -142,20 +142,20 @@ export const Account: React.FC = () => {
             <div className="flex gap-2">
               <Building2 className="mt-0.5 h-4 w-4 text-slate-400" />
               <div>
-              <span className="text-slate-400 block font-medium">Đơn vị / Khoa</span>
-              <span className="text-slate-900 font-semibold text-sm">
-                {user.faculty?.name || user.class?.faculty?.name || 'Chưa cập nhật'}
-              </span>
+                <span className="text-slate-400 block font-medium">Đơn vị / Khoa</span>
+                <span className="text-slate-900 font-semibold text-sm">
+                  {user.faculty?.name || user.class?.faculty?.name || 'Chưa cập nhật'}
+                </span>
               </div>
             </div>
             {user.studentCode && (
               <div className="flex gap-2">
                 <GraduationCap className="mt-0.5 h-4 w-4 text-slate-400" />
                 <div>
-                <span className="text-slate-400 block font-medium">Lớp sinh hoạt</span>
-                <span className="text-slate-900 font-semibold text-sm">
-                  {user.class?.code || user.class?.name || 'Chưa cập nhật'}{user.class?.cohort ? ` · ${user.class.cohort}` : ''}
-                </span>
+                  <span className="text-slate-400 block font-medium">Lớp sinh hoạt</span>
+                  <span className="text-slate-900 font-semibold text-sm">
+                    {user.class?.code || user.class?.name || 'Chưa cập nhật'}{user.class?.cohort ? ` · ${user.class.cohort}` : ''}
+                  </span>
                 </div>
               </div>
             )}

@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { BadRequestException, Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { IsArray, IsNumber, IsObject, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { Role } from '@prisma/client';
@@ -8,6 +8,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { BatchFinalizeAssessmentsDto } from '../grounding-import/dto/grounding-import.dto';
 
 class SelfAssessmentDto {
   @IsOptional() @IsNumber() @Min(0) score?: number | null;
@@ -133,7 +134,69 @@ export class AssessmentsController {
 
   @Put('students/:studentId/:termId/return')
   @Roles(Role.STAFF, Role.ADMIN)
+  @ApiOperation({ summary: 'Trả phiếu lại cho sinh viên kèm lý do' })
   returnToStudent(@CurrentUser() staff: { id: string; role: Role; facultyId?: string }, @Param('studentId') studentId: string, @Param('termId') termId: string, @Body() body: ReturnSelfAssessmentDto) {
     return this.assessments.returnSelfAssessment(staff, studentId, termId, body.reason);
+  }
+
+  @Get('students/:studentId/:termId/preview-finalize')
+  @Roles(Role.STAFF, Role.ADMIN)
+  @ApiOperation({ summary: 'Xem trước bảng chốt 16 tiêu chí của một phiếu sinh viên' })
+  previewFinalize(
+    @CurrentUser() staff: { id: string; role: Role; facultyId?: string },
+    @Param('studentId') studentId: string,
+    @Param('termId') termId: string,
+  ) {
+    return this.assessments.previewFinalizeStudent(staff, studentId, termId);
+  }
+
+  @Get('student/:studentId/preview-finalize')
+  @Roles(Role.STAFF, Role.ADMIN)
+  @ApiOperation({ summary: 'Xem trước bảng chốt 16 tiêu chí (Route alias tương thích)' })
+  previewFinalizeCompat(
+    @CurrentUser() staff: { id: string; role: Role; facultyId?: string },
+    @Param('studentId') studentId: string,
+    @Query('termId') termId: string,
+  ) {
+    if (!termId) throw new BadRequestException('Mã học kỳ (termId) không được để trống');
+    return this.assessments.previewFinalizeStudent(staff, studentId, termId);
+  }
+
+  @Post('students/:studentId/:termId/finalize')
+  @Roles(Role.STAFF, Role.ADMIN)
+  @ApiOperation({ summary: 'Chốt toàn bộ tiêu chí đủ điều kiện của một phiếu sinh viên' })
+  finalizeStudent(
+    @CurrentUser() staff: { id: string; role: Role; facultyId?: string },
+    @Param('studentId') studentId: string,
+    @Param('termId') termId: string,
+  ) {
+    return this.assessments.finalizeStudentAssessment(staff, studentId, termId);
+  }
+
+  @Post('student/:studentId/finalize')
+  @Roles(Role.STAFF, Role.ADMIN)
+  @ApiOperation({ summary: 'Chốt toàn bộ tiêu chí đủ điều kiện (Route alias tương thích)' })
+  finalizeStudentCompat(
+    @CurrentUser() staff: { id: string; role: Role; facultyId?: string },
+    @Param('studentId') studentId: string,
+    @Body('termId') bodyTermId?: string,
+    @Query('termId') queryTermId?: string,
+  ) {
+    const termId = bodyTermId || queryTermId;
+    if (!termId) throw new BadRequestException('Mã học kỳ (termId) không được để trống');
+    return this.assessments.finalizeStudentAssessment(staff, studentId, termId);
+  }
+
+  @Post('batch-finalize')
+  @Roles(Role.STAFF, Role.ADMIN)
+  @ApiOperation({ summary: 'Chốt phiếu hàng loạt (Tối đa 100 phiếu, transaction riêng từng phiếu)' })
+  batchFinalize(
+    @CurrentUser() staff: { id: string; role: Role; facultyId?: string },
+    @Query('termId') queryTermId: string,
+    @Body() dto: BatchFinalizeAssessmentsDto,
+  ) {
+    const termId = queryTermId || dto.termId;
+    if (!termId) throw new BadRequestException('Mã học kỳ (termId) không được để trống');
+    return this.assessments.batchFinalizeAssessments(staff, termId, dto.studentIds);
   }
 }

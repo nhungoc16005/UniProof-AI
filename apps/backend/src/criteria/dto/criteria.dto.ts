@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsEnum, IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, IsUrl } from 'class-validator';
+import { IsBoolean, IsDateString, IsEnum, IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, IsUrl } from 'class-validator';
 import { TermStatus } from '@prisma/client';
 
 export class CreateTermDto {
@@ -52,6 +52,11 @@ export class CreateTermDto {
   @IsOptional()
   @IsString()
   sourceTermId?: string;
+
+  @ApiPropertyOptional({ description: 'Bật quy trình căn cứ minh chứng và chốt phiếu mới' })
+  @IsOptional()
+  @IsBoolean()
+  evidenceBasisWorkflowEnabled?: boolean;
 }
 
 export class UpdateTermDto {
@@ -79,6 +84,11 @@ export class UpdateTermDto {
   @IsOptional()
   @IsEnum(TermStatus)
   status?: TermStatus;
+
+  @ApiPropertyOptional({ description: 'Bật/tắt quy trình căn cứ minh chứng và chốt phiếu mới' })
+  @IsOptional()
+  @IsBoolean()
+  evidenceBasisWorkflowEnabled?: boolean;
 }
 
 export class CreateCriterionDto {
