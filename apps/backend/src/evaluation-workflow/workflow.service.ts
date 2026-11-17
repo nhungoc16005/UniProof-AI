@@ -5,6 +5,7 @@ import { classification, sendBlockers, sumCategory, unresolvedEvidenceStatuses }
 export { classification } from './evaluation-policy';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { DeadlineExtensionsService } from '../deadline-extensions/deadline-extensions.service';
+import { getAiMode } from '../evidence/ai-mode';
 
 export type WorkflowActor = { id: string; role: Role; facultyId?: string | null };
 const unresolved = [...unresolvedEvidenceStatuses];
@@ -380,6 +381,7 @@ export class WorkflowService {
 
   async retryJob(actor: WorkflowActor, id: string) {
     if (actor.role !== Role.ADMIN) throw new ForbiddenException();
+    if (getAiMode() === 'OFF') throw new BadRequestException('AI đang tắt; không thể tạo lượt xử lý mới.');
     const job = await this.prisma.aiProcessingJob.findUniqueOrThrow({ where: { id }, include: { evidence: true } });
     return this.prisma.$transaction(async tx => {
       const term = await this.lock(tx, job.evidence.termId);
@@ -392,7 +394,7 @@ export class WorkflowService {
       if (!['ACTIVE', 'REVIEWING'].includes(term.status) || !submission || ['SENT', 'EXCLUDED'].includes(handoff?.status ?? '') || !['PROCESSING', 'NEEDS_HUMAN_REVIEW', 'PLAUSIBLE', 'VERIFIED'].includes(ev.status)) throw new BadRequestException('Minh chứng đã có quyết định, chưa nộp hoặc phiếu đã khóa');
       if (await tx.aiProcessingJob.count({ where: { evidenceId: ev.id, status: { in: ['QUEUED', 'PROCESSING'] } } })) throw new BadRequestException('Minh chứng đang có lượt xử lý');
       const result = await tx.aiProcessingJob.create({ data: { evidenceId: ev.id } });
-      await tx.evidence.update({ where: { id: ev.id }, data: { status: 'PROCESSING' } });
+      if (getAiMode() === 'ASSIST') await tx.evidence.update({ where: { id: ev.id }, data: { status: 'PROCESSING' } });
       await this.audit(tx, actor.id, 'AI_JOB_RETRIED', result.id, { studentId: ev.studentId, termId: ev.termId, previousJobId: id });
       return result;
     });

@@ -8,6 +8,7 @@ export const roleNavigation: Record<string, NavigationItem[]> = {
     { label: 'Phúc khảo', path: '/officer/appeals', matches: ['/officer/appeals'] },
     { label: 'Hoạt động & điểm danh', path: '/officer/activities', matches: ['/officer/activities', '/officer/external-activities'] },
     { label: 'Tiêu chí & quy chế', path: '/officer/criteria' },
+    { label: 'Chạy thử AI', path: '/ai-test' },
   ],
   ADMIN: [
     { label: 'Bảng điều hành', path: '/admin' },
@@ -21,6 +22,7 @@ export const roleNavigation: Record<string, NavigationItem[]> = {
       { label: 'Tài khoản & đơn vị', path: '/admin/users' }, { label: 'Yêu cầu sửa thông tin', path: '/admin/users/issues' },
     ] },
     { label: 'Giám sát & Nhật ký', path: '/admin/monitoring', matches: ['/admin/monitoring', '/admin/audit-logs', '/admin/health'] },
+    { label: 'Chạy thử AI', path: '/ai-test' },
   ],
 };
 export const matchesNavigation = (item: NavigationItem, pathname: string) =>

@@ -239,6 +239,196 @@ export interface EvidenceFile {
   uploadedAt: string;
 }
 
+export interface EvidenceAiTestResult {
+  persisted: false;
+  suggestions: Array<{
+    criterionId: string;
+    suggestedScore?: number | null;
+    reasoning: string;
+    confidenceScore?: number | null;
+  }>;
+  analysis: {
+    aiConfidenceScore?: number;
+    tier?: string;
+    pipelineMode?: string;
+    recommendation?: string;
+    criterionAssessment?: {
+      status?: 'MATCHED' | 'NOT_MATCHED' | 'NEEDS_HUMAN_REVIEW' | 'UNVERIFIABLE';
+      matchScore?: number | null;
+      threshold?: number;
+      suggestedScore?: number | null;
+      matchedRequirements?: string[];
+      missingRequirements?: string[];
+      reason?: string;
+    };
+    qualityCheck?: {
+      passed?: boolean;
+      qualityScore?: number;
+      qualityThreshold?: number;
+      blurScore?: number;
+      brightness?: number;
+      skewAngle?: number;
+      errorDetails?: string | null;
+    };
+    forensicCheck?: {
+      isTampered?: boolean;
+      elaAnomalyScore?: number;
+      sha256?: string;
+      pHash?: string;
+      warnings?: string[];
+    };
+    documentMarks?: {
+      signatureStatus?: 'PRESENT' | 'NOT_DETECTED' | 'UNAVAILABLE';
+      sealStatus?: 'PRESENT' | 'NOT_DETECTED' | 'UNAVAILABLE';
+      signatureEvidence?: string;
+      sealEvidence?: string;
+    } | null;
+    documentChecks?: Array<{
+      key: string;
+      label: string;
+      status: 'PASS' | 'REVIEW' | 'FAIL' | 'NOT_CHECKED';
+      details: string;
+    }>;
+    webVerification?: {
+      searched?: boolean;
+      articleTitle?: string | null;
+      articleUrl?: string | null;
+      errorDetails?: string | null;
+    };
+    ocrExtraction?: {
+      available?: boolean;
+      errorDetails?: string | null;
+      rawText?: string;
+      studentNameExtracted?: string | null;
+      studentCodeExtracted?: string | null;
+      nameMatchRatio?: number;
+      codeMatched?: boolean;
+      codeMismatch?: boolean;
+    } | null;
+  };
+}
+
+// Kết quả đầy đủ từ AI Service (UnifiedInspectionResponse) trả qua proxy Backend.
+export interface EvidenceInspectionResult {
+  success: boolean;
+  evidenceId: string;
+  evidenceType: string;
+  pipelineMode: string;
+  qualityCheck: {
+    passed: boolean;
+    blurScore: number;
+    brightness: number;
+    skewAngle?: number;
+    qualityScore: number;
+    qualityThreshold: number;
+    errorDetails?: string | null;
+  };
+  forensicCheck?: {
+    sha256: string;
+    pHash: string;
+    elaAnomalyScore: number;
+    isTampered: boolean;
+    warnings?: string[];
+  } | null;
+  ocrExtraction?: {
+    rawText: string;
+    available: boolean;
+    errorDetails?: string | null;
+    studentNameExtracted?: string | null;
+    studentCodeExtracted?: string | null;
+    activityNameExtracted?: string | null;
+    organizerExtracted?: string | null;
+    issuedDateExtracted?: string | null;
+    certificateNumber?: string | null;
+    nameMatchRatio: number;
+    codeMatched: boolean;
+    codeMismatch: boolean;
+    activityNameMatchRatio?: number;
+    activityNameMismatch?: boolean;
+    citizenIdMatched?: boolean | null;
+    citizenIdExtracted?: string | null;
+  } | null;
+  faceVerification?: {
+    status?: 'PASS' | 'REVIEW' | 'FAIL' | 'NOT_CHECKED';
+    facesDetected: number;
+    matched: boolean;
+    bestSimilarityScore: number;
+    confidenceBoost: number;
+    identityComparisonAvailable: boolean;
+    statusMessage?: string | null;
+  } | null;
+  sceneVision?: {
+    detectedBannerText?: string | null;
+    sceneContext?: string | null;
+    matchesActivity?: boolean | null;
+    available: boolean;
+  } | null;
+  exifData?: {
+    captureDate?: string | null;
+    cameraModel?: string | null;
+    matchesDeclaredDate?: boolean | null;
+  } | null;
+  documentMarks?: {
+    signatureStatus: string;
+    sealStatus: string;
+    signatureEvidence: string;
+    sealEvidence: string;
+  } | null;
+  templateMatch?: {
+    status: string;
+    matchedTemplateId?: string | null;
+    confidence: number;
+    evidence: string;
+  } | null;
+  documentChecks: Array<{ key: string; label: string; status: 'PASS' | 'REVIEW' | 'FAIL' | 'NOT_CHECKED'; details: string }>;
+  webVerification: {
+    searched: boolean;
+    queryUsed?: string | null;
+    articleTitle?: string | null;
+    articleUrl?: string | null;
+    snippet?: string | null;
+    matchScore?: number | null;
+    confidenceBoost: number;
+    errorDetails?: string | null;
+  };
+  qrVerification?: {
+    detected: boolean;
+    rawText?: string | null;
+    verificationUrl?: string | null;
+    fetched: boolean;
+    pageTitle?: string | null;
+    matchScore?: number | null;
+    matchesDeclared?: boolean | null;
+    confidenceBoost: number;
+    errorDetails?: string | null;
+  } | null;
+  aiConfidenceScore: number;
+  tier: string;
+  classification: string;
+  recommendation: string;
+  breakdown: Record<string, any>;
+  isDuplicate: boolean;
+  duplicateMatchType?: string | null;
+  matchedHash?: string | null;
+  filesProcessed: number;
+  auditSampled: boolean;
+}
+
+export interface EvidenceInspectRequest {
+  activityName: string;
+  evidenceType: string;
+  declaredStudent: { fullName: string; studentCode?: string; citizenId?: string };
+  participationDate?: string | null;
+  termStartDate?: string | null;
+  termEndDate?: string | null;
+  enableWebSearch?: boolean;
+  fileData?: string;
+  fileUrl?: string;
+  fileName?: string;
+  fileType?: string;
+  previousHashes?: Array<{ sha256: string; pHash: string }>;
+}
+
 export interface OcrResult {
   id: string;
   evidenceFileId: string;
@@ -380,6 +570,7 @@ export interface RegulationDocument {
 
 // Full Evidence object used across FE
 export interface Evidence {
+  aiMode?: 'OFF' | 'SHADOW' | 'ASSIST';
   permissions?: { canReview: boolean };
   id: string;
   studentId: string;
@@ -411,7 +602,33 @@ export interface Evidence {
     id: string;
     status: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'UNAVAILABLE' | 'CANCELLED';
     error?: string | null;
-    pipelineRuns?: Array<{ id: string; status: string; modelName?: string | null; modelVersion?: string | null; startedAt: string; completedAt?: string | null; steps?: Array<{ id: string; stepKey: string; status: string }> }>;
+    pipelineRuns?: Array<{
+      id: string;
+      status: string;
+      inputVersion?: number;
+      rubricVersionId?: string | null;
+      modelName?: string | null;
+      modelVersion?: string | null;
+      startedAt: string;
+      completedAt?: string | null;
+      output?: {
+        schemaVersion?: string;
+        decision?: string;
+        decisionReason?: string;
+        score?: number;
+        confidenceScore?: number;
+        aiConfidenceScore?: number;
+        scoreBreakdown?: Array<{ component: string; weight: number; score: number; source: string; status: string }>;
+        checkerResults?: Array<{ checker: string; status: 'PASS' | 'REVIEW' | 'FAIL' | 'NOT_CHECKED'; score_delta?: number; evidence?: Record<string, unknown>; message_vi?: string }>;
+        documentChecks?: Array<{
+          key: string;
+          label: string;
+          status: 'PASS' | 'REVIEW' | 'FAIL' | 'NOT_CHECKED';
+          details: string;
+        }>;
+      } | null;
+      steps?: Array<{ id: string; stepKey: string; status: string }>;
+    }>;
   }>;
   ocrResults?: OcrResult[];
   verificationResults?: VerificationResult[];

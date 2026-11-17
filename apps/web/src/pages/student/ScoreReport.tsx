@@ -3,8 +3,8 @@ import { useStudentAssessmentAccess } from '../../hooks/useStudentAssessmentAcce
 import { StudentAssessmentNotice } from '../../components/StudentAssessmentNotice';
 import { useAuth } from '../../context/AuthContext';
 import { apiClient, API_BASE_URL } from '../../lib/apiClient';
-import { Criterion, Evidence, RubricCategory, RubricPayload } from '../../types';
-import { Check, FilePlus2, Printer, Save, Search, Trash2, X } from 'lucide-react';
+import { Criterion, Evidence, EvidenceAiTestResult, RubricCategory, RubricPayload } from '../../types';
+import { Check, FilePlus2, FlaskConical, Printer, Save, Search, Trash2, X } from 'lucide-react';
 
 interface CategoryView extends RubricCategory {
   confirmedScore: number | null;
@@ -15,6 +15,39 @@ const evidenceStatusLabels: Record<string, string> = {
   DRAFT: 'Bản nháp', PROCESSING: 'Đang xử lý AI', VERIFIED: 'Đã xác minh', PLAUSIBLE: 'Đang đối chiếu',
   NEEDS_SUPPLEMENT: 'Cần bổ sung', NEEDS_HUMAN_REVIEW: 'Chờ cán bộ duyệt', INVALID: 'Không hợp lệ',
   APPROVED: 'Đã duyệt', REJECTED: 'Bị từ chối', APPEALING: 'Đang khiếu nại', WITHDRAWN: 'Đã rút',
+};
+
+const criterionMatchLabels: Record<string, string> = {
+  MATCHED: 'Có dấu hiệu phù hợp',
+  NOT_MATCHED: 'Không phù hợp',
+  NEEDS_HUMAN_REVIEW: 'Cần cán bộ xem xét',
+  UNVERIFIABLE: 'Chưa đủ căn cứ',
+};
+
+const documentCheckStatusLabels: Record<string, string> = {
+  PASS: 'đạt',
+  REVIEW: 'cần xem',
+  FAIL: 'không khớp',
+  NOT_CHECKED: 'chưa kiểm tra',
+};
+
+const storedDocumentChecks = (evidence: Evidence) => {
+  const run = evidence.aiProcessingJobs?.[0]?.pipelineRuns?.[0];
+  const rubricVersionId = evidence.criterionAssessment?.criterion?.rubricVersionId;
+  if (
+    run?.status !== 'COMPLETED'
+    || run.inputVersion !== evidence.version
+    || run.rubricVersionId !== rubricVersionId
+  ) return undefined;
+  return run.output?.documentChecks;
+};
+
+const shortDocumentSummary = (checks: NonNullable<ReturnType<typeof storedDocumentChecks>>) => {
+  const relevantKeys = ['quality', 'identity', 'term', 'alteration', 'signature_seal', 'source'];
+  return checks
+    .filter((check) => relevantKeys.includes(check.key))
+    .map((check) => `${check.label}: ${documentCheckStatusLabels[check.status] || check.status}`)
+    .join(' · ');
 };
 
 export const ScoreReport: React.FC = () => {
@@ -33,6 +66,8 @@ export const ScoreReport: React.FC = () => {
   const [evidenceForm, setEvidenceForm] = useState({ declaredActivityName: '', description: '', declaredRole: 'PARTICIPANT', evidenceType: 'GIAY_XAC_NHAN', participationDate: new Date().toISOString().slice(0, 10) });
   const [evidenceFormFiles, setEvidenceFormFiles] = useState<File[]>([]);
   const [evidenceBusy, setEvidenceBusy] = useState(false);
+  const [aiTestingEvidenceId, setAiTestingEvidenceId] = useState<string | null>(null);
+  const [aiTestResults, setAiTestResults] = useState<Record<string, EvidenceAiTestResult>>({});
   const [savingAll, setSavingAll] = useState(false);
   const [submittingAll, setSubmittingAll] = useState(false);
   const [search, setSearch] = useState('');
@@ -47,7 +82,7 @@ export const ScoreReport: React.FC = () => {
   const load = async (quiet = false) => {
     if (!user?.id || !activeTerm.id) return;
     const version = ++loadVersion.current;
-    if (!quiet) { setLoading(true); setRubric(null); setDraftScores({}); setEvidenceCriterion(null); setEditingEvidence(null); setEvidenceFormFiles([]); }
+    if (!quiet) { setLoading(true); setRubric(null); setDraftScores({}); setEvidenceCriterion(null); setEditingEvidence(null); setEvidenceFormFiles([]); setAiTestResults({}); setAiTestingEvidenceId(null); }
     setLoadError('');
     let loadingStep = 'rubric và điểm tự đánh giá';
     try {
@@ -123,6 +158,7 @@ export const ScoreReport: React.FC = () => {
 
   const evidenceFor = (criterion: Criterion) => evidences.filter((evidence) =>
     evidence.criterionId === criterion.id || evidence.criterion?.id === criterion.id ||
+    evidence.criterionAssessment?.criterion?.id === criterion.id ||
     evidence.criterion?.code === criterion.code || evidence.reviews?.some((review) => review.criterionId === criterion.id),
   );
 
@@ -220,6 +256,7 @@ export const ScoreReport: React.FC = () => {
     };
     try {
       const record = editingEvidence ? await apiClient.updateEvidence(editingEvidence.id, payload) : await apiClient.createEvidence(payload);
+      clearAiTestResult(record.id);
       setEditingEvidence(record);
       for (const file of evidenceFormFiles) await apiClient.uploadEvidenceDraftFile(record.id, await fileAsDataUrl(file), file.name, file.type || 'application/octet-stream');
       setEditingEvidence(null); setEvidenceFormFiles([]);
@@ -234,14 +271,39 @@ export const ScoreReport: React.FC = () => {
   const removeEvidence = async (evidence: Evidence) => {
     if (!canWrite) return;
     if (!window.confirm(`Xóa hồ sơ “${evidence.declaredActivityName || 'Minh chứng'}”?`)) return;
-    try { await apiClient.deleteEvidenceDraft(evidence.id); await load(true); setNotice('Đã xóa hồ sơ minh chứng.'); }
+    try { await apiClient.deleteEvidenceDraft(evidence.id); clearAiTestResult(evidence.id); await load(true); setNotice('Đã xóa hồ sơ minh chứng.'); }
     catch (error: any) { setLoadError(error.response?.data?.message || 'Không xóa được hồ sơ minh chứng.'); }
   };
 
   const removeEvidenceFile = async (evidence: Evidence, fileId: string) => {
     if (!canWrite) return;
-    try { await apiClient.deleteEvidenceDraftFile(evidence.id, fileId); await load(true); }
+    try { await apiClient.deleteEvidenceDraftFile(evidence.id, fileId); clearAiTestResult(evidence.id); await load(true); }
     catch (error: any) { setLoadError(error.response?.data?.message || 'Không xóa được tệp minh chứng.'); }
+  };
+
+  const testEvidenceAi = async (evidence: Evidence) => {
+    if (!canWrite || evidence.status !== 'DRAFT' || !evidence.files?.length) return;
+    setAiTestingEvidenceId(evidence.id);
+    setLoadError('');
+    setNotice('');
+    try {
+      const result = await apiClient.testEvidenceAi(evidence.id);
+      setAiTestResults(current => ({ ...current, [evidence.id]: result }));
+    } catch (error: any) {
+      const message = error.response?.data?.message || 'Không chạy được AI thử nghiệm.';
+      setLoadError(Array.isArray(message) ? message.join(' ') : message);
+    } finally {
+      setAiTestingEvidenceId(null);
+    }
+  };
+
+  const clearAiTestResult = (evidenceId: string) => {
+    setAiTestResults(current => {
+      if (!current[evidenceId]) return current;
+      const next = { ...current };
+      delete next[evidenceId];
+      return next;
+    });
   };
 
   return (
@@ -306,7 +368,7 @@ export const ScoreReport: React.FC = () => {
                       <td className="border border-slate-300 px-1 py-2 text-center font-semibold">{criterion.maxScore}</td>
                       <td className="border border-slate-300 px-1 py-2 text-center"><input aria-label={`Điểm tự đánh giá tiêu chí ${criterion.code}`} type="number" min="0" max={criterion.maxScore} step="0.5" value={draftScores[criterion.id] ?? ''} disabled={!canWrite} onChange={(event) => { dirtyScores.current = true; setDraftScores((current) => ({ ...current, [criterion.id]: event.target.value })); }} className="w-full min-w-0 rounded border border-slate-300 px-1 py-1.5 text-center font-semibold disabled:bg-slate-100" />{(draftScores[criterion.id] ?? '').trim() !== '' && scoreValue(criterion) === null && <span className="mt-1 block text-[9px] text-rose-600">Vượt điểm tối đa</span>}</td>
                       <td className="border border-slate-300 px-1.5 py-2"><button type="button" disabled={!canWrite} onClick={() => openEvidenceManager(criterion)} className="inline-flex w-full items-center justify-center gap-1 rounded border border-blue-200 bg-blue-50 px-1 py-2 text-[10px] font-semibold text-blue-800 disabled:opacity-50"><FilePlus2 className="h-3.5 w-3.5" />Minh chứng ({criterionEvidences.length})</button>{criterionEvidences.map((evidence) => <div key={evidence.id} className="mt-1 break-words text-[9px] leading-3 text-slate-600"><strong>{evidence.declaredActivityName || 'Hồ sơ'}</strong><br />{evidenceStatusLabels[evidence.status] || evidence.status}</div>)}</td>
-                      <td className="border border-slate-300 px-1.5 py-2 text-[10px] leading-4">{criterionEvidences.length ? criterionEvidences.map((evidence) => { const suggestion = evidence.aiSuggestions?.find((item) => item.criterionId === criterion.id || item.criterion?.id === criterion.id) || evidence.aiSuggestions?.[0]; const job = evidence.aiProcessingJobs?.[0]; return <div key={evidence.id} className="mb-2 break-words border-b border-slate-100 pb-1 last:border-0"><strong className="text-violet-800">{suggestion ? `Đề xuất ${suggestion.suggestedScore ?? '—'}đ` : job?.status === 'PROCESSING' || job?.status === 'QUEUED' ? 'Đang phân tích' : job?.status === 'UNAVAILABLE' || job?.status === 'FAILED' ? 'AI chưa khả dụng · cán bộ sẽ xử lý' : evidence.status === 'PROCESSING' ? 'Đang phân tích' : 'Chưa có kết quả AI'}</strong>{suggestion?.reasoning && <p className="mt-1 line-clamp-3 text-slate-600">{suggestion.reasoning}</p>}</div>; }) : <span className="text-slate-400">Chưa có minh chứng</span>}</td>
+                      <td className="border border-slate-300 px-1.5 py-2 text-[10px] leading-4">{criterionEvidences.length ? criterionEvidences.map((evidence) => { const suggestion = evidence.aiSuggestions?.find((item) => item.criterionId === criterion.id || item.criterion?.id === criterion.id) || evidence.aiSuggestions?.[0]; const job = evidence.aiProcessingJobs?.[0]; const testResult = aiTestResults[evidence.id]; const testSuggestion = testResult?.suggestions.find((item) => item.criterionId === criterion.id); const ocr = testResult?.analysis.ocrExtraction; const documentChecks = testResult?.analysis.documentChecks ?? storedDocumentChecks(evidence); const codeStatus = ocr?.codeMatched ? 'khớp' : ocr?.codeMismatch ? 'không khớp · ĐỎ' : ocr?.studentCodeExtracted ? 'chưa đối chiếu' : 'không trích xuất được'; const tierLabel = testResult?.analysis.tier === 'RED' ? 'ĐỎ' : testResult?.analysis.tier === 'GREEN' ? 'XANH' : testResult?.analysis.tier ? 'VÀNG' : '—'; return <div key={evidence.id} className="mb-2 break-words border-b border-slate-100 pb-2 last:border-0"><strong className="text-violet-800">{suggestion ? `Đề xuất ${suggestion.suggestedScore ?? '—'}đ` : job?.status === 'PROCESSING' || job?.status === 'QUEUED' ? 'Đang phân tích' : job?.status === 'UNAVAILABLE' || job?.status === 'FAILED' ? 'AI chưa khả dụng · cán bộ sẽ xử lý' : evidence.status === 'PROCESSING' ? 'Đang phân tích' : 'Chưa có kết quả AI'}</strong>{suggestion?.reasoning && <p className="mt-1 line-clamp-3 text-slate-600">{suggestion.reasoning}</p>}{!testResult && documentChecks?.length ? <p className="mt-1 text-slate-600">Phân tích nhanh: {shortDocumentSummary(documentChecks)}.</p> : null}{evidence.status === 'DRAFT' && <button type="button" disabled={!canWrite || !evidence.files?.length || aiTestingEvidenceId !== null} onClick={() => void testEvidenceAi(evidence)} className="mt-1 inline-flex items-center gap-1 rounded border border-violet-200 bg-violet-50 px-1.5 py-1 font-semibold text-violet-800 disabled:opacity-50"><FlaskConical className="h-3 w-3" />{aiTestingEvidenceId === evidence.id ? 'Đang thử…' : 'Thử AI'}</button>}{testResult && <div className="mt-1 rounded bg-violet-50 p-1.5 text-slate-700"><strong className="text-violet-900">Kết quả chạy thử · không lưu · {tierLabel}</strong>{testSuggestion && <p>Điểm gợi ý: {testSuggestion.suggestedScore ?? '—'}/{criterion.maxScore} · tin cậy {testSuggestion.confidenceScore == null ? '—' : `${Math.round(testSuggestion.confidenceScore * 100)}%`}</p>}<p>OCR: {ocr?.available ? `đã chạy · khớp tên ${Math.round(ocr.nameMatchRatio ?? 0)}% · MSSV ${codeStatus}` : ocr?.errorDetails || 'không khả dụng'}</p><p>Chất lượng tệp: {testResult.analysis.qualityCheck?.qualityScore ?? '—'}/100 (ngưỡng {testResult.analysis.qualityCheck?.qualityThreshold ?? 70}) · {testResult.analysis.qualityCheck?.passed ? 'đạt' : 'cần xem lại'} · kiểm tra chỉnh sửa: {testResult.analysis.forensicCheck ? (testResult.analysis.forensicCheck.isTampered ? 'có tín hiệu ELA' : 'không thấy tín hiệu ELA') : 'chưa chạy do chất lượng tệp'}</p><p className="mt-1 line-clamp-3">{testSuggestion?.reasoning || testResult.analysis.recommendation}</p>{ocr?.rawText && <details className="mt-1"><summary className="cursor-pointer font-semibold">Xem nội dung OCR</summary><p className="mt-1 whitespace-pre-wrap break-words">{ocr.rawText.slice(0, 1000)}</p></details>}</div>}</div>; }) : <span className="text-slate-400">Chưa có minh chứng</span>}</td>
                       <td className="border border-slate-300 px-1.5 py-2 text-[10px] leading-4">{assessment?.officialScore != null ? <><strong className="text-emerald-700">{assessment.officialScore}/{criterion.maxScore} điểm</strong>{assessment.officialReason && <p className="mt-1 break-words text-slate-600">{assessment.officialReason}</p>}</> : <><strong className="text-slate-700">{assessment?.status === 'READY_FOR_REVIEW' ? 'Chờ chốt điểm' : assessment?.status === 'NEEDS_VERIFICATION' || criterionEvidences.length ? 'Chờ xác minh' : 'Chưa đánh giá'}</strong>{assessment?.suggestedScore != null && <p className="mt-1 text-amber-800">Theo quy chế: {assessment.suggestedScore}đ</p>}</>}</td>
                     </tr>;
                   })}
@@ -317,13 +379,31 @@ export const ScoreReport: React.FC = () => {
           </div>
           {evidenceCriterion && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="evidence-modal-title" onMouseDown={(event) => { if (event.target === event.currentTarget) setEvidenceCriterion(null); }}>
             <section className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
-              <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white p-4 sm:p-5"><div><p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Tiêu chí {evidenceCriterion.code} · tối đa {evidenceCriterion.maxScore} điểm</p><h2 id="evidence-modal-title" className="mt-1 text-lg font-bold text-slate-900">Quản lý minh chứng</h2><p className="mt-1 text-sm text-slate-600">{evidenceCriterion.name}</p></div><button type="button" aria-label="Đóng popup" onClick={() => { setEvidenceCriterion(null); setEditingEvidence(null); }} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button></header>
+              <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white p-4 sm:p-5"><div><p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Tiêu chí {evidenceCriterion.code} · tối đa {evidenceCriterion.maxScore} điểm</p><h2 id="evidence-modal-title" className="mt-1 text-lg font-bold text-slate-900">Quản lý minh chứng</h2><p className="mt-1 text-sm text-slate-600">{evidenceCriterion.name}</p>{evidenceCriterion.description && <p className="mt-2 rounded-lg bg-slate-50 p-2 text-xs leading-5 text-slate-700"><strong>Điều kiện hợp lệ theo rubric:</strong> {evidenceCriterion.description}</p>}</div><button type="button" aria-label="Đóng popup" onClick={() => { setEvidenceCriterion(null); setEditingEvidence(null); }} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button></header>
               <div className="space-y-5 p-4 sm:p-5">
                 {(!canWrite || access.error) && <StudentAssessmentNotice access={access} termId={activeTerm.id} />}
+                <p className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs leading-5 text-violet-900">Chế độ thử nghiệm chỉ chạy AI cho tiêu chí này, không cần hoàn tất 16 tiêu chí. Kết quả OCR/điểm gợi ý không được lưu và không thay đổi điểm chính thức; muốn thử thì lưu hồ sơ kèm ít nhất một tệp trước. Tỷ lệ là số điều kiện rubric AI tìm thấy trong OCR, không phải xác suất giấy thật/giả. Dưới 60% thì gợi ý 0 điểm; OCR không đọc được hoặc chưa đủ căn cứ thì chờ cán bộ xác minh. Điểm chính thức vẫn do cán bộ xác nhận; dấu hiệu ảnh bất thường không tự kết luận giả.</p>
                 <div className="space-y-2"><div className="flex items-center justify-between gap-2"><h3 className="text-sm font-bold text-slate-800">Danh sách minh chứng ({evidenceFor(evidenceCriterion).length})</h3><button type="button" disabled={!canWrite} onClick={() => { setEditingEvidence(null); setEvidenceForm({ declaredActivityName: '', description: '', declaredRole: 'PARTICIPANT', evidenceType: 'GIAY_XAC_NHAN', participationDate: new Date().toISOString().slice(0, 10) }); setEvidenceFormFiles([]); }} className="inline-flex items-center gap-1 rounded-lg bg-blue-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"><FilePlus2 className="h-4 w-4" />Thêm minh chứng</button></div>
-                  {evidenceFor(evidenceCriterion).length ? evidenceFor(evidenceCriterion).map((evidence, index) => <article key={evidence.id} className="rounded-xl border border-slate-200 p-3"><div className="flex flex-wrap items-start justify-between gap-2"><div><h4 className="font-semibold text-slate-900">Minh chứng {index + 1}: {evidence.declaredActivityName || 'Chưa đặt tên'}</h4><p className="mt-1 text-xs text-slate-500">{evidenceStatusLabels[evidence.status] || evidence.status} · {evidence.evidenceType} · {evidence.participationDate ? new Date(evidence.participationDate).toLocaleDateString('vi-VN') : 'Chưa có ngày'}</p>{evidence.description && <p className="mt-2 whitespace-pre-line text-sm text-slate-700">{evidence.description}</p>}</div><div className="flex gap-1"><button type="button" disabled={!canWrite || evidence.status === 'APPROVED'} onClick={() => editEvidence(evidence)} className="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-40">Sửa</button><button type="button" disabled={!canWrite || evidence.status === 'APPROVED'} onClick={() => void removeEvidence(evidence)} className="rounded-md border border-rose-200 px-2.5 py-1.5 text-xs font-semibold text-rose-700 disabled:opacity-40"><Trash2 className="h-3.5 w-3.5" /></button></div></div>
+                  {evidenceFor(evidenceCriterion).length ? evidenceFor(evidenceCriterion).map((evidence, index) => { const testResult = aiTestResults[evidence.id]; const testSuggestion = testResult?.suggestions.find((item) => item.criterionId === evidenceCriterion.id); const ocr = testResult?.analysis.ocrExtraction; const documentChecks = testResult?.analysis.documentChecks ?? storedDocumentChecks(evidence); const codeStatus = ocr?.codeMatched ? 'khớp' : ocr?.codeMismatch ? 'không khớp · ĐỎ' : ocr?.studentCodeExtracted ? 'chưa đối chiếu' : 'không trích xuất được'; return <article key={evidence.id} className="rounded-xl border border-slate-200 p-3"><div className="flex flex-wrap items-start justify-between gap-2"><div><h4 className="font-semibold text-slate-900">Minh chứng {index + 1}: {evidence.declaredActivityName || 'Chưa đặt tên'}</h4><p className="mt-1 text-xs text-slate-500">{evidenceStatusLabels[evidence.status] || evidence.status} · {evidence.evidenceType} · {evidence.participationDate ? new Date(evidence.participationDate).toLocaleDateString('vi-VN') : 'Chưa có ngày'}</p>{evidence.description && <p className="mt-2 whitespace-pre-line text-sm text-slate-700">{evidence.description}</p>}</div><div className="flex flex-wrap gap-1"><button type="button" disabled={!canWrite || evidence.status === 'APPROVED'} onClick={() => editEvidence(evidence)} className="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-40">Sửa</button><button type="button" disabled={!canWrite || evidence.status === 'APPROVED'} onClick={() => void removeEvidence(evidence)} className="rounded-md border border-rose-200 px-2.5 py-1.5 text-xs font-semibold text-rose-700 disabled:opacity-40"><Trash2 className="h-3.5 w-3.5" /></button>{evidence.status === 'DRAFT' && <button type="button" disabled={!canWrite || !evidence.files?.length || aiTestingEvidenceId !== null} onClick={() => void testEvidenceAi(evidence)} className="inline-flex items-center gap-1 rounded-md border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-xs font-semibold text-violet-800 disabled:opacity-40"><FlaskConical className="h-3.5 w-3.5" />{aiTestingEvidenceId === evidence.id ? 'Đang thử…' : 'Thử AI'}</button>}</div></div>
                     {evidence.files?.length > 0 && <ul className="mt-2 space-y-1">{evidence.files.map((file) => <li key={file.id} className="flex min-w-0 items-center justify-between gap-2 rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs"><a href={file.fileUrl} target="_blank" rel="noreferrer" className="min-w-0 truncate text-blue-700 hover:underline">{file.fileName || 'Tệp minh chứng'}</a><span className="shrink-0 text-slate-500">{file.fileSize ? `${(file.fileSize / 1024 / 1024).toFixed(1)} MB` : file.fileType}</span>{canWrite && evidence.status !== 'APPROVED' && <button type="button" onClick={() => void removeEvidenceFile(evidence, file.id)} className="shrink-0 text-rose-700" aria-label="Xóa tệp"><X className="h-4 w-4" /></button>}</li>)}</ul>}
-                  </article>) : <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">Chưa có minh chứng cho tiêu chí này.</p>}
+                    {testResult && <div role="status" className="mt-3 rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs leading-5 text-slate-800">
+                      <strong className="text-violet-900">Kết quả AI thử nghiệm · không lưu</strong>
+                      <p>Độ tin cậy OCR/phân tích: {testResult.analysis.aiConfidenceScore ?? '—'}/100 · {testResult.analysis.tier || 'Chưa phân loại'} · {testResult.analysis.pipelineMode || 'AI pipeline'}</p>
+                      <p>Điều kiện rubric tìm thấy: {testResult.analysis.criterionAssessment?.matchScore == null ? 'chưa xác định' : `${testResult.analysis.criterionAssessment.matchScore}%`} · trạng thái {criterionMatchLabels[testResult.analysis.criterionAssessment?.status || ''] || 'chưa đánh giá'} · ngưỡng gợi ý 0 điểm {testResult.analysis.criterionAssessment?.threshold ?? 60}%</p>
+                      {testSuggestion && <p>AI gợi ý {testSuggestion.suggestedScore == null ? 'chờ xác minh' : `${testSuggestion.suggestedScore}/${evidenceCriterion.maxScore} điểm`} · tin cậy xử lý {testSuggestion.confidenceScore == null ? '—' : `${Math.round(testSuggestion.confidenceScore * 100)}%`}</p>}
+                      <p>OCR: {ocr?.available ? `đã chạy · khớp tên ${Math.round(ocr.nameMatchRatio ?? 0)}% · MSSV ${codeStatus}` : ocr?.errorDetails || 'không khả dụng'}</p>
+                      <p>Chất lượng tệp: {testResult.analysis.qualityCheck?.qualityScore ?? '—'}/100 (ngưỡng {testResult.analysis.qualityCheck?.qualityThreshold ?? 70}) · {testResult.analysis.qualityCheck?.passed ? 'đạt' : 'cần xem lại'} · ELA: {testResult.analysis.forensicCheck ? (testResult.analysis.forensicCheck.isTampered ? 'có tín hiệu bất thường' : 'không thấy tín hiệu') : 'chưa chạy do chất lượng tệp'}</p>
+                      <p>Độ nét (Laplacian): {testResult.analysis.qualityCheck?.blurScore ?? '—'} · độ sáng: {testResult.analysis.qualityCheck?.brightness ?? '—'}{testResult.analysis.qualityCheck?.skewAngle != null ? ` · góc nghiêng ${testResult.analysis.qualityCheck.skewAngle}°` : ''}</p>
+                      {documentChecks?.length ? <section className="rounded border border-violet-100 bg-white p-2"><strong>Checklist phân tích A–Z</strong><ul className="mt-1 space-y-1">{documentChecks.map((check) => <li key={check.key}><strong>{check.label}: {documentCheckStatusLabels[check.status] || check.status}.</strong> {check.details}</li>)}</ul></section> : null}
+                      {testResult.analysis.documentMarks && <p>Chữ ký: {testResult.analysis.documentMarks.signatureEvidence} Dấu: {testResult.analysis.documentMarks.sealEvidence}</p>}
+                      {testResult.analysis.webVerification?.articleUrl && <p>Nguồn công khai: <a className="text-blue-700 underline" href={testResult.analysis.webVerification.articleUrl} target="_blank" rel="noreferrer">{testResult.analysis.webVerification.articleTitle || testResult.analysis.webVerification.articleUrl}</a></p>}
+                      {testResult.analysis.forensicCheck && <details><summary className="cursor-pointer font-semibold">Xem dấu vân tay kỹ thuật</summary><p className="mt-1 break-all">SHA-256: {testResult.analysis.forensicCheck.sha256 || '—'}</p><p className="break-all">pHash: {testResult.analysis.forensicCheck.pHash || '—'} · ELA: {testResult.analysis.forensicCheck.elaAnomalyScore ?? '—'}</p><p>Hash hiện chưa được đối chiếu với kho hồ sơ để kết luận trùng lặp.</p></details>}
+                      {!!testResult.analysis.criterionAssessment?.matchedRequirements?.length && <p>Đã thấy: {testResult.analysis.criterionAssessment.matchedRequirements.join('; ')}</p>}
+                      {!!testResult.analysis.criterionAssessment?.missingRequirements?.length && <p>Chưa thấy: {testResult.analysis.criterionAssessment.missingRequirements.join('; ')}</p>}
+                      <p>{testResult.analysis.criterionAssessment?.reason || testSuggestion?.reasoning || testResult.analysis.recommendation}</p>
+                      {ocr?.rawText && <details><summary className="cursor-pointer font-semibold">Xem nội dung OCR</summary><p className="mt-1 whitespace-pre-wrap break-words">{ocr.rawText.slice(0, 2000)}</p></details>}
+                    </div>}
+                  </article>; }) : <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">Chưa có minh chứng cho tiêu chí này.</p>}
                 </div>
                 <form className="space-y-3 rounded-xl border border-blue-200 bg-blue-50/40 p-3 sm:p-4" onSubmit={(event) => { event.preventDefault(); void saveEvidenceDraft(); }}><fieldset disabled={!canWrite || evidenceBusy} className="space-y-3">
                   <div className="flex items-center justify-between"><h3 className="text-sm font-bold text-slate-900">{editingEvidence ? 'Chỉnh sửa hồ sơ' : 'Thêm hồ sơ minh chứng'}</h3>{editingEvidence && <button type="button" onClick={() => { setEditingEvidence(null); setEvidenceFormFiles([]); }} className="text-xs font-semibold text-slate-600">Hủy sửa</button>}</div>

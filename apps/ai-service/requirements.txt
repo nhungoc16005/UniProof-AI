@@ -1,7 +1,7 @@
 # ==============================================================================
-# EduPoint — AI Service (FastAPI Microservice)
+# EduPoint / UniProof-AI — AI Service (FastAPI Microservice)
 # Python: 3.11
-# Mục đích: Phục vụ suy luận mô hình PhoBERT phân loại hoạt động sinh viên
+# Mục đích: Pipeline kiểm tra minh chứng (Luồng 1, Luồng 2, Luồng 3)
 # ==============================================================================
 
 # --- Web Framework & API Server ---
@@ -11,20 +11,23 @@ pydantic>=2.7.0,<3.0.0
 pydantic-settings>=2.3.0,<3.0.0
 python-multipart>=0.0.9
 
-# --- PyTorch & Deep Learning (Python 3.11 compatible) ---
-# Đối với máy có GPU CUDA, cài bản build phù hợp: --extra-index-url https://download.pytorch.org/whl/cu121
-torch>=2.3.0,<2.4.0
-transformers>=4.41.0,<4.42.0
-tokenizers>=0.19.0,<0.20.0
-safetensors>=0.4.3
+# --- Computer Vision & Image Forensics (Lớp 0, 1, 2, 6) ---
+pillow>=10.3.0
+opencv-python-headless>=4.9.0.80,<4.11
+imagehash>=4.3.1
+piexif>=1.1.3
 
-# --- Numerical & Computation ---
-numpy>=1.26.4,<2.0.0
-
-# --- Vietnamese NLP & Tokenization ---
-pyvi>=0.1.1
-underthesea>=6.8.0
+# --- Text Processing, Fuzzy Matching & Search (Lớp 3, 4, 5, Luồng 2) ---
+thefuzz>=0.22.1
+beautifulsoup4>=4.12.3
 regex>=2024.5.15
+pytesseract>=0.3.10
+PyMuPDF>=1.24.0
+
+# --- PyTorch & Deep Learning (Tùy chọn tải GPU nếu có) ---
+torch>=2.2.0
+torchvision>=0.17.0
+numpy>=1.26.4,<2.0.0
 
 # --- Networking, Utilities & Config ---
 httpx>=0.27.0

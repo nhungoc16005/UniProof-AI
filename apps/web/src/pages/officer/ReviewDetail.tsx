@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { apiClient } from '../../lib/apiClient';
 import { Evidence, ReviewDecision, RubricPayload } from '../../types';
 import { StatusBadge } from '../../components/ui/StatusBadge';
+import { AiResultPanel } from '../../components/AiResultPanel';
 import { TwoQuestionsVerification, VerificationBadge } from '../../components/ui/VerificationBadge';
 import { ConfidenceBar } from '../../components/ui/ConfidenceBar';
 import { BookOpen, Search, X, CheckCircle, HelpCircle, Sparkles } from 'lucide-react';
@@ -359,6 +360,19 @@ export const ReviewDetail: React.FC = () => {
 
         {/* Right Panel: Analysis, Verification & Decision (Col 6) */}
         <div className="lg:col-span-6 space-y-4">
+
+          {evidence.aiMode === 'ASSIST' && (evidence.aiProcessingJobs?.[0]?.pipelineRuns?.[0]?.output || evidence.aiProcessingJobs?.[0]?.error) && (() => {
+            const latestJob = evidence.aiProcessingJobs?.[0];
+            const output = latestJob?.pipelineRuns?.[0]?.output;
+            return <AiResultPanel mode={evidence.aiMode} result={{
+              kind: 'pipeline',
+              score: output?.score ?? output?.confidenceScore ?? output?.aiConfidenceScore ?? null,
+              checkerResults: output?.checkerResults ?? [],
+              scoreBreakdown: output?.scoreBreakdown ?? [],
+              decisionReason: output?.decisionReason,
+              error: latestJob?.error,
+            }} />;
+          })()}
           
           {/* Section 1: OCR Cross-check */}
           <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
@@ -393,7 +407,7 @@ export const ReviewDetail: React.FC = () => {
                 }`}
               >
                 <span className="text-slate-400 text-[10px] block">MSSV trích xuất</span>
-                <span className="font-bold text-slate-900 block">{ocr?.studentCodeExtracted || evidence.student?.studentCode || 'Chưa trích xuất'}</span>
+                <span className={`font-bold block ${ocr?.extractedFieldsJson?.codeMismatch ? 'text-red-700' : 'text-slate-900'}`}>{ocr?.studentCodeExtracted || 'Chưa trích xuất'}{ocr?.extractedFieldsJson?.codeMismatch ? ' · KHÔNG KHỚP MSSV HỒ SƠ' : ''}</span>
               </div>
 
               <div 

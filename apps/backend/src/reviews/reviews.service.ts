@@ -47,6 +47,7 @@ export class ReviewsService {
           EvidenceStatus.PLAUSIBLE,
           EvidenceStatus.NEEDS_SUPPLEMENT,
           EvidenceStatus.APPEALING,
+          EvidenceStatus.INVALID,
         ],
       };
     }

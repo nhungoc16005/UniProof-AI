@@ -13,6 +13,9 @@ import {
   RubricPayload,
   CriterionAssessment,
   EvidenceFile,
+  EvidenceAiTestResult,
+  EvidenceInspectionResult,
+  EvidenceInspectRequest,
   RubricDefinition,
   RubricTemplate,
   RubricTemplateVersionSummary,
@@ -450,7 +453,18 @@ export const apiClient = {
   },
 
   async uploadEvidenceDraftFile(evidenceId: string, fileData: string, fileName: string, fileType: string): Promise<EvidenceFile> {
-    const res = await http.post(`/evidence/${evidenceId}/files/upload`, { fileData, fileName, fileType });
+    const res = await http.post(`/evidence/${evidenceId}/files/upload`, { fileData, fileName, fileType }, { timeout: 60_000 });
+    return res.data.data;
+  },
+
+  async testEvidenceAi(evidenceId: string): Promise<EvidenceAiTestResult> {
+    const res = await http.post(`/evidence/${evidenceId}/test-ai`, undefined, { timeout: 90_000 });
+    return res.data.data;
+  },
+
+  // Chạy AI trên một tệp minh chứng bất kỳ (không cần tạo hồ sơ). Backend proxy sang AI Service.
+  async inspectEvidenceAi(payload: EvidenceInspectRequest): Promise<EvidenceInspectionResult> {
+    const res = await http.post('/evidence/ai/inspect', payload, { timeout: 120_000 });
     return res.data.data;
   },
 

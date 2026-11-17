@@ -215,7 +215,7 @@ const CriterionCard: React.FC<CardProps> = ({ studentId, termId, criterion, asse
                     <div className="mt-2 flex items-start gap-1.5 rounded-md bg-purple-50/80 border border-purple-100 p-2 text-[11px] text-purple-800">
                       <Sparkles className="h-3.5 w-3.5 shrink-0 mt-0.5 text-purple-600" />
                       <p className="leading-snug">
-                        <strong>AI chấm {evidence.aiSuggestions[0].suggestedScore ?? '—'} đ:</strong>{' '}
+                        <strong>AI gợi ý {evidence.aiSuggestions[0].suggestedScore ?? '—'} đ:</strong>{' '}
                         {evidence.aiSuggestions[0].reasoning}
                       </p>
                     </div>
@@ -1170,7 +1170,7 @@ export const StudentAssessment: React.FC = () => {
                   {e.aiSuggestions?.[0] && (
                     <span className="text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded text-[10px] font-bold inline-flex items-center gap-1">
                       <Sparkles className="h-3 w-3 text-purple-600" />
-                      AI chấm: {e.aiSuggestions[0].suggestedScore ?? '—'} đ
+                      AI gợi ý: {e.aiSuggestions[0].suggestedScore ?? '—'} đ
                     </span>
                   )}
                 </div>

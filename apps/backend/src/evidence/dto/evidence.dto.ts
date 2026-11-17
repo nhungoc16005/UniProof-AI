@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsBoolean, IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator';
 
 export class CreateEvidenceDto {
   @ApiPropertyOptional({ description: 'ID Kỳ học (mặc định lấy kỳ ACTIVE)' })
@@ -12,10 +12,10 @@ export class CreateEvidenceDto {
   @IsString()
   activityId?: string;
 
-  @ApiProperty({ example: 'Tham gia Cuộc thi Sinh viên NCKH 2026' })
+  @ApiPropertyOptional({ example: 'Tham gia Cuộc thi Sinh viên NCKH 2026', description: 'Không bắt buộc — có thể để trống' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  declaredActivityName: string;
+  declaredActivityName?: string;
 
   @ApiPropertyOptional({ example: 'Giấy xác nhận tham gia chương trình tình nguyện do Đoàn trường cấp.' })
   @IsOptional()
@@ -92,4 +92,65 @@ export class SubmitSupplementDto {
   @IsOptional() @IsString() fileName?: string;
   @IsOptional() @IsString() fileType?: string;
   @IsOptional() @IsString() fileData?: string;
+}
+
+export class InspectAiDto {
+  @ApiPropertyOptional({ example: 'Ngày hội tình nguyện DUT 2025', description: 'Không bắt buộc — bỏ trống để AI tự trích xuất từ tệp' })
+  @IsOptional()
+  @IsString()
+  activityName?: string;
+
+  @ApiProperty({ example: 'GIAY_KHEN', description: 'GIAY_KHEN | GIAY_XAC_NHAN | GIAY_HIEN_MAU | VE_CHECKIN | ANH_SU_KIEN | OTHER' })
+  @IsString()
+  @IsNotEmpty()
+  evidenceType: string;
+
+  @ApiProperty({ example: { fullName: 'Nguyễn Văn A', studentCode: '102210001' } })
+  @IsObject()
+  declaredStudent: { fullName: string; studentCode?: string; citizenId?: string };
+
+  @ApiPropertyOptional({ example: '2025-11-26T00:00:00Z' })
+  @IsOptional()
+  @IsString()
+  participationDate?: string;
+
+  @ApiPropertyOptional({ example: '2025-09-01T00:00:00Z' })
+  @IsOptional()
+  @IsString()
+  termStartDate?: string;
+
+  @ApiPropertyOptional({ example: '2025-12-31T00:00:00Z' })
+  @IsOptional()
+  @IsString()
+  termEndDate?: string;
+
+  @ApiPropertyOptional({ description: 'Bật Luồng 2 tra cứu nguồn công khai', default: false })
+  @IsOptional()
+  @IsBoolean()
+  enableWebSearch?: boolean;
+
+  @ApiPropertyOptional({ description: 'Data URL của tệp minh chứng (data:image/...;base64,...)' })
+  @IsOptional()
+  @IsString()
+  fileData?: string;
+
+  @ApiPropertyOptional({ description: 'URL tệp minh chứng công khai (thay thế cho fileData)' })
+  @IsOptional()
+  @IsString()
+  fileUrl?: string;
+
+  @ApiPropertyOptional({ example: 'giay-khen.jpg' })
+  @IsOptional()
+  @IsString()
+  fileName?: string;
+
+  @ApiPropertyOptional({ example: 'image/jpeg' })
+  @IsOptional()
+  @IsString()
+  fileType?: string;
+
+  @ApiPropertyOptional({ description: 'Danh sách {sha256, pHash} đã lưu để kiểm tra trùng lặp' })
+  @IsOptional()
+  @IsArray()
+  previousHashes?: Array<{ sha256: string; pHash: string }>;
 }

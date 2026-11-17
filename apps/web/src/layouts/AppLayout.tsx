@@ -92,6 +92,7 @@ export const AppLayout: React.FC = () => {
         title: 'TRA CỨU',
         items: [
           { label: 'Tra cứu tiêu chí', path: '/regulations' },
+          { label: 'Chạy thử AI minh chứng', path: '/ai-test' },
         ],
       },
     ];
@@ -140,6 +141,8 @@ export const AppLayout: React.FC = () => {
       else if (p === '/admin/knowledge-base') crumbs.push({ label: 'Tài liệu quy chế' });
       else if (p === '/admin/ai-center' || p === '/admin/ai-config' || p === '/admin/ground-truth' || p === '/admin/ai-evaluation') crumbs.push({ label: 'Trung tâm AI' });
       else if (p === '/admin/monitoring' || p === '/admin/audit-logs' || p === '/admin/health') crumbs.push({ label: 'Giám sát & Kiểm toán' });
+    } else if (p === '/ai-test') {
+      crumbs.push({ label: 'Chạy thử AI minh chứng' });
     } else if (p.startsWith('/regulations')) {
       crumbs.push({ label: 'Hỗ trợ quy chế' });
     } else if (p === '/account') {

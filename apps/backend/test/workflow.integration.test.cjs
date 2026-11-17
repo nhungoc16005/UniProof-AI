@@ -1,6 +1,12 @@
+// Kiểm thử tích hợp E2E Pipeline Luồng 1 (Lớp 8) trên PostgreSQL thật.
+// Cách chạy: trỏ TEST_DATABASE_URL tới một DB local có hậu tố *_test (chỉ chấp nhận localhost/127.0.0.1), ví dụ:
+//   PowerShell: $env:TEST_DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/edupoint_test"; node --test test/workflow.integration.test.cjs
+// hoặc dùng script đã cấu hình: npm run test:e2e
+// Thiếu biến môi trường thì toàn bộ tệp tự skip, không chạm vào DB ngoài.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
+const fs = require('node:fs');
 const { randomUUID } = require('node:crypto');
 const url = process.env.TEST_DATABASE_URL;
 if (!url) {
@@ -12,6 +18,7 @@ if (!url) {
   process.env.DIRECT_URL = url;
   process.env.JWT_SECRET = 'edupoint-integration-only-secret';
   process.env.AI_PIPELINE_URL = '';
+  process.env.AI_MODE = 'ASSIST';
   require('ts-node').register({ project: path.join(__dirname,'../tsconfig.json') });
   require('reflect-metadata');
   const { NestFactory } = require('@nestjs/core');
@@ -102,9 +109,22 @@ if (!url) {
       assert.equal((await okay(staffA,'GET',`/reports/summary?termId=${term.id}`)).totalStudents,2);
     });
     await t.test('submit students and verify snapshot scope after transfer',async()=>{
-      for(const student of [studentA,studentB]) {
-        await okay(student,'POST','/assessments/me/save?termId='+term.id,{scores:[{criterionId:criterion.id,score:80}]});
-        await okay(student,'POST','/assessments/me/submit?termId='+term.id);
+      for(const [student,staff] of [[studentA,staffA],[studentB,staffB]]) {
+        const saved=await okay(student,'POST','/assessments/me/save?termId='+term.id,{scores:[{criterionId:criterion.id,score:80}]});
+        assert.equal(saved.permissions.canEdit,true);
+        assert.equal(saved.categories[0].criteria[0].assessment.selfScore,80);
+        const submitted=await okay(student,'POST','/assessments/me/submit?termId='+term.id);
+        assert.equal(submitted.submission.status,'SUBMITTED');
+        const locked=await okay(student,'GET',`/assessments/me?termId=${term.id}`);
+        assert.equal(locked.submission.status,'SUBMITTED');
+        assert.equal(locked.permissions.canEdit,false);
+        assert.equal((await request(student,'POST',`/assessments/me/save?termId=${term.id}`,{scores:[{criterionId:criterion.id,score:85}]})).status,400);
+        assert.equal((await request(student,'PUT',`/assessments/me/${criterion.id}?termId=${term.id}`,{score:85})).status,400);
+        const facultyList=await okay(staff,'GET',`/evaluation-workflow/${term.id}`);
+        const visible=facultyList.items.find(row=>row.studentId===student.id);
+        assert.ok(visible,'submitted form appears in the faculty assessment list');
+        assert.equal(visible.submissionStatus,'SUBMITTED');
+        assert.equal(visible.state,'REVIEWING');
       }
       await okay(staffA,'PUT',`/assessments/students/${studentA.id}/${term.id}/return`,{reason:'Cần sinh viên rà soát phiếu'});
       await prisma.term.update({where:{id:term.id},data:{submissionDeadline:new Date(Date.now()-1000)}});
@@ -130,15 +150,19 @@ if (!url) {
       await prisma.user.update({where:{id:studentA.id},data:{classId:clsB.id}});
       assert.equal((await request(staffB,'GET',`/assessments/students/${studentA.id}?termId=${term.id}`)).status,403);
       assert.equal((await request(staffA,'GET',`/users/${studentA.id}?termId=${term.id}`)).status,200);
-      evidenceA=await prisma.evidence.create({data:{studentId:studentA.id,termId:term.id,criterionAssessmentId:(await prisma.criterionAssessment.findFirst({where:{studentId:studentA.id,criterionId:criterion.id}})).id,evidenceType:'TEST',status:'NEEDS_HUMAN_REVIEW',declaredActivityName:'Minh chứng kiểm thử'}});
+      evidenceA=await prisma.evidence.create({data:{studentId:studentA.id,termId:term.id,criterionAssessmentId:(await prisma.criterionAssessment.findFirst({where:{studentId:studentA.id,criterionId:criterion.id}})).id,evidenceType:'TEST',status:'NEEDS_HUMAN_REVIEW',declaredActivityName:'Minh chứng kiểm thử',description:'Synthetic CCCD sentinel: 079123456789'}});
       assert.equal((await request(staffB,'GET','/evidence/'+evidenceA.id)).status,403);
+      assert.equal((await request(staffB,'POST',`/evidence/${evidenceA.id}/review`,{action:'REJECTED',comment:'Không phù hợp',rejectBasis:'Ngoài phạm vi'})).status,403);
+      assert.equal((await request(studentA,'POST',`/evidence/${evidenceA.id}/review`,{action:'APPROVED',comment:'Đã kiểm tra'})).status,403);
+      assert.equal((await request(studentA,'POST',`/evidence/${evidenceA.id}/review`,{action:'REJECTED',comment:'Không phù hợp',rejectBasis:'Căn cứ'})).status,403);
       assert.equal((await request(staffA,'GET','/evidence/'+evidenceA.id)).status,200);
       assert.equal((await request(studentA,'POST',`/evidence/${evidenceA.id}/files`,{fileUrl:'evidence/other-private-key',fileType:'image/png'})).status,400);
+      assert.equal((await request(studentA,'PATCH',`/evidence/${evidenceA.id}`,{declaredActivityName:'Sửa sau khi nộp'})).status,400);
       assert.equal((await request(studentA,'POST',`/evidence/${evidenceA.id}/submit`)).status,400);
       assert.equal((await okay(staffA,'GET',`/reviews/queue?termId=${term.id}`)).length,1);
     });
     await t.test('activity CRUD and attendance use frozen enrollment and audit',async()=>{
-      const activity=await okay(staffA,'POST','/activities',{termId:term.id,criterionId:criterion.id,name:'Hoạt động kiểm thử',type:'INTERNAL',organizer:'Khoa A'});
+      const activity=await okay(staffA,'POST','/activities',{termId:term.id,criterionId:criterion.id,name:'Hoạt động kiểm thử',type:'INTERNAL',organizer:'Khoa A',startDate:new Date().toISOString()});
       const participant=await okay(staffA,'POST',`/activities/${activity.id}/attendance`,{studentCode:studentA.studentCode,formRole:'THAM_GIA_CHINH'});
       assert.equal((await request(staffB,'GET',`/activities/${activity.id}/attendance`)).status,403);
       assert.equal((await okay(staffA,'GET',`/activities/${activity.id}/attendance`)).length,1);
@@ -150,6 +174,20 @@ if (!url) {
       await okay(staffA,'DELETE',`/activities/${activity.id}/attendance/${participant.id}`);
       await okay(staffA,'DELETE','/activities/'+activity.id);
       assert.ok(await prisma.auditLog.count({where:{entityId:activity.id,action:'ATTENDANCE_ADDED'}}));
+    });
+    await t.test('legacy invalidation flag is backfilled without PII',async()=>{
+      const legacyKey=['automatically','Rejected'].join('');
+      const legacy=await prisma.verificationResult.create({data:{evidenceId:evidenceA.id,verificationLevel:1,status:'INVALID',sourceDescription:'Synthetic migration fixture',evidenceGap:{[legacyKey]:true,studentCodeMismatch:true}}});
+      const migration=fs.readFileSync(path.join(__dirname,'../prisma/migrations/20261115000100_ai_pipeline_actor_audit/migration.sql'),'utf8');
+      const statement=migration.match(/UPDATE "VerificationResult"[\s\S]*?;/)?.[0];
+      assert.ok(statement,'migration must contain the legacy JSON backfill');
+      await prisma.$executeRawUnsafe(statement);
+      const migrated=await prisma.verificationResult.findUniqueOrThrow({where:{id:legacy.id}});
+      assert.equal(migrated.evidenceGap[legacyKey],undefined);
+      assert.equal(migrated.evidenceGap.systemInvalidated,true);
+      assert.equal(migrated.evidenceGap.studentCodeMismatch,true);
+      assert.equal(JSON.stringify(migrated.evidenceGap).includes(studentA.studentCode),false);
+      await prisma.verificationResult.delete({where:{id:legacy.id}});
     });
     await t.test('supplement persists, AI unavailable fallback and source survives reload', async()=>{
       await okay(staffA,'POST',`/evidence/${evidenceA.id}/review`,{action:'SUPPLEMENT_REQUESTED',comment:'Cần thêm căn cứ',missingItem:'Giải trình đơn vị tổ chức'});
@@ -188,8 +226,95 @@ if (!url) {
       const other=owner.id===staffA.id?staffA2:staffA;
       assert.equal((await request(other,'POST',`/evidence/${evidenceA.id}/review`,{action:'APPROVED',comment:'Đã kiểm tra'})).status,409);
       assert.equal((await request(owner,'POST',`/evidence/${evidenceA.id}/review`,{action:'APPROVED',comment:'Phiên bản cũ',expectedVersion:1})).status,409);
+      assert.equal((await request(owner,'POST',`/evidence/${evidenceA.id}/review`,{action:'REJECTED',comment:'Không phù hợp'})).status,400);
       await okay(owner,'POST',`/evidence/${evidenceA.id}/review`,{action:'APPROVED',comment:'Đã kiểm tra'});
       assert.equal((await prisma.review.count({where:{evidenceId:evidenceA.id,decision:'APPROVED'}})),1);
+      const audit=await prisma.auditLog.findFirst({where:{entityId:evidenceA.id,action:'EVIDENCE_APPROVED'},orderBy:{createdAt:'desc'}});
+      assert.ok(audit && audit.userId===owner.id,'human approval must be auditable with actor');
+      const serializedAudit=JSON.stringify({oldValue:audit.oldValue,newValue:audit.newValue});
+      assert.equal(serializedAudit.includes(studentA.fullName),false);
+      assert.equal(serializedAudit.includes(studentA.studentCode),false);
+      assert.equal(serializedAudit.includes('079123456789'),false);
+    });
+    await t.test('AI online vertical slice: worker → ASSIST review payload → officer decision → audit',async()=>{
+      // Dựng một AI service giả để kiểm chứng trọn luồng khi AI trực tuyến:
+      // tạo job QUEUED -> worker gọi AI -> ghi OCR/verification/anomaly -> chuyển hồ sơ sang chờ người duyệt.
+      const http = require('node:http');
+      const mockPayload = {
+        suggestions: [{ criterionId: criterion.id, suggestedScore: 80, reasoning: 'AI giả: đủ căn cứ theo rubric', confidenceScore: 0.9 }],
+        analysis: {
+          schemaVersion: '1.0',
+          aiConfidenceScore: 82,
+          tier: 'YELLOW_STRONG',
+          pipelineMode: 'DOCUMENT_PIPELINE',
+          recommendation: 'Cần cán bộ xem xét trực tiếp',
+          isDuplicate: true,
+          duplicateMatchType: 'SIMILAR',
+          documentChecks: [{ key: 'template', label: 'Phôi/chủ thể cấp', status: 'REVIEW', details: 'AI giả: kho phôi rỗng nên chuyển người duyệt', message_vi: 'AI giả: kho phôi rỗng nên chuyển người duyệt', score_delta: 0, evidence: {} }],
+          scoreBreakdown: [],
+          templateMatch: { status: 'UNKNOWN', matchedTemplateId: null, confidence: 0, evidence: 'AI giả: chưa có phôi đối chiếu' },
+          forensicCheck: { isTampered: false, sha256: 'mock-sha256', pHash: 'mock-phash', elaAnomalyScore: 0.01, warnings: [] },
+          ocrExtraction: { rawText: 'AI giả OCR', available: true, studentNameExtracted: studentA.fullName, studentCodeExtracted: studentA.studentCode, nameMatchRatio: 95, codeMatched: true, codeMismatch: false },
+        },
+      };
+      const mock = http.createServer((req, res) => { req.resume(); req.on('end', () => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(mockPayload)); }); });
+      await new Promise(resolve => mock.listen(0, '127.0.0.1', resolve));
+      const previousUrl = process.env.AI_PIPELINE_URL;
+      const previousAiMode = process.env.AI_MODE;
+      process.env.AI_MODE = 'ASSIST';
+      process.env.AI_PIPELINE_URL = `http://127.0.0.1:${mock.address().port}`;
+      try {
+        const assessment = await prisma.criterionAssessment.findFirst({ where: { studentId: studentA.id, criterionId: criterion.id } });
+        const evidence = await prisma.evidence.create({ data: { studentId: studentA.id, termId: term.id, criterionAssessmentId: assessment.id, evidenceType: 'TEST', status: 'NEEDS_HUMAN_REVIEW', declaredActivityName: 'Minh chứng kiểm thử AI trực tuyến' } });
+        const job = await prisma.aiProcessingJob.create({ data: { evidenceId: evidence.id, status: 'QUEUED' } });
+        const startedAt = Date.now();
+        for (let i = 0; i < 5; i++) {
+          await app.get(EvidenceProcessingWorker).processNext();
+          const current = await prisma.aiProcessingJob.findUnique({ where: { id: job.id }, select: { status: true } });
+          if (current.status !== 'QUEUED') break;
+        }
+        const elapsedMs = Date.now() - startedAt;
+        assert.equal((await prisma.aiProcessingJob.findUnique({ where: { id: job.id } })).status, 'COMPLETED');
+        assert.ok(elapsedMs >= 0 && elapsedMs < 60000, 'lượt AI trực tuyến phải hoàn tất trong hạn thời gian xử lý');
+        const run = await prisma.aiPipelineRun.findFirst({ where: { jobId: job.id }, orderBy: { attempt: 'desc' } });
+        assert.ok(run, 'phải có bản ghi lượt chạy AI');
+        assert.equal(run.status, 'COMPLETED');
+        const output = run.output;
+        assert.equal(output.actorType,'AI');
+        assert.ok(output.configVersion,'AI audit must retain config version');
+        assert.ok(Array.isArray(output.checkerResults),'AI audit must retain checker outcomes');
+        assert.ok(output.decisionReason,'AI audit must retain reason');
+        assert.equal(JSON.stringify(output).includes(studentA.fullName),false);
+        assert.equal(JSON.stringify(output).includes(studentA.studentCode),false);
+        assert.equal(JSON.stringify(output).includes('012345678901'),false);
+        assert.ok(Array.isArray(output.documentChecks) && output.documentChecks.some(check => check.key === 'template'), 'đầu ra phải có mục kiểm tra template');
+        assert.equal(output.templateMatch.status, 'UNKNOWN');
+        assert.equal(output.isDuplicate, true);
+        assert.equal((await prisma.evidence.findUnique({ where: { id: evidence.id } })).status, 'NEEDS_HUMAN_REVIEW');
+        assert.equal(await prisma.aiSuggestion.count({ where: { evidenceId: evidence.id } }), 1);
+        assert.ok(await prisma.anomalyFlag.count({ where: { evidenceId: evidence.id, flagType: 'DUPLICATE' } }), 'AI báo trùng lặp thì phải sinh cờ DUPLICATE để cán bộ xác minh');
+        const reviewPayload = await okay(staffA, 'GET', `/evidence/${evidence.id}`);
+        assert.equal(reviewPayload.aiMode, 'ASSIST');
+        assert.equal(reviewPayload.aiProcessingJobs[0].pipelineRuns[0].output.aiDecision, 'REVIEW');
+        assert.equal(reviewPayload.aiProcessingJobs[0].pipelineRuns[0].output.checkerResults[0].message_vi, 'AI giả: kho phôi rỗng nên chuyển người duyệt');
+        process.env.AI_MODE = 'SHADOW';
+        const shadowPayload = await okay(staffA, 'GET', `/evidence/${evidence.id}`);
+        assert.deepEqual(shadowPayload.aiProcessingJobs, []);
+        assert.deepEqual(shadowPayload.aiSuggestions, []);
+        process.env.AI_MODE = 'ASSIST';
+        await okay(staffA, 'POST', `/evidence/${evidence.id}/claim`);
+        await okay(staffA, 'POST', `/evidence/${evidence.id}/review`, { action: 'APPROVED', comment: 'Cán bộ đã đối chiếu ảnh gốc.' });
+        const humanAudit = await prisma.auditLog.findFirst({ where: { entityId: evidence.id, action: 'EVIDENCE_APPROVED' }, orderBy: { createdAt: 'desc' } });
+        assert.ok(humanAudit && humanAudit.userId === staffA.id, 'panel suggestion must lead to a human-owned decision and audit');
+        const humanOutput = JSON.stringify({ oldValue: humanAudit.oldValue, newValue: humanAudit.newValue });
+        assert.equal(humanOutput.includes(studentA.fullName), false);
+        assert.equal(humanOutput.includes(studentA.studentCode), false);
+        assert.equal(humanOutput.includes('079123456789'), false);
+      } finally {
+        process.env.AI_PIPELINE_URL = previousUrl ?? '';
+        if (previousAiMode === undefined) delete process.env.AI_MODE; else process.env.AI_MODE = previousAiMode;
+        await new Promise(resolve => mock.close(resolve));
+      }
     });
     const score = async(actor,student,n)=>{
       await okay(actor,'PUT',`/assessments/students/${student.id}/${term.id}/${criterion.id}/verification`,{data:{officialScore:n},note:'Văn bản kiểm thử'});
