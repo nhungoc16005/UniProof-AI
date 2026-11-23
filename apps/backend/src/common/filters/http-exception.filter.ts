@@ -35,6 +35,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
       if (mapped) { status = mapped[0]; errorMessage = mapped[1]; errorCode = exception.code; }
     }
 
+    if (status === HttpStatus.INTERNAL_SERVER_ERROR) {
+      console.error(`[Unhandled Exception] ${request.method} ${request.url}:`, exception);
+    }
+
     response.status(status).json({
       success: false,
       error: {

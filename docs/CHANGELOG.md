@@ -2,6 +2,21 @@
 
 Mỗi công việc trong dự án thêm mục mới ở đầu với ngày, phạm vi, feature/bug/quyết định liên quan, thay đổi thực tế, kiểm tra đã chạy và giới hạn. Không ghi test dự kiến như đã Passed, không ghi credential hoặc dữ liệu sinh viên.
 
+## 2026-11-23 — Dọn dẹp dữ liệu DEMO và nạp 400 sinh viên thật Bách Khoa K22–K25
+
+- Dọn dẹp sạch 100 tài khoản sinh viên `[DEMO]` cũ và 5 lớp `[DEMO]` cùng toàn bộ liên kết (điểm, minh chứng, bàn giao, thông báo) khỏi cơ sở dữ liệu EduPoint.
+- Trích xuất dữ liệu thực tế từ máy chủ SQL Server `DHBK_CDS` của trường (chỉ đọc): 13 Khoa, 40 Lớp, 400 Sinh viên đại diện cho 4 khóa K22, K23, K24, K25 (10 SV/lớp) và 888 dòng điểm lịch sử.
+- Nạp thành công vào EduPoint Supabase Database:
+  - Kỳ hiện hành `2026_1` (ACTIVE): Thiết lập 400 hồ sơ bàn giao (`AssessmentHandoff`, trạng thái `WORKING`) và phiếu tự chấm (`AssessmentSubmission`, trạng thái `DRAFT`) — chưa chấm điểm.
+  - Kỳ quá khứ `2024_1` (CLOSED): Nạp 300 hồ sơ công bố chính thức (`AssessmentPublication`) và 4.800 bản ghi điểm tiêu chí (`CriterionAssessment`, trạng thái `FINALIZED`) cho K22, K23, K24. Điểm 16 tiêu chí rubric được phân bổ khớp chính xác 100% với `DiemRL` thực tế của trường.
+  - Kỳ quá khứ `2023_2` (CLOSED): Nạp 200 hồ sơ công bố chính thức và 3.200 bản ghi điểm tiêu chí cho K22, K23. Khóa K24 và K25 không có điểm ở kỳ này vì chưa nhập học.
+- Đã chạy kiểm chứng trực tiếp trên PostgreSQL: 0 sinh viên demo, 400 sinh viên thật, kiểm tra chéo tính lũy tiến lịch sử điểm theo khóa K22–K25 đạt 100%. Script thực thi: `scripts/cleanup_demo_data.js`, `scripts/import_to_edupoint.js`.
+
+## 2026-11-23 — Báo cáo luồng nghiệp vụ và trường hợp xử lý
+
+- Bổ sung báo cáo theo commit `11a2d3c` gồm sơ đồ vòng đời kỳ, trách nhiệm ba vai trò, luồng chính và các nhánh bị chặn, kịch bản trình diễn, liên kết source và bằng chứng F01–F15. Giữ mã use case của bản thảo. [Báo cáo luồng nghiệp vụ](bao-cao/BAO_CAO_LUONG_NGHIEP_VU_EDUPOINT.md)
+- Đối chiếu nội dung với mã nguồn hiện hành, kiểm liên kết, cấu trúc bảng và diff. Tài liệu dẫn kết quả kiểm thử đã ghi, chưa chạy lại kiểm thử ứng dụng trong đợt viết báo cáo.
+
 ## 2026-11-23 — Hoàn thiện P1 và khóa khi nộp phiếu
 
 - BL-032/030 áp dụng điều kiện F15 dưới khóa Term. Phiếu Khoa hiển thị nguồn CLB/BTC và giữ xác minh tay khi thu hồi. Migration mới thêm `clubGroundingIds` mặc định mảng rỗng.
@@ -31,6 +46,11 @@ Mỗi công việc trong dự án thêm mục mới ở đầu với ngày, ph�
 - BL-029 (F15) gắn phiên xem trước với kỳ, danh mục, hoạt động và file. Confirm yêu cầu `previewTermId`, bỏ phản hồi cũ khi đổi ngữ cảnh và từ chối replay khóa khác kỳ.
 - BL-036 chuyển Compose sang image pgvector PG17, volume PG17 riêng và khởi tạo extension trong `public`. Trên Docker 17.12, deploy một bước từ DB trống gặp `P1014`. Áp dụng baseline SQL nguyên bản trong session riêng, ghi nhận baseline và deploy 13 migration còn lại thành công. Checksum baseline giữ nguyên. Xem [quy trình dựng DB local](TEST_PLAN.md#postgresql-17-local).
 - Sửa fixture ngày hoạt động và hai chỗ lệch hợp đồng/dữ liệu giữa suite. Integration PostgreSQL **17/17**, test thuần Backend **27/27**, Web **7/7**. Typecheck hai app và diff check đạt. Kiểm thử giới hạn ở localhost và doubles.
+
+## 2026-11-17 — Soạn báo cáo thô EduPoint theo mẫu
+
+- Tạo bản thảo Markdown và Word trong `docs/bao-cao/`, dựa trên bố cục và định dạng tham chiếu của báo cáo người dùng cung cấp; mô tả kiến trúc, nghiệp vụ, chức năng, kết quả và các giới hạn có căn cứ. Thông tin nhóm, sơ đồ, ảnh và kết quả nghiệm thu cần bổ sung.
+- Đã kiểm tra chuyển đổi Word, cấu trúc tệp và nội dung còn sót từ đề tài mẫu; `git diff --check` đạt. Không chạy lại kiểm thử ứng dụng, không thay đổi code, quy tắc hoặc API.
 
 ## 2026-11-17 — Bổ sung điểm chấm mẫu cho các hồ sơ DEMO
 
