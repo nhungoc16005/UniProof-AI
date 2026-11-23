@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { useAuth } from '../../context/AuthContext';
@@ -9,6 +9,7 @@ import {
   GroundingImportBatch,
   PreviewImportResult,
   Activity,
+  Term,
 } from '../../types';
 import {
   UploadCloud,
@@ -91,11 +92,19 @@ export const ImportGroundingData: React.FC = () => {
   const { activeTerm, terms } = useAuth();
   const [params] = useSearchParams();
   const termId = params.get('termId') || activeTerm?.id || '';
+  const currentTerm = terms.find((term) => term.id === termId) ?? (activeTerm?.id === termId ? activeTerm : undefined);
+  return <ImportGroundingWorkspace key={termId} termId={termId} currentTerm={currentTerm} />;
+};
 
-  const currentTerm = useMemo(() => {
-    return terms.find((t) => t.id === termId) || activeTerm;
-  }, [terms, termId, activeTerm]);
+type ImportContext = {
+  termId: string;
+  category: GroundingCategory;
+  activityId?: string;
+  file: File;
+  idempotencyKey: string;
+};
 
+function ImportGroundingWorkspace({ termId, currentTerm }: { termId: string; currentTerm?: Term }) {
   // Tab: 'NEW_IMPORT' | 'BATCH_HISTORY'
   const [activeTab, setActiveTab] = useState<'NEW_IMPORT' | 'BATCH_HISTORY'>('NEW_IMPORT');
 
@@ -104,11 +113,14 @@ export const ImportGroundingData: React.FC = () => {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [selectedActivityId, setSelectedActivityId] = useState<string>('');
   const [fileName, setFileName] = useState<string>('');
-  const [rawRows, setRawRows] = useState<any[]>([]);
-  const [currentIdempotencyKey, setCurrentIdempotencyKey] = useState<string>('');
-
   // Preview & Confirm State
-  const [previewResult, setPreviewResult] = useState<PreviewImportResult | null>(null);
+  const currentImport = useRef<ImportContext | null>(null);
+  const [previewSession, setPreviewSession] = useState<{
+    context: ImportContext;
+    rows: Record<string, unknown>[];
+    result: PreviewImportResult;
+  } | null>(null);
+  const previewResult = previewSession?.result;
   const [rowStatusFilter, setRowStatusFilter] = useState<'ALL' | 'VALID' | 'ERROR' | 'SKIPPED'>('ALL');
   const [isPreviewing, setIsPreviewing] = useState<boolean>(false);
   const [isConfirming, setIsConfirming] = useState<boolean>(false);
@@ -129,19 +141,34 @@ export const ImportGroundingData: React.FC = () => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  useLayoutEffect(() => () => { currentImport.current = null; }, []);
+
+  const resetPreview = () => {
+    currentImport.current = null;
+    setPreviewSession(null);
+    setFileName('');
+    setRowStatusFilter('ALL');
+    setIsPreviewing(false);
+    setIsConfirming(false);
+    setErrorMsg('');
+    setSuccessMsg('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   // Tải danh sách hoạt động khi chọn ACTIVITY
   useEffect(() => {
+    let cancelled = false;
     if (selectedCategory === 'ACTIVITY' && termId) {
       apiClient
         .getActivities({ termId })
         .then((data) => {
+          if (cancelled) return;
           setActivities(data || []);
-          if (data && data.length > 0 && !selectedActivityId) {
-            setSelectedActivityId(data[0].id);
-          }
+          setSelectedActivityId(current => data?.some(activity => activity.id === current) ? current : data?.[0]?.id ?? '');
         })
-        .catch(() => setActivities([]));
+        .catch(() => { if (!cancelled) setActivities([]); });
     }
+    return () => { cancelled = true; };
   }, [selectedCategory, termId]);
 
   // Tải danh sách lô đã nhập
@@ -303,19 +330,26 @@ export const ImportGroundingData: React.FC = () => {
   // Xử lý khi người dùng chọn file Excel / CSV
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !termId) return;
 
+    const context = {
+      termId,
+      category: selectedCategory,
+      activityId: selectedCategory === 'ACTIVITY' ? selectedActivityId : undefined,
+      file,
+      idempotencyKey: `batch_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+    };
+    currentImport.current = context;
+    setPreviewSession(null);
+    setRowStatusFilter('ALL');
     setErrorMsg('');
     setSuccessMsg('');
     setFileName(file.name);
     setIsPreviewing(true);
 
-    // Sinh idempotency key mới gắn liền với phiên file này
-    const newIdempKey = `batch_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    setCurrentIdempotencyKey(newIdempKey);
-
     try {
       const buffer = await file.arrayBuffer();
+      if (currentImport.current !== context) return;
       const wb = XLSX.read(buffer, { type: 'array' });
       const firstSheet = wb.Sheets[wb.SheetNames[0]];
       const jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(firstSheet, { defval: '' });
@@ -325,8 +359,8 @@ export const ImportGroundingData: React.FC = () => {
       }
 
       // Map dữ liệu theo từng danh mục
-      const mappedRows: any[] = [];
-      const config = CATEGORY_CONFIGS[selectedCategory];
+      const mappedRows: Record<string, unknown>[] = [];
+      const config = CATEGORY_CONFIGS[context.category];
 
       for (const row of jsonData) {
         const studentCode = String(
@@ -335,7 +369,7 @@ export const ImportGroundingData: React.FC = () => {
 
         const note = String(row['Ghi_chu'] ?? row['ghiChu'] ?? row['note'] ?? '').trim();
 
-        if (selectedCategory === 'ACADEMIC_1') {
+        if (context.category === 'ACADEMIC_1') {
           mappedRows.push({
             studentCode,
             criterionCode: '1',
@@ -346,7 +380,7 @@ export const ImportGroundingData: React.FC = () => {
             source: file.name,
             note: note || undefined,
           });
-        } else if (selectedCategory === 'ACADEMIC_3') {
+        } else if (context.category === 'ACADEMIC_3') {
           mappedRows.push({
             studentCode,
             criterionCode: '3',
@@ -358,7 +392,7 @@ export const ImportGroundingData: React.FC = () => {
             source: file.name,
             note: note || undefined,
           });
-        } else if (selectedCategory === 'ACADEMIC_7') {
+        } else if (context.category === 'ACADEMIC_7') {
           mappedRows.push({
             studentCode,
             criterionCode: '7',
@@ -375,7 +409,7 @@ export const ImportGroundingData: React.FC = () => {
             source: file.name,
             note: note || undefined,
           });
-        } else if (selectedCategory === 'ACTIVITY') {
+        } else if (context.category === 'ACTIVITY') {
           mappedRows.push({
             studentCode,
             role: parseActivityRoleVal(row['Vai_tro'] ?? row['role']),
@@ -398,65 +432,64 @@ export const ImportGroundingData: React.FC = () => {
         }
       }
 
-      setRawRows(mappedRows);
-
       // Gọi API Preview kiểm tra in-memory
       const preview = await apiClient.previewGroundingImport({
-        termId,
+        termId: context.termId,
         type: config.backendType,
         rows: mappedRows,
-        source: file.name,
-        activityId: selectedCategory === 'ACTIVITY' ? selectedActivityId : undefined,
+        source: context.file.name,
+        activityId: context.activityId,
       });
 
-      setPreviewResult(preview);
+      if (currentImport.current !== context) return;
+      if (preview.termId !== context.termId) throw new Error('Kết quả xem trước không thuộc kỳ đã chọn. Hãy xem trước lại tệp.');
+      setPreviewSession({ context, rows: mappedRows, result: preview });
     } catch (err: any) {
+      if (currentImport.current !== context) return;
       setErrorMsg(err.response?.data?.message || err.message || 'Lỗi khi đọc file và kiểm tra dữ liệu.');
-      setPreviewResult(null);
     } finally {
-      setIsPreviewing(false);
+      if (currentImport.current === context) setIsPreviewing(false);
     }
   };
 
   // Xác nhận nhập dữ liệu (Confirm)
   const handleConfirmImport = async () => {
+    if (!previewSession || isConfirming) return;
+    const { context, rows, result } = previewSession;
     const validCount = previewResult?.validCount ?? previewResult?.validRows ?? 0;
-    if (!previewResult || validCount === 0 || !termId) return;
+    if (!validCount || currentImport.current !== context || context.termId !== termId
+      || context.category !== selectedCategory
+      || (context.category === 'ACTIVITY' && context.activityId !== selectedActivityId)) return;
 
     setIsConfirming(true);
     setErrorMsg('');
     setSuccessMsg('');
 
     try {
-      const config = CATEGORY_CONFIGS[selectedCategory];
       const res = await apiClient.confirmGroundingImport({
-        termId,
-        type: config.backendType,
-        rows: rawRows,
-        validRows: rawRows,
-        source: fileName || 'File tải lên',
-        idempotencyKey: currentIdempotencyKey,
-        activityId: selectedCategory === 'ACTIVITY' ? selectedActivityId : undefined,
+        termId: context.termId,
+        previewTermId: result.termId,
+        type: CATEGORY_CONFIGS[context.category].backendType,
+        rows,
+        source: context.file.name,
+        idempotencyKey: context.idempotencyKey,
+        activityId: context.activityId,
       });
 
+      if (currentImport.current !== context) return;
+      resetPreview();
       const count = res.validRows || res.recordCount || validCount;
       setSuccessMsg(
         `Đã nhập thành công lô căn cứ ${res.batchId} (${count} dòng hợp lệ). Điểm gợi ý đã được đồng bộ vào phiếu đánh giá của sinh viên.`
       );
 
-      // Reset form
-      setPreviewResult(null);
-      setRawRows([]);
-      setFileName('');
-      if (fileInputRef.current) fileInputRef.current.value = '';
-
       // Chuyển sang xem lịch sử lô
       setActiveTab('BATCH_HISTORY');
-      void loadBatches();
     } catch (err: any) {
+      if (currentImport.current !== context) return;
       setErrorMsg(err.response?.data?.message || err.message || 'Lỗi khi xác nhận lưu lô căn cứ.');
     } finally {
-      setIsConfirming(false);
+      if (currentImport.current === context) setIsConfirming(false);
     }
   };
 
@@ -598,11 +631,9 @@ export const ImportGroundingData: React.FC = () => {
                   <div
                     key={cat}
                     onClick={() => {
+                      if (cat === selectedCategory) return;
+                      resetPreview();
                       setSelectedCategory(cat);
-                      setPreviewResult(null);
-                      setRawRows([]);
-                      setFileName('');
-                      if (fileInputRef.current) fileInputRef.current.value = '';
                     }}
                     className={`cursor-pointer rounded-xl border p-4 transition text-left flex flex-col justify-between ${
                       isSelected
@@ -635,8 +666,8 @@ export const ImportGroundingData: React.FC = () => {
                   <select
                     value={selectedActivityId}
                     onChange={(e) => {
+                      resetPreview();
                       setSelectedActivityId(e.target.value);
-                      setPreviewResult(null);
                     }}
                     className="w-full rounded-lg border border-[#E8E8EC] bg-white px-3 py-2 text-xs font-medium text-[#0A0A0A] focus:border-[#1D6FC2] focus:outline-none"
                   >
@@ -682,7 +713,7 @@ export const ImportGroundingData: React.FC = () => {
                   type="file"
                   accept=".xlsx, .xls, .csv"
                   onChange={handleFileChange}
-                  disabled={isPreviewing || (selectedCategory === 'ACTIVITY' && !selectedActivityId)}
+                  disabled={!termId || isConfirming || (selectedCategory === 'ACTIVITY' && !selectedActivityId)}
                   className="hidden"
                 />
               </label>
@@ -1087,5 +1118,5 @@ export const ImportGroundingData: React.FC = () => {
       )}
     </div>
   );
-};
+}
 export default ImportGroundingData;

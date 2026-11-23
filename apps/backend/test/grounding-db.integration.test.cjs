@@ -27,14 +27,14 @@ if (!url) {
     const staff = await prisma.user.create({ data: { email: `${id}-staff@test.invalid`, fullName: 'Test staff', role: Role.STAFF, facultyId: faculty.id } });
     const student = await prisma.user.create({ data: { email: `${id}-student@test.invalid`, fullName: 'Test student', role: Role.STUDENT, studentCode: `0${id}`, classId: cls.id } });
     const now = new Date();
-    const term = await prisma.term.create({ data: { code: `T${id}`, name: 'Test term', startDate: now, endDate: now, submissionDeadline: now, reviewDeadline: now, appealDeadline: now, status: 'ACTIVE' } });
+    const term = await prisma.term.create({ data: { code: `T${id}`, name: 'Test term', startDate: now, endDate: now, submissionDeadline: now, reviewDeadline: now, appealDeadline: now, status: 'REVIEWING' } });
     const rubric = await prisma.rubricVersion.create({ data: { termId: term.id, status: 'PUBLISHED' } });
     await prisma.assessmentHandoff.create({ data: { studentId: student.id, termId: term.id, rubricVersionId: rubric.id, classId: cls.id, facultyId: faculty.id } });
     const criterion = await prisma.criterion.create({ data: { rubricVersionId: rubric.id, code: '1', name: 'Test', description: 'Test', maxScore: 6, scoringConfig: { kind: 'attendance_penalty', requiredData: ['examBans', 'classWarnings'], baseScore: 6, examBanPenalty: 3, warningPenalty: 1 } } });
     const assessments = new AssessmentsService(prisma, {}, {});
     const service = new GroundingImportService(prisma, {}, {}, assessments);
     const actor = { id: staff.id, role: Role.STAFF, facultyId: faculty.id };
-    const input = { termId: term.id, type: 'ACADEMIC', source: 'test.xlsx', validRows: [{ studentCode: student.studentCode, criterionCode: '1', data: { examBans: 0, classWarnings: 1 }, note: 'Ghi chú khác' }] };
+    const input = { termId: term.id, previewTermId: term.id, type: 'ACADEMIC', source: 'test.xlsx', validRows: [{ studentCode: student.studentCode, criterionCode: '1', data: { examBans: 0, classWarnings: 1 }, note: 'Ghi chú khác' }] };
 
     const results = await Promise.allSettled([service.confirm(actor, { ...input, idempotencyKey: `${id}-1` }), service.confirm(actor, { ...input, idempotencyKey: `${id}-2` })]);
     assert.equal(results.filter(r => r.status === 'fulfilled').length, 1);

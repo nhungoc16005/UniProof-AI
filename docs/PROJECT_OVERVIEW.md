@@ -170,6 +170,8 @@ Chỉ kiểm tra nguồn, không áp dụng hoặc reset database. Thứ tự:
 
 Migrations là lịch sử repo, không chứng minh deployed database đã chạy đầy đủ. Seed định nghĩa dữ liệu đầu kỳ/mẫu và tài khoản thử; không chạy để xem kiến trúc.
 
+Compose dùng `pgvector/pgvector:pg17`, volume PG17 riêng và bật extension `vector` trong schema `public` khi khởi tạo volume mới. Quy trình [dựng PostgreSQL local](TEST_PLAN.md#postgresql-17-local) giữ nguyên các migration đã phát hành.
+
 ## Điều hướng và trách nhiệm màn hình
 
 Nguồn: [roleNavigation](../apps/web/src/lib/roleNavigation.ts), [routes](../apps/web/src/routes.tsx).

@@ -110,6 +110,11 @@ export class ConfirmGroundingImportDto {
   @IsNotEmpty()
   termId: string;
 
+  @ApiProperty({ description: 'Mã kỳ trong kết quả xem trước' })
+  @IsString()
+  @IsNotEmpty()
+  previewTermId: string;
+
   @ApiProperty({ enum: ImportBatchType, example: ImportBatchType.ACADEMIC })
   @IsEnum(ImportBatchType)
   type: ImportBatchType;

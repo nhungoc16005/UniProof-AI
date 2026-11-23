@@ -16,4 +16,6 @@ Tài liệu bắt đầu tại **[docs/README.md](docs/README.md)**. Hướng d�
 
 Script build/dev nằm trong package.json từng ứng dụng; root chưa có orchestration hoàn chỉnh. Backend khởi động worker poll DB/gọi AI, nên không start chỉ để audit hoặc xem tài liệu. Kiểm tra thuần được chỉ dẫn tại TEST_PLAN; không dùng `npm test` backend trong audit vì có integration ghi fixture.
 
+Docker local dùng PostgreSQL 17 với pgvector và volume riêng cho PG17. Để dựng DB mới từ baseline Prisma và chạy integration, xem [quy trình PostgreSQL cách ly](docs/TEST_PLAN.md#postgresql-17-local).
+
 Bộ tài liệu khởi tạo2026-11-15 không sửa application code hoặc dữ liệu; các finding audit vẫn mở và cần xử lý theo công việc được giao.

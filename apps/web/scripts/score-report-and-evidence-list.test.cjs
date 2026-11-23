@@ -36,6 +36,9 @@ function createReactHarness() {
   let lastVdom = null;
 
   const dispatcher = {
+    useLayoutEffect(effect, deps) {
+      dispatcher.useEffect(effect, deps);
+    },
     useState(initial) {
       const idx = hookIndex++;
       if (hooks[idx] === undefined) {
@@ -241,6 +244,166 @@ describe('BL-024 (Web): ScoreReport — Chống nộp chéo kỳ khi đổi kỳ
     const fakePreflightA = { canSubmit: true, termId: 'term-1' };
     const canConfirm = confirmSubmit(fakePreflightA);
     assert.equal(canConfirm, false, 'confirmSubmit phải từ chối preflight có termId khác kỳ hiện hành');
+  });
+});
+
+describe('BL-029 (Web): Grounding import preview sessions', () => {
+  const XLSX = require('../node_modules/xlsx');
+  const studentCode = '0102210001';
+  const file = name => {
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([
+      { MSSV: studentCode, examBans: 0, classWarnings: 1, Vai_tro: 'THAM_GIA_CHINH' },
+    ]), 'Import');
+    return { name, arrayBuffer: async () => XLSX.write(workbook, { type: 'array', bookType: 'xlsx' }) };
+  };
+
+  function find(tree, predicate) {
+    if (Array.isArray(tree)) {
+      for (const child of tree) {
+        const match = find(child, predicate);
+        if (match) return match;
+      }
+      return undefined;
+    }
+    if (!tree?.props) return undefined;
+    return predicate(tree) ? tree : find(tree.props.children, predicate);
+  }
+
+  function setup(api) {
+    const terms = ['term-A', 'term-B'].map(id => ({ id, evidenceBasisWorkflowEnabled: true }));
+    let termId = terms[0].id;
+    const parser = loadRealComponent('../src/lib/groundingImportValues.ts');
+    const { ImportGroundingData } = loadRealComponent('../src/pages/officer/ImportGroundingData.tsx', {
+      'react-router-dom': { useSearchParams: () => [new URLSearchParams({ termId })] },
+      AuthContext: { useAuth: () => ({ activeTerm: terms[0], terms }) },
+      apiClient: { apiClient: api },
+      groundingImportValues: parser,
+    });
+    let workspace;
+    let key;
+    function navigate(nextTermId) {
+      termId = nextTermId;
+      const view = ImportGroundingData();
+      assert.equal(view.key, nextTermId);
+      if (view.key !== key) {
+        workspace?.unmount();
+        workspace = createReactHarness();
+        workspace.mount(() => view.type(view.props));
+        key = view.key;
+      }
+      return workspace;
+    }
+    return { navigate };
+  }
+
+  const preview = termId => ({ termId, totalRows: 1, validCount: 1, previewItems: [] });
+  const upload = (workspace, name) => find(workspace.getVdom(), node => node.type === 'input' && node.props.type === 'file')
+    .props.onChange({ target: { files: [file(name)] } });
+  const confirmation = workspace => find(workspace.getVdom(), node =>
+    node.type === 'button' && React.Children.toArray(node.props.children).some(child => typeof child === 'string' && child.includes('Xác nhận nhập')));
+
+  test('previewed file is cleared on A → B, then retry confirms the new session with the same key', async () => {
+    const calls = [];
+    const { navigate } = setup({
+      previewGroundingImport: async body => preview(body.termId),
+      confirmGroundingImport: async body => {
+        calls.push(body);
+        if (calls.length === 1) throw new Error('Mất kết nối');
+        return { batchId: 'batch-B', validRows: 1 };
+      },
+      listGroundingBatches: async () => [],
+    });
+    const a = navigate('term-A');
+    await upload(a, 'a.xlsx');
+    await a.flush();
+    const oldConfirm = confirmation(a);
+    assert.ok(oldConfirm);
+    const b = navigate('term-B');
+    await oldConfirm.props.onClick();
+    assert.equal(confirmation(b), undefined);
+    assert.deepEqual(calls, []);
+
+    await upload(b, 'b.xlsx');
+    await b.flush();
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await confirmation(b).props.onClick();
+      await b.flush();
+    }
+    assert.equal(calls.length, 2);
+    assert.deepEqual(calls[0], calls[1]);
+    assert.match(calls[0].idempotencyKey, /^batch_/);
+    assert.equal(calls[0].termId, 'term-B');
+    assert.equal(calls[0].previewTermId, 'term-B');
+    assert.equal(calls[0].rows[0].studentCode, studentCode);
+    b.unmount();
+  });
+
+  test('late preview A is ignored after navigation while preview B is usable', async () => {
+    const lateA = createDeferred();
+    const calls = [];
+    const { navigate } = setup({
+      previewGroundingImport: body => {
+        calls.push(body);
+        return body.termId === 'term-A' ? lateA.promise : Promise.resolve(preview(body.termId));
+      },
+    });
+    const a = navigate('term-A');
+    const pendingA = upload(a, 'a.xlsx');
+    await a.flush();
+    assert.equal(calls[0].termId, 'term-A');
+    const b = navigate('term-B');
+    await upload(b, 'b.xlsx');
+    await b.flush();
+    lateA.resolve(preview('term-A'));
+    await pendingA;
+    await b.flush();
+    assert.equal(confirmation(a), undefined);
+    assert.ok(confirmation(b));
+    assert.deepEqual(calls.map(body => [body.termId, body.rows[0].studentCode]), [
+      ['term-A', studentCode], ['term-B', studentCode],
+    ]);
+    b.unmount();
+  });
+
+  test('changing activity or selecting a replacement file invalidates outstanding previews', async () => {
+    const oldActivity = createDeferred();
+    const oldFile = createDeferred();
+    const requests = [];
+    const { navigate } = setup({
+      getActivities: async () => [{ id: 'activity-1', name: 'Hoạt động 1' }, { id: 'activity-2', name: 'Hoạt động 2' }],
+      previewGroundingImport: body => {
+        requests.push(body);
+        if (requests.length === 1) return oldActivity.promise;
+        if (requests.length === 2) return oldFile.promise;
+        return Promise.resolve(preview(body.termId));
+      },
+    });
+    const workspace = navigate('term-A');
+    find(workspace.getVdom(), node => node.type === 'div' && node.key === 'ACTIVITY').props.onClick();
+    await workspace.flush();
+    const first = upload(workspace, 'activity-1.xlsx');
+    await workspace.flush();
+    find(workspace.getVdom(), node => node.type === 'select' && node.props.value === 'activity-1')
+      .props.onChange({ target: { value: 'activity-2' } });
+    await workspace.flush();
+    oldActivity.resolve(preview('term-A'));
+    await first;
+    assert.equal(confirmation(workspace), undefined);
+
+    const second = upload(workspace, 'old.xlsx');
+    await workspace.flush();
+    await upload(workspace, 'replacement.xlsx');
+    await workspace.flush();
+    oldFile.reject(new Error('Lỗi từ file đã thay thế'));
+    await second;
+    await workspace.flush();
+    assert.ok(confirmation(workspace));
+    assert.equal(find(workspace.getVdom(), node => node.props.children === 'Lỗi từ file đã thay thế'), undefined);
+    assert.deepEqual(requests.map(body => [body.activityId, body.source]), [
+      ['activity-1', 'activity-1.xlsx'], ['activity-2', 'old.xlsx'], ['activity-2', 'replacement.xlsx'],
+    ]);
+    workspace.unmount();
   });
 });
 

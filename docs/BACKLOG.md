@@ -33,6 +33,9 @@ P0 là thứ tự xử lý đề xuất trước bàn giao; P1 tiếp theo; P2 c
 | [BL-007](BUSINESS_LOGIC_AUDIT.md#bl-007) | P0 / High | Confirmed | Done | [F06](features/06-evidence-and-storage.md) | Lỗi ký URL xóa tệp đã commit vào DB; tách 3 bước upload/commit/ký, lỗi ký không xóa Storage, đạt 6/6 test regression trong data-protection.test.cjs |
 | [BL-009](BUSINESS_LOGIC_AUDIT.md#bl-009) | P0 / High | Confirmed | Done | [F01](features/01-accounts-and-access.md) | JWT secret được đọc trước khi ConfigModule nạp .env; dùng registerAsync + getJwtSecret, đạt 4/4 ca Passport test |
 | [BL-026](BUSINESS_LOGIC_AUDIT.md#bl-026) | P0 / High | Potential | In Progress / Potential | [F06](features/06-evidence-and-storage.md) | Xóa minh chứng/tệp có khoảng đua với nộp phiếu; bọc khóa Term qua studentEdit, đọc file trong lock, đạt 5/5 test đối chứng trong data-protection.test.cjs, chờ test PostgreSQL đa kết nối |
+| [BL-028](BUSINESS_LOGIC_AUDIT.md#bl-028) | P0 / High | Confirmed | Done | F07/F15 | Cùng chính sách chốt dưới khóa Term. Regression HTTP và đối chiếu trạng thái DB đạt. |
+| [BL-029](BUSINESS_LOGIC_AUDIT.md#bl-029) | P0 / High | Confirmed | Done | F15 | Phiên UI gắn ngữ cảnh, API buộc cùng kỳ và replay đúng kỳ. Regression Web và PostgreSQL đạt. |
+| [BL-036](BUSINESS_LOGIC_AUDIT.md#bl-036) | P0 / High | Confirmed | Đã kiểm chứng bootstrap PG17, deploy một bước còn mở | Docker local, Prisma | Đủ 14 migration và integration trên PG17 theo quy trình hai bước. Deploy trực tiếp từ DB trống vẫn gặp P1014. |
 | [BL-003](BUSINESS_LOGIC_AUDIT.md#bl-003) | P1 / High | Confirmed | Resolved | [F04](features/04-rubrics-and-scoring.md) | Tiêu chí nhóm mặc định thiếu baseScore; đã bổ sung baseScore: 3, validateScoringConfig và kiểm chứng trong scoring-and-validation.test.cjs |
 | [BL-004](BUSINESS_LOGIC_AUDIT.md#bl-004) | P1 / High | Confirmed | Resolved | [F04](features/04-rubrics-and-scoring.md), [F07](features/07-evidence-review-and-verification.md) | leadershipRole gửi chuỗi làm điểm chức vụ bằng 0; đã đồng bộ boolean Web/Backend và kiểm chứng trong scoring-and-validation.test.cjs |
 | [BL-005](BUSINESS_LOGIC_AUDIT.md#bl-005) | P1 / High | Confirmed | Resolved | [F07](features/07-evidence-review-and-verification.md), [F08](features/08-activities-and-attendance.md) | Bộ tổng hợp hoạt động chung: chuẩn hóa alias vai trò; không fallback sang PARTICIPANT hoặc 0; thiếu vai trò báo blocker NEEDS_VERIFICATION; gộp cùng activityId, ưu tiên vai trò attendance CONFIRMED; tự động tính lại tiêu chí và vô hiệu hóa officialScore cũ; kiểm chứng 6 ca trong activity-and-roles-scoring.test.cjs |
@@ -61,7 +64,7 @@ P0 là thứ tự xử lý đề xuất trước bàn giao; P1 tiếp theo; P2 c
 |---|---|---|
 | DOC-001 | Done | Tập trung docs, 14 feature spec, template, audit/backlog và quy trình AGENTS; kiểm chứng tài liệu ghi tại CHANGELOG |
 | QA-001 | Open | Chuyển các tái hiện in-memory của audit thành regression có thể chạy lại; không coi 23 ca cũ là suite đã được lưu |
-| QA-002 | Open | Rà fixture startDate rồi chuẩn bị DB localhost _test riêng và browser harness; chỉ chạy khi phạm vi công việc cho phép ghi fixture |
+| QA-002 | Một phần | Fixture Activity và hai suite PostgreSQL local đã kiểm chứng. Browser harness chưa chạy. |
 | QA-003 | Open | Kiểm chứng Storage cleanup, signing và quyền bucket trên môi trường thử nghiệm được cho phép |
 | QA-004 | Open | Kiểm chứng AI timeout, lease/recovery và response muộn với pipeline giả/cách ly trước pipeline thật |
 | REQ-001 | Open | Chốt Q-01…Q-09 trong DECISIONS với người có thẩm quyền; không biến giả định thành yêu cầu |

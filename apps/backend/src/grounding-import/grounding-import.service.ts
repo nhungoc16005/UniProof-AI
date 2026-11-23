@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { GroundingStatus, ImportBatchStatus, ImportBatchType, Prisma, Role, TermStatus } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { WorkflowActor, WorkflowService } from '../evaluation-workflow/workflow.service';
@@ -363,6 +363,12 @@ export class GroundingImportService {
    * Chạy trong transaction, kiểm tra lại điều kiện và hỗ trợ idempotency.
    */
   async confirm(actor: WorkflowActor, dto: ConfirmGroundingImportDto) {
+    if (!dto.previewTermId || dto.previewTermId !== dto.termId) {
+      throw new BadRequestException({
+        code: 'GROUNDING_PREVIEW_TERM_MISMATCH',
+        message: 'Kỳ xác nhận khác kỳ đã xem trước. Hãy xem trước lại tệp cho kỳ này.',
+      });
+    }
     await this.assertStaffFacultyScope(actor, dto.termId);
 
     const source = dto.source?.trim() || 'File tải lên';
@@ -382,8 +388,10 @@ export class GroundingImportService {
         if (dto.idempotencyKey) {
           const existing = await tx.importBatch.findUnique({
             where: { idempotencyKey: dto.idempotencyKey },
-            include: { importedBy: { select: { fullName: true } } },
           });
+          if (existing && existing.termId !== dto.termId) {
+            throw new ConflictException('Khóa xác nhận đã được sử dụng cho kỳ khác. Hãy xem trước lại tệp.');
+          }
           if (existing && existing.status === ImportBatchStatus.ACTIVE) {
             return {
               idempotencyReplay: true,

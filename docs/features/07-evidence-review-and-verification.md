@@ -27,7 +27,7 @@ Luồng: ReviewQueue / ReviewDetail / StudentAssessment → ReviewsController, A
 - **F07-AC-02:** Khóa còn hiệu lực của cán bộ khác và version xung đột phải bị chặn.
 - **F07-AC-03:** Duyệt minh chứng không tự ghi officialScore.
 - **F07-AC-04:** Thay đổi kết luận minh chứng làm mất hiệu lực điểm tiêu chí cũ.
-- **F07-AC-05:** Chốt điểm cần dữ liệu đủ, ghi chú xác minh và lý do; ADMIN không chấm trong workflow mới.
+- **F07-AC-05:** Chốt điểm cần dữ liệu đủ, ghi chú xác minh và lý do. Trong workflow mới chỉ `STAFF` đúng Khoa theo snapshot được chốt. Chốt tiêu chí, từng phiếu và hàng loạt dùng chung kiểm tra quyền dưới khóa `Term`.
 - **F07-AC-06:** Yêu cầu bổ sung hiển thị đúng missingItem và deadline lưu trong DB.
 
 Các tiêu chí có gap audit là điều kiện cần đạt khi sửa, không phải tuyên bố hành vi hiện tại đã đúng. Chính sách chưa rõ theo [DECISIONS](../DECISIONS.md).
@@ -84,7 +84,7 @@ Lỗi validation/nghiệp vụ phải hiển thị lý do từ server; 401 yêu 
 | F07-TC-02 | Kiểm chứng: khóa còn hiệu lực của cán bộ khác và version xung đột phải bị chặn | F07-AC-02 | Planned |
 | F07-TC-03 | Kiểm chứng: duyệt minh chứng không tự ghi officialScore | F07-AC-03 | Planned |
 | F07-TC-04 | Kiểm chứng: thay đổi kết luận minh chứng làm mất hiệu lực điểm tiêu chí cũ | F07-AC-04 | Planned |
-| F07-TC-05 | Kiểm chứng: chốt điểm cần dữ liệu đủ, ghi chú xác minh và lý do; ADMIN không chấm trong workflow mới | F07-AC-05 | Planned |
+| F07-TC-05 | Kiểm chứng dữ liệu và quyền chốt trên ba đường chốt trong workflow mới | F07-AC-05; BL-028 | Phân quyền và khóa trạng thái đã đạt HTTP/PostgreSQL, có đối chiếu DB trước/sau khi từ chối. |
 | F07-TC-06 | Kiểm chứng: yêu cầu bổ sung hiển thị đúng missingItem và deadline lưu trong DB | F07-AC-06 | Planned |
 | F07-TC-07 | BL-004: leadershipRole gửi boolean hợp lệ, giao diện hiển thị Có/Không, backend nhận boolean và tính đúng điểm tiêu chí 14/16 | BL-004; F07-AC-05 | Verified in `scoring-and-validation.test.cjs` |
 | F07-TC-08 | BL-017: Dữ liệu xác minh counter âm/thập phân/chuỗi rác, boolean sai kiểu bị chặn bởi validateVerifiedData trước transaction DB | BL-017; F07-AC-05 | Verified in `scoring-and-validation.test.cjs` |

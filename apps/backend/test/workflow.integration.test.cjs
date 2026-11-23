@@ -7,7 +7,7 @@ if (!url) {
   test('workflow integration requires TEST_DATABASE_URL (isolated test DB)', { skip: true }, () => {});
 } else {
   const parsed = new URL(url);
-  if (!['localhost','127.0.0.1'].includes(parsed.hostname) || !parsed.pathname.includes('_test')) throw new Error('Only an explicit local *_test database is accepted');
+  if (!['localhost','127.0.0.1'].includes(parsed.hostname) || !parsed.pathname.endsWith('_test')) throw new Error('Only an explicit local *_test database is accepted');
   process.env.DATABASE_URL = url;
   process.env.DIRECT_URL = url;
   process.env.JWT_SECRET = 'edupoint-integration-only-secret';
@@ -72,7 +72,7 @@ if (!url) {
       await okay(admin,'DELETE','/classes/'+cls.id);
       await okay(admin,'PATCH','/faculties/'+faculty.id,{name:'Khoa đã cập nhật'});
       await okay(admin,'DELETE','/faculties/'+faculty.id);
-      const account=await okay(admin,'POST','/users',{email:'crud-'+suffix+'@test.invalid',fullName:'Cán bộ CRUD',role:'STAFF',facultyId:facultyA.id});
+      const { user: account }=await okay(admin,'POST','/users',{email:'crud-'+suffix+'@test.invalid',fullName:'Cán bộ CRUD',role:'STAFF',facultyId:facultyA.id});
       await okay(admin,'DELETE','/users/'+account.id);
       assert.equal((await prisma.user.findUnique({where:{id:account.id}})).isActive,false);
       const imported=await okay(admin,'POST','/users/import',{users:[{email:'import-'+suffix+'@test.invalid',fullName:'Sinh viên import',role:'STUDENT',studentCode:'IMP'+suffix,classId:clsA.id}]});
@@ -138,7 +138,7 @@ if (!url) {
       assert.equal((await okay(staffA,'GET',`/reviews/queue?termId=${term.id}`)).length,1);
     });
     await t.test('activity CRUD and attendance use frozen enrollment and audit',async()=>{
-      const activity=await okay(staffA,'POST','/activities',{termId:term.id,criterionId:criterion.id,name:'Hoạt động kiểm thử',type:'INTERNAL',organizer:'Khoa A'});
+      const activity=await okay(staffA,'POST','/activities',{termId:term.id,criterionId:criterion.id,name:'Hoạt động kiểm thử',type:'INTERNAL',organizer:'Khoa A',startDate:new Date().toISOString()});
       const participant=await okay(staffA,'POST',`/activities/${activity.id}/attendance`,{studentCode:studentA.studentCode,formRole:'THAM_GIA_CHINH'});
       assert.equal((await request(staffB,'GET',`/activities/${activity.id}/attendance`)).status,403);
       assert.equal((await okay(staffA,'GET',`/activities/${activity.id}/attendance`)).length,1);
@@ -191,6 +191,71 @@ if (!url) {
       await okay(owner,'POST',`/evidence/${evidenceA.id}/review`,{action:'APPROVED',comment:'Đã kiểm tra'});
       assert.equal((await prisma.review.count({where:{evidenceId:evidenceA.id,decision:'APPROVED'}})),1);
     });
+    await t.test('BL-028: all finalization routes share the locked faculty policy', async () => {
+      const assessmentPath = '/assessments/students/' + studentA.id + '/' + term.id;
+      const studentIds = [studentA.id, studentB.id];
+      const handoffWhere = { studentId_termId: { studentId: studentA.id, termId: term.id } };
+      const verify = () => okay(staffA, 'PUT', assessmentPath + '/' + criterion.id + '/verification', {
+        data: { officialScore: 85 }, note: 'Kiểm chứng quyền chốt điểm',
+      });
+      await verify();
+      await okay(staffB, 'PUT', '/assessments/students/' + studentB.id + '/' + term.id + '/' + criterion.id + '/verification', {
+        data: { officialScore: 70 }, note: 'Kiểm chứng quyền chốt điểm',
+      });
+
+      const readState = () => prisma.$transaction([
+        prisma.criterionAssessment.findMany({ where: { termId: term.id }, orderBy: { id: 'asc' } }),
+        prisma.assessmentHandoff.findMany({ where: { termId: term.id }, orderBy: { id: 'asc' } }),
+        prisma.assessmentPublication.count({ where: { termId: term.id } }),
+        prisma.auditLog.count(),
+      ]);
+      const rejectAll = async (actor, expectedStatus, batchStatus, message) => {
+        const before = await readState();
+        assert.equal((await request(actor, 'PUT', assessmentPath + '/' + criterion.id + '/final', {})).status, expectedStatus);
+        assert.equal((await request(actor, 'POST', assessmentPath + '/finalize')).status, expectedStatus);
+        const batch = await request(actor, 'POST', '/assessments/batch-finalize', { termId: term.id, studentIds: [studentA.id] });
+        assert.equal(batch.status, batchStatus);
+        if (batchStatus === 201) {
+          assert.equal(batch.body.data.successCount, 0);
+          assert.equal(batch.body.data.failureCount, 1);
+          assert.match(batch.body.data.results[0].blockers[0], message);
+        }
+        assert.deepEqual(await readState(), before);
+      };
+      await rejectAll(admin, 403, 201, /Chỉ cán bộ Khoa/);
+      await rejectAll(staffB, 403, 201, /ngoài Khoa/);
+      await rejectAll(studentA, 403, 403);
+
+      try {
+        for (const status of ['SENT', 'EXCLUDED']) {
+          await prisma.assessmentHandoff.update({ where: handoffWhere, data: { status } });
+          await rejectAll(staffA, 400, 201, /đã gửi CTSV/);
+        }
+      } finally {
+        await prisma.assessmentHandoff.update({ where: handoffWhere, data: { status: 'WORKING' } });
+      }
+      try {
+        await prisma.term.update({ where: { id: term.id }, data: { status: 'CLOSED' } });
+        await rejectAll(staffA, 400, 400);
+      } finally {
+        await prisma.term.update({ where: { id: term.id }, data: { status: 'ACTIVE' } });
+      }
+
+      assert.equal((await okay(staffA, 'PUT', assessmentPath + '/' + criterion.id + '/final', {})).status, 'FINALIZED');
+      await verify();
+      assert.equal((await okay(staffA, 'POST', assessmentPath + '/finalize')).finalizedCount, 1);
+      await verify();
+      const mixed = await okay(staffA, 'POST', '/assessments/batch-finalize', { termId: term.id, studentIds });
+      assert.equal(mixed.successCount, 1);
+      assert.equal(mixed.failureCount, 1);
+      assert.deepEqual(mixed.results.map(row => [row.studentId, row.success]), [[studentA.id, true], [studentB.id, false]]);
+      const [assessments, handoffs, publications] = await readState();
+      assert.equal(assessments.find(row => row.studentId === studentA.id).officialScore, 85);
+      assert.equal(assessments.find(row => row.studentId === studentB.id).officialScore, null);
+      assert.equal(handoffs.find(row => row.studentId === studentA.id).status, 'WORKING');
+      assert.equal(publications, 0);
+    });
+
     const score = async(actor,student,n)=>{
       await okay(actor,'PUT',`/assessments/students/${student.id}/${term.id}/${criterion.id}/verification`,{data:{officialScore:n},note:'Văn bản kiểm thử'});
       await okay(actor,'PUT',`/assessments/students/${student.id}/${term.id}/${criterion.id}/final`,{score:n});
@@ -261,6 +326,62 @@ if (!url) {
       const result=await okay(staffB,'GET',`/evaluation-workflow/${legacy.id}`);
       assert.equal(result.total,0);
       assert.equal((await request(staffB,'POST',`/evaluation-workflow/${legacy.id}/send`,{studentIds:[studentA.id]})).status,400);
+    });
+    await t.test('BL-029: confirm requires the preview term and replay stays in that term', async () => {
+      const createImportTerm = async label => {
+        const importTerm = await prisma.term.create({ data: {
+          code: 'IMPORT' + label + suffix, name: 'Kỳ import ' + label,
+          startDate: term.startDate, endDate: term.endDate, submissionDeadline: term.submissionDeadline,
+          reviewDeadline: term.reviewDeadline, appealDeadline: term.appealDeadline,
+          status: 'REVIEWING', workflowEnabled: true, evidenceBasisWorkflowEnabled: true,
+        } });
+        const version = await prisma.rubricVersion.create({ data: { termId: importTerm.id, status: 'PUBLISHED' } });
+        await prisma.criterion.create({ data: {
+          rubricVersionId: version.id, code: '1', name: 'Điểm chuyên cần', description: 'Fixture',
+          maxScore: 6, scoringConfig: { kind: 'attendance_penalty', requiredData: ['examBans', 'classWarnings'], baseScore: 6, examBanPenalty: 3, warningPenalty: 1 },
+        } });
+        await prisma.assessmentHandoff.create({ data: {
+          studentId: studentA.id, termId: importTerm.id, rubricVersionId: version.id,
+          classId: clsA.id, facultyId: facultyA.id,
+        } });
+        return importTerm.id;
+      };
+      const termA = await createImportTerm('A');
+      const termB = await createImportTerm('B');
+      const importer = await user('STAFF', 'Cán bộ nhập dữ liệu', { facultyId: facultyA.id });
+      const payload = {
+        type: 'ACADEMIC',
+        source: 'test.xlsx',
+        rows: [{ studentCode: studentA.studentCode, criterionCode: '1', data: { examBans: 0, classWarnings: 1 } }],
+      };
+      const previewA = await okay(importer, 'POST', '/grounding-import/preview', { ...payload, termId: termA });
+      const previewB = await okay(importer, 'POST', '/grounding-import/preview', { ...payload, termId: termB });
+      assert.equal(previewA.validCount, 1);
+      assert.equal(previewB.validCount, 1);
+      const where = { termId: { in: [termA, termB] } };
+      const counts = () => prisma.$transaction([
+        prisma.importBatch.count({ where }),
+        prisma.academicGrounding.count({ where }),
+        prisma.criterionAssessment.count({ where }),
+        prisma.auditLog.count({ where: { userId: importer.id } }),
+      ]);
+      const route = '/grounding-import/confirm';
+      const idempotencyKey = randomUUID();
+      assert.equal((await request(importer, 'POST', route, { ...payload, termId: termB })).status, 400);
+      const mismatch = await request(importer, 'POST', route, { ...payload, termId: termB, previewTermId: previewA.termId, idempotencyKey });
+      assert.equal(mismatch.status, 400);
+      assert.equal(mismatch.body.error.code, 'GROUNDING_PREVIEW_TERM_MISMATCH');
+      assert.deepEqual(await counts(), [0, 0, 0, 0]);
+
+      const confirm = { ...payload, termId: termA, previewTermId: previewA.termId, idempotencyKey };
+      const imported = await okay(importer, 'POST', route, confirm);
+      const replay = await okay(importer, 'POST', route, confirm);
+      assert.equal(replay.batchId, imported.batchId);
+      assert.equal(replay.idempotencyReplay, true);
+      const wrongReplay = await request(importer, 'POST', route, { ...confirm, termId: termB, previewTermId: previewB.termId });
+      assert.equal(wrongReplay.status, 409);
+      assert.deepEqual(await counts(), [1, 1, 1, 1]);
+      assert.equal((await prisma.importBatch.findUniqueOrThrow({ where: { id: imported.batchId } })).termId, termA);
     });
   });
 }

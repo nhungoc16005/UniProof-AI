@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # 1. PostgreSQL Database with pgvector extension (for RAG embedding & EduPoint data)
   postgres:
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector:pg17
     container_name: edupoint-postgres
     restart: always
     environment:
@@ -13,7 +13,8 @@ services:
     ports:
       - '5432:5432'
     volumes:
-      - edupoint_postgres_data:/var/lib/postgresql/data
+      - edupoint_postgres17_data:/var/lib/postgresql/data
+      - ./apps/backend/prisma/init-local-postgres.sql:/docker-entrypoint-initdb.d/01-vector.sql:ro
 
   # 2. Redis Cache & Job Queue (for BullMQ async OCR/AI pipeline)
   redis:
@@ -26,5 +27,5 @@ services:
       - edupoint_redis_data:/data
 
 volumes:
-  edupoint_postgres_data:
+  edupoint_postgres17_data:
   edupoint_redis_data:

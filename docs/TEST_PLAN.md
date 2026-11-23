@@ -1,5 +1,30 @@
 # Kế hoạch kiểm chứng EduPoint
 
+## 2026-11-23 — Regression P0 trên PostgreSQL 17
+
+- PostgreSQL Docker 17.12, pgvector trong `public`. Deploy trực tiếp từ DB trống gặp Prisma `P1014` ở baseline. Quy trình bên dưới áp dụng nguyên văn baseline rồi deploy 13 migration còn lại. Prisma báo đủ 14 migration và schema up to date.
+- `workflow.integration.test.cjs` và `grounding-db.integration.test.cjs` đạt **17/17 ca theo Node**, không bỏ qua. BL-028 đối chiếu dữ liệu và audit trước/sau ở cả ba đường chốt, có lô thành công một phần. BL-029 kiểm hai kỳ có cùng MSSV, từ chối thiếu/lệch kỳ, replay đúng kỳ và xung đột khóa khác kỳ. Sửa fixture `startDate`, response tạo tài khoản và trạng thái kỳ grounding để hai suite chạy độc lập.
+- `grounding-import-and-batch-finalize.test.cjs` và `grounding-import-values.test.cjs` đạt **27/27**. `score-report-and-evidence-list.test.cjs` đạt **7/7**, gồm ba ca dùng component nhập thật và workbook giả lập trong bộ nhớ để kiểm đổi kỳ, preview trả muộn, thay hoạt động/file và retry.
+- Typecheck Backend/Web và `git diff --check` đạt. Kiểm nguồn xác nhận batch dùng cùng transaction để khóa hàng `Term`, kiểm quyền, ghi điểm và audit. Chưa chạy browser E2E, Storage hoặc pipeline ngoài.
+
+<a id="postgresql-17-local"></a>
+
+## Dựng PostgreSQL 17 local
+
+Compose khởi tạo `pgvector/pgvector:pg17` với volume riêng và chạy [SQL bật extension vector](../apps/backend/prisma/init-local-postgres.sql) cho DB mặc định. Với DB test tạo riêng, chạy cùng SQL trong DB đó trước khi áp dụng baseline.
+
+Với **DB local mới**, trỏ cả `DATABASE_URL` và `DIRECT_URL` vào cùng DB. Để chạy integration, đặt tên DB kết thúc bằng `_test` và đặt `TEST_DATABASE_URL` trỏ cùng địa chỉ localhost. Chạy các bước sau từ `apps/backend` sau khi đã đặt biến môi trường.
+
+```sh
+psql "$DIRECT_URL" -v ON_ERROR_STOP=1 --single-transaction -f prisma/migrations/20261018000000_baseline_existing_supabase/migration.sql
+./node_modules/.bin/prisma migrate resolve --applied 20261018000000_baseline_existing_supabase
+./node_modules/.bin/prisma migrate deploy
+./node_modules/.bin/prisma migrate status
+AI_PIPELINE_URL= node --test --test-concurrency=1 test/workflow.integration.test.cjs test/grounding-db.integration.test.cjs
+```
+
+Baseline đặt `search_path` thành rỗng trong session. Trên PG17 và Prisma 5.22, chạy `migrate deploy` trực tiếp từ DB rỗng đã gặp `P1014` ở `_prisma_migrations`. Áp dụng baseline trong session `psql` riêng rồi ghi nhận bằng Prisma cho phép chạy các migration còn lại và bảo toàn checksum. Chỉ áp dụng bước baseline cho DB local mới. Nếu lần chạy một bước đã thất bại, dùng DB test mới để làm lại quy trình.
+
 ## 2026-11-17 — Regression sửa F15
 
 - `grounding-import-values.test.cjs` kiểm tra trực tiếp parser FE và validator BE: ô trống giữ thiếu, giá trị sai không biến thành điểm/dữ liệu hợp lệ.

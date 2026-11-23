@@ -21,6 +21,7 @@ const { GroundingImportService } = require('../src/grounding-import/grounding-im
 const { AssessmentsService } = require('../src/assessments/assessments.service');
 const { ActivitiesService } = require('../src/activities/activities.service');
 const { CriteriaService } = require('../src/criteria/criteria.service');
+const { WorkflowService } = require('../src/evaluation-workflow/workflow.service');
 
 // ============================================================================
 // TEST SUITE: PHASE 1 — CĂN CỨ CHẤM ĐIỂM, IMPORT EXCEL & CHỐT PHIẾU HÀNG LOẠT
@@ -560,6 +561,7 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
         type: ImportBatchType.ACADEMIC,
         source: 'HocVu.xlsx',
         idempotencyKey: 'idemp-test-1',
+        previewTermId: 'term-1',
         validRows: [{ studentCode: '102210001', criterionCode: '1', data: { examBans: 0, classWarnings: 0 } }],
       }
     );
@@ -576,6 +578,7 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
         type: ImportBatchType.ACADEMIC,
         source: 'HocVu.xlsx',
         idempotencyKey: 'idemp-test-1',
+        previewTermId: 'term-1',
         validRows: [{ studentCode: '102210001', criterionCode: '1', data: { examBans: 0, classWarnings: 0 } }],
       }
     );
@@ -659,6 +662,7 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
       { id: 'staff-1', role: Role.STAFF, facultyId: 'fac-cntt' },
       {
         termId: 'term-1',
+        previewTermId: 'term-1',
         type: ImportBatchType.ACADEMIC,
         source: 'HocVu.xlsx',
         validRows: [{ studentCode: '102210001', criterionCode: '1', data: { examBans: 0, classWarnings: 1 } }],
@@ -1088,10 +1092,7 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
     data.handoffs.set('sv-2:term-1', { studentId: 'sv-2', termId: 'term-1', facultyId: 'fac-cntt', status: 'WORKING' });
     // Chưa có submission
 
-    const mockWorkflow = {
-      scope: async () => {},
-    };
-    const assessmentsService = new AssessmentsService(prisma, mockWorkflow, {});
+    const assessmentsService = new AssessmentsService(prisma, new WorkflowService(prisma, {}), {});
 
     const batchRes = await assessmentsService.batchFinalizeAssessments(
       { id: 'staff-1', role: Role.STAFF, facultyId: 'fac-cntt' },
@@ -1172,6 +1173,7 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
     // Confirm gửi 3 dòng: dòng 1 hợp lệ, dòng 2 sai Khoa theo snapshot kỳ, dòng 3 sai schema
     const result = await groundingService.confirm(actorStaff, {
       termId: 'term-1',
+      previewTermId: 'term-1',
       type: ImportBatchType.ACADEMIC,
       source: 'Test_Import.xlsx',
       validRows: [

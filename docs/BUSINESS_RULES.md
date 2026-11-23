@@ -168,7 +168,7 @@ Workflow UI có 8 state suy diễn từ submission, handoff, pending evidence/ap
 ### R-15 — Xác minh rồi chốt tiêu chí
 
 - **Căn cứ:** AssessmentsService + workflow.edit; [nguồn](../apps/backend/src/assessments/assessments.service.ts#L328).
-- **Tiền điều kiện/quyền:** STAFF trong workflow mới, chưa gửi/khóa, note không trắng, dữ liệu chính thức đủ.
+- **Tiền điều kiện/quyền:** Trong workflow mới, chốt tiêu chí, chốt phiếu và chốt hàng loạt đều kiểm tra quyền `STAFF` theo Khoa snapshot và trạng thái phiếu/kỳ dưới khóa `Term` trong transaction ghi. Cần dữ liệu chính thức đủ và ghi chú xác minh.
 - **Hậu điều kiện và chuyển trạng thái:** NEEDS_VERIFICATION→READY_FOR_REVIEW→FINALIZED; ghi người chốt/lý do; minh chứng thay đổi hoặc attendance đổi phải xóa officialScore cũ.
 - **Bất biến/ca biên/gap:** Trạng thái trung gian không là tự phê duyệt; hợp nhất nguồn hoạt động Q-01; route chấm /class bị từ chối.
 
@@ -302,6 +302,7 @@ Workflow UI có 8 state suy diễn từ submission, handoff, pending evidence/ap
   4. **Thu hồi lô (Batch Revoke):** Chặn toàn bộ nếu có bất kỳ sinh viên nào trong lô đã bị chốt điểm (`FINALIZED`), phiếu đã gửi CTSV (`SENT`), đã có publication hoặc kỳ đã đóng (`CLOSED`). Khi thu hồi thành công, chuyển trạng thái lô sang `REVOKED` và tự động tính toán lại điểm gợi ý.
 - **Bất biến/ca biên:**
   - MSSV dạng text luôn bảo toàn số 0 ở đầu (`"0102210001"`).
+  - Xác nhận import phải dùng cùng kỳ với kết quả xem trước. Đổi ngữ cảnh yêu cầu xem trước lại.
   - Không suy diễn từ dữ liệu trống: ô trống = "Chưa có dữ liệu" (giữ chờ).
   - Không ghi đè điểm chính thức của tiêu chí đã `FINALIZED`.
 

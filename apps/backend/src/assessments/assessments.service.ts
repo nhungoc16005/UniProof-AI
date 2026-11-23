@@ -7,7 +7,6 @@ import { evaluateRubricCriterion } from '../criteria/rubric-scoring';
 import { DeadlineExtensionsService } from '../deadline-extensions/deadline-extensions.service';
 import { aggregateStudentActivitySources } from '../activities/activity-aggregator';
 import { unresolvedEvidenceStatuses } from '../evaluation-workflow/evaluation-policy';
-import { lockTerm } from '../evaluation-workflow/workflow-lock.helper';
 
 export function validateVerifiedData(config: Record<string, unknown> | null, data: Record<string, unknown>, maxScore: number): void {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
@@ -902,12 +901,7 @@ export class AssessmentsService {
         // Mỗi phiếu xử lý trong một transaction độc lập (Rule 6)
         const outcome = await this.prisma.$transaction(
           async (tx) => {
-            const term = await lockTerm(tx, termId);
-            if (term.status === TermStatus.CLOSED) {
-              throw new BadRequestException('Kỳ đã đóng');
-            }
-
-            await this.workflow.scope(staff, studentId, termId, tx);
+            await this.workflow.assertEditable(tx, staff, studentId, termId);
 
             const handoff = await tx.assessmentHandoff.findUnique({
               where: { studentId_termId: { studentId, termId } },

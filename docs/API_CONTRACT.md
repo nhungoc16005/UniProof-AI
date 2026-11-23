@@ -97,6 +97,9 @@ Pipeline ngoài backend gọi `POST <AI_PIPELINE_URL>/evidence/process`, có th�
 
 ## Lỗi và route giới hạn
 
+- Ba đường chốt điểm dùng chung quyền ghi theo kỳ. Với `workflowEnabled=true`, chỉ `STAFF` đúng Khoa theo snapshot được chốt. Batch giữ kết quả theo từng phiếu, kể cả khi một phiếu bị từ chối.
+- `POST /api/grounding-import/confirm` yêu cầu `previewTermId` lấy từ `data.termId` của response preview. Thiếu trường trả 400 validation, lệch kỳ trả 400 `GROUNDING_PREVIEW_TERM_MISMATCH`. Dùng lại khóa idempotency đã gắn với kỳ khác trả 409.
+
 [HttpExceptionFilter](../apps/backend/src/common/filters/http-exception.filter.ts) ánh xạ 400 validation/nghiệp vụ, 401 xác thực, 403 phạm vi/quyền, 404 không tìm thấy, 409 trùng/xung đột, 429 giới hạn theo endpoint, 503 dịch vụ chưa sẵn sàng, 500 nội bộ. Prisma P2002→409, P2025→404, P2003→400; không trả raw query.
 
 - `POST /auth/forgot-password` hiện trả503; không có controller reset-password hoàn chỉnh. Web /reset-password redirect về forgot.

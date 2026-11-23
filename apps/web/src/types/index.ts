@@ -127,7 +127,7 @@ export interface GroundingImportBatch {
 }
 
 export interface PreviewImportResult {
-  termId?: string;
+  termId: string;
   type?: string;
   source?: string;
   totalRows: number;

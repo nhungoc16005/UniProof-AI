@@ -830,7 +830,7 @@ export const apiClient = {
     return res.data.data;
   },
 
-  async confirmGroundingImport(data: { termId: string; type: ImportBatchType; rows?: any[]; validRows?: any[]; source?: string; idempotencyKey?: string; activityId?: string }): Promise<ConfirmImportResult> {
+  async confirmGroundingImport(data: { termId: string; previewTermId: string; type: ImportBatchType; rows?: any[]; validRows?: any[]; source?: string; idempotencyKey?: string; activityId?: string }): Promise<ConfirmImportResult> {
     const res = await http.post('/grounding-import/confirm', data);
     return res.data.data;
   },

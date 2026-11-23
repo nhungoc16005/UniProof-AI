@@ -4,7 +4,7 @@
 |---|---|
 | Phiên bản / ngày | 1.1 / 2026-11-17 |
 | Vai trò | `STAFF` (Cán bộ Khoa), `ADMIN` (Quản trị viên), `STUDENT` (Sinh viên) |
-| Trạng thái | Verified (25/25 automated tests pass) |
+| Trạng thái | Có implementation và regression cho quyền chốt, ngữ cảnh import, căn cứ học vụ và điểm danh. Chưa nghiệm thu toàn bộ F15. |
 | Nguồn | `apps/backend/src/grounding-import/*`, `apps/backend/src/assessments/*`, `apps/backend/src/activities/*`, `apps/web/src/pages/officer/ImportGroundingData.tsx`, `apps/web/src/pages/officer/StudentAssessment.tsx`, `apps/web/src/components/EvaluationBoard.tsx`, `apps/backend/test/grounding-import-and-batch-finalize.test.cjs` |
 | Quy tắc / gap | `DEC-006`, `DEC-008`, `DEC-009`, `DEC-011`, `DEC-012`, `R-29-GROUNDING` |
 
@@ -41,6 +41,7 @@ Trace:
 - **F15-AC-06 (Chặn chốt phiếu khi còn hồ sơ chờ):** Chốt phiếu (cá nhân hoặc hàng loạt) bị chặn nếu sinh viên còn minh chứng ở trạng thái `NEEDS_HUMAN_REVIEW` hoặc `NEEDS_SUPPLEMENT`, hoặc có khiếu nại chưa giải quyết.
 - **F15-AC-07 (Chốt hàng loạt độc lập):** Chốt tối đa 100 phiếu/lần. Mỗi phiếu chạy trong transaction riêng; phiếu lỗi (ví dụ còn minh chứng chờ) bị bỏ qua an toàn và báo lỗi chi tiết, không làm rollback phiếu thành công khác. Thao tác chốt không tự động gửi CTSV.
 - **F15-AC-08 (Thu hồi lô an toàn):** Cho phép thu hồi lô khi các sinh viên liên quan chưa bị chốt điểm. Chặn thu hồi toàn bộ lô nếu có ít nhất một dòng đã dùng để chốt điểm (`FINALIZED`), phiếu đã gửi CTSV (`SENT`), đã có publication hoặc kỳ đã đóng (`CLOSED`). Khi thu hồi thành công, điểm gợi ý liên quan được tự động tính toán lại.
+- **F15-AC-09 (Ngữ cảnh nhập):** Đổi kỳ, danh mục, hoạt động hoặc file làm mất hiệu lực phiên xem trước. Phản hồi về muộn chỉ cập nhật phiên hiện hành. Confirm dùng đúng kỳ đã xem trước. Retry cùng phiên giữ khóa idempotency.
 
 ## 4. UI/UX — Giao diện và tương tác
 
@@ -58,10 +59,10 @@ Trace:
 
 1. `POST /api/grounding-import/preview`:
    - Body: `{ termId: string, type: 'ACADEMIC' | 'ACTIVITY' | 'CLUB_LEADERSHIP', rows: any[], activityId?: string }`
-   - Response: `{ totalRows, validRows, errorRows, ignoredRows, rows: [{ rowIndex, studentCode, studentName, status, reason, data }] }`
+   - Response: `{ termId, totalRows, validCount, errorCount, skippedCount, canCommit, previewItems: [...] }`
 2. `POST /api/grounding-import/confirm`:
-   - Body: `{ termId: string, type: 'ACADEMIC' | 'ACTIVITY' | 'CLUB_LEADERSHIP', rows: any[], idempotencyKey: string, activityId?: string }`
-   - Response: `{ batchId, recordCount, type, termId }`
+   - Body thêm `previewTermId: string` bắt buộc, lấy từ response preview. Xem [hợp đồng API](../API_CONTRACT.md#lỗi-và-route-giới-hạn) cho lỗi mismatch và replay khác kỳ.
+   - Response thành công gồm `batchId`, `type`, `validRows` và `affectedStudentsCount`. Replay cùng kỳ trả `batchId` và `idempotencyReplay: true`.
 3. `GET /api/grounding-import/batches?termId=...`:
    - Response: `GroundingImportBatch[]`
 4. `GET /api/grounding-import/batches/:id`:
@@ -100,6 +101,8 @@ Trace:
 - `Batch Finalize Modal`: Chuyển từ màn hình xác nhận sang màn hình báo cáo kết quả chi tiết từng sinh viên sau khi hoàn tất.
 
 ## 9. Test Cases — Kịch bản kiểm thử
+
+Regression BL-028/029 đã đạt trên HTTP/PostgreSQL và component Web nhập Excel. Bao phủ vai trò, khóa phiếu/kỳ, cùng MSSV ở hai kỳ, đổi hoạt động hoặc file, response trả muộn và retry. Xem [TEST_PLAN](../TEST_PLAN.md).
 
 Bộ test regression đầy đủ 25 ca tại `apps/backend/test/grounding-import-and-batch-finalize.test.cjs`:
 - Ca 1: MSSV dạng text giữ số 0 ở đầu ("0102210001"), preview VALID.

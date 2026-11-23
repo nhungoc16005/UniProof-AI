@@ -518,6 +518,26 @@ Ngày lập tài liệu: 2026-11-15. Cập nhật: 2026-11-16. Baseline nguồn:
 
 **Giới hạn bằng chứng:** Mô hình xen kẽ cho thấy cửa sổ đua; chưa chạy hai kết nối DB hay xác nhận FK/deployment.
 
+## Cập nhật P0 từ audit `eef49ca` — 2026-11-23
+
+<a id="bl-028"></a>
+
+### BL-028 — Quyền chốt hàng loạt
+
+**P0 / High / Confirmed / Done.** Batch trước đây chỉ kiểm `scope`. Hiện mỗi phiếu đi qua `assertEditable` trong transaction ghi và helper lấy khóa hàng Term bằng cùng `tx`. Regression HTTP kiểm ba đường chốt, sai vai trò/Khoa, SENT, EXCLUDED, CLOSED và dữ liệu/audit giữ nguyên trong các ca bị từ chối. [Backend](../apps/backend/src/assessments/assessments.service.ts#L901), [integration](../apps/backend/test/workflow.integration.test.cjs).
+
+<a id="bl-029"></a>
+
+### BL-029 — Xác nhận import khác kỳ đã xem trước
+
+**P0 / High / Confirmed / Done.** Phiên Web gắn kỳ, danh mục, hoạt động và file. API bắt buộc `previewTermId` cùng kỳ, chặn replay khóa khác kỳ. Regression component và HTTP/DB kiểm hai kỳ có cùng MSSV, phản hồi muộn, retry và không ghi dữ liệu khi lệch kỳ. [Web](../apps/web/src/pages/officer/ImportGroundingData.tsx#L92), [Backend](../apps/backend/src/grounding-import/grounding-import.service.ts#L365).
+
+<a id="bl-036"></a>
+
+### BL-036 — Dựng môi trường migration PostgreSQL 17
+
+**P0 / High / Confirmed.** Compose đã chuyển PG17 và chuẩn bị pgvector. Baseline SQL nguyên bản được áp dụng qua session riêng, 13 migration sau đó qua Prisma. Integration chạy đạt trên DB cách ly với lịch sử đủ 14 migration. Giữ mở phần deploy một bước do `P1014` trên DB mới. [Quy trình và bằng chứng](TEST_PLAN.md#postgresql-17-local).
+
 ## Độ bao phủ và giới hạn kiểm chứng
 
 Đã đối chiếu Web routes/callers, 16 controller, service/policy, guard/DTO, schema 34 model, 12 migration và các test liên quan; xem phân loại implementation/scaffold trong [PROJECT_OVERVIEW](PROJECT_OVERVIEW.md). Các số là inventory nguồn tại baseline, không khẳng định hạ tầng đã triển khai giống schema.

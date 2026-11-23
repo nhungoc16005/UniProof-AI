@@ -2,6 +2,13 @@
 
 Mỗi công việc trong dự án thêm mục mới ở đầu với ngày, phạm vi, feature/bug/quyết định liên quan, thay đổi thực tế, kiểm tra đã chạy và giới hạn. Không ghi test dự kiến như đã Passed, không ghi credential hoặc dữ liệu sinh viên.
 
+## 2026-11-23 — Sửa phân quyền chốt và ngữ cảnh nhập Excel, kiểm PostgreSQL 17
+
+- BL-028 (F07/F15) dùng `WorkflowService.assertEditable` trong transaction batch. Đã kiểm tra helper tự lấy khóa hàng `Term` trên cùng transaction với ghi điểm và audit.
+- BL-029 (F15) gắn phiên xem trước với kỳ, danh mục, hoạt động và file. Confirm yêu cầu `previewTermId`, bỏ phản hồi cũ khi đổi ngữ cảnh và từ chối replay khóa khác kỳ.
+- BL-036 chuyển Compose sang image pgvector PG17, volume PG17 riêng và khởi tạo extension trong `public`. Trên Docker 17.12, deploy một bước từ DB trống gặp `P1014`. Áp dụng baseline SQL nguyên bản trong session riêng, ghi nhận baseline và deploy 13 migration còn lại thành công. Checksum baseline giữ nguyên. Xem [quy trình dựng DB local](TEST_PLAN.md#postgresql-17-local).
+- Sửa fixture ngày hoạt động và hai chỗ lệch hợp đồng/dữ liệu giữa suite. Integration PostgreSQL **17/17**, test thuần Backend **27/27**, Web **7/7**. Typecheck hai app và diff check đạt. Kiểm thử giới hạn ở localhost và doubles.
+
 ## 2026-11-17 — Bổ sung điểm chấm mẫu cho các hồ sơ DEMO
 
 - Theo yêu cầu của người dùng, gán cán bộ CNTT hiện có cho điểm giả lập của 60 phiếu DEMO đã nộp thuộc kỳ `2026_1`: TC1, TC3, TC7, tổng 180 tiêu chí `FINALIZED`, ghi rõ `[DEMO]` trong căn cứ/lý do. Đây là dữ liệu được gán theo yêu cầu tạo mẫu, không khẳng định cán bộ thực sự đã thực hiện lượt chấm. Không tạo cán bộ mới.
