@@ -751,6 +751,58 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
     assert.equal(caAfter.status, CriterionAssessmentStatus.READY_FOR_REVIEW);
   });
 
+  test('BL-033: student sees stored suggestions while official scores follow publication', async () => {
+    const { prisma, data } = createMockPrisma();
+    const term = { id: 'term-1', status: 'REVIEWING', workflowEnabled: true, evidenceBasisWorkflowEnabled: false };
+    const criteria = [
+      { id: 'academic', code: '1' },
+      { id: 'attendance', code: '8' },
+      { id: 'missing', code: '9' },
+    ];
+    data.rubricVersions.set('ver-1', {
+      id: 'ver-1', termId: term.id, term, status: 'PUBLISHED',
+      categories: [{ code: 'I', criteria }],
+    });
+    criteria.forEach((criterion, index) => {
+      data.criterionAssessments.set('sv-1:term-1:' + criterion.id, {
+        studentId: 'sv-1', termId: term.id, criterionId: criterion.id,
+        suggestedScore: [5, 0, null][index],
+        status: CriterionAssessmentStatus.FINALIZED,
+        officialScore: 9,
+        officialReason: 'Lý do nội bộ',
+        finalizedAt: new Date('2026-11-02'),
+        finalReviewerId: 'staff-private',
+        verifiedData: index === 0 ? { examBans: 0 } : { verifiedActivityCount: 0 },
+        verificationNote: 'Ghi chú nội bộ',
+        suggestionReason: 'Căn cứ nội bộ',
+      });
+    });
+    let publication = null;
+    const service = new AssessmentsService(prisma, { publication: async () => publication }, {
+      resolve: async () => ({ deadline: new Date('2026-12-01'), source: 'TERM' }),
+    });
+    const read = async () => (await service.getMine('sv-1', term.id)).categories[0].criteria.map(c => c.assessment);
+    const before = await read();
+    assert.deepEqual(before.map(c => c.suggestedScore), [5, 0, null]);
+    for (const row of before) {
+      for (const field of ['verifiedData', 'verificationNote', 'suggestionReason', 'officialScore', 'officialReason', 'finalizedAt', 'finalReviewerId']) {
+        assert.equal(row[field], null, field);
+      }
+    }
+
+    const finalizedAt = new Date('2026-11-01');
+    publication = { revision: 1, snapshot: { categories: [{ criteria: [
+      { id: 'academic', assessment: { officialScore: 3, officialReason: 'Lý do đã công bố', finalizedAt } },
+    ] }] } };
+    const [published, unpublished] = await read();
+    assert.equal(published.suggestedScore, 5);
+    assert.equal(published.officialScore, 3);
+    assert.equal(published.officialReason, 'Lý do đã công bố');
+    assert.equal(published.finalizedAt, finalizedAt);
+    assert.equal(published.verifiedData, null);
+    assert.equal(unpublished.officialScore, null);
+  });
+
   // ==========================================================================
   // NHÓM 3: MINH CHỨNG 0-FILE & PREFLIGHT Ở KỲ MỚI
   // ==========================================================================
@@ -1075,7 +1127,7 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
     data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true });
     data.rubricVersions.set('ver-1', {
       id: 'ver-1', termId: 'term-1', status: 'PUBLISHED',
-      criteria: [{ id: 'c-1', code: '1', maxScore: 6 }],
+      criteria: [{ id: 'c-1', code: '1', maxScore: 6 }, { id: 'c-2', code: '2', maxScore: 6 }],
     });
 
     // Sinh viên 1: Hợp lệ để chốt
@@ -1086,6 +1138,10 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
       id: 'ca-1', studentId: 'sv-1', termId: 'term-1', criterionId: 'c-1',
       status: CriterionAssessmentStatus.READY_FOR_REVIEW, suggestedScore: 6,
     });
+    data.criterionAssessments.set('sv-1:term-1:c-2', {
+      id: 'ca-2', studentId: 'sv-1', termId: 'term-1', criterionId: 'c-2',
+      status: CriterionAssessmentStatus.FINALIZED, suggestedScore: 3, officialScore: 0,
+    });
 
     // Sinh viên 2: CHƯA NỘP PHIẾU (sẽ bị lỗi riêng)
     data.users.set('sv-2', { id: 'sv-2', studentCode: '102210002', fullName: 'Lê Văn Lỗi', role: 'STUDENT' });
@@ -1093,9 +1149,14 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
     // Chưa có submission
 
     const assessmentsService = new AssessmentsService(prisma, new WorkflowService(prisma, {}), {});
+    const actor = { id: 'staff-1', role: Role.STAFF, facultyId: 'fac-cntt' };
+    const preview = await assessmentsService.previewFinalizeStudent(actor, 'sv-1', 'term-1');
+    assert.deepEqual(preview.criteria.map(c => [c.status, c.projectedScore]), [
+      ['READY_TO_FINALIZE', 6], ['ALREADY_FINALIZED', 0],
+    ]);
 
     const batchRes = await assessmentsService.batchFinalizeAssessments(
-      { id: 'staff-1', role: Role.STAFF, facultyId: 'fac-cntt' },
+      actor,
       'term-1',
       ['sv-1', 'sv-2']
     );
@@ -1110,11 +1171,13 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
 
     const res2 = batchRes.results.find(r => r.studentId === 'sv-2');
     assert.equal(res2.success, false);
+    assert.equal(res2.finalizedCount, 0);
     assert.match(res2.blockers[0], /chưa nộp phiếu/);
 
     // Kiểm tra trạng thái trong DB: sv-1 đã được chốt FINALIZED
     const ca1 = data.criterionAssessments.get('sv-1:term-1:c-1');
     assert.equal(ca1.status, CriterionAssessmentStatus.FINALIZED);
+    assert.equal(data.criterionAssessments.get('sv-1:term-1:c-2').officialScore, 0);
   });
 
   test('Ca 20: Chốt hàng loạt từ chối khi danh sách vượt quá 100 phiếu', async () => {

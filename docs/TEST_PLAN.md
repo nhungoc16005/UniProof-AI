@@ -1,5 +1,11 @@
 # Kế hoạch kiểm chứng EduPoint
 
+## 2026-11-23 — Regression BL-031, BL-033, BL-035, BL-037
+
+- Backend **75/75 ca đạt**, gồm `grounding-import-and-batch-finalize.test.cjs`, `pagination-and-filter.test.cjs` và `scoring-and-validation.test.cjs`. Dùng DB doubles và `ResponseInterceptor` thật để kiểm lô một phiếu thành công/một phiếu bị chặn, điểm đã chốt khác điểm gợi ý, publication, 21 hồ sơ có mục cần bổ sung ngoài trang đầu và 51 thông báo có mục chưa đọc duy nhất ở vị trí 51.
+- Web **29/29 ca đạt** với `node --test scripts/*.test.cjs`. Các regression mới render component với transport giả lập, kiểm bảng chốt và modal, điểm gợi ý 0 trên phiếu sinh viên, số liệu toàn kỳ và danh sách bổ sung khi đổi kỳ/lỗi tải, badge và trạng thái tab Chưa đọc trước/sau khi đánh dấu tất cả.
+- Typecheck Backend/Web và `git diff --check` đạt. Chưa chạy PostgreSQL integration hoặc browser E2E cho đợt này.
+
 ## 2026-11-23 — Regression P0 trên PostgreSQL 17
 
 - PostgreSQL Docker 17.12, pgvector trong `public`. Deploy trực tiếp từ DB trống gặp Prisma `P1014` ở baseline. Quy trình bên dưới áp dụng nguyên văn baseline rồi deploy 13 migration còn lại. Prisma báo đủ 14 migration và schema up to date.

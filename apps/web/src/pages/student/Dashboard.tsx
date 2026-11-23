@@ -4,7 +4,6 @@ import { useAuth } from '../../context/AuthContext';
 import { apiClient } from '../../lib/apiClient';
 import { useStudentAssessmentAccess } from '../../hooks/useStudentAssessmentAccess';
 import { StudentAssessmentNotice } from '../../components/StudentAssessmentNotice';
-import { Evidence } from '../../types';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { ScoreGauge } from '../../components/ui/ScoreGauge';
 import {
@@ -35,7 +34,10 @@ import {
 export const StudentDashboard: React.FC = () => {
   const { user, activeTerm } = useAuth();
   const access = useStudentAssessmentAccess(user?.id, activeTerm.id);
-  const [evidences, setEvidences] = useState<Evidence[]>([]);
+  type EvidencePage = Awaited<ReturnType<typeof apiClient.getEvidencesPage>>;
+  const [evidencePage, setEvidencePage] = useState<EvidencePage | null>(null);
+  const [supplementPage, setSupplementPage] = useState<EvidencePage | null>(null);
+  const [supplementError, setSupplementError] = useState(false);
   const [scoreSummary, setScoreSummary] = useState<any>(null);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -47,13 +49,18 @@ export const StudentDashboard: React.FC = () => {
     let cancelled = false;
     setIsLoading(true);
     setLoadError('');
+    setEvidencePage(null);
+    setSupplementPage(null);
+    setSupplementError(false);
+    setScoreSummary(null);
+    const scope = { studentId: user.id, termId: activeTerm.id };
     Promise.all([
-      apiClient.getEvidences({ studentId: user.id, termId: activeTerm.id }),
+      apiClient.getEvidencesPage({ ...scope, page: 1, pageSize: 4 }),
       apiClient.getConductDashboard(activeTerm.id),
     ])
       .then(([evidenceList, summary]) => {
         if (cancelled) return;
-        setEvidences(evidenceList);
+        setEvidencePage(evidenceList);
         setScoreSummary(summary);
       })
       .catch(() => {
@@ -63,6 +70,9 @@ export const StudentDashboard: React.FC = () => {
       .finally(() => {
         if (!cancelled) setIsLoading(false);
       });
+    apiClient.getEvidencesPage({ ...scope, status: 'NEEDS_SUPPLEMENT', page: 1, pageSize: 8 })
+      .then(page => { if (!cancelled) setSupplementPage(page); })
+      .catch(() => { if (!cancelled) setSupplementError(true); });
     return () => {
       cancelled = true;
     };
@@ -93,23 +103,11 @@ export const StudentDashboard: React.FC = () => {
       maxScore: Number(category.maxScore ?? 0),
     }));
 
-  const approvedEvidences = useMemo(() => {
-    return evidences.filter((e) => e.status === 'APPROVED');
-  }, [evidences]);
-
-  const pendingEvidences = useMemo(() => {
-    return evidences.filter(
-      (e) =>
-        e.status === 'NEEDS_HUMAN_REVIEW' ||
-        e.status === 'PLAUSIBLE' ||
-        e.status === 'VERIFIED' ||
-        e.status === 'PROCESSING'
-    );
-  }, [evidences]);
-
-  const needsActionEvidences = useMemo(() => {
-    return evidences.filter((e) => e.status === 'NEEDS_SUPPLEMENT');
-  }, [evidences]);
+  const counts = evidencePage?.counts;
+  const evidences = evidencePage?.items ?? [];
+  const supplementCount = counts?.supplement;
+  const evidenceListPath = `/student/evidence?termId=${activeTerm.id}`;
+  const actionCount = (supplementPage?.total ?? supplementCount ?? 0) + Number(access.isReturned);
 
   const rankInfo = useMemo(() => {
     return {
@@ -148,13 +146,13 @@ export const StudentDashboard: React.FC = () => {
     }
 
     // 2. Minh chứng cần bổ sung
-    needsActionEvidences.forEach((ev) => {
+    supplementPage?.items.forEach((ev) => {
       const missing = ev.supplementRequests?.[0]?.missingItem;
       items.push({
         id: `ev-${ev.id}`,
         title: `Bổ sung minh chứng: ${ev.declaredActivityName}`,
         subtitle: missing || 'Cán bộ thẩm định yêu cầu cung cấp thêm tài liệu xác thực',
-        to: `/student/evidence/${ev.id}/supplement`,
+        to: `/student/evidence/${ev.id}/supplement?termId=${activeTerm.id}`,
         icon: AlertCircle,
         urgent: true,
         badge: <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FFFBEB] text-[#D97706]">Bổ sung ngay</span>,
@@ -162,7 +160,7 @@ export const StudentDashboard: React.FC = () => {
     });
 
     return items;
-  }, [access, needsActionEvidences, activeTerm.id]);
+  }, [access, supplementPage, activeTerm.id]);
 
   // Xác định bước quy trình hiện tại
   const currentPipelineStep = useMemo(() => {
@@ -242,7 +240,7 @@ export const StudentDashboard: React.FC = () => {
 
         <StatCard
           label="Minh chứng đã duyệt"
-          value={approvedEvidences.length}
+          value={counts?.approved ?? '—'}
           subtitle={
             isOfficialScore
               ? `Điểm chính thức: ${displayedScore} đ`
@@ -251,25 +249,25 @@ export const StudentDashboard: React.FC = () => {
               : 'Chưa có điểm chốt'
           }
           icon={CheckCircle}
-          to="/student/evidence"
+          to={evidenceListPath}
         />
 
         <StatCard
           label="Minh chứng chờ duyệt"
-          value={pendingEvidences.length}
+          value={counts?.reviewing ?? '—'}
           subtitle="Cán bộ Khoa đang xem xét"
           icon={Clock}
-          to="/student/evidence"
+          to={evidenceListPath}
         />
 
         <StatCard
           label="Hồ sơ cần bổ sung"
-          value={needsActionEvidences.length}
-          subtitle={needsActionEvidences.length > 0 ? 'Bấm để bổ sung ngay' : 'Không có yêu cầu'}
+          value={supplementCount ?? '—'}
+          subtitle={supplementCount === undefined ? undefined : supplementCount > 0 ? 'Bấm để bổ sung ngay' : 'Không có yêu cầu'}
           icon={AlertCircle}
-          highlight={needsActionEvidences.length > 0}
-          trend={needsActionEvidences.length > 0 ? { text: 'Yêu cầu bổ sung', type: 'warning' } : undefined}
-          to="/student/evidence"
+          highlight={Boolean(supplementCount)}
+          trend={supplementCount ? { text: 'Yêu cầu bổ sung', type: 'warning' } : undefined}
+          to={evidenceListPath}
         />
       </div>
 
@@ -328,10 +326,18 @@ export const StudentDashboard: React.FC = () => {
       </div>
 
       {/* 5. ACTION QUEUE NẾU CÓ VIỆC CẦN LÀM */}
+      {supplementError && (
+        <p role="alert" className="text-xs text-rose-700">
+          Không tải được danh sách cần bổ sung. <Link to={evidenceListPath} className="underline">Mở danh sách minh chứng</Link>
+        </p>
+      )}
       {studentActionItems.length > 0 && (
         <ActionQueue
           title="Việc cần sinh viên xử lý ngay"
           items={studentActionItems}
+          totalCount={actionCount}
+          viewAllLink={actionCount > 8 ? evidenceListPath : undefined}
+          viewAllText="Xem danh sách minh chứng"
           emptyMessage="Không có việc cần xử lý."
         />
       )}
@@ -364,10 +370,10 @@ export const StudentDashboard: React.FC = () => {
 
             <div className="p-3 rounded-[8px] bg-[#F0F6FC] border border-[#C2DBF2]">
               <span className="text-[10px] text-[#1D6FC2] font-bold uppercase block tracking-wider">
-                Minh chứng gửi
+                Tổng minh chứng
               </span>
               <span className="text-lg sm:text-xl font-bold font-heading text-[#1D6FC2] mt-0.5 block">
-                {evidences.length} hồ sơ
+                {counts ? `${counts.all} hồ sơ` : '—'}
               </span>
             </div>
           </div>
@@ -443,16 +449,18 @@ export const StudentDashboard: React.FC = () => {
             Minh chứng gần đây
           </span>
           <Link
-            to="/student/evidence"
+            to={evidenceListPath}
             className="text-xs text-[#1D6FC2] hover:text-[#175A9E] hover:underline font-semibold"
           >
-            Xem toàn bộ ({evidences.length}) →
+            Xem toàn bộ{counts ? ` (${counts.all})` : ''} →
           </Link>
         </div>
 
         <div className="divide-y divide-[#E8E8EC]">
           {isLoading ? (
             <div className="p-8 text-center text-[#6B6B6B] text-xs">Đang tải danh sách hồ sơ…</div>
+          ) : !evidencePage ? (
+            <div className="p-8 text-center text-[#6B6B6B] text-xs">Chưa tải được danh sách hồ sơ.</div>
           ) : evidences.length === 0 ? (
             <div className="p-8 text-center space-y-2">
               <p className="text-xs font-semibold text-[#0A0A0A]">Chưa có minh chứng nào được đính kèm</p>

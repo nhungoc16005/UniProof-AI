@@ -49,12 +49,12 @@ Dùng parser đúng dạng endpoint; BL-018 là ví dụ mất meta. Interceptor
 | Workflow `/:termId` và `/export` | q, classId, facultyId, state, page=1, pageSize=25 tối đa 100; export trả toàn tập có quyền |
 | Reports results/export | ReportQueryDto thêm termId; publication mới nhất, legacy rubric khi kỳ cũ; distribution/average/classProgress trên toàn tập lọc |
 | Users | role, facultyId, classId, termId, search; mặc định50, tối đa 100; termId không bảo đảm ADMIN list đã giới hạn roster (BL-020) |
-| Evidence/reviews | Mặc định20; không suy tất cả tham số đã được cap/validate như WorkflowQueryDto |
+| Evidence/reviews | Mặc định 20. `GET /api/evidence` trả `data` là các dòng trong trang và `meta: { total, page, pageSize, counts }`. `total` áp dụng bộ lọc trạng thái. `counts: { all, approved, supplement, reviewing }` giữ phạm vi quyền, kỳ và tìm kiếm, độc lập với trang và bộ lọc trạng thái. |
 | Appeals | Mặc định20, take có cap100; kiểm tra skip theo pageSize caller khi mở rộng |
 | Profile issues | page, status; pageSize25 cố định |
 | Audit logs | userId, action, entityType, search, page, pageSize; tìm kiếm backend |
 | AI jobs | termId, status, page=1, pageSize=25 tối đa 100 |
-| Notifications | 50 bản ghi gần nhất, unreadCount; không có API đọc mọi trang trong hợp đồng hiện tại |
+| Notifications | `items` gồm tối đa 50 bản ghi gần nhất. `unreadCount` đếm toàn bộ thông báo chưa đọc của người dùng. API hiện chỉ trả một trang gần nhất. |
 
 Workflow state: NOT_SUBMITTED, STUDENT_RETURNED, REVIEWING, READY, SENT, PUBLISHED, FACULTY_RETURNED, NOT_SUBMITTED_RECORDED. APPEALS/RETURNED là bộ lọc tổng hợp; SENT filter bao gồm PUBLISHED. Summary không lấy từ số dòng đang hiển thị. Các state này được suy từ nhiều bảng, khác enum AssessmentHandoffStatus.
 
@@ -66,6 +66,7 @@ Kết quả gồm nguồn HANDOFF_SNAPSHOT cho CTSV xem phiếu đã gửi; báo
 |---|---|
 | Login | LoginDto email/password → access token và user an toàn; first-login hiện UI enforce, xem BL-016 |
 | Tự đánh giá | Lưu điểm theo criterionId và query termId; preflight trả canSubmit/blockers/warnings/effectiveDeadline; POST /assessments/me/submit?termId=... không có body, chuyển phiếu và nháp đủ tệp sang xử lý |
+| Xem phiếu của mình | `GET /api/assessments/me?termId=...`. Trong kỳ `workflowEnabled`, `assessment.suggestedScore` lấy từ giá trị đã lưu cho tiêu chí. `officialScore`, `officialReason` và `finalizedAt` lấy từ publication hiện hành, hoặc `null` khi chưa có giá trị công bố. |
 | Tạo minh chứng | CreateEvidenceDto cần declaredActivityName/evidenceType; term/criterion liên hệ rubric do service kiểm tra; draft=true giữ nháp |
 | Upload nháp | UploadEvidenceFileDto fileName/fileType/fileData (DataURL), tối đa 8 MB; chỉ nháp; bọc transaction khóa Term qua studentEdit. Phản hồi trả về `EvidenceFile`: `{ id, evidenceId, fileUrl, fileType, fileName, fileSize, signedUrlAvailable: boolean, message?: string }`. Nếu ký URL tạm thời lỗi: không xóa Storage, trả `signedUrlAvailable: false` và `message` hướng dẫn tải lại |
 | Xóa tệp nháp | `DELETE /api/evidence/:id/files/:fileId`: chỉ sinh viên sở hữu; bọc transaction khóa Term qua studentEdit. Dọn Storage sau khi DB commit; phản hồi: `{ deleted: true, storageCleaned: boolean }` |
@@ -76,6 +77,8 @@ Kết quả gồm nguồn HANDOFF_SNAPSHOT cho CTSV xem phiếu đã gửi; báo
 | Bổ sung | explanation?, verificationUrl?, fileData?, fileName?, fileType?; ít nhất một nội dung; PDF/JPEG/PNG/WebP theo nhánh supplement |
 | Xác minh tiêu chí | VerificationDto data object, note; evaluateRubricCriterion tạo suggestion, có invalidate điểm cũ; validateVerifiedData kiểm tra cấu trúc bên trong của data (từ chối chuỗi rác, số âm, số thập phân cho counter, kiểm tra kiểu boolean cho các trường xác nhận, tỷ lệ 0-100, officialScore 0-maxScore); ném BadRequestException với mã INVALID_VERIFICATION_DATA và details.fields khi dữ liệu sai lệch (BL-004, BL-017 Resolved) |
 | Chốt tiêu chí | FinalAssessmentDto score?, reason?; cần đủ dữ liệu chính thức và quyền STAFF trong workflow mới |
+| Xem trước chốt phiếu | `GET /api/assessments/student/:studentId/preview-finalize?termId=...`. `criteria[].projectedScore` giữ điểm đã chốt cho `ALREADY_FINALIZED`, dùng điểm gợi ý cho `READY_TO_FINALIZE` và trả `null` khi tiêu chí chưa đủ điều kiện. |
+| Kết quả chốt hàng loạt | `POST /api/assessments/batch-finalize` trả `{ totalRequested, successCount, failureCount, results }`. Mỗi kết quả gồm `studentId`, `success`, `finalizedCount`, `blockers` và có thể kèm `studentCode`, `fullName`. `finalizedCount` là số tiêu chí vừa chốt của phiếu. |
 | Gửi Khoa | SendDto studentIds 1–100; server kiểm blockers/lock và tạo handoff snapshot/revision; lặp SENT không nhân revision |
 | Trả/ghi nhận không nộp/hiệu chỉnh/loại trừ | ReasonDto reason; service kiểm không trắng, quyền và trạng thái riêng; restore không dùng body |
 | Công bố/chốt | Không dùng trạng thái nút UI làm bằng chứng đủ điều kiện; kiểm lại conditions trong transaction khóa Term |

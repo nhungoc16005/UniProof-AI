@@ -15,6 +15,7 @@ export interface ActionQueueItem {
 export interface ActionQueueProps {
   title: string;
   items: ActionQueueItem[];
+  totalCount?: number;
   emptyMessage?: string;
   viewAllLink?: string;
   viewAllText?: string;
@@ -24,6 +25,7 @@ export interface ActionQueueProps {
 export const ActionQueue: React.FC<ActionQueueProps> = ({
   title,
   items,
+  totalCount = items.length,
   emptyMessage = 'Không có việc cần xử lý ngay.',
   viewAllLink,
   viewAllText = 'Xem tất cả',
@@ -38,7 +40,7 @@ export const ActionQueue: React.FC<ActionQueueProps> = ({
           <h3 className="text-sm font-bold font-heading text-[#0A0A0A]">{title}</h3>
           {items.length > 0 && (
             <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#E1EDF9] text-[#1D6FC2] border border-[#C2DBF2]">
-              {items.length}
+              {totalCount}
             </span>
           )}
         </div>
@@ -47,7 +49,7 @@ export const ActionQueue: React.FC<ActionQueueProps> = ({
             to={viewAllLink}
             className="text-xs font-semibold text-[#1D6FC2] hover:text-[#175A9E] hover:underline"
           >
-            {viewAllText} ({items.length}) →
+            {viewAllText} ({totalCount}) →
           </Link>
         )}
       </div>

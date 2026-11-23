@@ -7,6 +7,10 @@ require(path.join(__dirname, '../node_modules/ts-node')).register({
 });
 
 const { ProfileDataIssueStatus, EvidenceStatus, Role } = require('@prisma/client');
+const { lastValueFrom, of } = require('rxjs');
+const { ResponseInterceptor } = require('../src/common/interceptors/response.interceptor');
+
+const toEnvelope = data => lastValueFrom(new ResponseInterceptor().intercept({}, { handle: () => of(data) }));
 
 // ============================================================================
 // TEST SUITE: ĐỢT 9 — BL-018, BL-019
@@ -91,8 +95,7 @@ describe('BL-018: Phân trang yêu cầu sửa thông tin hồ sơ (ProfileDataI
 describe('BL-019: Phân trang và bộ lọc danh sách minh chứng (EvidenceList)', () => {
   const { EvidenceService } = require('../src/evidence/evidence.service');
 
-  function createMockEvidenceDb() {
-    const allEvidences = [
+  function createMockEvidenceDb(allEvidences = [
       { id: 'evi-1', studentId: 'stu-1', termId: 'term-1', declaredActivityName: 'Mùa hè xanh 2024', status: EvidenceStatus.APPROVED, submittedAt: new Date(1000) },
       { id: 'evi-2', studentId: 'stu-1', termId: 'term-1', declaredActivityName: 'Hiến máu nhân đạo', status: EvidenceStatus.APPROVED, submittedAt: new Date(2000) },
       { id: 'evi-3', studentId: 'stu-1', termId: 'term-1', declaredActivityName: 'Tiếp sức mùa thi', status: EvidenceStatus.NEEDS_SUPPLEMENT, submittedAt: new Date(3000) },
@@ -100,8 +103,7 @@ describe('BL-019: Phân trang và bộ lọc danh sách minh chứng (EvidenceLi
       { id: 'evi-5', studentId: 'stu-1', termId: 'term-1', declaredActivityName: 'Giải bóng đá sinh viên', status: EvidenceStatus.PROCESSING, submittedAt: new Date(5000) },
       { id: 'evi-6', studentId: 'stu-1', termId: 'term-1', declaredActivityName: 'Văn nghệ chào K24', status: EvidenceStatus.PLAUSIBLE, submittedAt: new Date(6000) },
       { id: 'evi-7', studentId: 'stu-1', termId: 'term-1', declaredActivityName: 'Học tập chính trị đầu khóa', status: EvidenceStatus.REJECTED, submittedAt: new Date(7000) },
-    ];
-
+    ]) {
     const mockWorkflow = {
       evidenceScope: async () => ({}),
     };
@@ -250,4 +252,41 @@ describe('BL-019: Phân trang và bộ lọc danh sách minh chứng (EvidenceLi
     assert.equal(res.counts.supplement, 1);
     assert.equal(res.counts.approved, 0);
   });
+
+  test('BL-035: count includes supplement outside the first page and status filter retrieves it', async () => {
+    const rows = Array.from({ length: 21 }, (_, index) => ({
+      id: 'ev-' + (index + 1),
+      studentId: 'stu-1',
+      termId: 'term-1',
+      status: index === 20 ? EvidenceStatus.NEEDS_SUPPLEMENT : EvidenceStatus.APPROVED,
+    }));
+    const { mockPrisma, mockWorkflow } = createMockEvidenceDb(rows);
+    const service = new EvidenceService(mockPrisma, mockWorkflow);
+    const page = await toEnvelope(await service.findAll(studentUser, { termId: 'term-1' }));
+    assert.equal(page.data.length, 20);
+    assert.deepEqual(page.meta.counts, { all: 21, approved: 20, reviewing: 0, supplement: 1 });
+    assert.equal(page.meta.total, 21);
+    const second = await service.findAll(studentUser, { termId: 'term-1', page: 2 });
+    const filtered = await service.findAll(studentUser, { termId: 'term-1', status: EvidenceStatus.NEEDS_SUPPLEMENT, pageSize: 8 });
+    assert.equal(second.items[0].id, 'ev-21');
+    assert.deepEqual(filtered.items.map(e => e.id), ['ev-21']);
+    assert.equal(filtered.total, 1);
+    assert.equal(filtered.counts.all, 21);
+  });
+});
+
+test('BL-037: unread total covers all notifications for the owner even with a 50-row limit', async () => {
+  const { NotificationsService } = require('../src/notifications/notifications.service');
+  const rows = [
+    ...Array.from({ length: 51 }, (_, index) => ({ id: 'n-' + index, userId: 'owner', isRead: index < 50 })),
+    { id: 'other-user', userId: 'other', isRead: false },
+  ];
+  const notifications = new NotificationsService({ notification: {
+    findMany: async ({ where, take }) => rows.filter(n => n.userId === where.userId).slice(0, take),
+    count: async ({ where }) => rows.filter(n => n.userId === where.userId && n.isRead === where.isRead).length,
+  } });
+  const response = await toEnvelope(await notifications.findAll('owner'));
+  assert.equal(response.data.items.length, 50);
+  assert.ok(response.data.items.every(n => n.isRead));
+  assert.equal(response.data.unreadCount, 1);
 });

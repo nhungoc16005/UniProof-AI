@@ -1,31 +1,41 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { apiClient } from '../../lib/apiClient';
-import { Notification } from '../../types';
+import React, { useState } from 'react';
+import { useNavigate, useOutletContext } from 'react-router-dom';
+import type { NotificationOutletContext } from '../../hooks/useNotificationFeed';
+import type { Notification } from '../../types';
 import { Bell, Check, AlertTriangle, CheckCircle } from 'lucide-react';
 
 export const NotificationsCenter: React.FC = () => {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const { items: notifications, unreadCount, loading, error: loadError, reload, markRead, markAllRead } =
+    useOutletContext<NotificationOutletContext>();
   const [filter, setFilter] = useState<'ALL' | 'UNREAD'>('ALL');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [actionError, setActionError] = useState('');
   const navigate = useNavigate();
 
-  const load = useCallback(async () => { try { setLoading(true); setError(''); setNotifications(await apiClient.getNotifications()); } catch { setError('Không tải được thông báo từ máy chủ.'); } finally { setLoading(false); } }, []);
-  useEffect(() => { void load(); }, [load]);
-
   const handleMarkAllRead = async () => {
-    await apiClient.markAllNotificationsAsRead();
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    setActionError('');
+    try {
+      await markAllRead();
+    } catch {
+      setActionError('Không thể đánh dấu tất cả thông báo. Vui lòng thử lại.');
+    }
   };
 
   const filtered = notifications.filter((n) => (filter === 'UNREAD' ? !n.isRead : true));
   const openNotification = async (notification: Notification) => {
     if (!notification.isRead) {
-      try { await apiClient.markNotificationAsRead(notification.id); setNotifications(current => current.map(item => item.id === notification.id ? { ...item, isRead: true, readAt: new Date().toISOString() } : item)); } catch { setError('Không đánh dấu được thông báo. Vui lòng thử lại.'); return; }
+      setActionError('');
+      try {
+        await markRead(notification.id);
+      } catch {
+        setActionError('Không đánh dấu được thông báo. Vui lòng thử lại.');
+        return;
+      }
     }
     if (notification.targetPath?.startsWith('/') && !notification.targetPath.startsWith('//')) navigate(notification.targetPath);
   };
+  const emptyMessage = filter === 'ALL' ? 'Chưa có thông báo.' :
+    unreadCount === 0 ? 'Bạn đã đọc tất cả thông báo.' :
+      'Còn thông báo chưa đọc ngoài 50 mục gần nhất.';
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -39,6 +49,7 @@ export const NotificationsCenter: React.FC = () => {
 
         <button
           onClick={handleMarkAllRead}
+          disabled={loading || !unreadCount}
           className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white text-slate-700 hover:bg-slate-50 border border-slate-300 font-semibold text-xs rounded-lg shadow-sm transition"
         >
           <Check className="w-4 h-4 text-emerald-600" />
@@ -56,7 +67,7 @@ export const NotificationsCenter: React.FC = () => {
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
-          Tất cả thông báo ({notifications.length})
+          Gần đây ({notifications.length})
         </button>
         <button
           onClick={() => setFilter('UNREAD')}
@@ -66,15 +77,16 @@ export const NotificationsCenter: React.FC = () => {
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
-          Chưa đọc ({notifications.filter((n) => !n.isRead).length})
+          Chưa đọc ({unreadCount})
         </button>
       </div>
 
       {/* Notifications List */}
-      {error && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{error}<button type="button" onClick={() => void load()} className="ml-2 font-semibold underline">Thử lại</button></div>}
+      {loadError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{loadError}<button type="button" onClick={() => void reload()} className="ml-2 font-semibold underline">Thử lại</button></div>}
+      {actionError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{actionError}</div>}
       {loading && <div role="status" className="rounded-xl border bg-white p-8 text-center text-sm text-slate-500">Đang tải thông báo…</div>}
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm divide-y divide-slate-100 overflow-hidden">
-        {!loading && !filtered.length && <div className="p-10 text-center text-sm text-slate-500">{filter === 'UNREAD' ? 'Bạn đã đọc tất cả thông báo.' : 'Chưa có thông báo.'}</div>}
+        {!loading && !loadError && !filtered.length && <div className="p-10 text-center text-sm text-slate-500">{emptyMessage}</div>}
         {!loading && filtered.map((n) => (
           <button type="button"
             key={n.id}

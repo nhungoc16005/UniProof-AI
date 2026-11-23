@@ -42,6 +42,7 @@ Trace:
 - **F15-AC-07 (Chốt hàng loạt độc lập):** Chốt tối đa 100 phiếu/lần. Mỗi phiếu chạy trong transaction riêng; phiếu lỗi (ví dụ còn minh chứng chờ) bị bỏ qua an toàn và báo lỗi chi tiết, không làm rollback phiếu thành công khác. Thao tác chốt không tự động gửi CTSV.
 - **F15-AC-08 (Thu hồi lô an toàn):** Cho phép thu hồi lô khi các sinh viên liên quan chưa bị chốt điểm. Chặn thu hồi toàn bộ lô nếu có ít nhất một dòng đã dùng để chốt điểm (`FINALIZED`), phiếu đã gửi CTSV (`SENT`), đã có publication hoặc kỳ đã đóng (`CLOSED`). Khi thu hồi thành công, điểm gợi ý liên quan được tự động tính toán lại.
 - **F15-AC-09 (Ngữ cảnh nhập):** Đổi kỳ, danh mục, hoạt động hoặc file làm mất hiệu lực phiên xem trước. Phản hồi về muộn chỉ cập nhật phiên hiện hành. Confirm dùng đúng kỳ đã xem trước. Retry cùng phiên giữ khóa idempotency.
+- **F15-AC-10 (Hiển thị điểm và kết quả chốt):** Modal từng phiếu hiển thị điểm dự kiến theo `projectedScore`. Kết quả hàng loạt hiển thị số phiếu thành công/bị chặn, số tiêu chí vừa chốt và lý do của từng phiếu bị chặn. Trong kỳ `workflowEnabled`, sinh viên xem điểm gợi ý đã lưu theo tiêu chí và điểm chính thức theo publication.
 
 ## 4. UI/UX — Giao diện và tương tác
 
@@ -50,7 +51,7 @@ Trace:
   - Màn hình `/officer/students/:studentId/assessment`: Nút "Chốt phiếu sinh viên", mở modal xem trước 16 tiêu chí, kiểm tra blocker/warning trước khi xác nhận.
   - Màn hình `/officer/evaluations` / `EvaluationBoard`: Checkbox chọn nhiều sinh viên trên trang, nút "Chốt hàng loạt (X đã chọn)", modal xác nhận và bảng tiến trình/kết quả chi tiết từng sinh viên. Nút "Gửi CTSV" giữ riêng biệt.
 - **Sinh viên:**
-  - Màn hình `/student/scores`: Bảng 16 tiêu chí hiển thị rõ 3 cột: Điểm tự đánh giá / Điểm gợi ý (căn cứ, điểm danh, AI) / Khoa chốt điểm.
+  - Màn hình `/student/scores`: Bảng 16 tiêu chí hiển thị điểm tự đánh giá, điểm gợi ý và điểm chính thức đã công bố. Điểm gợi ý bằng 0 được hiển thị là 0. Khi chưa có điểm gợi ý, cột này hiển thị thông tin minh chứng hoặc trạng thái chưa có căn cứ.
   - Modal minh chứng: Hiển thị hướng dẫn quy trình mới, cho phép nộp 0 file khi có mô tả $\ge 10$ ký tự.
 - **Admin:**
   - Màn hình `/admin/terms`: Checkbox "Bật quy trình căn cứ mới (`evidenceBasisWorkflowEnabled`)" trong modal Tạo kỳ và modal Sửa kỳ.
@@ -71,13 +72,13 @@ Trace:
    - Body: `{ reason: string }` (tối thiểu 5 ký tự)
    - Response: `{ batchId, status: 'REVOKED', revokedCount }`
 6. `GET /api/assessments/student/:id/preview-finalize?termId=...`:
-   - Response: `{ canFinalize, blockers: string[], warnings: string[], criteria: [...] }`
+   - Response gồm `canFinalize`, `blockers`, `warnings` và `criteria`. Xem [hợp đồng `projectedScore`](../API_CONTRACT.md#contract-các-thao-tác-chính).
 7. `POST /api/assessments/student/:id/finalize`:
    - Body: `{ termId: string }`
    - Response: `{ studentId, finalizedCount, officialTotalScore }`
 8. `POST /api/assessments/batch-finalize`:
    - Body: `{ termId: string, studentIds: string[] }` (tối đa 100 ID)
-   - Response: `{ totalProcessed, successCount, failedCount, results: [...] }`
+   - Response dùng `totalRequested`, `successCount`, `failureCount` và `results`. Xem [hợp đồng kết quả từng phiếu](../API_CONTRACT.md#contract-các-thao-tác-chính).
 
 ## 6. Error Handling — Xử lý lỗi
 
@@ -104,7 +105,9 @@ Trace:
 
 Regression BL-028/029 đã đạt trên HTTP/PostgreSQL và component Web nhập Excel. Bao phủ vai trò, khóa phiếu/kỳ, cùng MSSV ở hai kỳ, đổi hoạt động hoặc file, response trả muộn và retry. Xem [TEST_PLAN](../TEST_PLAN.md).
 
-Bộ test regression đầy đủ 25 ca tại `apps/backend/test/grounding-import-and-batch-finalize.test.cjs`:
+Regression BL-031/033 đạt với lô một phiếu thành công và một phiếu bị chặn, điểm đã chốt bằng 0 khác điểm gợi ý và giữ riêng điểm gợi ý với publication. [Kết quả kiểm thử](../TEST_PLAN.md).
+
+Bộ regression tại `apps/backend/test/grounding-import-and-batch-finalize.test.cjs`:
 - Ca 1: MSSV dạng text giữ số 0 ở đầu ("0102210001"), preview VALID.
 - Ca 2: Dữ liệu học vụ sai kiểu -> Preview đánh dấu ERROR.
 - Ca 3: MSSV ngoài phạm vi Khoa -> Preview đánh dấu ERROR.
@@ -130,13 +133,14 @@ Bộ test regression đầy đủ 25 ca tại `apps/backend/test/grounding-impor
 - Ca 23: Thu hồi lô hoạt động (ACTIVITY) xóa sạch cả bản ghi CONFIRMED khi chưa chốt điểm và tính lại điểm gợi ý qua recomputeAndSaveActivityCriterion.
 - Ca 24: Sửa tay qua verifyCriterion không bị syncStudentGrounding ghi đè (bảo vệ căn cứ thủ công của cán bộ).
 - Ca 25: CriteriaService.updateTerm chặn đổi evidenceBasisWorkflowEnabled khi kỳ đã có publication hoặc handoff SENT.
+- BL-033: `getMine` giữ điểm gợi ý đã lưu, gồm 0 và `null`, đồng thời giữ điểm chính thức từ publication.
 
 ## 10. Definition of Done — Điều kiện hoàn thành
 
 - [x] Schema Prisma & Migration DDL đầy đủ (`evidenceBasisWorkflowEnabled`, `ImportBatch`, `AcademicGrounding`, `ClubLeadershipGrounding`, `batchId`).
 - [x] Backend Core DTO, Service, Controller, Module hoàn chỉnh và đăng ký vào `AppModule`.
 - [x] Khắc phục triệt để 9 điểm phát hiện qua review độc lập (re-validation trong confirm, externalTx loại bỏ nested transaction, bảo vệ căn cứ thủ công, phân tách 5 mẫu Excel chuyên biệt, xóa bản ghi CONFIRMED khi thu hồi lô hoạt động, bảo vệ công tắc kỳ khi đã công bố).
-- [x] 25/25 test cases unit/regression pass 100%.
+- [x] Các test unit/regression hiện có của F15 đạt trong lượt chạy ghi tại [TEST_PLAN](../TEST_PLAN.md).
 - [x] Frontend Khoa: Màn hình Import Căn Cứ & Quản lý lô (`/officer/grounding-import`).
 - [x] Frontend Khoa: Chốt phiếu sinh viên (`StudentAssessment.tsx`) & Chốt hàng loạt (`EvaluationBoard.tsx`).
 - [x] Frontend Sinh viên: Cập nhật bảng điểm 16 tiêu chí và minh chứng 0 file (`ScoreReport.tsx`).

@@ -2,6 +2,12 @@
 
 Mỗi công việc trong dự án thêm mục mới ở đầu với ngày, phạm vi, feature/bug/quyết định liên quan, thay đổi thực tế, kiểm tra đã chạy và giới hạn. Không ghi test dự kiến như đã Passed, không ghi credential hoặc dữ liệu sinh viên.
 
+## 2026-11-23 — Sửa hiển thị điểm, minh chứng và thông báo
+
+- BL-031/033 (F07/F15) đồng bộ `EvaluationBoard` và `StudentAssessment` với hợp đồng kết quả chốt. `AssessmentsService.getMine` giữ điểm gợi ý đã lưu, `ScoreReport` hiển thị riêng điểm công bố.
+- BL-035 (F12) sửa `apiClient` đọc `meta.counts`, Dashboard dùng thống kê toàn kỳ và tải riêng `NEEDS_SUPPLEMENT`. BL-037 (F13) giữ `unreadCount` trong API client, dùng chung dữ liệu cho `AppLayout` và `NotificationsCenter`.
+- Backend **75/75**, Web **29/29**, typecheck hai app và `git diff --check` đạt. Test dùng doubles/transport giả lập. Chưa chạy DB integration hay browser E2E. Xem [kết quả](TEST_PLAN.md).
+
 ## 2026-11-23 — Sửa phân quyền chốt và ngữ cảnh nhập Excel, kiểm PostgreSQL 17
 
 - BL-028 (F07/F15) dùng `WorkflowService.assertEditable` trong transaction batch. Đã kiểm tra helper tự lấy khóa hàng `Term` trên cùng transaction với ghi điểm và audit.

@@ -482,18 +482,16 @@ export const apiClient = {
   }> {
     const res = await http.get('/evidence', { params });
     const payload = res.data.data;
+    const meta = res.data.meta;
     const items = extractArray<Evidence>(payload);
+    const counts = meta?.counts ?? payload?.counts;
+    if (!counts) throw new Error('API minh chứng thiếu thống kê theo kỳ.');
     return {
       items,
-      total: Number(payload?.total ?? items.length),
-      page: Number(payload?.page ?? params?.page ?? 1),
-      pageSize: Number(payload?.pageSize ?? params?.pageSize ?? 20),
-      counts: payload?.counts ?? {
-        all: items.length,
-        approved: items.filter((e) => e.status === 'APPROVED').length,
-        supplement: items.filter((e) => e.status === 'NEEDS_SUPPLEMENT').length,
-        reviewing: items.filter((e) => ['NEEDS_HUMAN_REVIEW', 'PROCESSING', 'PLAUSIBLE'].includes(e.status)).length,
-      },
+      total: Number(meta?.total ?? payload?.total ?? items.length),
+      page: Number(meta?.page ?? payload?.page ?? params?.page ?? 1),
+      pageSize: Number(meta?.pageSize ?? payload?.pageSize ?? params?.pageSize ?? 20),
+      counts,
     };
   },
 
@@ -626,9 +624,10 @@ export const apiClient = {
   // ==========================================
   // NOTIFICATIONS (NOTI-01, NOTI-02)
   // ==========================================
-  async getNotifications(): Promise<Notification[]> {
+  async getNotifications(): Promise<{ items: Notification[]; unreadCount: number }> {
     const res = await http.get('/notifications');
-    return extractArray<Notification>(res.data.data);
+    const payload = res.data.data;
+    return { items: extractArray<Notification>(payload), unreadCount: payload.unreadCount };
   },
 
   async markNotificationAsRead(id: string): Promise<void> {

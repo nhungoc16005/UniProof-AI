@@ -24,7 +24,7 @@ Luồng: NotificationsCenter / AppLayout → NotificationsController → Notific
 ## 3. Acceptance Criteria — Tiêu chí nghiệm thu
 
 - **F13-AC-01:** Chỉ chủ thông báo được đọc/đánh dấu.
-- **F13-AC-02:** Danh sách hiện lấy 50 thông báo gần nhất cùng unreadCount.
+- **F13-AC-02:** Danh sách hiện lấy tối đa 50 thông báo gần nhất. `unreadCount` là tổng chưa đọc của tài khoản và cấp dữ liệu cho cả chuông lẫn tab Chưa đọc.
 - **F13-AC-03:** Đánh dấu một/tất cả không đổi thông báo của người khác.
 - **F13-AC-04:** dedupeKey không được chặn một sự kiện nghiệp vụ mới hợp lệ.
 - **F13-AC-05:** targetPath/metadata giữ được ngữ cảnh kỳ và thực thể.
@@ -34,6 +34,8 @@ Các tiêu chí có gap audit là điều kiện cần đạt khi sửa, không 
 ## 4. UI/UX — Giao diện và tương tác
 
 Badge chưa đọc, danh sách rỗng, tải/lỗi/retry; click giữ đường dẫn thực thể.
+
+Tab Chưa đọc phân biệt đã đọc hết với trường hợp còn thông báo chưa đọc ngoài 50 mục gần nhất. Nút đánh dấu tất cả vẫn dùng được trong trường hợp thứ hai và cập nhật cả badge trên chuông.
 
 Giữ ngữ cảnh người dùng/kỳ và cung cấp thao tác thử lại. Chỉ hiển thị nút khi có quyền, đồng thời server phải kiểm tra lại quyền và trạng thái.
 
@@ -78,7 +80,7 @@ Lỗi validation/nghiệp vụ phải hiển thị lý do từ server; 401 yêu 
 | ID | Kịch bản | Liên kết | Trạng thái |
 |---|---|---|---|
 | F13-TC-01 | Kiểm chứng: chỉ chủ thông báo được đọc/đánh dấu | F13-AC-01 | Planned |
-| F13-TC-02 | Kiểm chứng: danh sách hiện lấy 50 thông báo gần nhất cùng unreadCount | F13-AC-02 | Planned |
+| F13-TC-02 | BL-037: Trong 51 thông báo, mục chưa đọc duy nhất ở vị trí 51. Badge và tab báo 1, trạng thái rỗng giải thích giới hạn danh sách. Đánh dấu tất cả đưa tổng về 0. | F13-AC-02 | Đạt ở service và component Web với transport giả lập. [Kết quả](../TEST_PLAN.md). |
 | F13-TC-03 | Kiểm chứng: đánh dấu một/tất cả không đổi thông báo của người khác | F13-AC-03 | Planned |
 | F13-TC-04 | Kiểm chứng: dedupeKey không được chặn một sự kiện nghiệp vụ mới hợp lệ | F13-AC-04 | Planned |
 | F13-TC-05 | Kiểm chứng: targetPath/metadata giữ được ngữ cảnh kỳ và thực thể | F13-AC-05 | Planned |

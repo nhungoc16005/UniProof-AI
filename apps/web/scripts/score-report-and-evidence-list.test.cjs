@@ -139,9 +139,9 @@ function createReactHarness() {
   };
 }
 
-function loadRealComponent(filePath, mockModules = {}) {
+function loadRealComponent(filePath, mockModules = {}, transformSource = value => value) {
   const file = path.resolve(__dirname, filePath);
-  const compiled = ts.transpileModule(fs.readFileSync(file, 'utf8'), {
+  const compiled = ts.transpileModule(transformSource(fs.readFileSync(file, 'utf8')), {
     compilerOptions: {
       module: ts.ModuleKind.CommonJS,
       target: ts.ScriptTarget.ES2020,
@@ -166,6 +166,259 @@ function loadRealComponent(filePath, mockModules = {}) {
   mod._compile(compiled, file);
   return mod.exports;
 }
+
+function findElement(tree, matches) {
+  if (Array.isArray(tree)) {
+    for (const child of tree) {
+      const result = findElement(child, matches);
+      if (result) return result;
+    }
+  } else if (React.isValidElement(tree)) {
+    return matches(tree) ? tree : findElement(tree.props.children, matches);
+  }
+}
+
+function textOf(tree) {
+  if (Array.isArray(tree)) return tree.map(textOf).join('');
+  if (React.isValidElement(tree)) return textOf(tree.props.children);
+  return typeof tree === 'number' || typeof tree === 'string' ? String(tree) : '';
+}
+
+function buttonWithText(tree, label) {
+  const button = findElement(tree, node => node.type === 'button' && textOf(node).trim() === label);
+  assert.ok(button, label);
+  return button;
+}
+
+function clientWithTransport(transport) {
+  const mockAxios = { create: () => ({
+    interceptors: { request: { use() {} }, response: { use() {} } }, ...transport,
+  }) };
+  return loadRealComponent('../src/lib/apiClient.ts', { axios: mockAxios },
+    source => source.replace('(import.meta as any).env', '({})')).apiClient;
+}
+
+const envelope = (data, meta) => ({ data: { success: true, data, meta } });
+
+test('BL-031: batch modal renders failureCount, finalizedCount and blocker from the API', async () => {
+  const rows = ['sv-1', 'sv-2'].map((studentId, index) => ({
+    studentId, student: { fullName: studentId, studentCode: studentId },
+    state: 'REVIEWING', blockers: [], finalizedCriteria: 0, totalCriteria: 2,
+    pendingAppeals: 0, pendingEvidence: index, ready: false,
+  }));
+  const api = clientWithTransport({
+    get: async () => envelope({
+      items: rows, summary: { total: 2 }, filters: { faculties: [], classes: [] },
+      total: 2, page: 1, pageSize: 25,
+      facultyProgress: [], updatedAt: '2026-11-23',
+      term: { id: 'term-1', status: 'ACTIVE', workflowEnabled: true },
+    }),
+    post: async (url, body) => {
+      assert.equal(url, '/assessments/batch-finalize');
+      assert.deepEqual(body.studentIds, ['sv-1', 'sv-2']);
+      return envelope({
+        totalRequested: 2, successCount: 1, failureCount: 1,
+        results: [
+          { studentId: 'sv-1', success: true, finalizedCount: 2, blockers: [] },
+          { studentId: 'sv-2', success: false, finalizedCount: 0, blockers: ['Còn minh chứng chờ'] },
+        ],
+      });
+    },
+  });
+  const { EvaluationBoard } = loadRealComponent('../src/components/EvaluationBoard.tsx', {
+    AuthContext: { useAuth: () => ({ activeTerm: { id: 'term-1' } }) },
+    apiClient: { apiClient: api },
+    'react-router-dom': { Link: () => null, useSearchParams: () => [new URLSearchParams(), () => {}] },
+    'ui/Skeleton': { TableSkeleton: () => null },
+  });
+  const harness = createReactHarness();
+  harness.mount(() => EvaluationBoard({}));
+  await harness.flush();
+  const select = findElement(harness.getVdom(), node => node.props['aria-label'] === 'Chọn kết quả trên trang');
+  select.props.onChange({ target: { checked: true } });
+  await harness.flush();
+  buttonWithText(harness.getVdom(), 'Chốt hàng loạt (2)').props.onClick();
+  await harness.flush();
+  await buttonWithText(harness.getVdom(), 'Bắt đầu chốt hàng loạt').props.onClick();
+  await harness.flush();
+  const text = textOf(harness.getVdom());
+  assert.match(text, /Chốt thành công1 phiếu/);
+  assert.match(text, /Bỏ qua1 phiếu/);
+  assert.match(text, /Vừa chốt 2 tiêu chí/);
+  assert.match(text, /Còn minh chứng chờ/);
+  harness.unmount();
+});
+
+test('BL-031: single preview renders the adjusted projected score of zero and the finalized status', async () => {
+  const api = clientWithTransport({
+    get: async url => {
+      if (url.endsWith('/preview-finalize')) return envelope({
+        canFinalize: true, blockers: [], warnings: [],
+        criteria: [{ id: 'c-1', code: '1', name: 'Tiêu chí điều chỉnh', selfScore: 5, suggestedScore: 3,
+          officialScore: 0, projectedScore: 0, status: 'ALREADY_FINALIZED', canFinalize: true }],
+      });
+      if (url.startsWith('/users/')) return envelope({ fullName: 'Sinh viên A', studentCode: 'SV1', class: { code: 'A' } });
+      if (url.startsWith('/assessments/')) return envelope({ categories: [], permissions: { canReview: true } });
+      return envelope([]);
+    },
+  });
+  const { StudentAssessment } = loadRealComponent('../src/pages/officer/StudentAssessment.tsx', {
+    AuthContext: { useAuth: () => ({ activeTerm: { id: 'term-1' }, user: { role: 'STAFF' } }) },
+    apiClient: { apiClient: api },
+    'react-router-dom': { Link: () => null, useParams: () => ({ studentId: 'sv-1' }), useSearchParams: () => [new URLSearchParams(), () => {}] },
+  });
+  const harness = createReactHarness();
+  harness.mount(() => StudentAssessment({}));
+  await harness.flush();
+  await buttonWithText(harness.getVdom(), 'Chốt phiếu sinh viên').props.onClick();
+  await harness.flush();
+  const row = findElement(harness.getVdom(), node => node.type === 'tr' && textOf(node).includes('Tiêu chí điều chỉnh'));
+  assert.deepEqual(React.Children.toArray(row.props.children).map(textOf), ['1', 'Tiêu chí điều chỉnh', '5', '3', '0', 'Đã chốt']);
+  harness.unmount();
+});
+
+test('BL-033: ScoreReport displays a zero suggestion separately from publication', async () => {
+  const term = { id: 'term-1', workflowEnabled: true };
+  const { ScoreReport } = loadRealComponent('../src/pages/student/ScoreReport.tsx', {
+    AuthContext: { useAuth: () => ({ activeTerm: term, terms: [term], user: { id: 'sv-1' } }) },
+    apiClient: { apiClient: { getConductDashboard: async () => ({}), getEvidences: async () => [] } },
+    useStudentAssessmentAccess: { useStudentAssessmentAccess: () => ({
+      canEdit: false,
+      refresh: async () => ({
+        term, rubricVersion: { id: 'rubric' },
+        categories: [{ key: 'I', maxScore: 10, criteria: [{
+          id: 'c-1', code: '1', name: 'Tiêu chí điểm danh', maxScore: 5,
+          assessment: { suggestedScore: 0, officialScore: null, status: 'NEEDS_VERIFICATION' },
+        }, {
+          id: 'c-2', code: '2', name: 'Tiêu chí đã công bố', maxScore: 5,
+          assessment: { suggestedScore: 4, officialScore: 2, status: 'FINALIZED' },
+        }] }],
+      }),
+    }) },
+    StudentAssessmentNotice: { StudentAssessmentNotice: () => null },
+    'react-router-dom': { useSearchParams: () => [new URLSearchParams({ termId: term.id })],
+      useNavigate: () => () => {}, useLocation: () => ({ pathname: '/student/scores', search: '?termId=term-1' }) },
+  });
+  const harness = createReactHarness();
+  harness.mount(() => ScoreReport({}));
+  await harness.flush();
+  const cells = label => React.Children.toArray(findElement(harness.getVdom(),
+    node => node.type === 'tr' && textOf(node).includes(label)).props.children).map(textOf).slice(-2);
+  assert.deepEqual(cells('Tiêu chí điểm danh'), ['0 / 5 đTheo căn cứ đã xác minh', 'Chưa công bố']);
+  assert.deepEqual(cells('Tiêu chí đã công bố'), ['4 / 5 đTheo căn cứ đã xác minh', '2/5 điểm']);
+  harness.unmount();
+});
+
+test('BL-035: Dashboard reads real envelope metadata and fetches supplements outside the recent page', async () => {
+  const pendingTerm = createDeferred();
+  const calls = [];
+  const counts = { all: 21, approved: 17, reviewing: 3, supplement: 1 };
+  const meta = (total, pageSize) => ({ total, page: 1, pageSize, counts });
+  const api = clientWithTransport({
+    get: async (url, { params }) => {
+      if (url === '/scores/dashboard') return envelope({ categories: [] });
+      assert.equal(url, '/evidence');
+      calls.push(params);
+      if (params.status === 'NEEDS_SUPPLEMENT') {
+        if (params.termId === 'term-failed') throw new Error('Lỗi tải hồ sơ bổ sung');
+        return envelope([{ id: 'ev-21', declaredActivityName: 'Yêu cầu ở trang hai' }], meta(1, 8));
+      }
+      if (params.termId === 'term-old') return pendingTerm.promise;
+      return envelope([{ id: 'recent', declaredActivityName: 'Minh chứng mới', status: 'APPROVED' }], meta(21, 4));
+    },
+  });
+  let activeTerm = { id: 'term-old' };
+  const ActionQueue = () => null;
+  const StatCard = () => null;
+  const { StudentDashboard } = loadRealComponent('../src/pages/student/Dashboard.tsx', {
+    AuthContext: { useAuth: () => ({ activeTerm, user: { id: 'sv-1' } }) },
+    apiClient: { apiClient: api },
+    'react-router-dom': { Link: () => null },
+    useStudentAssessmentAccess: { useStudentAssessmentAccess: () => ({ isReturned: false }) },
+    StudentAssessmentNotice: { StudentAssessmentNotice: () => null },
+    'ui/StatusBadge': { StatusBadge: () => null },
+    'ui/ScoreGauge': { ScoreGauge: () => null },
+    'components/shared': { ActionQueue, StatCard, PageHeader: () => null, SectionHeader: () => null,
+      DeadlineCard: () => null, InsightPanel: () => null },
+  });
+  const harness = createReactHarness();
+  harness.mount(() => StudentDashboard({}));
+  activeTerm = { id: 'term-new' };
+  harness.rerender();
+  await harness.flush();
+  pendingTerm.resolve(envelope([], { total: 0, counts: { all: 0, approved: 0, reviewing: 0, supplement: 0 } }));
+  await harness.flush();
+
+  const tree = harness.getVdom();
+  const stat = label => findElement(tree, node => node.type === StatCard && node.props.label === label).props.value;
+  assert.equal(stat('Minh chứng đã duyệt'), 17);
+  assert.equal(stat('Minh chứng chờ duyệt'), 3);
+  assert.equal(stat('Hồ sơ cần bổ sung'), 1);
+  assert.match(textOf(tree), /Xem toàn bộ \(21\)/);
+  const queue = findElement(tree, node => node.type === ActionQueue);
+  assert.equal(queue.props.totalCount, 1);
+  assert.equal(queue.props.items[0].to, '/student/evidence/ev-21/supplement?termId=term-new');
+  assert.ok(calls.some(params => params.termId === 'term-new' && params.status === 'NEEDS_SUPPLEMENT' && params.pageSize === 8));
+  activeTerm = { id: 'term-failed' };
+  harness.rerender();
+  await harness.flush();
+  const failedTree = harness.getVdom();
+  assert.equal(findElement(failedTree, node => node.type === StatCard && node.props.label === 'Hồ sơ cần bổ sung').props.value, 1);
+  assert.match(textOf(failedTree), /Không tải được danh sách cần bổ sung/);
+  assert.equal(findElement(failedTree, node => node.type === ActionQueue), undefined);
+  harness.unmount();
+});
+
+test('BL-037: layout and center share unread count 1 with all visible notifications read', async () => {
+  const items = Array.from({ length: 50 }, (_, index) => ({ id: 'notif-' + index, isRead: true, createdAt: '2026-11-23' }));
+  const calls = [];
+  const api = clientWithTransport({
+    get: async url => {
+      assert.equal(url, '/notifications');
+      calls.push('load');
+      return envelope({ items, unreadCount: 1 });
+    },
+    patch: async url => {
+      assert.equal(url, '/notifications/read-all');
+      calls.push('mark-all');
+      return envelope({});
+    },
+  });
+  const hook = loadRealComponent('../src/hooks/useNotificationFeed.ts', { apiClient: { apiClient: api } });
+  const Outlet = () => null;
+  const { AppLayout } = loadRealComponent('../src/layouts/AppLayout.tsx', {
+    AuthContext: { useAuth: () => ({ activeTerm: { id: 'term-1' }, terms: [], user: { id: 'sv-1', role: 'STUDENT' } }) },
+    apiClient: { apiClient: api },
+    roleNavigation: loadRealComponent('../src/lib/roleNavigation.ts'),
+    useNotificationFeed: hook,
+    'react-router-dom': { Outlet, Link: () => null, useLocation: () => ({ pathname: '/notifications', search: '', key: 'one' }), useNavigate: () => () => {} },
+  });
+  const layout = createReactHarness();
+  layout.mount(() => AppLayout({}));
+  await layout.flush();
+  const bell = () => findElement(layout.getVdom(), node => node.type === 'button' && node.props['aria-label'] === 'Thông báo');
+  const { NotificationsCenter } = loadRealComponent('../src/pages/common/NotificationsCenter.tsx', {
+    'react-router-dom': {
+      useOutletContext: () => findElement(layout.getVdom(), node => node.type === Outlet).props.context,
+      useNavigate: () => () => {},
+    },
+  });
+  const center = createReactHarness();
+  center.mount(() => NotificationsCenter({}));
+  assert.equal(textOf(bell()), '1');
+  buttonWithText(center.getVdom(), 'Chưa đọc (1)').props.onClick();
+  await center.flush();
+  assert.match(textOf(center.getVdom()), /Còn thông báo chưa đọc ngoài 50 mục gần nhất/);
+  await buttonWithText(center.getVdom(), 'Đánh dấu tất cả đã đọc').props.onClick();
+  await layout.flush();
+  center.rerender();
+  assert.equal(textOf(bell()), '');
+  assert.match(textOf(center.getVdom()), /Chưa đọc \(0\)/);
+  assert.match(textOf(center.getVdom()), /Bạn đã đọc tất cả thông báo/);
+  assert.deepEqual(calls, ['load', 'mark-all']);
+  center.unmount();
+  layout.unmount();
+});
 
 // =========================================================================
 // TEST SUITES: BL-024, BL-018, BL-019

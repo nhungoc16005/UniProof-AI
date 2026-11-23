@@ -180,7 +180,8 @@ export interface PreviewFinalizeResult {
     selfScore: number | null;
     suggestedScore: number | null;
     officialScore: number | null;
-    status: string;
+    projectedScore: number | null;
+    status: 'ALREADY_FINALIZED' | 'READY_TO_FINALIZE' | 'BLOCKED';
     canFinalize: boolean;
     reason?: string;
   }>;
@@ -193,17 +194,16 @@ export interface FinalizeStudentResult {
 }
 
 export interface BatchFinalizeResult {
-  totalProcessed: number;
+  totalRequested: number;
   successCount: number;
-  failedCount: number;
+  failureCount: number;
   results: Array<{
     studentId: string;
     studentCode?: string;
     fullName?: string;
     success: boolean;
-    officialScore?: number;
-    reason?: string;
-    blockers?: string[];
+    finalizedCount: number;
+    blockers: string[];
   }>;
 }
 

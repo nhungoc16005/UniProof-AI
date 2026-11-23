@@ -538,6 +538,32 @@ Ngày lập tài liệu: 2026-11-15. Cập nhật: 2026-11-16. Baseline nguồn:
 
 **P0 / High / Confirmed.** Compose đã chuyển PG17 và chuẩn bị pgvector. Baseline SQL nguyên bản được áp dụng qua session riêng, 13 migration sau đó qua Prisma. Integration chạy đạt trên DB cách ly với lịch sử đủ 14 migration. Giữ mở phần deploy một bước do `P1014` trên DB mới. [Quy trình và bằng chứng](TEST_PLAN.md#postgresql-17-local).
 
+## Cập nhật hiển thị và phân trang từ audit `eef49ca` — 2026-11-23
+
+<a id="bl-031"></a>
+
+### BL-031 — Hiển thị kết quả chốt phiếu
+
+**Medium / Confirmed / Done.** Bảng chốt hàng loạt từng đọc `failedCount` và `officialScore` dù API trả `failureCount` và `finalizedCount`. Modal từng phiếu lấy điểm gợi ý kể cả khi đã có điểm Khoa điều chỉnh. Web hiện đọc số phiếu bị chặn, số tiêu chí vừa chốt, lý do và `projectedScore` theo API. Regression kiểm lô một thành công/một bị chặn và điểm đã chốt bằng 0 khác điểm gợi ý. [Bảng kết quả](../apps/web/src/components/EvaluationBoard.tsx#L493), [modal](../apps/web/src/pages/officer/StudentAssessment.tsx#L1379).
+
+<a id="bl-033"></a>
+
+### BL-033 — Điểm gợi ý trên phiếu sinh viên và màn Khoa
+
+**Medium / Confirmed / Done.** `getMine` từng xóa điểm gợi ý trong kỳ workflow và màn Khoa gắn nhãn AI cho điểm tổng hợp từ nhiều nguồn. Projection hiện giữ `suggestedScore` đã lưu, giữ trường nội bộ ở dạng ẩn và lấy điểm chính thức từ publication. Màn Khoa hiển thị nhãn **Điểm gợi ý**. Regression kiểm điểm 0, `null`, kỳ tắt F15 và điểm công bố khác điểm gợi ý. [Projection](../apps/backend/src/assessments/assessments.service.ts#L249), [màn Khoa](../apps/web/src/pages/officer/StudentAssessment.tsx#L384).
+
+<a id="bl-035"></a>
+
+### BL-035 — Minh chứng cần bổ sung ngoài trang mặc định
+
+**Medium / Confirmed / Done.** Dashboard từng lấy thống kê từ trang đầu và lọc danh sách bổ sung tại chỗ. Client hiện đọc `meta.counts` toàn kỳ và tải bổ sung với `NEEDS_SUPPLEMENT`. Regression dùng 21 hồ sơ, kiểm số liệu toàn kỳ, hồ sơ cần bổ sung ngoài trang đầu và lỗi tải danh sách riêng. [API client](../apps/web/src/lib/apiClient.ts#L482), [Dashboard](../apps/web/src/pages/student/Dashboard.tsx#L73).
+
+<a id="bl-037"></a>
+
+### BL-037 — Tổng thông báo chưa đọc ngoài 50 mục
+
+**Low / Confirmed / Done.** API client từng bỏ `unreadCount` nên Web đếm riêng 50 mục gần nhất. Chuông và trung tâm hiện dùng chung tổng từ API. Regression kiểm thông báo chưa đọc ở vị trí 51, trạng thái tab Chưa đọc và đồng bộ badge khi đánh dấu tất cả. [API client](../apps/web/src/lib/apiClient.ts#L627), [trung tâm thông báo](../apps/web/src/pages/common/NotificationsCenter.tsx#L36).
+
 ## Độ bao phủ và giới hạn kiểm chứng
 
 Đã đối chiếu Web routes/callers, 16 controller, service/policy, guard/DTO, schema 34 model, 12 migration và các test liên quan; xem phân loại implementation/scaffold trong [PROJECT_OVERVIEW](PROJECT_OVERVIEW.md). Các số là inventory nguồn tại baseline, không khẳng định hạ tầng đã triển khai giống schema.

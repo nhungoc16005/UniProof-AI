@@ -242,7 +242,7 @@ Workflow UI có 8 state suy diễn từ submission, handoff, pending evidence/ap
 - **Căn cứ:** ReportsService + ConductScoresService; [nguồn](../apps/backend/src/reports/reports.service.ts#L17).
 - **Tiền điều kiện/quyền:** Actor có quyền ở kỳ, chọn nguồn chính thức theo workflow/legacy.
 - **Hậu điều kiện và chuyển trạng thái:** CTSV xem snapshot bàn giao, báo cáo chọn publication mới nhất; kỳ legacy chỉ dùng rubric complete; average chỉ trên dòng có điểm.
-- **Bất biến/ca biên/gap:** Chưa công bố là null/UNPUBLISHED, không là 0; query thiếu kỳ cần scope sau giải quyết kỳ (BL-001).
+- **Bất biến/ca biên/gap:** Chưa công bố là null/UNPUBLISHED, không là 0; query thiếu kỳ cần scope sau giải quyết kỳ (BL-001). Trong kỳ `workflowEnabled`, sinh viên xem được điểm gợi ý đã lưu. Điểm chính thức trên phiếu sinh viên vẫn theo publication (BL-033).
 
 <a id="r-24"></a>
 
@@ -251,6 +251,7 @@ Workflow UI có 8 state suy diễn từ submission, handoff, pending evidence/ap
 - **Căn cứ:** WorkflowService.list/export + facultyAnalytics; [nguồn](../apps/backend/src/evaluation-workflow/workflow.service.ts#L175).
 - **Tiền điều kiện/quyền:** Bộ lọc được validate và có quyền; phân biệt 2 response envelope list.
 - **Hậu điều kiện và chuyển trạng thái:** Summary toàn tập lọc; export không cắt trang; dashboard gom đủ trang và phát hiện trùng/thiếu/stale trước vẽ.
+- **Dashboard sinh viên:** Dùng `counts` toàn phạm vi kỳ cho chỉ số minh chứng. Danh sách việc cần bổ sung tải riêng với `NEEDS_SUPPLEMENT` (BL-035).
 - **Bất biến/ca biên/gap:** KPI, workflow, report lỗi độc lập; không dùng lỗi làm0. Các list còn gap BL-018/019/020.
 
 <a id="r-25"></a>
@@ -259,7 +260,7 @@ Workflow UI có 8 state suy diễn từ submission, handoff, pending evidence/ap
 
 - **Căn cứ:** NotificationsService + Notification schema; [nguồn](../apps/backend/src/notifications/notifications.service.ts#L10).
 - **Tiền điều kiện/quyền:** userId đúng chủ; event phát sinh từ hành động hợp lệ.
-- **Hậu điều kiện và chuyển trạng thái:** Danh sách50 gần nhất + unreadCount; markRead theo chủ và markAll theo userId; dedupeKey unique khi có.
+- **Hậu điều kiện và chuyển trạng thái:** Danh sách tối đa 50 thông báo gần nhất, `unreadCount` tính trên toàn bộ thông báo của chủ tài khoản; markRead theo chủ và markAll theo userId; dedupeKey unique khi có (BL-037).
 - **Bất biến/ca biên/gap:** Chống trùng request không được cấm sự kiện mới; BL-021; không assume realtime/email đã triển khai.
 
 <a id="r-26"></a>

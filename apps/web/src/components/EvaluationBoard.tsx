@@ -490,7 +490,7 @@ export const EvaluationBoard: React.FC<{ admin?: boolean; compact?: boolean }> =
                 </div>
                 <div className="rounded-lg bg-rose-50 border border-rose-200 p-3">
                   <span className="text-[11px] text-rose-700 font-medium block">Không thể chốt / Bỏ qua</span>
-                  <span className="text-xl font-bold text-rose-800">{batchFinalizeResult.failedCount} phiếu</span>
+                  <span className="text-xl font-bold text-rose-800">{batchFinalizeResult.failureCount} phiếu</span>
                 </div>
               </div>
 
@@ -502,12 +502,12 @@ export const EvaluationBoard: React.FC<{ admin?: boolean; compact?: boolean }> =
                       <th className="px-3 py-2">MSSV</th>
                       <th className="px-3 py-2">Họ và tên</th>
                       <th className="px-3 py-2">Kết quả</th>
-                      <th className="px-3 py-2">Lý do / Điểm</th>
+                      <th className="px-3 py-2">Chi tiết</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
-                    {batchFinalizeResult.results.map((res, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50">
+                    {batchFinalizeResult.results.map((res) => (
+                      <tr key={res.studentId} className="hover:bg-slate-50">
                         <td className="px-3 py-2 font-mono font-bold text-slate-800">{res.studentCode || '—'}</td>
                         <td className="px-3 py-2 text-slate-700">{res.fullName || '—'}</td>
                         <td className="px-3 py-2">
@@ -523,9 +523,9 @@ export const EvaluationBoard: React.FC<{ admin?: boolean; compact?: boolean }> =
                         </td>
                         <td className="px-3 py-2 text-slate-600">
                           {res.success ? (
-                            <span>Điểm chốt: <strong>{res.officialScore} đ</strong></span>
+                            <span>Vừa chốt <strong>{res.finalizedCount}</strong> tiêu chí</span>
                           ) : (
-                            <span className="text-rose-700">{res.reason || res.blockers?.join(', ')}</span>
+                            <span className="text-rose-700">{res.blockers.join(', ')}</span>
                           )}
                         </td>
                       </tr>

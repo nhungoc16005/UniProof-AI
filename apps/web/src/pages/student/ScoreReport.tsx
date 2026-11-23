@@ -413,7 +413,7 @@ export const ScoreReport: React.FC = () => {
                         {assessment?.suggestedScore != null ? (
                           <div>
                             <strong className="text-blue-800 font-bold text-xs">{assessment.suggestedScore} / {criterion.maxScore} đ</strong>
-                            <span className="block text-[9px] text-slate-500 mt-0.5">Theo căn cứ hệ thống</span>
+                            <span className="block text-[9px] text-slate-500 mt-0.5">Theo căn cứ đã xác minh</span>
                           </div>
                         ) : criterionEvidences.length ? (
                           criterionEvidences.map((evidence) => {
@@ -430,7 +430,18 @@ export const ScoreReport: React.FC = () => {
                           <span className="text-slate-400">Chưa có căn cứ</span>
                         )}
                       </td>
-                      <td className="border border-slate-300 px-1.5 py-2 text-[10px] leading-4">{assessment?.officialScore != null ? <><strong className="text-emerald-700">{assessment.officialScore}/{criterion.maxScore} điểm</strong>{assessment.officialReason && <p className="mt-1 break-words text-slate-600">{assessment.officialReason}</p>}</> : <><strong className="text-slate-700">{assessment?.status === 'READY_FOR_REVIEW' ? 'Chờ chốt điểm' : assessment?.status === 'NEEDS_VERIFICATION' || criterionEvidences.length ? 'Chờ xác minh' : 'Chưa đánh giá'}</strong>{assessment?.suggestedScore != null && <p className="mt-1 text-amber-800">Theo quy chế: {assessment.suggestedScore}đ</p>}</>}</td>
+                      <td className="border border-slate-300 px-1.5 py-2 text-[10px] leading-4">
+                        {assessment?.officialScore != null ? (
+                          <>
+                            <strong className="text-emerald-700">{assessment.officialScore}/{criterion.maxScore} điểm</strong>
+                            {assessment.officialReason && <p className="mt-1 break-words text-slate-600">{assessment.officialReason}</p>}
+                          </>
+                        ) : (
+                          <strong className="text-slate-700">
+                            {rubric?.term?.workflowEnabled ? 'Chưa công bố' : assessment?.status === 'READY_FOR_REVIEW' ? 'Chờ chốt điểm' : assessment?.status === 'NEEDS_VERIFICATION' || criterionEvidences.length ? 'Chờ xác minh' : 'Chưa đánh giá'}
+                          </strong>
+                        )}
+                      </td>
                     </tr>;
                   })}
                 </React.Fragment>)}

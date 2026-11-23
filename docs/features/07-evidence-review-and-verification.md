@@ -36,6 +36,8 @@ Các tiêu chí có gap audit là điều kiện cần đạt khi sửa, không 
 
 Queue có trạng thái/chủ khóa; chi tiết cho căn cứ, AI và lịch sử; SupplementEvidence hiển thị yêu cầu và lỗi đúng trường.
 
+Màn phiếu Khoa gọi `CriterionAssessment.suggestedScore` là **Điểm gợi ý**, vì giá trị có thể đến từ căn cứ quy chế, xác minh tay hoặc AI. Modal chốt hiển thị `projectedScore` và phân biệt tiêu chí đã chốt với tiêu chí sẵn sàng chốt. Xem các ca BL-031/033 trong [TEST_PLAN](../TEST_PLAN.md).
+
 Giữ ngữ cảnh người dùng/kỳ và cung cấp thao tác thử lại. Chỉ hiển thị nút khi có quyền, đồng thời server phải kiểm tra lại quyền và trạng thái.
 
 ## 5. API Contract — Hợp đồng API

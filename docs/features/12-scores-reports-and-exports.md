@@ -35,6 +35,8 @@ Các tiêu chí có gap audit là điều kiện cần đạt khi sửa, không 
 
 Tổng quan Khoa: 8 trạng thái, tiến độ từng lớp, donut minh chứng; bảng thay thế và liên kết bàn phím. Màn Theo lớp có mục tiêu hành động riêng.
 
+Dashboard sinh viên dùng `meta.counts` cho số liệu minh chứng toàn kỳ. Danh sách gần đây và danh sách cần bổ sung tải riêng. Nếu danh sách bổ sung lỗi, Dashboard báo lỗi tải và vẫn hiển thị thống kê đã nhận.
+
 Giữ ngữ cảnh người dùng/kỳ và cung cấp thao tác thử lại. Chỉ hiển thị nút khi có quyền, đồng thời server phải kiểm tra lại quyền và trạng thái.
 
 ## 5. API Contract — Hợp đồng API
@@ -89,6 +91,7 @@ Lỗi validation/nghiệp vụ phải hiển thị lý do từ server; 401 yêu 
 | F12-TC-07 | BL-024: Mở đúng kỳ theo URL (?termId=...) cho các màn sinh viên, đồng bộ ngữ cảnh chọn kỳ giữa giao diện và API | BL-024; F12-AC-01 | Verified in `evidence-and-term-selection.test.cjs` |
 | F12-TC-08 | BL-018: Phân trang danh sách yêu cầu chỉnh sửa thông tin profile, hỗ trợ pageSize chuẩn hóa tối đa 100 dòng, lùi trang khi xử lý dòng cuối | BL-018; F12-AC-03 | Verified in `pagination-and-filter.test.cjs` |
 | F12-TC-09 | BL-019: Phân trang danh sách minh chứng sinh viên, bảo đảm số lượng vượt 20 dòng không bị cắt mất dữ liệu | BL-019; F12-AC-03 | Verified in `pagination-and-filter.test.cjs` |
+| F12-TC-10 | BL-035: 21 hồ sơ với hồ sơ cần bổ sung nằm ngoài trang đầu. Thống kê vẫn đủ và truy vấn theo trạng thái tìm thấy hồ sơ. Lỗi tải danh sách bổ sung giữ lại thống kê đã nhận. | F12-AC-03, F12-AC-05 | Đạt ở service/interceptor và component Web với transport giả lập. [Kết quả](../TEST_PLAN.md). |
 
 Bổ sung ca biên ở mục 7 và regression của từng BL liên quan; xem [TEST_PLAN](../TEST_PLAN.md) để chọn môi trường và bằng chứng. Không gán Passed nếu chưa chạy.
 

@@ -3,7 +3,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Bell, Calendar, X, ChevronDown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiClient } from '../lib/apiClient';
-import { Notification } from '../types';
+import { useNotificationFeed } from '../hooks/useNotificationFeed';
 import { roleNavigation, currentNavigation, navigationHref, type NavigationItem } from '../lib/roleNavigation';
 
 interface NavGroup {
@@ -16,8 +16,8 @@ export const AppLayout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [notificationLoadError, setNotificationLoadError] = useState(false);
+  const notificationFeed = useNotificationFeed(user?.id, location.pathname === '/notifications' ? location.key : undefined);
+  const { items: notifications, unreadCount, loading: notificationsLoading, error: notificationLoadError } = notificationFeed;
   const [showNotifMenu, setShowNotifMenu] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -48,29 +48,9 @@ export const AppLayout: React.FC = () => {
     return () => { cancelled = true; };
   }, [countsKey, user?.role]);
 
-  useEffect(() => {
-    let cancelled = false;
-    const timer = window.setTimeout(() => {
-      apiClient.getNotifications().then((items) => {
-        if (cancelled) return;
-        setNotifications(items);
-        setNotificationLoadError(false);
-      }).catch(() => {
-        if (!cancelled) setNotificationLoadError(true);
-      });
-    }, 750);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [user?.id]);
-
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
-
   const handleMarkAllRead = async () => {
     try {
-      await apiClient.markAllNotificationsAsRead();
-      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      await notificationFeed.markAllRead();
     } catch {
       window.alert('Không thể cập nhật thông báo. Vui lòng thử lại.');
     }
@@ -379,6 +359,7 @@ export const AppLayout: React.FC = () => {
                     </span>
                     <button
                       onClick={handleMarkAllRead}
+                      disabled={notificationsLoading || !unreadCount}
                       className="text-[11px] text-[#1D6FC2] hover:text-[#175A9E] hover:underline font-medium"
                     >
                       Đánh dấu đã đọc
@@ -387,6 +368,8 @@ export const AppLayout: React.FC = () => {
                   <div className="divide-y divide-[#E8E8EC] max-h-72 overflow-y-auto mt-1 scrollbar-thin">
                     {notificationLoadError ? (
                       <div className="p-4 text-xs text-[#DC2626]">Không tải được thông báo từ máy chủ.</div>
+                    ) : notificationsLoading ? (
+                      <div className="p-4 text-xs text-[#6B6B6B]">Đang tải thông báo…</div>
                     ) : notifications.length === 0 ? (
                       <div className="p-4 text-xs text-[#6B6B6B]">Chưa có thông báo.</div>
                     ) : notifications.map((n) => (
@@ -397,7 +380,7 @@ export const AppLayout: React.FC = () => {
                         }`}
                         onClick={() => {
                           setShowNotifMenu(false);
-                          if (!n.isRead) void apiClient.markNotificationAsRead(n.id).then(() => setNotifications(current => current.map(item => item.id === n.id ? { ...item, isRead: true, readAt: new Date().toISOString() } : item))).catch(() => undefined);
+                          if (!n.isRead) void notificationFeed.markRead(n.id).catch(() => undefined);
                           if (n.targetPath?.startsWith('/') && !n.targetPath.startsWith('//')) navigate(n.targetPath);
                           else if (user?.role === 'STUDENT') navigate('/student/evidence');
                           else if (user?.role === 'STAFF') navigate('/officer/queue');
@@ -580,7 +563,7 @@ export const AppLayout: React.FC = () => {
             </nav>
           )}
 
-          <Outlet />
+          <Outlet context={notificationFeed} />
         </main>
       </div>
 

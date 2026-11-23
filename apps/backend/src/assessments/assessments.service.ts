@@ -249,7 +249,7 @@ export class AssessmentsService {
             const live = byCriterion.get(criterion.id) || null;
             if (staffView || !version.term?.workflowEnabled || !live) return live;
             const published = publishedSnapshot?.categories?.flatMap((c: any) => c.criteria).find((c: any) => c.id === criterion.id)?.assessment;
-            return { ...live, verifiedData: null, verificationNote: null, suggestedScore: null, suggestionReason: null, officialScore: published?.officialScore ?? null, officialReason: published?.officialReason ?? null, status: published ? 'FINALIZED' : 'NEEDS_VERIFICATION', finalizedAt: published?.finalizedAt ?? null, finalReviewerId: null };
+            return { ...live, verifiedData: null, verificationNote: null, suggestionReason: null, officialScore: published?.officialScore ?? null, officialReason: published?.officialReason ?? null, status: published ? 'FINALIZED' : 'NEEDS_VERIFICATION', finalizedAt: published?.finalizedAt ?? null, finalReviewerId: null };
           })(),
         })),
       })),

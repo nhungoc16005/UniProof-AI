@@ -327,7 +327,7 @@ export const CriterionCard: React.FC<CardProps> = ({ studentId, termId, criterio
             ))}
             {criterion.scoringConfig?.kind === 'manual_verified' && (
               <label className="block text-xs font-semibold text-slate-700">
-                <span className="mb-1 block">Điểm AI chấm theo căn cứ (0–{criterion.maxScore})</span>
+                <span className="mb-1 block">Điểm theo căn cứ xác minh (0–{criterion.maxScore})</span>
                 <input
                   type="number"
                   min="0"
@@ -364,12 +364,12 @@ export const CriterionCard: React.FC<CardProps> = ({ studentId, termId, criterio
                       data: toVerifiedData(),
                       note: verificationNote,
                     }),
-                  'Đã gửi dữ liệu xác minh để tính điểm AI chấm.'
+                  'Đã lưu dữ liệu xác minh để tính điểm gợi ý.'
                 )
               }
               className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-40 transition-colors shadow-xs"
             >
-              Lưu xác minh & Tính điểm AI chấm
+              Lưu xác minh & Tính điểm gợi ý
             </button>
           </div>
         </div>
@@ -381,7 +381,7 @@ export const CriterionCard: React.FC<CardProps> = ({ studentId, termId, criterio
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-purple-600" />
-              <span className="font-bold uppercase tracking-wider text-purple-800">Điểm AI chấm:</span>
+              <span className="font-bold uppercase tracking-wider text-purple-800">Điểm gợi ý:</span>
               <span className="font-heading font-extrabold text-base text-purple-900 tabular-nums">
                 {assessment?.suggestedScore ?? 'Chưa thể tính'} / {criterion.maxScore} điểm
               </span>
@@ -419,12 +419,12 @@ export const CriterionCard: React.FC<CardProps> = ({ studentId, termId, criterio
               />
             </label>
             <label className="text-xs font-semibold text-slate-700">
-              Lý do điều chỉnh (nếu khác điểm AI chấm)
+              Lý do điều chỉnh (nếu khác điểm gợi ý)
               <input
                 value={finalReason}
                 disabled={readOnly}
                 onChange={(event) => setFinalReason(event.target.value)}
-                placeholder="Ghi rõ lý do nếu điều chỉnh khác điểm AI chấm..."
+                placeholder="Ghi rõ lý do nếu điều chỉnh khác điểm gợi ý..."
                 className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 disabled:bg-slate-50 focus:border-emerald-600 focus:outline-none"
               />
             </label>
@@ -775,11 +775,11 @@ export const StudentAssessment: React.FC = () => {
                 </div>
               </div>
 
-              {/* 2. Điểm AI chấm */}
+              {/* 2. Điểm gợi ý */}
               <div className="px-3.5 py-1.5 text-center bg-white rounded-lg border border-purple-100 shadow-2xs min-w-[96px]">
                 <div className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-purple-700 whitespace-nowrap">
                   <Sparkles className="h-3 w-3 text-purple-600 shrink-0" />
-                  <span>AI chấm</span>
+                  <span>Điểm gợi ý</span>
                 </div>
                 <div className="mt-1 font-heading text-base font-extrabold text-purple-900 tabular-nums">
                   {suggestedTotal} <span className="text-xs font-normal text-purple-500">đ</span>
@@ -971,7 +971,7 @@ export const StudentAssessment: React.FC = () => {
                   <th className="py-3 px-3 w-[14%] text-center">
                     <span className="inline-flex items-center gap-1 text-purple-700 font-bold">
                       <Sparkles className="h-3.5 w-3.5 text-purple-600 shrink-0" />
-                      <span>Điểm AI chấm</span>
+                      <span>Điểm gợi ý</span>
                     </span>
                   </th>
                   <th className="py-3 px-3 w-[10%] text-center">Điểm Khoa</th>
@@ -1006,7 +1006,7 @@ export const StudentAssessment: React.FC = () => {
                             <span className="text-slate-300">·</span>
                             <span className="text-purple-700 font-bold inline-flex items-center gap-1">
                               <Sparkles className="h-3 w-3" />
-                              AI chấm: {catSuggestedTotal} đ
+                              Điểm gợi ý: {catSuggestedTotal} đ
                             </span>
                             <span className="text-slate-300">·</span>
                             <strong className="font-bold text-[#1D6FC2] tabular-nums">
@@ -1125,7 +1125,7 @@ export const StudentAssessment: React.FC = () => {
                   <td className="py-3.5 px-3 text-center text-xs">
                     <span className="inline-flex items-center gap-1 font-bold text-purple-700 tabular-nums">
                       <Sparkles className="h-3.5 w-3.5" />
-                      AI chấm: {suggestedTotal} đ
+                      Điểm gợi ý: {suggestedTotal} đ
                     </span>
                   </td>
                   <td colSpan={3} className="py-3.5 px-4 text-right">
@@ -1376,10 +1376,12 @@ export const StudentAssessment: React.FC = () => {
                             {c.suggestedScore !== null ? c.suggestedScore : '—'}
                           </td>
                           <td className="px-2 py-2 text-center font-mono font-bold text-emerald-800">
-                            {c.canFinalize ? c.suggestedScore : (c.officialScore !== null ? c.officialScore : '—')}
+                            {c.projectedScore ?? '—'}
                           </td>
                           <td className="px-2.5 py-2">
-                            {c.canFinalize ? (
+                            {c.status === 'ALREADY_FINALIZED' ? (
+                              <span className="text-emerald-700 font-semibold text-[11px]">Đã chốt</span>
+                            ) : c.status === 'READY_TO_FINALIZE' ? (
                               <span className="text-emerald-700 font-semibold text-[11px]">Sẵn sàng chốt</span>
                             ) : (
                               <span className="text-slate-500 text-[11px]">{c.reason || c.status}</span>
