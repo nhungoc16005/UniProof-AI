@@ -1,5 +1,36 @@
 # Kế hoạch kiểm chứng EduPoint
 
+## 2026-11-23 — Train lại toàn bộ AI từ A đến Z (Pipeline A/B/C)
+
+- **Pipeline A** (`research/activity-classification`, chạy `prepare_dataset → train_baseline → evaluate → error_analysis → export_model`): 259 mẫu / 239 `group_id` / 11 lớp. CV 5-fold `tfidf_linear_svc` Accuracy `0.8842 ± 0.0439`, Macro-F1 `0.8849 ± 0.0470`. Test mù 52 mẫu (mô hình chỉ học train+val): ML `45/52`, Accuracy `0.8654` (Wilson `[0.7473, 0.9332]`), Macro-F1 `0.8417`; keyword baseline `44/52`, Accuracy `0.8462`, Macro-F1 `0.8497`. Chênh lệch nằm trong khoảng tin cậy, chưa chứng minh ML vượt baseline.
+- **Sửa phương pháp đánh giá:** `evaluate.py` trước đây đánh giá cố định `tfidf_logreg` thay vì mô hình được xuất; `error_analysis.py` dùng model production đã học cả test (rò rỉ). Cả hai nay fit mô hình thắng CV trên train+val. Số `84.62% / Macro-F1 0.8241` ghi ở mục dưới là của `tfidf_logreg`, không phải mô hình production.
+- **Pipeline B** (`build_cv_dataset → train_mobilenet_cv --epochs 12`): test 42 ảnh tổng hợp accuracy `1.0`; kiểm tra ngoài phân phối 5 ảnh phôi đều ra lớp giấy tờ (0.52–0.88). Chưa có test ảnh thật — kết quả không đại diện thực tế.
+- **Pipeline C:** `register_templates.py` đăng ký lại 5 phôi mô phỏng.
+- **Regression:** `python -m unittest test_m2_contract_quality test_template_matcher test_ml_and_flows` → 23/23 OK; `node --test test/evidence-processing-worker.test.cjs` → 26/26 pass; khởi động lại FastAPI, `GET /health` → `rubricMlModelAvailable: true`. Chưa chạy lại seed đối chứng và browser E2E sau lần train này.
+
+## 2026-11-23 — Huấn luyện Rubric Classifier v2.0.0 (11 lớp), MobileNetV3 CV (7 lớp), Kho phôi Lớp 6 & Forensics chống giả mạo
+
+- **Rubric Classifier v2.0.0 (`research/activity-classification/`):** Mở rộng dataset lên **259 mẫu / 239 `group_id` độc lập** phủ đủ 11 lớp (`MUC_4, 5, 8, 9, 10, 12, 13, 14, 15, 16 + KHONG_HOP_LE`). 5-fold `StratifiedGroupKFold` đạt **Accuracy `88.42% ± 4.39%`**, **Macro-F1 `0.8851`** (tăng từ `0.5308` ở v1.0.0). Tập Test độc lập (`52 mẫu`, 0% trùng `group_id`) đạt **Accuracy `84.62%` (Wilson 95% CI `[72.48%, 91.99%]`)**, **Macro-F1 `0.8241`**, **Weighted-F1 `0.8385`**.
+- **MobileNetV3-Small CV (`research/image-classification/`):** Huấn luyện 7 lớp hình ảnh (`GIAY_HIEN_MAU`, `GIAY_KHEN_GCN`, `SU_KIEN_HOI_TRUONG`, `SU_KIEN_TINH_NGUYEN`, `SU_KIEN_VAN_NGHE_THE_THAO`, `SU_KIEN_CLB_NGAY_HOI`, `KHONG_PHAI_MINH_CHUNG`, train=112, test=42), xuất TorchScript `apps/ai-service/model/event_scene_classifier.pt` và tích hợp vào `FaceAndVisionService`.
+- **Kho phôi Lớp 6 & Unit Tests Python (`apps/ai-service/`):** Đăng ký 5 phôi chuẩn vào `apps/ai-service/templates/registry.json`; `test_m2_contract_quality.py` đạt **11/11**, `test_template_matcher.py` + `test_ml_and_flows.py` đạt **12/12**; Backend `evidence-processing-worker.test.cjs` đạt **26/26**.
+
+## 2026-11-23 — Mở khóa DEC-014: Vá BL-008/BL-022 và chạy thật FastAPI AI Service
+
+- **Backend:** `npx tsc --noEmit` đạt sạch; `node --test test/evidence-processing-worker.test.cjs` đạt **26/26** (bao gồm regression `BL-008` timeout bao trùm `response.json()` và `BL-022` `addSource` chuyển `PROCESSING` → `NEEDS_HUMAN_REVIEW`).
+- **Web:** `npx tsc --noEmit` đạt; `node --test scripts/*.test.cjs` đạt **31/31** (đã mở lại mục "Chạy thử AI" cho `STAFF`/`ADMIN`, ẩn với `STUDENT`).
+- **FastAPI AI Service (`apps/ai-service`, port 8000):** `GET /health` trả `healthy`, `ocrAvailable: true` (`rapidocr_vietocr` + `tesseract`), `rubricMlModelAvailable: true`.
+- **Chạy thật end-to-end (Backend `AI_MODE=ASSIST` ↔ FastAPI AI ↔ Supabase Storage ↔ PostgreSQL):** Đã nạp 18 phôi chứng nhận PNG phân biệt theo 5 loại đúng cửa sổ học kỳ `2026_1` (`2026-09-01`..`2027-01-15`) và đẩy `AiProcessingJob`; worker đã gọi thành công pipeline, lưu thật `OcrResult`, `VerificationResult`, `AiSuggestion`, `AiPipelineRun` (điểm tin cậy ~80–89/100, gợi ý đúng trần tiêu chí, `isDuplicate: false`). Chưa chạy browser E2E tự động.
+
+## 2026-11-23 — Hoàn thiện Frontend 4 gói (EvidenceDetail, Menu/Copy, Đồng bộ Khoa, Bản in A4)
+
+- **Web:** `npx tsc --noEmit` đạt sạch; toàn bộ `node --test scripts/*.test.cjs` đạt **31/31** (`deadline-dialog-and-access.test.cjs`, `evidence-inspection.test.cjs`, `faculty-analytics.test.cjs`, `score-report-and-evidence-list.test.cjs`, 0 lỗi). Chưa chạy browser E2E tự động.
+
+## 2026-11-23 — Chuẩn hóa quy tắc minh chứng 16 tiêu chí & dữ liệu minh chứng mẫu `2026_1`
+
+- **Backend:** `npm run build` (`nest build`) đạt; `node --test test/grounding-import-and-batch-finalize.test.cjs` bổ sung `Ca 13b` đạt (xác nhận miễn cảnh báo cho `TC1, 2, 3, 6, 7, 11` và minh chứng đã `APPROVED`, cảnh báo đúng mã cho `TC4, TC5, TC14`). Lưu ý: 2 ca cũ `Ca 10` và `BL-033` trong suite phụ thuộc `AI_MODE=ASSIST` khi `.env` đặt `AI_MODE=OFF` (không thuộc phạm vi thay đổi lần này).
+- **Web:** `npx tsc --noEmit` đạt; `node --test scripts/score-report-and-evidence-list.test.cjs` đạt **14/14** (bao gồm ca kiểm tra phân loại đủ 16 tiêu chí của `getCriterionEvidencePolicy`).
+- **Dữ liệu kỳ `2026_1` & Supabase Storage:** Chạy `apps/backend/scripts/seed-sample-evidences-2026-1.cjs` (có `--dry-run` trước và kiểm tra idempotency) tạo 18 hồ sơ minh chứng mẫu (18 ảnh PNG chứng nhận thật trên Supabase Storage) cho 8 sinh viên Khoa CNTT (`SUBMITTED` / `NEEDS_HUMAN_REVIEW`). Kiểm tra ký URL trực tiếp từ Supabase Storage trả `HTTP 200 OK`. Chưa chạy browser E2E.
+
 <a id="p1-suite-results"></a>
 
 ## 2026-11-23 — P1 và concurrency trên PostgreSQL 17

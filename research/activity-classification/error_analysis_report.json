@@ -1,0 +1,153 @@
+{
+  "total_test_samples": 52,
+  "error_count": 7,
+  "errors": [
+    {
+      "sample_id": "DOC-0007",
+      "group_id": "REAL-G-DOC-0007",
+      "true_label": "MUC_8",
+      "predicted_label": "MUC_12",
+      "top3": [
+        {
+          "label": "MUC_12",
+          "prob": 0.5677
+        },
+        {
+          "label": "MUC_8",
+          "prob": 0.2357
+        },
+        {
+          "label": "MUC_9",
+          "prob": 0.0861
+        }
+      ],
+      "text_excerpt": "Hoạt động: K25 FRESHMEN - DISCOVER UED\nVai trò trong minh chứng: Người tham gia\nNội dung minh chứng: Đã tham gia chương trình \"K25 FRESHMEN - DISCOVER UED\""
+    },
+    {
+      "sample_id": "DOC-0014",
+      "group_id": "REAL-G-DOC-0014",
+      "true_label": "MUC_9",
+      "predicted_label": "MUC_5",
+      "top3": [
+        {
+          "label": "MUC_5",
+          "prob": 0.64
+        },
+        {
+          "label": "MUC_12",
+          "prob": 0.1292
+        },
+        {
+          "label": "MUC_10",
+          "prob": 0.0875
+        }
+      ],
+      "text_excerpt": "Hoạt động: Khoảnh Khắc Tri Ân\nVai trò trong minh chứng: Người tham gia cuộc thi\nNội dung minh chứng: Đã tham gia cuộc thi “Khoảnh Khắc Tri Ân”"
+    },
+    {
+      "sample_id": "DOC-0052",
+      "group_id": "REAL-G-DOC-0052",
+      "true_label": "MUC_13",
+      "predicted_label": "MUC_8",
+      "top3": [
+        {
+          "label": "MUC_8",
+          "prob": 0.5243
+        },
+        {
+          "label": "MUC_12",
+          "prob": 0.2386
+        },
+        {
+          "label": "MUC_13",
+          "prob": 0.082
+        }
+      ],
+      "text_excerpt": "Hoạt động: Hội ngộ 2025 - “TẮT ĐÈN”\nĐơn vị tổ chức: CLB Kỹ năng mềm Đà Nẵng - ANTS HOUSE\nVai trò trong minh chứng: Tham gia tổ chức\nNội dung minh chứng: Đã tham gia tổ chức thành công chương trình HỘI NGỘ 2025 - “TẮT ĐÈN”. CLB KỸ NĂNG MỀM ĐÀ NẴNG ANT"
+    },
+    {
+      "sample_id": "DOC-0058",
+      "group_id": "REAL-G-DOC-0055",
+      "true_label": "MUC_4",
+      "predicted_label": "MUC_8",
+      "top3": [
+        {
+          "label": "MUC_8",
+          "prob": 0.5018
+        },
+        {
+          "label": "MUC_9",
+          "prob": 0.1796
+        },
+        {
+          "label": "MUC_12",
+          "prob": 0.12
+        }
+      ],
+      "text_excerpt": "Hoạt động: Talkshow \"ĐỘT PHÁ TRONG QUẢN TRỊ NHÂN SỰ: HÀNH TRÌNH VƯỢT QUA RANH GIỚI\"\nĐơn vị tổ chức: CLB HRM - Khoa Quản trị Kinh doanh, ĐH Kinh tế - ĐHĐN\nVai trò trong minh chứng: Người tham dự\nNội dung minh chứng: Đã tham dự Talkshow \"ĐỘT PHÁ TRONG "
+    },
+    {
+      "sample_id": "DOC-0071",
+      "group_id": "REAL-G-DOC-0071",
+      "true_label": "MUC_9",
+      "predicted_label": "MUC_5",
+      "top3": [
+        {
+          "label": "MUC_5",
+          "prob": 0.5935
+        },
+        {
+          "label": "MUC_9",
+          "prob": 0.1777
+        },
+        {
+          "label": "MUC_12",
+          "prob": 0.0957
+        }
+      ],
+      "text_excerpt": "Hoạt động: Cuộc thi Sinh viên Tài năng Thanh lịch \"Miss & Mister DUE 2025\"\nVai trò trong minh chứng: Người tham gia đóng góp tích cực\nCấp hoạt động: Trường Đại học Kinh tế\nNội dung minh chứng: Đã tham gia và có những đóng góp tích cực trong Cuộc thi "
+    },
+    {
+      "sample_id": "DOC-0072",
+      "group_id": "REAL-G-DOC-0072",
+      "true_label": "MUC_9",
+      "predicted_label": "MUC_5",
+      "top3": [
+        {
+          "label": "MUC_5",
+          "prob": 0.4454
+        },
+        {
+          "label": "MUC_12",
+          "prob": 0.2472
+        },
+        {
+          "label": "MUC_8",
+          "prob": 0.0899
+        }
+      ],
+      "text_excerpt": "Hoạt động: Cuộc thi Tìm kiếm tài năng DUE - SHINE YOUR VOICE\nVai trò trong minh chứng: Người tham gia và đóng góp\nNội dung minh chứng: Đã tham gia và có đóng góp tích cực trong Cuộc thi Tìm kiếm tài năng DUE - SHINE YOUR VOICE"
+    },
+    {
+      "sample_id": "DOC-0119",
+      "group_id": "REAL-G-DOC-0119",
+      "true_label": "MUC_13",
+      "predicted_label": "MUC_12",
+      "top3": [
+        {
+          "label": "MUC_12",
+          "prob": 0.3894
+        },
+        {
+          "label": "MUC_13",
+          "prob": 0.3872
+        },
+        {
+          "label": "MUC_9",
+          "prob": 0.1104
+        }
+      ],
+      "text_excerpt": "Hoạt động: Chương trình Sinh nhật Đội \"16 năm đồng hành – Rạng ngời tiếp nối\"\nĐơn vị tổ chức: Ban Thư ký Hội Sinh viên Trường Đại học Bách khoa\nVai trò trong minh chứng: Cá nhân tham gia tích cực (theo danh sách kèm theo)\nCấp hoạt động: Cấp trường\nNộ"
+    }
+  ]
+}

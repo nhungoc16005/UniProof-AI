@@ -87,7 +87,6 @@ export const AppLayout: React.FC = () => {
         title: 'TRA CỨU',
         items: [
           { label: 'Tra cứu tiêu chí', path: '/regulations' },
-          { label: 'Chạy thử AI minh chứng', path: '/ai-test' },
         ],
       },
     ];
@@ -270,10 +269,10 @@ export const AppLayout: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#FAFAFA] text-[#0A0A0A] font-sans antialiased">
+    <div className="min-h-screen flex flex-col bg-[#FAFAFA] print:bg-white text-[#0A0A0A] font-sans antialiased">
       
       {/* 1. TOPBAR HEADER (Genesis Precision Header) */}
-      <header className="sticky top-0 z-40 bg-[#FFFFFF] border-b border-[#E8E8EC] transition-all">
+      <header className="sticky top-0 z-40 bg-[#FFFFFF] border-b border-[#E8E8EC] transition-all print:hidden">
         <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between gap-4">
           
           {/* Logo & Mobile Menu Button */}
@@ -447,10 +446,10 @@ export const AppLayout: React.FC = () => {
       </header>
 
       {/* 2. BODY LAYOUT: CATEGORIZED SIDEBAR + MAIN CONTENT */}
-      <div className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex gap-6 lg:gap-8">
+      <div className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 print:p-0 print:max-w-none flex gap-6 lg:gap-8">
         
         {/* Desktop Sidebar: Genesis Style */}
-        <aside className="hidden lg:block w-56 shrink-0">
+        <aside className="hidden lg:block w-56 shrink-0 print:hidden">
           <nav className="sticky top-20 space-y-5">
             
             {navGroups.map((group, gIdx) => (
@@ -547,7 +546,7 @@ export const AppLayout: React.FC = () => {
         <main className="flex-1 min-w-0 pt-1">
           {/* Elegant Breadcrumb Navigation */}
           {breadcrumbs.length > 0 && (
-            <nav aria-label="Đường dẫn trang" className="mb-4 flex items-center gap-1.5 text-xs text-[#6B6B6B]">
+            <nav aria-label="Đường dẫn trang" className="mb-4 flex items-center gap-1.5 text-xs text-[#6B6B6B] print:hidden">
               {breadcrumbs.map((crumb, idx) => {
                 const isLast = idx === breadcrumbs.length - 1;
                 return (

@@ -13,6 +13,7 @@ Bộ tài liệu tiếng Việt, đối chiếu mã nguồn ngày **2026-11-15**
 | [BACKLOG](BACKLOG.md) | Chọn việc, ưu tiên, trạng thái, điều kiện đóng và phụ thuộc quyết định |
 | [DECISIONS](DECISIONS.md) | Quyết định đã xác nhận, câu hỏi nghiệp vụ Q-01…Q-10 và chuyển tài liệu cũ |
 | [TEST_PLAN](TEST_PLAN.md) | Chọn kiểm tra an toàn, regression, môi trường và bằng chứng |
+| [AI_TRAINING_AND_ARCHITECTURE_GUIDE](AI_TRAINING_AND_ARCHITECTURE_GUIDE.md) | Hướng dẫn kiến trúc AI 6 tầng, quy trình train model từ A-Z (Rubric v2.0.0, MobileNetV3 CV, Kho phôi Lớp 6) và hoàn thiện task AI |
 | [CHANGELOG](CHANGELOG.md) | Xem thay đổi đã thực hiện và kết quả kiểm chứng của từng công việc |
 | [FEATURE_TEMPLATE](features/FEATURE_TEMPLATE.md) | Tạo spec mới theo 10 mục trong ảnh + Out of Scope |
 | [AGENTS.md](../AGENTS.md) | Quy trình bắt buộc cho Codex trước/trong/sau công việc |

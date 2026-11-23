@@ -3,7 +3,7 @@ export const roleNavigation: Record<string, NavigationItem[]> = {
   STAFF: [
     { label: 'Tổng quan Khoa', path: '/officer', matches: ['/officer', '/officer/reports', '/officer/students/legacy'] },
     { label: 'Thẩm định đánh giá', path: '/officer/evaluations', matches: ['/officer/evaluations', '/officer/students', '/officer/students-directory', '/officer/queue', '/officer/review'], tabs: [
-      { label: 'Theo lớp', path: '/officer/evaluations' }, { label: 'Hàng đợi minh chứng & AI', path: '/officer/queue' },
+      { label: 'Theo lớp', path: '/officer/evaluations' }, { label: 'Hàng đợi duyệt minh chứng', path: '/officer/queue' },
     ] },
     { label: 'Phúc khảo', path: '/officer/appeals', matches: ['/officer/appeals'] },
     { label: 'Hoạt động & điểm danh', path: '/officer/activities', matches: ['/officer/activities', '/officer/external-activities'] },

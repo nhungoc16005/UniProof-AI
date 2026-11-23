@@ -1,63 +1,175 @@
 ﻿sample_id,group_id,raw_label,criterion_label,label_source,text
-DOC-0005,REAL-G-DOC-0005,MUC_8,MUC_8,CURATED_FROM_UNLABELED,"Hoạt động: VNUK Career Discovery Workshop Series 2025
-Vai trò trong minh chứng: Người tham dự
-Nội dung minh chứng: has successfully participated the VNUK Career Discovery Workshop Series 2025 held from February 22nd 2025 to March 08th 2025"
-DOC-0012,REAL-G-DOC-0012,MUC_12,MUC_12,CURATED_FROM_UNLABELED,"Hoạt động: Tình nguyện Đông 2024 — Đêm Giáng Sinh Ấm Áp
-Đơn vị tổ chức: Cộng đồng Nữ sinh Bách khoa
-Vai trò trong minh chứng: Gây quỹ
-Nội dung minh chứng: Đã tham gia gây quỹ tích cực trong chương trình Tình nguyện Đông 2024 “Đêm Giáng Sinh Ấm Áp” do Cộng đồng Nữ sinh Bách khoa tổ chức"
-DOC-0013,REAL-G-DOC-0013,MUC_9,MUC_9,CURATED_FROM_UNLABELED,"Hoạt động: Văn nghệ kỷ niệm 50 năm thành lập Trường Đại học Bách khoa, ĐHĐN
-Nội dung minh chứng: Trân trọng ghi nhận sự tham gia nhiệt tình và tinh thần trách nhiệm của bạn, đã đóng góp vào thành công chung của chương trình văn nghệ “Kỷ niệm 50 năm thành lập Trường Đại học Bách khoa, ĐHĐN (1975–2025)”"
-DOC-0023,REAL-G-DOC-0023,MUC_9,MUC_9,CURATED_FROM_UNLABELED,"Hoạt động: Korean in Da Nang 2026
-Đơn vị tổ chức: Hiệp hội Giao lưu văn hóa nghệ thuật Hàn Quốc thế giới
-Nội dung minh chứng: Đã tham gia Chương trình liên hoan nghệ thuật truyền thống Hàn Quốc “Korean in Da Nang 2026” lần thứ nhất do Hiệp hội Giao lưu văn hóa nghệ thuật Hàn Quốc thế giới (World Korean Culture and Arts Exchange Association) tổ chức."
-DOC-0027,REAL-G-DOC-0027,MUC_12,MUC_12,CURATED_FROM_UNLABELED,"Hoạt động: Trung Thu Nhân Ái
-Đơn vị tổ chức: CLB Môi trường
-Vai trò trong minh chứng: Gây quỹ online
-Nội dung minh chứng: Đã tích cực tham gia gây quỹ online chương trình “Trung Thu Nhân Ái” do CLB Môi Trường tổ chức"
-DOC-0031,REAL-G-DOC-0023,MUC_9,MUC_9,CURATED_FROM_UNLABELED,"Hoạt động: Korean in Da Nang 2026
-Đơn vị tổ chức: Hiệp hội Giao lưu văn hóa nghệ thuật Hàn Quốc thế giới
-Nội dung minh chứng: Đã tham gia Chương trình liên hoan nghệ thuật truyền thống Hàn Quốc “Korean in Da Nang 2026” lần thứ nhất do Hiệp hội Giao lưu văn hóa nghệ thuật Hàn Quốc thế giới (World Korean Culture and Arts Exchange Association) tổ chức."
-DOC-0037,REAL-G-DOC-0013,MUC_9,MUC_9,CURATED_FROM_UNLABELED,"Hoạt động: Văn nghệ kỷ niệm 50 năm thành lập Trường Đại học Bách khoa, ĐHĐN
-Nội dung minh chứng: Trân trọng ghi nhận sự tham gia nhiệt tình và tinh thần trách nhiệm của bạn, đã đóng góp vào thành công chung của chương trình văn nghệ “Kỷ niệm 50 năm thành lập Trường Đại học Bách khoa, ĐHĐN (1975–2025)”"
-DOC-0039,REAL-G-DOC-0039,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Mùa hè Xanh 2025
-Vai trò trong minh chứng: Tình nguyện viên online
-Nội dung minh chứng: Tình nguyện viên Online - Đồng hành cùng Chiến dịch sinh viên tình nguyện hè “Mùa hè Xanh 2025” Đoàn Thanh niên Trường Đại học Bách Khoa - ĐHĐN"
-DOC-0048,REAL-G-DOC-0039,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Chiến dịch sinh viên tình nguyện hè - “Mùa hè Xanh” Đoàn Trường Đại học Bách Khoa - ĐHĐN năm 2024
-Đơn vị tổ chức: Đoàn Thanh niên - Hội Sinh viên Trường Đại học Bách Khoa - ĐHĐN
+DOC-0010,REAL-G-DOC-0010,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Hướng về Vùng Cao — Xây Nhà Vệ Sinh số 10, số 11
+Vai trò trong minh chứng: Tình nguyện viên
+Nội dung minh chứng: Là tình nguyện viên đồng hành cùng Dự án Hướng về Vùng Cao với Chiến dịch Xây Nhà Vệ Sinh Số 10, Số 11 tại Mèo Vạc, Hà Giang"
+DOC-0017,REAL-G-DOC-0017,MUC_9,MUC_9,CURATED_FROM_UNLABELED,"Hoạt động: Giải chạy Sinh viên khỏe — Unitour Đà Nẵng
+Nội dung minh chứng: Đã tham gia giải chạy “Sinh viên khỏe” nằm trong khuôn khổ chương trình Unitour tại Thành phố Đà Nẵng ngày 22/3/2025"
+DOC-0025,REAL-G-DOC-0025,MUC_12,MUC_12,CURATED_FROM_UNLABELED,"Hoạt động: Xuân Yêu Thương 2026
+Vai trò trong minh chứng: Cộng tác viên online
+Nội dung minh chứng: CỘNG TÁC VIÊN ONLINE XUÂN YÊU THƯƠNG 2026. Đã đồng hành cùng Chương trình Xuân Yêu Thương 2026 của dự án Ngòi Tình Nguyện - Viết Cho Em tại Gia Lai, Hưng Yên."
+DOC-0029,REAL-G-DOC-0029,MUC_5,MUC_5,CURATED_FROM_UNLABELED,"Hoạt động: Chung kết BK English 2025
+Vai trò trong minh chứng: Cổ vũ
+Nội dung minh chứng: ĐÃ THAM GIA CỔ VŨ CHUNG KẾT CUỘC THI TIẾNG ANH SINH VIÊN BÁCH KHOA BK ENGLISH 2025"
+DOC-0030,REAL-G-DOC-0030,MUC_5,MUC_5,CURATED_FROM_UNLABELED,"Hoạt động: BK Smart Campus
+Đơn vị tổ chức: Đoàn Thanh niên Trường Đại học Bách khoa
+Nội dung minh chứng: ĐÃ TÍCH CỰC THAM GIA CUỘC THI CHUYỂN ĐỔI SỐ VÀ QUẢN LÝ THÔNG MINH “BK SMART CAMPUS” DO ĐOÀN THANH NIÊN TRƯỜNG ĐẠI HỌC BÁCH KHOA TỔ CHỨC"
+DOC-0035,REAL-G-DOC-0035,HACKATHON_CAP_THANH_PHO,MUC_5,HUMAN_EXCEL,"Hoạt động: GDG Build with AI Mientrung 2026
+Đơn vị tổ chức: Sở Khoa học & Công nghệ Đà Nẵng & Google for Developers (GDG MienTrung)
+Vai trò trong minh chứng: Thí sinh hoàn thành Codelab challenge
+Cấp hoạt động: Cấp thành phố / khu vực
+Nội dung minh chứng: Chứng nhận hoàn thành CODELAB challenge trong khuôn khổ sự kiện GDG Build with AI Mientrung 2026 do Sở KH&CN Đà Nẵng và Google for Developers bảo trợ tổ chức."
+DOC-0062,REAL-G-DOC-0010,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Chiến dịch Mùa Hè Xanh 2024 - Xây Nhà vệ sinh tại Hà Giang
 Vai trò trong minh chứng: Tình nguyện viên Online
-Nội dung minh chứng: Tình nguyện viên Online - Đồng hành cùng Chiến dịch sinh viên tình nguyện hè - “Mùa hè Xanh” Đoàn Trường Đại học Bách Khoa - ĐHĐN năm 2024. Đà Nẵng, ngày 03 tháng 08 năm 2024"
-DOC-0053,REAL-G-DOC-0053,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Hoạt động ""Monday No Plastic - Thứ Hai không rác thải nhựa""
-Vai trò trong minh chứng: Người tham gia đóng góp
-Nội dung minh chứng: Đã tham gia và có những đóng góp tích cực trong Hoạt động ""Monday No Plastic - Thứ Hai không rác thải nhựa"". Đà Nẵng, ngày 30 tháng 4 năm 2026"
-DOC-0067,REAL-G-DOC-0067,MUC_13,MUC_13,CURATED_FROM_UNLABELED,"Hoạt động: Ngày hội Đa văn hóa DUE 2024
-Vai trò trong minh chứng: Cộng tác viên
-Nội dung minh chứng: CỘNG TÁC VIÊN NGÀY HỘI ĐA VĂN HÓA DUE 2024. Đà Nẵng, ngày 06 tháng 06 năm 2024"
+Nội dung minh chứng: Chứng nhận Tình nguyện viên Online Mùa Hè Xanh. Đã đồng hành cùng chiến dịch Mùa Hè Xanh 2024 cùng Quỹ Thiện Nguyện Sinh Viên và ủng hộ xây Nhà vệ sinh tại Hà Giang"
+DOC-0068,REAL-G-DOC-0068,MUC_12,MUC_12,CURATED_FROM_UNLABELED,"Hoạt động: 2024 VinFast IRONMAN 70.3 Viet Nam
+Vai trò trong minh chứng: Người được ghi nhận đóng góp
+Nội dung minh chứng: In grateful recognition of your time and dedication. We could not have done it without you! For the outstanding enthusiasm and the commitment to 2024 VinFast IRONMAN 70.3 Viet Nam."
+DOC-0069,REAL-G-DOC-0069,VAN_HOA_VAN_NGHE_THE_THAO,MUC_9,HUMAN_EXCEL,"Hoạt động: Giải chạy xanh - Chương trình ""Chạy nhanh - Trái Đất xanh""
+Đơn vị tổ chức: Đoàn Thanh niên - Hội Sinh viên Trường Đại học Kinh tế
+Vai trò trong minh chứng: Vận động viên hoàn thành giải chạy thể thao
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: Chứng nhận đã hoàn thành cự ly thi đấu trong Giải chạy xanh - Chương trình ""Chạy nhanh - Trái Đất xanh"" do Đoàn - Hội Trường ĐH Kinh tế tổ chức."
 DOC-0077,REAL-G-DOC-0077,MUC_13,MUC_13,CURATED_FROM_UNLABELED,"Hoạt động: Công tác tổ chức Dự án Green University DUE năm học 2023 - 2024
 Vai trò trong minh chứng: Ban tổ chức / Đóng góp tích cực
 Nội dung minh chứng: Đã tham gia và có những đóng góp tích cực trong công tác tổ chức Dự án Green University DUE năm học 2023 - 2024. Đà Nẵng, ngày 12 tháng 7 năm 2024"
-DOC-0085,REAL-G-DOC-0085,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Dự án ""Cùng Em Tới Trường""
-Vai trò trong minh chứng: Tình nguyện viên
-Nội dung minh chứng: Là tình nguyện viên nhiệt huyết, đã tích cực và lan tỏa yêu thương đến các em nhỏ thông qua dự án ""Cùng Em Tới Trường"". Cần Thơ, Ngày 9 Tháng 7 Năm 2025"
-DOC-0086,REAL-G-DOC-0086,MUC_13,MUC_13,CURATED_FROM_UNLABELED,"Hoạt động: Chương trình NexTrade 2025: ĐẤU TRƯỜNG KINH DOANH
-Vai trò trong minh chứng: Ban tổ chức
-Nội dung minh chứng: Đã tham gia vào công tác tổ chức Chương trình NexTrade 2025 ĐẤU TRƯỜNG KINH DOANH. Đà Nẵng, ngày 25 tháng 04 năm 2025"
-DOC-0104,REAL-G-DOC-0104,MUC_8,MUC_8,CURATED_FROM_UNLABELED,"Hoạt động: Talkshow Truyền thông về giảm thiểu định kiến giới và thúc đẩy bình đẳng giới
-Đơn vị tổ chức: Trung tâm Nghiên cứu và Tư vấn việc làm / Nhóm Seesaw of Balance
-Vai trò trong minh chứng: Người tham dự
-Nội dung minh chứng: Đã tham dự TALKSHOW: TRUYỀN THÔNG VỀ GIẢM THIỂU ĐỊNH KIẾN GIỚI VÀ THÚC ĐẨY BÌNH ĐẲNG GIỚI đợt 3 do nhóm Seesaw of Balance tổ chức. Ngày 27 tháng 11 năm 2023."
+DOC-0078,REAL-G-DOC-0010,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Dự án Hướng về Vùng Cao - Chiến dịch Xây Nhà Vệ Sinh Số 10, Số 11 tại Mèo Vạc, Hà Giang
+Vai trò trong minh chứng: Tình nguyện viên đồng hành
+Nội dung minh chứng: Là tình nguyện viên đồng hành cùng Dự án Hướng về Vùng Cao với Chiến dịch Xây Nhà Vệ Sinh Số 10, Số 11 tại Mèo Vạc, Hà Giang. TP.HCM, ngày 10 tháng 10 năm 2024"
+DOC-0080,REAL-G-DOC-0080,MUC_5,MUC_5,CURATED_FROM_UNLABELED,"Hoạt động: Cuộc thi MARKETING BATTLEGROUND: THE FIERY GEN
+Vai trò trong minh chứng: Đội thi tham gia
+Nội dung minh chứng: Đội thi đã tích cực tham gia Cuộc thi MARKETING BATTLEGROUND: THE FIERY GEN. Đà Nẵng, ngày 11 tháng 05 năm 2025"
+DOC-0083,REAL-G-DOC-0069,VAN_HOA_VAN_NGHE_THE_THAO,MUC_9,HUMAN_EXCEL,"Hoạt động: Giải chạy xanh ""Chạy nhanh - Trái Đất xanh""
+Đơn vị tổ chức: Đoàn Thanh niên - Hội Sinh viên Trường Đại học Kinh tế
+Vai trò trong minh chứng: Vận động viên hoàn thành giải chạy thể thao
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: Chứng nhận đã hoàn thành cự ly thi đấu trong Giải chạy xanh - Chương trình ""Chạy nhanh - Trái Đất xanh"" do Đoàn - Hội Trường ĐH Kinh tế tổ chức."
+DOC-0090,REAL-G-DOC-0090,NON_ELIGIBLE_ACTIVITY,KHONG_HOP_LE,HUMAN_EXCEL,"Hoạt động: Thẻ cử tri
+Nội dung minh chứng: THẺ CỬ TRI. BẦU CỬ ĐẠI BIỂU QUỐC HỘI KHÓA XVI VÀ BẦU CỬ ĐẠI BIỂU HỘI ĐỒNG NHÂN DÂN CÁC CẤP. NHIỆM KỲ 2026–2031."
+DOC-0095,REAL-G-DOC-0095,HACKATHON_CAP_THANH_PHO,MUC_5,HUMAN_EXCEL,"Hoạt động: Da Nang Code League 2024 — Code War
+Đơn vị tổ chức: Ban Tổ chức Da Nang Code League 2024
+Vai trò trong minh chứng: Thí sinh tham gia thi đấu lập trình Code War
+Cấp hoạt động: Cấp thành phố
+Nội dung minh chứng: Chứng nhận tham gia thi đấu hạng mục Code War tại giải đấu lập trình sinh viên Da Nang Code League 2024 cấp Thành phố Đà Nẵng."
+DOC-0098,REAL-G-DOC-0090,NON_ELIGIBLE_ACTIVITY,KHONG_HOP_LE,HUMAN_EXCEL,"Hoạt động: Thẻ cử tri
+Nội dung minh chứng: THẺ CỬ TRI. BẦU CỬ ĐẠI BIỂU QUỐC HỘI KHÓA XVI VÀ BẦU CỬ ĐẠI BIỂU HỘI ĐỒNG NHÂN DÂN CÁC CẤP. NHIỆM KỲ 2026–2031."
+DOC-0099,REAL-G-DOC-0099,MUC_9,MUC_9,CURATED_FROM_UNLABELED,"Hoạt động: Ngày hội giao lưu văn hóa quốc tế DUE 2025
+Đơn vị tổ chức: Trường Đại học Kinh tế - Đại học Đà Nẵng
+Vai trò trong minh chứng: Người tham gia và đóng góp tích cực
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: ĐÃ THAM GIA VÀ ĐÓNG GÓP TÍCH CỰC NGÀY HỘI GIAO LƯU VĂN HÓA QUỐC TẾ DUE 2025. Đà Nẵng, ngày 27 tháng 4 năm 2025."
+DOC-0100,REAL-G-DOC-0100,MUC_12,MUC_12,CURATED_FROM_UNLABELED,"Hoạt động: 2025 IRONMAN 70.3 DA NANG
+Đơn vị tổ chức: Ban tổ chức sự kiện 2025 IRONMAN 70.3 Da Nang
+Vai trò trong minh chứng: Tình nguyện viên hỗ trợ tổ chức sự kiện
+Nội dung minh chứng: Với vai trò là tình nguyện viên, bạn đã thể hiện tinh thần trách nhiệm, nhiệt huyết và sự cống hiến trong việc hỗ trợ tổ chức sự kiện thành công."
+DOC-0102,REAL-G-DOC-0102,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Chiến dịch Tình nguyện Đông 2024 tại xã Trà Nu, Bắc Trà My
+Đơn vị tổ chức: Ban Chấp hành Đoàn Trường Đại học Kinh tế - ĐHĐN
+Vai trò trong minh chứng: Tình nguyện viên tham gia chiến dịch thực địa
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: GIẤY CHỨNG NHẬN Đã tham gia và có đóng góp tích cực trong Chiến dịch Tình nguyện Đông 2024 tại xã Trà Nu, huyện Bắc Trà My do Ban Chấp hành Đoàn Trường ĐH Kinh tế - ĐHĐN tổ chức ngày 28/12/2024."
 DOC-0105,REAL-G-DOC-0105,MUC_13,MUC_13,CURATED_FROM_UNLABELED,"Hoạt động: Chương trình Chào đón Tân sinh viên Khóa 49 Tháng Năm Rực Rỡ
 Đơn vị tổ chức: Đoàn Thanh niên - Hội Sinh viên Trường Đại học Kinh tế
 Vai trò trong minh chứng: Đóng góp tích cực trong công tác tổ chức
 Cấp hoạt động: Cấp trường
 Nội dung minh chứng: Đã tham gia và có đóng góp tích cực trong công tác tổ chức Chương trình Chào đón Tân sinh viên Khóa 49 Tháng Năm Rực Rỡ. Quyết định số: 03-QĐ/HSV-VP."
-DOC-0117,REAL-G-DOC-0117,VAN_HOA_VAN_NGHE_THE_THAO,MUC_9,HUMAN_EXCEL,"Hoạt động: Chương trình ""CUP TVSV LẦN III"" của Đội Tư vấn Sinh viên
+DOC-0107,REAL-G-DOC-0107,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Dự án Tình nguyện ""Chuyến bay 71"" năm 2024
+Đơn vị tổ chức: Ban Chấp hành Đoàn Trường Đại học Kinh tế - ĐHĐN
+Vai trò trong minh chứng: Tình nguyện viên tham gia dự án thiện nguyện
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: GIẤY CHỨNG NHẬN Đã có đóng góp tích cực trong Dự án Tình nguyện ""Chuyến bay 71"" năm 2024 do Ban Chấp hành Đoàn Trường ĐH Kinh tế - ĐHĐN tổ chức."
+DOC-0111,REAL-G-DOC-0111,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Chương trình Xuân Tình Nguyện 2026
 Đơn vị tổ chức: Ban Thư ký Hội Sinh viên Trường Đại học Bách khoa
 Vai trò trong minh chứng: Cá nhân tham gia tích cực (theo danh sách kèm theo)
 Cấp hoạt động: Cấp trường
-Nội dung minh chứng: QUYẾT ĐỊNH Về việc xác nhận danh sách cho cá nhân tham gia tích cực Chương trình ""CUP TVSV LẦN III"" của Đội Tư vấn Sinh viên. Số: 212-QĐ/ĐHBK-HSV ký ngày 05/05/2026 xác nhận cho 65 cá nhân."
-DOC-0120,REAL-G-DOC-0120,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Chương trình Trung Thu Cho Em 2025
+Nội dung minh chứng: QUYẾT ĐỊNH Về việc xác nhận danh sách cho cá nhân tham gia tích cực chương trình Xuân Tình Nguyện 2026. Số: 04-QĐ/ĐHBK-HSV của Hội Sinh viên Trường ĐH Bách khoa ngày 05/05/2026 xác nhận cho 111 cá nhân của Đội Công tác Xã hội."
+DOC-0118,REAL-G-DOC-0118,MUC_13,MUC_13,CURATED_FROM_UNLABELED,"Hoạt động: Chương trình Trại Đội ""Vũ Khúc Thiên Hà"" của Đội Tư vấn Sinh viên
 Đơn vị tổ chức: Ban Thư ký Hội Sinh viên Trường Đại học Bách khoa
 Vai trò trong minh chứng: Cá nhân tham gia tích cực (theo danh sách kèm theo)
 Cấp hoạt động: Cấp trường
-Nội dung minh chứng: QUYẾT ĐỊNH Về việc xác nhận danh sách cho cá nhân tham gia tích cực chương trình Trung Thu Cho Em 2025 của Đội Công tác Xã hội. Số: 208-QĐ/ĐHBK-HSV ký ngày 05/05/2026 xác nhận cho 124 cá nhân."
+Nội dung minh chứng: QUYẾT ĐỊNH Về việc xác nhận danh sách cho cá nhân tham gia tích cực Chương trình Trại Đội ""Vũ Khúc Thiên Hà"" của Đội Tư vấn Sinh viên. Số: 210-QĐ/ĐHBK-HSV ký ngày 05/05/2026 xác nhận cho 87 cá nhân."
+DOC-0122,REAL-G-DOC-0122,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Chương trình Ngày Hạnh Phúc 2025
+Đơn vị tổ chức: Ban Thư ký Hội Sinh viên Trường Đại học Bách khoa
+Vai trò trong minh chứng: Cá nhân tham gia tích cực (theo danh sách kèm theo)
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: QUYẾT ĐỊNH Về việc xác nhận danh sách cho cá nhân tham gia tích cực chương trình Ngày Hạnh Phúc 2025 của Đội Công tác Xã hội. Số: 207-QĐ/ĐHBK-HSV ký ngày 05/05/2026 xác nhận cho 119 cá nhân."
+DUT-CORPUS-0002,CORPUS-G-0002,MUC_4,MUC_4,DUT_REGULATION_CORPUS,"Hoạt động: CLB Nghiên cứu Khoa học & Khởi nghiệp BK- Maker
+Đơn vị: Đoàn Trường ĐH Bách khoa
+Nội dung: Quyết định công nhận thành viên Câu lạc bộ Khởi nghiệp Đổi mới sáng tạo BK-Maker học kỳ I."
+DUT-CORPUS-0012,CORPUS-G-0012,MUC_4,MUC_4,DUT_REGULATION_CORPUS,"Hoạt động: CLB Học thuật Xây dựng Cầu đường BK-Civil
+Đơn vị: Khoa Xây dựng Cầu đường
+Nội dung: Quyết định kiện toàn danh sách thành viên Câu lạc bộ học thuật BK-Civil."
+DUT-CORPUS-0016,CORPUS-G-0016,MUC_4,MUC_4,DUT_REGULATION_CORPUS,"Hoạt động: Câu lạc bộ Học thuật Quản lý Công nghiệp PIM Club
+Đơn vị: Khoa Quản lý Dự án
+Nội dung: Giấy xác nhận thành viên chính thức CLB học thuật Quản lý dự án và Công nghiệp."
+DUT-CORPUS-0017,CORPUS-G-0017,MUC_4,MUC_4,DUT_REGULATION_CORPUS,"Hoạt động: Nhóm nghiên cứu Vật liệu mới & Năng lượng tái tạo
+Đơn vị: Khoa Cơ khí
+Nội dung: Xác nhận của giảng viên hướng dẫn và Khoa về việc sinh viên sinh hoạt tại nhóm nghiên cứu năng lượng."
+DUT-CORPUS-0018,CORPUS-G-0018,MUC_4,MUC_4,DUT_REGULATION_CORPUS,"Hoạt động: CLB Học thuật Tin học & Lập trình thi đấu BK-CP
+Đơn vị: Liên chi Đoàn Khoa CNTT
+Nội dung: Quyết định công nhận thành viên CLB Lập trình thi đấu BK Competitive Programming."
+DUT-CORPUS-0024,CORPUS-G-0024,MUC_8,MUC_8,DUT_REGULATION_CORPUS,"Hoạt động: Hội thảo Kỹ năng viết CV và Phỏng vấn tuyển dụng IT
+Đơn vị: Khoa Công nghệ Thông tin & FPT Software
+Nội dung: Giấy chứng nhận tham gia buổi tập huấn kỹ năng mềm chuẩn bị hành trang nghề nghiệp."
+DUT-CORPUS-0025,CORPUS-G-0025,MUC_8,MUC_8,DUT_REGULATION_CORPUS,"Hoạt động: Chuyên đề Học tập và làm theo tư tưởng, đạo đức, phong cách Hồ Chí Minh
+Đơn vị: Đoàn Trường ĐH Bách khoa
+Nội dung: Giấy xác nhận sinh viên tham gia buổi sinh hoạt chính trị tư tưởng học kỳ I."
+DUT-CORPUS-0027,CORPUS-G-0027,MUC_8,MUC_8,DUT_REGULATION_CORPUS,"Hoạt động: Buổi phổ biến Nội quy, Quy chế đào tạo và Công tác sinh viên
+Đơn vị: Phòng Công tác Sinh viên ĐHBK
+Nội dung: Giấy xác nhận tham gia đầy đủ chương trình hướng dẫn nội quy, quy chế nhà trường."
+DUT-CORPUS-0030,CORPUS-G-0030,MUC_8,MUC_8,DUT_REGULATION_CORPUS,"Hoạt động: Workshop Kỹ năng Quản lý thời gian và Tư duy phản biện
+Đơn vị: Trung tâm Hỗ trợ Sinh viên ĐHBK
+Nội dung: Chứng nhận tham gia khóa huấn luyện kỹ năng mềm Critical Thinking & Time Management."
+DUT-CORPUS-0036,CORPUS-G-0036,MUC_10,MUC_10,DUT_REGULATION_CORPUS,"Hoạt động: Chuyên đề Phòng chống ma túy học đường và tệ nạn xã hội
+Đơn vị: Phòng CTSV & Công an Quận Liên Chiểu
+Nội dung: Xác nhận tham gia chương trình tuyên truyền phòng chống ma túy, tội phạm và tệ nạn xã hội trong sinh viên."
+DUT-CORPUS-0040,CORPUS-G-0040,MUC_10,MUC_10,DUT_REGULATION_CORPUS,"Hoạt động: Tập huấn Phòng cháy chữa cháy và Cứu nạn cứu hộ trong ký túc xá
+Đơn vị: Cảnh sát PCCC Đà Nẵng & ĐHBK
+Nội dung: Chứng nhận tham gia buổi tuyên truyền quy định pháp luật về PCCC và phòng chống cháy nổ."
+DUT-CORPUS-0042,CORPUS-G-0042,MUC_10,MUC_10,DUT_REGULATION_CORPUS,"Hoạt động: Chiến dịch Truyền thông Không khói thuốc lá và Phòng chống tác hại rượu bia
+Đơn vị: Hội Sinh viên Trường ĐH Bách khoa
+Nội dung: Chứng nhận tham gia hoạt động tuyên truyền Luật Phòng chống tác hại thuốc lá và tệ nạn xã hội."
+DUT-CORPUS-0049,CORPUS-G-0049,MUC_10,MUC_10,DUT_REGULATION_CORPUS,"Hoạt động: Cuộc thi trực tuyến Tìm hiểu pháp luật về Phòng chống tham nhũng, tiêu cực
+Đơn vị: Bộ Giáo dục & Đào tạo / ĐHĐN
+Nội dung: Giấy chứng nhận hoàn thành bài thi tuyên truyền giáo dục pháp luật phòng chống tham nhũng."
+DUT-CORPUS-0059,CORPUS-G-0059,MUC_13,MUC_13,DUT_REGULATION_CORPUS,"Hoạt động: Ban Tổ chức Đêm nhạc Chào Xuân & Gây quỹ học bổng
+Vai trò: Thành viên Ban Tổ chức
+Nội dung: Chứng nhận của Hội Sinh viên Trường cho thành viên ban tổ chức điều phối sự kiện."
+DUT-CORPUS-0062,CORPUS-G-0062,MUC_13,MUC_13,DUT_REGULATION_CORPUS,"Hoạt động: Ban Tổ chức Hội trại Truyền thống Sinh viên Bách khoa
+Vai trò: Ủy viên Ban Tổ chức tiểu trại
+Nội dung: Giấy xác nhận của Đoàn Khoa cho thành viên ban tổ chức hội trại."
+DUT-CORPUS-0065,CORPUS-G-0065,MUC_14,MUC_14,DUT_REGULATION_CORPUS,"Hoạt động: Công nhận hoàn thành tốt nhiệm vụ Lớp phó học tập
+Vai trò: Lớp phó học tập
+Nội dung: Xác nhận của Giảng viên cố vấn học tập và kết quả khảo sát tập thể lớp đạt 93% đồng thuận hoàn thành tốt nhiệm vụ Ban cán sự lớp."
+DUT-CORPUS-0069,CORPUS-G-0069,MUC_14,MUC_14,DUT_REGULATION_CORPUS,"Hoạt động: Biên bản lấy phiếu tín nhiệm Ban cán sự lớp và BCH Chi đoàn
+Vai trò: Phó Bí thư Chi đoàn
+Nội dung: Tập thể lớp bình chọn đạt 92,5% và Giảng viên chủ nhiệm ký xác nhận hoàn thành tốt nhiệm vụ Phó Bí thư Chi đoàn."
+DUT-CORPUS-0070,CORPUS-G-0070,MUC_14,MUC_14,DUT_REGULATION_CORPUS,"Hoạt động: Xác nhận hoàn thành nhiệm vụ Lớp phó đời sống - phong trào
+Vai trò: Lớp phó phong trào
+Nội dung: Giảng viên cố vấn học tập xác nhận cán bộ lớp hoàn thành tốt nhiệm vụ được giao, kết quả khảo sát lớp đạt 94%."
+DUT-CORPUS-0072,CORPUS-G-0072,MUC_14,MUC_14,DUT_REGULATION_CORPUS,"Hoạt động: Xác nhận Phó Chủ nhiệm CLB Tình nguyện hoàn thành tốt nhiệm vụ
+Vai trò: Phó Chủ nhiệm CLB
+Nội dung: Đơn vị quản lý xác nhận hoàn thành tốt nhiệm vụ điều hành CLB, bình chọn tập thể đạt trên 90%."
+DUT-CORPUS-0083,CORPUS-G-0083,MUC_15,MUC_15,DUT_REGULATION_CORPUS,"Hoạt động: Giấy khen Hoàn thành xuất sắc nhiệm vụ Ban Cán sự Lớp
+Đơn vị: Ban Chấp hành Đoàn Trường / Khoa CNTT
+Nội dung: Tặng Giấy khen cho Lớp trưởng đã hoàn thành xuất sắc nhiệm vụ công tác Ban cán sự lớp và phong trào sinh viên."
+DUT-CORPUS-0084,CORPUS-G-0084,MUC_15,MUC_15,DUT_REGULATION_CORPUS,"Hoạt động: Quyết định khen thưởng Cán bộ Đoàn hoàn thành xuất sắc nhiệm vụ học kỳ
+Đơn vị: Liên chi Đoàn & Ban Chủ nhiệm Khoa
+Nội dung: Khen thưởng Bí thư Chi đoàn đã hoàn thành xuất sắc nhiệm vụ công tác Đoàn và phong trào thanh niên cấp Khoa."
+DUT-CORPUS-0088,CORPUS-G-0088,MUC_15,MUC_15,DUT_REGULATION_CORPUS,"Hoạt động: Giấy khen Ủy viên BCH Liên chi Đoàn hoàn thành xuất sắc nhiệm vụ
+Đơn vị: BCH Liên chi Đoàn Khoa Cơ khí
+Nội dung: Khen thưởng cán bộ Đoàn có thành tích hoàn thành xuất sắc nhiệm vụ trong đợt thi đua học kỳ."
+DUT-CORPUS-0096,CORPUS-G-0096,MUC_15,MUC_15,DUT_REGULATION_CORPUS,"Hoạt động: Giấy khen Ủy viên Ban Chủ nhiệm CLB Khởi nghiệp hoàn thành xuất sắc nhiệm vụ
+Đơn vị: Trung tâm Hỗ trợ Sinh viên
+Nội dung: Quyết định khen thưởng cán bộ CLB hoàn thành xuất sắc nhiệm vụ được giao."
+DUT-CORPUS-0105,CORPUS-G-0105,MUC_16,MUC_16,DUT_REGULATION_CORPUS,"Hoạt động: Giấy khen của Hội Sinh viên Trường ĐH Bách khoa cho Cán bộ Hội cấp Trường
+Đơn vị: BCH Hội Sinh viên Trường ĐH Bách khoa
+Nội dung: Tặng Giấy khen cấp Trường cho Liên chi Hội trưởng có thành tích xuất sắc trong công tác Hội và phong trào sinh viên toàn trường."
+DUT-CORPUS-0106,CORPUS-G-0106,MUC_16,MUC_16,DUT_REGULATION_CORPUS,"Hoạt động: Bằng khen của Trung ương Đoàn TNCS Hồ Chí Minh cho Cán bộ Đoàn tiêu biểu
+Đơn vị: BCH Trung ương Đoàn
+Nội dung: Tặng Bằng khen Trung ương Đoàn cho cán bộ Đoàn trường Đại học Bách khoa Đà Nẵng."
+DUT-CORPUS-0118,CORPUS-G-0118,MUC_16,MUC_16,DUT_REGULATION_CORPUS,"Hoạt động: Giải thưởng Sao Tháng Giêng / Cán bộ Đoàn Hội xuất sắc cấp Trường trở lên
+Đơn vị: Trung ương Hội Sinh viên / ĐHĐN
+Nội dung: Bằng khen tuyên dương cán bộ Đoàn - Hội - Ban cán sự lớp đạt giải thưởng cấp Trường trở lên."
+DUT-CORPUS-0132,CORPUS-G-0132,KHONG_HOP_LE,KHONG_HOP_LE,DUT_REGULATION_CORPUS,"Hoạt động: Ảnh chụp màn hình tin nhắn chat nhóm Zalo / Messenger lớp
+Nội dung: Đoạn hội thoại trao đổi bài tập nhóm trên Messenger, không có xác nhận của đơn vị tổ chức có thẩm quyền."
+DUT-CORPUS-0136,CORPUS-G-0136,KHONG_HOP_LE,KHONG_HOP_LE,DUT_REGULATION_CORPUS,"Hoạt động: Giấy triệu tập thí sinh dự thi THPT Quốc gia
+Nội dung: Hồ sơ tuyển sinh cũ từ thời trung học phổ thông, không thuộc thời gian học kỳ đại học đang xét."

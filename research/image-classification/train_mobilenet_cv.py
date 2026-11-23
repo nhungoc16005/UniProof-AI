@@ -112,18 +112,26 @@ def main() -> None:
     args.output_onnx.parent.mkdir(parents=True, exist_ok=True)
     dummy = torch.randn(1, 3, 224, 224)
     model_cpu = model.to("cpu").eval()
-    torch.onnx.export(
-        model_cpu,
-        dummy,
-        str(args.output_onnx),
-        input_names=["input"],
-        output_names=["logits"],
-        dynamic_axes={"input": {0: "batch"}, "logits": {0: "batch"}},
-        opset_version=13,
-    )
+    pt_path = args.output_onnx.with_suffix(".pt")
+    traced = torch.jit.trace(model_cpu, dummy)
+    torch.jit.save(traced, str(pt_path))
+    print(f"Exported TorchScript -> {pt_path}")
+    try:
+        import onnx  # noqa: F401
+        torch.onnx.export(
+            model_cpu,
+            dummy,
+            str(args.output_onnx),
+            input_names=["input"],
+            output_names=["logits"],
+            dynamic_axes={"input": {0: "batch"}, "logits": {0: "batch"}},
+            opset_version=13,
+        )
+        print(f"Exported ONNX -> {args.output_onnx}")
+    except ImportError:
+        print("Note: package 'onnx' not installed; using TorchScript (.pt) artifact for CPU inference.")
     meta_path = args.output_onnx.with_suffix(".meta.json")
     meta_path.write_text(json.dumps(metrics, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"Exported ONNX -> {args.output_onnx}")
 
 
 if __name__ == "__main__":

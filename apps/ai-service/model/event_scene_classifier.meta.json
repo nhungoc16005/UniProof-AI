@@ -1,0 +1,79 @@
+{
+  "classes": [
+    "GIAY_HIEN_MAU",
+    "GIAY_KHEN_GCN",
+    "KHONG_PHAI_MINH_CHUNG",
+    "SU_KIEN_CLB_NGAY_HOI",
+    "SU_KIEN_HOI_TRUONG",
+    "SU_KIEN_TINH_NGUYEN",
+    "SU_KIEN_VAN_NGHE_THE_THAO"
+  ],
+  "test_samples": 42,
+  "accuracy": 1.0,
+  "macro_f1": 1.0,
+  "confusion_matrix": [
+    [
+      6,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      6,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      6,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      6,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      6,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      6,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      6
+    ]
+  ]
+}

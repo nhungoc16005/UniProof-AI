@@ -26,7 +26,12 @@ export const ReviewDetail: React.FC = () => {
   const [params] = useSearchParams();
   const [rubric, setRubric] = useState<RubricPayload | null>(null);
   const [loadError, setLoadError] = useState('');
-  const backTo = params.get('returnTo')?.startsWith('/officer/queue?') ? params.get('returnTo')! : '/officer/queue?termId=' + (params.get('termId') || '');
+  const rawReturnTo = params.get('returnTo') || '';
+  const safeReturnTo =
+    (rawReturnTo.startsWith('/officer/queue?') || rawReturnTo.startsWith('/officer/students/')) && !rawReturnTo.startsWith('//')
+      ? rawReturnTo
+      : '';
+  const backTo = safeReturnTo || '/officer/queue?termId=' + (params.get('termId') || '');
 
 
   const [evidence, setEvidence] = useState<Evidence | null>(null);

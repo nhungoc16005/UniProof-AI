@@ -1,9 +1,11 @@
 import io
+import json
 import re
 import unicodedata
 from datetime import datetime
 from difflib import SequenceMatcher
-from typing import Optional
+from pathlib import Path
+from typing import Any, Optional
 
 from PIL import Image
 
@@ -14,6 +16,32 @@ try:
     import cv2
 except ImportError:
     cv2 = None
+
+_SCENE_MODEL_PATH = Path(__file__).resolve().parents[1] / "model" / "event_scene_classifier.pt"
+_SCENE_META_PATH = Path(__file__).resolve().parents[1] / "model" / "event_scene_classifier.meta.json"
+_SCENE_MODEL: Any = None
+_SCENE_CLASSES: list[str] = []
+_SCENE_LOAD_ATTEMPTED = False
+
+
+def _load_scene_classifier() -> tuple[Any, list[str]]:
+    global _SCENE_MODEL, _SCENE_CLASSES, _SCENE_LOAD_ATTEMPTED
+    if _SCENE_LOAD_ATTEMPTED:
+        return _SCENE_MODEL, _SCENE_CLASSES
+    _SCENE_LOAD_ATTEMPTED = True
+    if not _SCENE_MODEL_PATH.exists():
+        return None, []
+    try:
+        import torch
+
+        _SCENE_MODEL = torch.jit.load(str(_SCENE_MODEL_PATH), map_location="cpu").eval()
+        if _SCENE_META_PATH.exists():
+            meta = json.loads(_SCENE_META_PATH.read_text(encoding="utf-8"))
+            _SCENE_CLASSES = [str(c) for c in meta.get("classes", [])]
+    except Exception:
+        _SCENE_MODEL = None
+        _SCENE_CLASSES = []
+    return _SCENE_MODEL, _SCENE_CLASSES
 
 
 class FaceAndVisionService:
@@ -83,21 +111,56 @@ class FaceAndVisionService:
             return FaceVerificationResult(status="NOT_CHECKED", statusMessage="Không đọc được ảnh để phát hiện khuôn mặt.")
 
     @staticmethod
+    def classify_visual_scene(image_bytes: Optional[bytes]) -> Optional[tuple[str, float]]:
+        if not image_bytes:
+            return None
+        model, classes = _load_scene_classifier()
+        if model is None or not classes:
+            return None
+        try:
+            import numpy as np
+            import torch
+
+            im = Image.open(io.BytesIO(image_bytes)).convert("RGB").resize((224, 224))
+            arr = np.asarray(im, dtype=np.float32) / 255.0
+            mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+            std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+            norm = ((arr - mean) / std).transpose((2, 0, 1))
+            tensor = torch.from_numpy(norm).unsqueeze(0)
+            with torch.no_grad():
+                logits = model(tensor)
+                probs = torch.softmax(logits, dim=-1)[0].cpu().numpy()
+            idx = int(np.argmax(probs))
+            return classes[idx], round(float(probs[idx]), 4)
+        except Exception:
+            return None
+
+    @staticmethod
     def analyze_scene_vision(
         ocr_text: str,
         declared_activity: str,
         ocr_available: bool,
+        image_bytes: Optional[bytes] = None,
     ) -> SceneVisionResult:
+        cv_pred = FaceAndVisionService.classify_visual_scene(image_bytes)
+        cv_suffix = f" · CV MobileNetV3: {cv_pred[0]} ({round(cv_pred[1] * 100)}%)" if cv_pred else ""
+        if cv_pred and cv_pred[0] == "KHONG_PHAI_MINH_CHUNG" and cv_pred[1] >= 0.70:
+            return SceneVisionResult(
+                detectedBannerText=(ocr_text or "")[:500] or None,
+                sceneContext=f"Model CV nhận diện ảnh không thuộc bối cảnh sự kiện/minh chứng{cv_suffix}",
+                matchesActivity=False,
+                available=True,
+            )
         if not ocr_available:
             return SceneVisionResult(
-                sceneContext="OCR chưa khả dụng",
+                sceneContext=f"OCR chưa khả dụng{cv_suffix}",
                 matchesActivity=None,
                 available=False,
             )
         text = re.sub(r"\s+", " ", ocr_text).strip()
         if not text:
             return SceneVisionResult(
-                sceneContext="OCR không tìm thấy chữ trên ảnh",
+                sceneContext=f"OCR không tìm thấy chữ trên ảnh{cv_suffix}",
                 matchesActivity=False,
                 available=True,
             )
@@ -116,7 +179,7 @@ class FaceAndVisionService:
         sequence_score = SequenceMatcher(None, normalize(declared_activity), normalize(text)).ratio()
         return SceneVisionResult(
             detectedBannerText=text[:500],
-            sceneContext="Văn bản OCR trích xuất từ ảnh sự kiện",
+            sceneContext=f"Văn bản OCR trích xuất từ ảnh sự kiện{cv_suffix}",
             matchesActivity=overlap >= 0.3 or sequence_score >= 0.35,
             available=True,
         )

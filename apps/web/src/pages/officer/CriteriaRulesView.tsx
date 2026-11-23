@@ -198,7 +198,7 @@ export const CriteriaRulesView: React.FC = () => {
                     </div>
                     <div className="p-2 rounded bg-amber-50/60 border border-amber-200 text-[11px] text-amber-900">
                       <div className="font-bold">{scoringKindLabels[String(item.scoringConfig.kind)] || 'Tính theo cấu hình rubric của kỳ'}</div>
-                      <div className="mt-0.5 text-[10px] text-amber-800">Backend tính điểm đề xuất từ dữ liệu đã xác minh; cán bộ chịu trách nhiệm chốt điểm chính thức.</div>
+                      <div className="mt-0.5 text-[10px] text-amber-800">Hệ thống tính điểm đề xuất từ dữ liệu đã xác minh; cán bộ Khoa chịu trách nhiệm chốt điểm chính thức.</div>
                     </div>
                   </div>
                 )}

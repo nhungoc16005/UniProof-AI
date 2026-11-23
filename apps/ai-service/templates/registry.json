@@ -1,4 +1,60 @@
 {
   "schemaVersion": 1,
-  "templates": []
+  "templates": [
+    {
+      "templateId": "GIAY_HIEN_MAU-BVHH-2026-v1",
+      "documentType": "GIAY_HIEN_MAU",
+      "source": "Bệnh viện Huyết học - Truyền máu Đà Nẵng",
+      "effectiveFrom": "2024-01-01",
+      "effectiveTo": null,
+      "version": "1",
+      "pHash": "897e1b4e160bf4a9",
+      "aspectRatio": 1.4419,
+      "fileRef": "templates/files/tpl-giay-hien-mau-2026-v1.png"
+    },
+    {
+      "templateId": "GIAY_CHUNG_NHAN-NCKH-DUT-2026-v1",
+      "documentType": "GIAY_CHUNG_NHAN",
+      "source": "Trường Đại học Bách khoa - Đại học Đà Nẵng",
+      "effectiveFrom": "2024-01-01",
+      "effectiveTo": null,
+      "version": "1",
+      "pHash": "81657e95946bf41a",
+      "aspectRatio": 1.3333,
+      "fileRef": "templates/files/tpl-giay-chung-nhan-nckh-2026-v1.png"
+    },
+    {
+      "templateId": "GIAY_XAC_NHAN-DUTCUP-2026-v1",
+      "documentType": "GIAY_XAC_NHAN",
+      "source": "Đoàn Thanh niên - Hội Sinh viên Trường ĐH Bách khoa",
+      "effectiveFrom": "2024-01-01",
+      "effectiveTo": null,
+      "version": "1",
+      "pHash": "8120158b172f5fbf",
+      "aspectRatio": 1.5366,
+      "fileRef": "templates/files/tpl-giay-xac-nhan-dutcup-2026-v1.png"
+    },
+    {
+      "templateId": "GIAY_CHUNG_NHAN-KYNANG-DUT-2026-v1",
+      "documentType": "GIAY_CHUNG_NHAN",
+      "source": "Trung tâm Hỗ trợ Sinh viên & Quan hệ Doanh nghiệp ĐHBK",
+      "effectiveFrom": "2024-01-01",
+      "effectiveTo": null,
+      "version": "1",
+      "pHash": "a9741bd6561b7419",
+      "aspectRatio": 1.3409,
+      "fileRef": "templates/files/tpl-chung-chi-ky-nang-2026-v1.png"
+    },
+    {
+      "templateId": "GIAY_KHEN-DTN-DUT-2026-v1",
+      "documentType": "GIAY_KHEN",
+      "source": "Ban Chấp hành Đoàn Trường Đại học Bách khoa",
+      "effectiveFrom": "2024-01-01",
+      "effectiveTo": null,
+      "version": "1",
+      "pHash": "81743bc7174b7c0b",
+      "aspectRatio": 1.4353,
+      "fileRef": "templates/files/tpl-giay-khen-dtn-2026-v1.png"
+    }
+  ]
 }

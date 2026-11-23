@@ -43,7 +43,10 @@ CRITERION_HUMAN_NAMES: dict[str, str] = {
     "MUC_10": "Mục 10 (Tuyên truyền / Phòng chống tội phạm / TNXH)",
     "MUC_12": "Mục 12 (Phục vụ cộng đồng / Tình nguyện / Hiến máu)",
     "MUC_13": "Mục 13 (Ban tổ chức / Cộng tác viên)",
-    "KHONG_HOP_LE": "Không thuộc tiêu chí tính điểm",
+    "MUC_14": "Mục 14 (Cán bộ lớp / Đoàn / Hội hoàn thành tốt nhiệm vụ)",
+    "MUC_15": "Mục 15 (Cán bộ lớp / Đoàn / Hội xuất sắc được khen thưởng)",
+    "MUC_16": "Mục 16 (Cán bộ đoàn thể được khen thưởng cấp Trường trở lên)",
+    "KHONG_HOP_LE": "Không thuộc tiêu chí tính điểm ngoại khóa",
 }
 
 _LOCK = threading.Lock()

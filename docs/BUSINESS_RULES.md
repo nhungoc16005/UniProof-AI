@@ -134,7 +134,7 @@ Workflow UI có 8 state suy diễn từ submission, handoff, pending evidence/ap
 - **Căn cứ:** AssessmentsService; [nguồn](../apps/backend/src/assessments/assessments.service.ts#L177).
 - **Tiền điều kiện/quyền:** Preflight đủ điểm, minh chứng nháp đủ tệp, đúng kỳ và còn quyền.
 - **Hậu điều kiện và chuyển trạng thái:** DRAFT/RETURNED→SUBMITTED; chuyển draft evidence sang PROCESSING và tạo job; STAFF trả phiếu có lý do→RETURNED, hủy kết quả/job cần thiết.
-- **Bất biến:** Submit đọc lại rubric, điểm, trần nhóm, cờ F15 và minh chứng trong transaction giữ khóa Term. Preflight dùng cùng kiểm tra dữ liệu để báo trước cho sinh viên.
+- **Bất biến:** Submit đọc lại rubric, điểm, trần nhóm, cờ F15 và minh chứng trong transaction giữ khóa Term. Preflight dùng cùng kiểm tra dữ liệu để báo trước cho sinh viên: miễn nộp minh chứng cho nhóm học vụ/mặc định (`TC1, TC2, TC3, TC6, TC7, TC11`); cảnh báo rõ từng mã tiêu chí thuộc nhóm bắt buộc minh chứng/xác nhận hoạt động (`TC4, TC5, TC8, TC9, TC10, TC12, TC13, TC14, TC15, TC16`, bao gồm `leadership_duty`) nếu `selfScore > 0` mà chưa có minh chứng hợp lệ (kể cả đã duyệt từ lần nộp trước), điểm danh `CONFIRMED` hoặc căn cứ học vụ/CLB tương ứng.
 
 <a id="r-12"></a>
 

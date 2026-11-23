@@ -358,7 +358,7 @@ const RubricEditor: React.FC<{
                         </label>
                       </div>
                       <p className="text-[11px] text-blue-800">
-                        * Cần cấu hình đủ điểm cho các vai trò để hệ thống tự động quy đổi điểm cộng đồng cho sinh viên mà không bị blocker.
+                        * Cần cấu hình đủ điểm cho cả 3 vai trò để hệ thống tự động quy đổi điểm hoạt động cộng đồng cho sinh viên.
                       </p>
                     </div>
                   )}
@@ -367,7 +367,7 @@ const RubricEditor: React.FC<{
                       Cấu hình tính điểm nâng cao (JSON)
                     </summary>
                     <p className="mt-1.5 text-xs text-[#8A8A8E]">
-                      Chỉ chỉnh phần này khi cần cấu hình loại quy tắc tính điểm Backend hỗ trợ (manual_verified, binary, count_bounded, academic_tier).
+                      Chỉ chỉnh phần này khi cần thay đổi loại công thức tính điểm hệ thống hỗ trợ (manual_verified, binary, count_bounded, academic_tier).
                     </p>
                     <textarea
                       disabled={disabled}

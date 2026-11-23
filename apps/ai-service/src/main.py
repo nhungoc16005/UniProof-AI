@@ -177,7 +177,11 @@ async def inspect_evidence(request: UnifiedInspectionRequest) -> UnifiedInspecti
                     and result.ocrExtraction.codeMismatch
                 ),
                 evidence_mismatch_reason=(
-                    "Tên trên giấy không khớp hồ sơ sinh viên"
+                    result.breakdown.get("syntheticGraphicReason")
+                    if result.breakdown.get("syntheticGraphicMismatch") is True
+                    else f"Tệp trùng với minh chứng đã nộp trong học kỳ ({result.duplicateMatchType or 'SIMILAR'})"
+                    if result.isDuplicate
+                    else "Tên trên giấy không khớp hồ sơ sinh viên"
                     if result.breakdown.get("studentNameMismatch") is True
                     else "Ngày cấp trên giấy nằm ngoài khoảng ngày học kỳ"
                     if result.breakdown.get("termDateMismatch") is True
@@ -254,10 +258,16 @@ async def process_for_backend(payload: dict[str, Any]) -> dict[str, Any]:
             and result.ocrExtraction.codeMismatch
         ),
         evidence_mismatch_reason=(
-            "Tên trên giấy không khớp hồ sơ sinh viên"
+            result.breakdown.get("syntheticGraphicReason")
+            if result.breakdown.get("syntheticGraphicMismatch") is True
+            else f"Tệp trùng với minh chứng đã nộp trong học kỳ ({result.duplicateMatchType or 'SIMILAR'})"
+            if result.isDuplicate
+            else "Tên trên giấy không khớp hồ sơ sinh viên"
             if result.breakdown.get("studentNameMismatch") is True
             else "Ngày cấp trên giấy nằm ngoài khoảng ngày học kỳ"
             if result.breakdown.get("termDateMismatch") is True
+            else "Số CCCD trên giấy hiến máu không khớp hồ sơ sinh viên"
+            if result.breakdown.get("citizenIdMismatch") is True
             else None
         ),
     )

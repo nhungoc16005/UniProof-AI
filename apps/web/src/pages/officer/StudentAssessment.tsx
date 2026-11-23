@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../../lib/apiClient';
+import { getCriterionEvidencePolicy } from '../../lib/criterionEvidencePolicy';
 import { Criterion, CriterionAssessment, RubricPayload, User, PreviewFinalizeResult } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -81,6 +82,8 @@ export interface CardProps {
 
 export const CriterionCard: React.FC<CardProps> = ({ studentId, termId, criterion, assessment, readOnly, onSaved }) => {
   const fields: string[] = criterion.scoringConfig?.requiredData || [];
+  const evidencePolicy = getCriterionEvidencePolicy(criterion);
+  const assessmentReturnTo = `/officer/students/${studentId}/assessment?termId=${encodeURIComponent(termId)}`;
   const [verifiedDraft, setVerifiedDraft] = useState<Record<string, string>>({});
   const [verificationNote, setVerificationNote] = useState(assessment?.verificationNote || '');
   const [finalScore, setFinalScore] = useState(String(assessment?.officialScore ?? assessment?.suggestedScore ?? ''));
@@ -131,9 +134,20 @@ export const CriterionCard: React.FC<CardProps> = ({ studentId, termId, criterio
       {/* Criterion Header */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between border-b border-slate-100 pb-4">
         <div>
-          <div className="flex items-center gap-2 mb-1.5">
+          <div className="flex flex-wrap items-center gap-2 mb-1.5">
             <span className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-[#1D6FC2] border border-blue-100">
               Mục {criterion.code}
+            </span>
+            <span
+              className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold ${
+                evidencePolicy.required
+                  ? 'border-blue-200 bg-blue-100 text-blue-800'
+                  : evidencePolicy.kind === 'AUTO_SYNC'
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                    : 'border-slate-300 bg-slate-100 text-slate-700'
+              }`}
+            >
+              {evidencePolicy.badgeLabel}
             </span>
             <span className="text-xs text-slate-400">·</span>
             <span className="text-xs font-semibold text-slate-500">Tối đa {criterion.maxScore} điểm</span>
@@ -204,7 +218,7 @@ export const CriterionCard: React.FC<CardProps> = ({ studentId, termId, criterio
                   <div className="flex items-center justify-between gap-2">
                     <Link
                       className="font-medium text-xs text-[#1D6FC2] hover:text-[#175A9E] hover:underline flex items-center gap-1 truncate"
-                      to={`/officer/review/${evidence.id}`}
+                      to={`/officer/review/${evidence.id}?${new URLSearchParams({ termId, returnTo: assessmentReturnTo }).toString()}`}
                     >
                       <span className="truncate">{evidence.declaredActivityName || 'Hồ sơ minh chứng'}</span>
                       <ExternalLink className="h-3 w-3 shrink-0" />
@@ -226,7 +240,9 @@ export const CriterionCard: React.FC<CardProps> = ({ studentId, termId, criterio
               ))}
             </ul>
           ) : (
-            <p className="mt-3 text-xs text-slate-400 italic">Chưa nộp hồ sơ minh chứng độc lập.</p>
+            <p className={`mt-3 text-xs italic ${evidencePolicy.required ? 'text-amber-700' : 'text-slate-500'}`}>
+              {evidencePolicy.officerHint}
+            </p>
           )}
         </div>
       </div>

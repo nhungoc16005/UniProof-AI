@@ -138,35 +138,18 @@ export class EvidenceProcessingWorker implements OnModuleInit, OnModuleDestroy {
         })
         .filter((h): h is { sha256: string; pHash: string } => h !== null);
 
+      const rawTimeoutMs = Number(process.env.AI_PIPELINE_TIMEOUT_MS || 60000);
+      const effectiveTimeoutMs = Number.isFinite(rawTimeoutMs) && rawTimeoutMs > 0 ? rawTimeoutMs : 60000;
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), Number(process.env.AI_PIPELINE_TIMEOUT_MS || 60000));
-      let response: Response;
-      try {
-        response = await fetch(`${pipelineUrl.replace(/\/$/, '')}/evidence/process`, {
-          method: 'POST', signal: controller.signal,
-          headers: { 'Content-Type': 'application/json', ...(process.env.AI_PIPELINE_TOKEN ? { Authorization: `Bearer ${process.env.AI_PIPELINE_TOKEN}` } : {}) },
-          body: JSON.stringify({
-            evidenceId: job.evidenceId,
-            termId: job.evidence.termId,
-            activityName: job.evidence.declaredActivityName,
-            description: job.evidence.description,
-            declaredRole: job.evidence.declaredRole,
-            evidenceType: job.evidence.evidenceType,
-            participationDate: job.evidence.participationDate,
-            termStartDate: job.evidence.term.startDate,
-            termEndDate: job.evidence.term.endDate,
-            declaredStudent: job.evidence.student,
-            criterion: rubricCriterion ? { id: rubricCriterion.id, code: rubricCriterion.code, name: rubricCriterion.name, maxScore: rubricCriterion.maxScore, scoringConfig: rubricCriterion.scoringConfig } : null,
-            files,
-            previousHashes,
-            enableWebSearch: true,
-          }),
-        });
-      } finally { clearTimeout(timeout); }
-      if (!response.ok) {
-        throw new Error(`AI pipeline trả HTTP ${response.status}.`);
-      }
-       const output = await response.json() as {
+      let timeout: NodeJS.Timeout | undefined;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => {
+          controller.abort();
+          reject(new Error(`AI pipeline quá thời gian chờ (${effectiveTimeoutMs}ms).`));
+        }, effectiveTimeoutMs);
+        timeout.unref?.();
+      });
+      let output: {
         suggestions?: PipelineSuggestion[];
         analysis?: {
           schemaVersion?: string;
@@ -230,6 +213,37 @@ export class EvidenceProcessingWorker implements OnModuleInit, OnModuleDestroy {
           breakdown?: Record<string, unknown>;
         };
       };
+      try {
+        const response = await Promise.race([
+          fetch(`${pipelineUrl.replace(/\/$/, '')}/evidence/process`, {
+            method: 'POST', signal: controller.signal,
+            headers: { 'Content-Type': 'application/json', ...(process.env.AI_PIPELINE_TOKEN ? { Authorization: `Bearer ${process.env.AI_PIPELINE_TOKEN}` } : {}) },
+            body: JSON.stringify({
+              evidenceId: job.evidenceId,
+              termId: job.evidence.termId,
+              activityName: job.evidence.declaredActivityName,
+              description: job.evidence.description,
+              declaredRole: job.evidence.declaredRole,
+              evidenceType: job.evidence.evidenceType,
+              participationDate: job.evidence.participationDate,
+              termStartDate: job.evidence.term.startDate,
+              termEndDate: job.evidence.term.endDate,
+              declaredStudent: job.evidence.student,
+              criterion: rubricCriterion ? { id: rubricCriterion.id, code: rubricCriterion.code, name: rubricCriterion.name, maxScore: rubricCriterion.maxScore, scoringConfig: rubricCriterion.scoringConfig } : null,
+              files,
+              previousHashes,
+              enableWebSearch: true,
+            }),
+          }),
+          timeoutPromise,
+        ]);
+        if (!response.ok) {
+          throw new Error(`AI pipeline trả HTTP ${response.status}.`);
+        }
+        output = await Promise.race([response.json(), timeoutPromise]) as typeof output;
+      } finally {
+        if (timeout) clearTimeout(timeout);
+      }
       if (!Array.isArray(output.suggestions)) throw new Error('AI pipeline response thiếu danh sách suggestions');
       if (output.analysis?.schemaVersion !== '1.0') throw new Error('AI pipeline trả thiếu hoặc không hỗ trợ schemaVersion; chuyển hồ sơ sang cán bộ kiểm tra.');
       if (!Array.isArray(output.analysis?.documentChecks) || !Array.isArray(output.analysis?.scoreBreakdown)) throw new Error('AI pipeline thiếu checker contract hoặc score breakdown; chuyển hồ sơ sang cán bộ kiểm tra.');
@@ -298,8 +312,9 @@ export class EvidenceProcessingWorker implements OnModuleInit, OnModuleDestroy {
         const termDateMismatch = analysis?.breakdown?.termDateMismatch === true;
         const citizenIdMismatch = analysis?.pipelineMode === 'DOCUMENT_PIPELINE'
           && analysis?.breakdown?.citizenIdMismatch === true;
+        const syntheticGraphicMismatch = analysis?.breakdown?.syntheticGraphicMismatch === true;
         const identityMismatch = studentCodeMismatch || studentNameMismatch || citizenIdMismatch;
-        const documentMismatch = identityMismatch || termDateMismatch;
+        const documentMismatch = identityMismatch || termDateMismatch || isDuplicate || syntheticGraphicMismatch;
         if (firstFile && ocr) {
           await tx.ocrResult.create({
             data: {
@@ -328,17 +343,18 @@ export class EvidenceProcessingWorker implements OnModuleInit, OnModuleDestroy {
           });
         }
         const article = analysis?.webVerification?.articleTitle;
+        const officialWebVerified = Boolean(article && (analysis?.webVerification?.confidenceBoost ?? 0) >= 20);
         await tx.verificationResult.create({
           data: {
             evidenceId: job.evidenceId,
-            verificationLevel: article ? 2 : 1,
+            verificationLevel: officialWebVerified ? 2 : article ? 4 : 1,
             status: documentMismatch ? 'INVALID' : 'NEEDS_HUMAN_REVIEW',
-            activityExistsVerified: Boolean(article),
+            activityExistsVerified: !documentMismatch && officialWebVerified,
             studentParticipationVerified: false,
             sourceDescription: [
               `AI ${analysis?.pipelineMode ?? 'pipeline'}: ${analysis?.aiConfidenceScore ?? 0}/100 (${analysis?.tier ?? 'chưa phân loại'}).`,
               analysis?.recommendation,
-              article ? `Nguồn đối chiếu: ${article} (${analysis?.webVerification?.articleUrl ?? 'không có URL'}).` : null,
+              article ? `Nguồn tham khảo: ${article} (${analysis?.webVerification?.articleUrl ?? 'không có URL'}).` : null,
             ].filter(Boolean).join(' '),
             evidenceGap: {
               ocrAvailable: ocr?.available ?? false,
@@ -348,6 +364,7 @@ export class EvidenceProcessingWorker implements OnModuleInit, OnModuleDestroy {
               studentNameMismatch,
               citizenIdMismatch,
               termDateMismatch,
+              syntheticGraphicMismatch,
               needsHumanReview: !studentCodeMismatch,
               systemInvalidated: documentMismatch,
               isDuplicate,
@@ -376,20 +393,24 @@ export class EvidenceProcessingWorker implements OnModuleInit, OnModuleDestroy {
           });
         }
         if (documentMismatch) {
-          await tx.anomalyFlag.create({
-            data: {
-              evidenceId: job.evidenceId,
-              flagType: 'OTHER',
-              description: studentCodeMismatch
-                ? 'MSSV đọc được trên minh chứng không khớp hồ sơ sinh viên; hệ thống tự động đánh dấu minh chứng không hợp lệ (ĐỎ).'
-                : studentNameMismatch
-                  ? 'Tên đọc được trên minh chứng khác đáng kể với hồ sơ sinh viên; hệ thống tự động đánh dấu cần xác minh (ĐỎ).'
-                  : citizenIdMismatch
-                    ? 'Số CCCD đọc được trên giấy hiến máu không khớp hồ sơ sinh viên; hệ thống tự động đánh dấu minh chứng không hợp lệ (ĐỎ).'
-                    : 'Ngày cấp trên minh chứng nằm ngoài khoảng ngày học kỳ đang xét; hồ sơ cần xác minh (ĐỎ).',
-              severity: 'HIGH',
-            },
-          });
+          if (!isDuplicate) {
+            await tx.anomalyFlag.create({
+              data: {
+                evidenceId: job.evidenceId,
+                flagType: 'OTHER',
+                description: syntheticGraphicMismatch
+                  ? 'Phát hiện ảnh đồ họa phẳng tự dựng và con dấu vector (không phải bản chụp/scan chứng nhận gốc); hệ thống tự động đánh dấu không hợp lệ (ĐỎ - 0 điểm).'
+                  : studentCodeMismatch
+                    ? 'MSSV đọc được trên minh chứng không khớp hồ sơ sinh viên; hệ thống tự động đánh dấu minh chứng không hợp lệ (ĐỎ).'
+                    : studentNameMismatch
+                      ? 'Tên đọc được trên minh chứng khác đáng kể với hồ sơ sinh viên; hệ thống tự động đánh dấu cần xác minh (ĐỎ).'
+                      : citizenIdMismatch
+                        ? 'Số CCCD đọc được trên giấy hiến máu không khớp hồ sơ sinh viên; hệ thống tự động đánh dấu minh chứng không hợp lệ (ĐỎ).'
+                        : 'Ngày cấp trên minh chứng nằm ngoài khoảng ngày học kỳ đang xét; hồ sơ cần xác minh (ĐỎ).',
+                severity: 'HIGH',
+              },
+            });
+          }
           await tx.notification.create({
             data: {
               userId: job.evidence.studentId,
@@ -397,19 +418,33 @@ export class EvidenceProcessingWorker implements OnModuleInit, OnModuleDestroy {
               type: 'EVIDENCE_INVALID',
               eventKey: 'EVIDENCE_INVALID',
               dedupeKey: `evidence-invalid:${job.evidenceId}:${run.id}`,
-              title: 'Minh chứng cần xác minh',
-              content: studentCodeMismatch
-                ? 'MSSV đọc được trên giấy không khớp hồ sơ sinh viên. Minh chứng đã được đánh dấu cần xác minh; nếu OCR nhận diện nhầm, vui lòng liên hệ cán bộ phụ trách.'
-                : studentNameMismatch
-                  ? 'Tên đọc được trên giấy khác đáng kể với hồ sơ sinh viên. Minh chứng đã được đánh dấu cần xác minh; vui lòng liên hệ cán bộ phụ trách nếu OCR nhận diện nhầm.'
-                  : citizenIdMismatch
-                    ? 'Số CCCD đọc được trên giấy hiến máu không khớp hồ sơ sinh viên. Minh chứng đã được đánh dấu cần xác minh; vui lòng liên hệ cán bộ phụ trách nếu OCR nhận diện nhầm.'
-                    : 'Ngày cấp trên giấy nằm ngoài khoảng ngày học kỳ đang xét. Minh chứng đã được đánh dấu cần xác minh; vui lòng liên hệ cán bộ phụ trách nếu thông tin học kỳ chưa chính xác.',
+              title: 'Minh chứng không hợp lệ / cần xác minh',
+              content: syntheticGraphicMismatch
+                ? 'Phát hiện tệp tải lên là ảnh đồ họa tự tạo / con dấu vector, không phải bản chụp hoặc scan giấy chứng nhận gốc. Minh chứng được đề xuất 0 điểm (ĐỎ).'
+                : isDuplicate
+                  ? `Tệp minh chứng trùng lặp (${duplicateMatchType ?? 'SIMILAR'}) với hồ sơ đã nộp trong học kỳ. Minh chứng được đề xuất 0 điểm (ĐỎ).`
+                  : studentCodeMismatch
+                    ? 'MSSV đọc được trên giấy không khớp hồ sơ sinh viên. Minh chứng đã được đánh dấu cần xác minh; nếu OCR nhận diện nhầm, vui lòng liên hệ cán bộ phụ trách.'
+                    : studentNameMismatch
+                      ? 'Tên đọc được trên giấy khác đáng kể với hồ sơ sinh viên. Minh chứng đã được đánh dấu cần xác minh; vui lòng liên hệ cán bộ phụ trách nếu OCR nhận diện nhầm.'
+                      : citizenIdMismatch
+                        ? 'Số CCCD đọc được trên giấy hiến máu không khớp hồ sơ sinh viên. Minh chứng đã được đánh dấu cần xác minh; vui lòng liên hệ cán bộ phụ trách nếu OCR nhận diện nhầm.'
+                        : 'Ngày cấp trên giấy nằm ngoài khoảng ngày học kỳ đang xét. Minh chứng đã được đánh dấu cần xác minh; vui lòng liên hệ cán bộ phụ trách nếu thông tin học kỳ chưa chính xác.',
               targetPath: `/student/scores?termId=${job.evidence.termId}`,
               metadata: {
                 evidenceId: job.evidenceId,
                 termId: job.evidence.termId,
-                reason: studentCodeMismatch ? 'STUDENT_CODE_MISMATCH' : studentNameMismatch ? 'STUDENT_NAME_MISMATCH' : citizenIdMismatch ? 'CITIZEN_ID_MISMATCH' : 'TERM_DATE_MISMATCH',
+                reason: syntheticGraphicMismatch
+                  ? 'SYNTHETIC_GRAPHIC_DETECTED'
+                  : isDuplicate
+                    ? 'DUPLICATE_EVIDENCE'
+                    : studentCodeMismatch
+                      ? 'STUDENT_CODE_MISMATCH'
+                      : studentNameMismatch
+                        ? 'STUDENT_NAME_MISMATCH'
+                        : citizenIdMismatch
+                          ? 'CITIZEN_ID_MISMATCH'
+                          : 'TERM_DATE_MISMATCH',
               },
             },
           });
@@ -436,7 +471,18 @@ export class EvidenceProcessingWorker implements OnModuleInit, OnModuleDestroy {
             },
           });
         }
-        for (const suggestion of suggestions) await tx.aiSuggestion.create({ data: { evidenceId: job.evidenceId, criterionId: suggestion.criterionId, suggestedScore: suggestion.suggestedScore ?? null, reasoning: suggestion.reasoning.trim(), confidenceScore: suggestion.confidenceScore ?? null } });
+        for (const suggestion of suggestions) {
+          const safeSuggestedScore = documentMismatch || tier === 'RED' ? 0 : (suggestion.suggestedScore ?? null);
+          await tx.aiSuggestion.create({
+            data: {
+              evidenceId: job.evidenceId,
+              criterionId: suggestion.criterionId,
+              suggestedScore: safeSuggestedScore,
+              reasoning: suggestion.reasoning.trim(),
+              confidenceScore: suggestion.confidenceScore ?? null,
+            },
+          });
+        }
         await tx.aiProcessingJob.update({ where: { id: jobId }, data: { status: AiProcessingJobStatus.COMPLETED, error: null, completedAt: new Date() } });
         await tx.evidence.update({
           where: { id: job.evidenceId },

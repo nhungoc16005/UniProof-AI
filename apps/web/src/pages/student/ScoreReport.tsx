@@ -3,9 +3,12 @@ import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { useStudentAssessmentAccess } from '../../hooks/useStudentAssessmentAccess';
 import { StudentAssessmentNotice } from '../../components/StudentAssessmentNotice';
 import { useAuth } from '../../context/AuthContext';
-import { apiClient, API_BASE_URL } from '../../lib/apiClient';
+import { apiClient } from '../../lib/apiClient';
+import { getCriterionEvidencePolicy, type EvidenceRequirementPolicy } from '../../lib/criterionEvidencePolicy';
 import { Criterion, Evidence, EvidenceAiTestResult, RubricCategory, RubricPayload } from '../../types';
 import { Check, FilePlus2, FlaskConical, Printer, Save, Search, Trash2, X } from 'lucide-react';
+
+export { getCriterionEvidencePolicy, type EvidenceRequirementPolicy };
 
 interface CategoryView extends RubricCategory {
   confirmedScore: number | null;
@@ -158,9 +161,9 @@ export const ScoreReport: React.FC = () => {
       const status = error.response?.status;
       const backendMessage = error.response?.data?.message || error.response?.data?.error?.message;
       if (!error.response) {
-        setLoadError(`Không kết nối được Backend khi tải ${loadingStep} tại ${API_BASE_URL}. Kiểm tra Backend có đang chạy và VITE_API_URL có đúng địa chỉ không. (${error.message || 'Lỗi mạng'})`);
+        setLoadError(`Không kết nối được máy chủ khi tải ${loadingStep}. Vui lòng kiểm tra kết nối mạng và thử lại.`);
       } else {
-        setLoadError(`Không tải được ${loadingStep} từ Backend${status ? ` (HTTP ${status})` : ''}.${backendMessage ? ` ${backendMessage}` : ' Kiểm tra log Backend và migration cơ sở dữ liệu đã được áp dụng.'}`);
+        setLoadError(`Không tải được ${loadingStep}${status ? ` (mã lỗi ${status})` : ''}.${backendMessage ? ` ${backendMessage}` : ' Vui lòng thử lại sau ít phút.'}`);
       }
     } finally {
       if (!quiet && currentPage.current === pageKey && loadVersion.current === version) setLoading(false);
@@ -409,8 +412,24 @@ export const ScoreReport: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-10">
-      <header className="flex flex-wrap items-end justify-between gap-3">
+    <div className="space-y-6 pb-10 print:space-y-4 print:pb-0">
+      {/* Tiêu đề chuẩn A4 chỉ hiện khi in phiếu */}
+      <div className="hidden print:block text-center border-b border-slate-400 pb-3">
+        <div className="grid grid-cols-2 text-xs">
+          <div>
+            <p className="font-semibold uppercase">Đại học Đà Nẵng</p>
+            <p className="font-bold uppercase">Trường Đại học Bách khoa</p>
+          </div>
+          <div>
+            <p className="font-bold uppercase">Cộng hòa Xã hội Chủ nghĩa Việt Nam</p>
+            <p className="font-semibold underline underline-offset-4">Độc lập - Tự do - Hạnh phúc</p>
+          </div>
+        </div>
+        <h2 className="mt-4 text-base font-bold uppercase text-slate-900">Phiếu đánh giá kết quả rèn luyện sinh viên</h2>
+        <p className="text-xs text-slate-700">{selectedTerm?.name || activeTerm.name}</p>
+      </div>
+
+      <header className="flex flex-wrap items-end justify-between gap-3 print:hidden">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">{selectedTerm?.name || activeTerm.name}</p>
           <h1 className="mt-1 text-2xl font-bold text-slate-900">Phiếu đánh giá rèn luyện</h1>
@@ -423,12 +442,12 @@ export const ScoreReport: React.FC = () => {
         </div>
       </header>
 
-      {loadError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{loadError}<button type="button" onClick={() => void load(!loading && !!rubric)} className="ml-2 font-semibold underline">Thử lại</button></div>}
-      {notice && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</div>}
-      <StudentAssessmentNotice access={access} termId={effectiveTermId} onRetry={() => { if (!rubric) void load(); else void access.refresh().catch(() => undefined); }} />
+      {loadError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 print:hidden">{loadError}<button type="button" onClick={() => void load(!loading && !!rubric)} className="ml-2 font-semibold underline">Thử lại</button></div>}
+      {notice && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 print:hidden">{notice}</div>}
+      <div className="print:hidden"><StudentAssessmentNotice access={access} termId={effectiveTermId} onRetry={() => { if (!rubric) void load(); else void access.refresh().catch(() => undefined); }} /></div>
 
       {rubric?.term?.id === effectiveTermId && rubric?.publication && rubric.permissions?.effectiveDeadlines?.appeal?.deadline && (
-        <p className="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700">
+        <p className="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700 print:hidden">
           Hạn phúc khảo hiện hành{' '}
           <strong>
             {new Date(rubric.permissions.effectiveDeadlines.appeal.deadline).toLocaleString('vi-VN', {
@@ -438,7 +457,7 @@ export const ScoreReport: React.FC = () => {
         </p>
       )}
 
-      <section className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+      <section className="rounded-xl border border-blue-200 bg-blue-50 p-4 print:hidden">
         <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-semibold text-blue-950">Tiến độ tự đánh giá: {selfEnteredCount}/{categories.reduce((sum, category) => sum + category.criteria.length, 0)} tiêu chí</p><p className="mt-1 text-xs text-blue-800">{autosaving ? 'Đang tự động lưu…' : dirtyScores.current ? 'Có thay đổi chưa đồng bộ' : lastSavedAt ? `Đã lưu lúc ${lastSavedAt.toLocaleTimeString('vi-VN')}` : 'Hệ thống tự lưu sau 2 giây ngừng nhập'}</p></div><div className="h-2 w-full max-w-xs overflow-hidden rounded-full bg-blue-100"><div className="h-full bg-blue-700 transition-all" style={{ width: `${categories.length ? Math.round(selfEnteredCount / Math.max(1, categories.reduce((sum, category) => sum + category.criteria.length, 0)) * 100) : 0}%` }} /></div></div>
       </section>
 
@@ -450,14 +469,14 @@ export const ScoreReport: React.FC = () => {
       </section>
 
       {loading ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">Đang tải phiếu và minh chứng từ Backend…</div>
+        <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">Đang tải phiếu và minh chứng…</div>
       ) : !rubric?.rubricVersion ? (
         <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">Kỳ này chưa có bộ tiêu chí được ban hành. Khi quản trị viên thiết lập rubric, phiếu 5 khung sẽ hiển thị tại đây.</div>
       ) : categories.length === 0 ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">Backend chưa trả về tiêu chí cho rubric của kỳ này.</div>
+        <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">Chưa có tiêu chí nào trong bộ tiêu chí của kỳ này.</div>
       ) : (
         <>
-          <label className="relative block max-w-xl">
+          <label className="relative block max-w-xl print:hidden">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm theo mã, tên hoặc nội dung tiêu chí" className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm" />
           </label>
@@ -475,12 +494,32 @@ export const ScoreReport: React.FC = () => {
                   {category.criteria.map((criterion) => {
                     const criterionEvidences = evidenceFor(criterion);
                     const assessment = criterion.assessment;
+                    const evidencePolicy = getCriterionEvidencePolicy(criterion);
+                    const currentSelfScore = scoreValue(criterion) ?? 0;
+                    const needsEvidenceReminder = evidencePolicy.required && currentSelfScore > 0 && criterionEvidences.length === 0 && assessment?.suggestedScore == null;
                     return <tr key={criterion.id} className="align-top hover:bg-slate-50">
                       <td className="border border-slate-300 px-1 py-2 text-center font-semibold">{criterion.code}</td>
                       <td className="border border-slate-300 px-2 py-2"><strong className="font-semibold text-slate-900">{criterion.name}</strong>{criterion.description && <p className="mt-1 whitespace-pre-line break-words text-[10px] leading-4 text-slate-600 sm:text-xs">{criterion.description}</p>}</td>
                       <td className="border border-slate-300 px-1 py-2 text-center font-semibold">{criterion.maxScore}</td>
                       <td className="border border-slate-300 px-1 py-2 text-center"><input aria-label={`Điểm tự đánh giá tiêu chí ${criterion.code}`} type="number" min="0" max={criterion.maxScore} step="0.5" value={draftScores[criterion.id] ?? ''} disabled={!canWrite} onChange={(event) => { dirtyScores.current = true; setDraftScores((current) => ({ ...current, [criterion.id]: event.target.value })); }} className="w-full min-w-0 rounded border border-slate-300 px-1 py-1.5 text-center font-semibold disabled:bg-slate-100" />{(draftScores[criterion.id] ?? '').trim() !== '' && scoreValue(criterion) === null && <span className="mt-1 block text-[9px] text-rose-600">Vượt điểm tối đa</span>}</td>
-                      <td className="border border-slate-300 px-1.5 py-2"><button type="button" disabled={!canWrite} onClick={() => openEvidenceManager(criterion)} className="inline-flex w-full items-center justify-center gap-1 rounded border border-blue-200 bg-blue-50 px-1 py-2 text-[10px] font-semibold text-blue-800 disabled:opacity-50"><FilePlus2 className="h-3.5 w-3.5" />Minh chứng ({criterionEvidences.length})</button>{criterionEvidences.map((evidence) => <div key={evidence.id} className="mt-1 break-words text-[9px] leading-3 text-slate-600"><strong>{evidence.declaredActivityName || 'Hồ sơ'}</strong><br />{evidenceStatusLabels[evidence.status] || evidence.status}</div>)}</td>
+                      <td className="border border-slate-300 px-1.5 py-2">
+                        {evidencePolicy.required ? (
+                          <div className="space-y-1.5">
+                            <span className="inline-block rounded-md border border-blue-200 bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800">{evidencePolicy.badgeLabel}</span>
+                            <button type="button" disabled={!canWrite && criterionEvidences.length === 0} onClick={() => openEvidenceManager(criterion)} className="inline-flex w-full items-center justify-center gap-1 rounded border border-blue-200 bg-blue-50 px-1 py-2 text-[10px] font-semibold text-blue-800 hover:bg-blue-100 disabled:opacity-50"><FilePlus2 className="h-3.5 w-3.5" />Minh chứng ({criterionEvidences.length})</button>
+                            {needsEvidenceReminder && <p className="rounded border border-amber-200 bg-amber-50 px-1.5 py-1 text-[9px] leading-3 text-amber-800">Cần nộp minh chứng hoặc có xác nhận hoạt động</p>}
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            <span className={`inline-block rounded-md border px-1.5 py-0.5 text-[10px] font-semibold ${evidencePolicy.kind === 'AUTO_SYNC' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-slate-300 bg-slate-100 text-slate-700'}`}>{evidencePolicy.badgeLabel}</span>
+                            <p className="text-[9px] leading-3 text-slate-500">{evidencePolicy.hint}</p>
+                            {criterionEvidences.length > 0 && (
+                              <button type="button" onClick={() => openEvidenceManager(criterion)} className="inline-flex w-full items-center justify-center gap-1 rounded border border-slate-200 bg-slate-50 px-1 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-100"><FilePlus2 className="h-3 w-3" />Minh chứng ({criterionEvidences.length})</button>
+                            )}
+                          </div>
+                        )}
+                        {criterionEvidences.map((evidence) => <div key={evidence.id} className="mt-1 break-words text-[9px] leading-3 text-slate-600"><strong>{evidence.declaredActivityName || 'Hồ sơ'}</strong><br />{evidenceStatusLabels[evidence.status] || evidence.status}</div>)}
+                      </td>
                       <td className="border border-slate-300 px-1.5 py-2 text-[10px] leading-4">
                         {assessment?.suggestedScore != null ? (
                           <div>
@@ -530,12 +569,28 @@ export const ScoreReport: React.FC = () => {
               </tbody>
             </table>
           </div>
-          {evidenceCriterion && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="evidence-modal-title" onMouseDown={(event) => { if (event.target === event.currentTarget) setEvidenceCriterion(null); }}>
+          {/* Khu vực chữ ký chuẩn A4 chỉ hiện khi in phiếu */}
+          <div className="hidden print:grid grid-cols-3 gap-6 pt-6 text-center text-xs text-slate-800 break-inside-avoid">
+            <div>
+              <p className="font-bold uppercase">Sinh viên tự đánh giá</p>
+              <p className="italic text-[10px]">(Ký và ghi rõ họ tên)</p>
+              <p className="mt-14 font-semibold">{user?.fullName || ''}</p>
+            </div>
+            <div>
+              <p className="font-bold uppercase">Cố vấn học tập / Lớp</p>
+              <p className="italic text-[10px]">(Ký và ghi rõ họ tên)</p>
+            </div>
+            <div>
+              <p className="font-bold uppercase">Xác nhận của Khoa</p>
+              <p className="italic text-[10px]">(Ký và đóng dấu)</p>
+            </div>
+          </div>
+          {evidenceCriterion && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-3 sm:p-6 print:hidden" role="dialog" aria-modal="true" aria-labelledby="evidence-modal-title" onMouseDown={(event) => { if (event.target === event.currentTarget) setEvidenceCriterion(null); }}>
             <section className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
               <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white p-4 sm:p-5"><div><p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Tiêu chí {evidenceCriterion.code} · tối đa {evidenceCriterion.maxScore} điểm</p><h2 id="evidence-modal-title" className="mt-1 text-lg font-bold text-slate-900">Quản lý minh chứng</h2><p className="mt-1 text-sm text-slate-600">{evidenceCriterion.name}</p>{evidenceCriterion.description && <p className="mt-2 rounded-lg bg-slate-50 p-2 text-xs leading-5 text-slate-700"><strong>Điều kiện hợp lệ theo rubric:</strong> {evidenceCriterion.description}</p>}</div><button type="button" aria-label="Đóng popup" onClick={() => { setEvidenceCriterion(null); setEditingEvidence(null); }} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button></header>
               <div className="space-y-5 p-4 sm:p-5">
                 {(!canWrite || access.error) && <StudentAssessmentNotice access={access} termId={effectiveTermId} />}
-                <p className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs leading-5 text-violet-900">Chế độ thử nghiệm chỉ chạy AI cho tiêu chí này, không cần hoàn tất 16 tiêu chí. Kết quả OCR/điểm gợi ý không được lưu và không thay đổi điểm chính thức; muốn thử thì lưu hồ sơ kèm ít nhất một tệp trước. Tỷ lệ là số điều kiện rubric AI tìm thấy trong OCR, không phải xác suất giấy thật/giả. Dưới 60% thì gợi ý 0 điểm; OCR không đọc được hoặc chưa đủ căn cứ thì chờ cán bộ xác minh. Điểm chính thức vẫn do cán bộ xác nhận; dấu hiệu ảnh bất thường không tự kết luận giả.</p>
+                <p className="rounded-lg border border-blue-100 bg-blue-50/70 p-3 text-xs leading-5 text-blue-900">Tải lên ảnh chụp hoặc PDF rõ nét của giấy chứng nhận/xác nhận (tối đa 8 MB mỗi tệp). Cán bộ Khoa sẽ đối chiếu và chốt điểm chính thức sau khi bạn nộp phiếu.</p>
                 <div className="space-y-2"><div className="flex items-center justify-between gap-2"><h3 className="text-sm font-bold text-slate-800">Danh sách minh chứng ({evidenceFor(evidenceCriterion).length})</h3><button type="button" disabled={!canWrite} onClick={() => { setEditingEvidence(null); setEvidenceForm({ declaredActivityName: '', description: '', declaredRole: 'PARTICIPANT', evidenceType: 'GIAY_XAC_NHAN', participationDate: new Date().toISOString().slice(0, 10) }); setEvidenceFormFiles([]); }} className="inline-flex items-center gap-1 rounded-lg bg-blue-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"><FilePlus2 className="h-4 w-4" />Thêm minh chứng</button></div>
                   {evidenceFor(evidenceCriterion).length ? evidenceFor(evidenceCriterion).map((evidence, index) => {
                     const testResult = aiTestResults[evidence.id];
@@ -544,24 +599,32 @@ export const ScoreReport: React.FC = () => {
                     const documentChecks = testResult?.analysis.documentChecks ?? storedDocumentChecks(evidence);
                     const codeStatus = ocr?.codeMatched ? 'khớp' : ocr?.codeMismatch ? 'không khớp · ĐỎ' : ocr?.studentCodeExtracted ? 'chưa đối chiếu' : 'không trích xuất được';
                     return <article key={evidence.id} className="rounded-xl border border-slate-200 p-3"><div className="flex flex-wrap items-start justify-between gap-2"><div><h4 className="font-semibold text-slate-900">Minh chứng {index + 1}: {evidence.declaredActivityName || 'Chưa đặt tên'}</h4><p className="mt-1 text-xs text-slate-500">{evidenceStatusLabels[evidence.status] || evidence.status} · {evidence.evidenceType} · {evidence.participationDate ? new Date(evidence.participationDate).toLocaleDateString('vi-VN') : 'Chưa có ngày'}</p>{evidence.description && <p className="mt-2 whitespace-pre-line text-sm text-slate-700">{evidence.description}</p>}</div><div className="flex flex-wrap gap-1"><button type="button" disabled={!canWrite || evidence.status === 'APPROVED'} onClick={() => editEvidence(evidence)} className="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-40">Sửa</button><button type="button" disabled={!canWrite || evidence.status === 'APPROVED'} onClick={() => void removeEvidence(evidence)} className="rounded-md border border-rose-200 px-2.5 py-1.5 text-xs font-semibold text-rose-700 disabled:opacity-40"><Trash2 className="h-3.5 w-3.5" /></button>{evidence.status === 'DRAFT' && <button type="button" disabled={!canWrite || !evidence.files?.length || aiTestingEvidenceId !== null} onClick={() => void testEvidenceAi(evidence)} className="inline-flex items-center gap-1 rounded-md border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-xs font-semibold text-violet-800 disabled:opacity-40"><FlaskConical className="h-3.5 w-3.5" />{aiTestingEvidenceId === evidence.id ? 'Đang thử…' : 'Thử AI'}</button>}</div></div>
-                    {evidence.files?.length > 0 && <ul className="mt-2 space-y-1">{evidence.files.map((file) => {
+                    {evidence.files?.length > 0 && <ul className="mt-2 space-y-2">{evidence.files.map((file) => {
                       const isSigned = file.signedUrlAvailable !== false && !file.fileUrl.startsWith('evidence/');
-                      return <li key={file.id} className="flex min-w-0 items-center justify-between gap-2 rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs">
-                        <div className="flex min-w-0 items-center gap-1.5">
-                          {isSigned ? (
-                            <a href={file.fileUrl} target="_blank" rel="noreferrer" className="min-w-0 truncate text-blue-700 hover:underline">{file.fileName || 'Tệp minh chứng'}</a>
-                          ) : (
-                            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                              <span className="truncate font-medium text-slate-700" title={file.fileUrl}>{file.fileName || 'Tệp minh chứng'}</span>
-                              <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Đã lưu, chưa có liên kết xem</span>
-                              <button type="button" onClick={() => void load(true)} className="shrink-0 text-[10px] font-semibold text-blue-700 hover:underline">Tải lại</button>
-                            </div>
-                          )}
+                      const isImage = Boolean(file.fileType?.startsWith('image/') || /\.(png|jpe?g|webp|gif|svg)(\?|$)/i.test(file.fileName || ''));
+                      return <li key={file.id} className="space-y-1.5 rounded-lg bg-slate-50 px-2.5 py-2 text-xs">
+                        <div className="flex min-w-0 items-center justify-between gap-2">
+                          <div className="flex min-w-0 items-center gap-1.5">
+                            {isSigned ? (
+                              <a href={file.fileUrl} target="_blank" rel="noreferrer" className="min-w-0 truncate font-medium text-blue-700 hover:underline">{file.fileName || 'Tệp minh chứng'}</a>
+                            ) : (
+                              <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                                <span className="truncate font-medium text-slate-700" title={file.fileUrl}>{file.fileName || 'Tệp minh chứng'}</span>
+                                <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Đã lưu, chưa có liên kết xem</span>
+                                <button type="button" onClick={() => void load(true)} className="shrink-0 text-[10px] font-semibold text-blue-700 hover:underline">Tải lại</button>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <span className="text-slate-500">{file.fileSize ? `${(file.fileSize / 1024 / 1024).toFixed(2)} MB` : file.fileType}</span>
+                            {canWrite && evidence.status !== 'APPROVED' && <button type="button" onClick={() => void removeEvidenceFile(evidence, file.id)} className="shrink-0 text-rose-700" aria-label="Xóa tệp"><X className="h-4 w-4" /></button>}
+                          </div>
                         </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                          <span className="text-slate-500">{file.fileSize ? `${(file.fileSize / 1024 / 1024).toFixed(1)} MB` : file.fileType}</span>
-                          {canWrite && evidence.status !== 'APPROVED' && <button type="button" onClick={() => void removeEvidenceFile(evidence, file.id)} className="shrink-0 text-rose-700" aria-label="Xóa tệp"><X className="h-4 w-4" /></button>}
-                        </div>
+                        {isSigned && isImage && (
+                          <a href={file.fileUrl} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-md border border-slate-200 bg-white">
+                            <img src={file.fileUrl} alt={file.fileName || 'Ảnh minh chứng'} className="max-h-56 w-full object-contain" loading="lazy" />
+                          </a>
+                        )}
                       </li>;
                     })}</ul>}
                     {testResult && <div role="status" className="mt-3 rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs leading-5 text-slate-800">

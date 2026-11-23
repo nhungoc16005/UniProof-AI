@@ -473,6 +473,7 @@ test('ReviewDetail (component thật): Sau khi thử tải lại thành công, t
     },
     'lucide-react': new Proxy({}, { get: () => () => null }),
     '../../lib/apiClient': { apiClient: mockApiClient },
+    '../../components/AiResultPanel': { AiResultPanel: () => null },
     '../../components/ui/StatusBadge': { StatusBadge: () => null },
     '../../components/ui/VerificationBadge': { VerificationBadge: () => null, TwoQuestionsVerification: () => null },
     '../../components/ui/ConfidenceBar': { ConfidenceBar: () => null }

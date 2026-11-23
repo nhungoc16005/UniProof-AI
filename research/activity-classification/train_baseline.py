@@ -54,9 +54,9 @@ def build_features() -> FeatureUnion:
             (
                 "word_tfidf",
                 TfidfVectorizer(
-                    ngram_range=(1, 2),
+                    ngram_range=(1, 3),
                     min_df=1,
-                    max_features=8000,
+                    max_features=12000,
                     sublinear_tf=True,
                 ),
             ),
@@ -95,7 +95,10 @@ def make_candidates() -> dict[str, Pipeline]:
                 ("features", build_features()),
                 (
                     "clf",
-                    LinearSVC(C=1.5, class_weight="balanced", random_state=42),
+                    CalibratedClassifierCV(
+                        LinearSVC(C=1.5, class_weight="balanced", random_state=42),
+                        cv=3,
+                    ),
                 ),
             ]
         ),
@@ -200,11 +203,6 @@ def main() -> None:
     y_all = df["criterion_label"].to_numpy()
     min_class_count = int(pd.Series(y_all).value_counts().min())
     final_model_name = best_name
-    if best_name == "tfidf_linear_svc":
-        # LinearSVC không có predict_proba trực tiếp -> dùng LogisticRegression có xác suất chuẩn hóa cho API production
-        final_model_name = "tfidf_logreg"
-        print("Note: chọn tfidf_logreg cho bản xuất production để trả về xác suất tin cậy (predict_proba).")
-
     final_model = make_candidates()[final_model_name]
     final_model.fit(X_all, y_all)
 
@@ -216,12 +214,12 @@ def main() -> None:
     meta = {
         "modelName": final_model_name,
         "bestCvModel": best_name,
-        "modelVersion": "1.0.0",
+        "modelVersion": "2.0.0",
         "trainedAt": datetime.now(timezone.utc).isoformat(),
         "trainSampleCount": int(len(df)),
         "classes": [str(c) for c in final_model.classes_],
         "cvBenchmark": cv_results,
-        "notes": "Baseline ML (TF-IDF word+char_wb) huấn luyện trên mẫu thật từ data_tracker.xlsx. Dùng hỗ trợ gợi ý tiêu chí Rubric, không tự động chốt điểm.",
+        "notes": "Rubric Classifier v2.0.0 (TF-IDF word 1-3 + char_wb 3-5) huấn luyện trên 11 lớp đủ các tiêu chí bắt buộc minh chứng (MUC_4,5,8,9,10,12,13,14,15,16 + KHONG_HOP_LE).",
     }
     meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Saved model -> {model_path} ({model_path.stat().st_size / 1024:.1f} KB)")

@@ -278,3 +278,75 @@ class QualityAndForensicsService:
             return ela_ratio, is_tampered, warnings
         except Exception as e:
             return 0.0, False, [f"Lỗi trong quá trình quét ELA: {str(e)}"]
+
+    @staticmethod
+    def detect_synthetic_graphic(image_bytes: bytes) -> Tuple[bool, str | None]:
+        """
+        Phát hiện ảnh chứng nhận đồ họa phẳng tự vẽ bằng phần mềm (Paint/Word/script vector)
+        thay vì bản chụp/scan giấy chứng nhận thật:
+        1. Tỷ lệ các ô 8x8 phẳng tuyệt đối (std < 0.35) rất cao (>= 0.78) do đổ màu RGB thuần.
+        2. Vùng mực đỏ con dấu (nếu có) là hình vẽ vector đơn sắc (độ lệch chuẩn kênh V/S cực thấp < 8.0),
+           không có kết cấu hạt mực đóng trên giấy thật.
+        """
+        try:
+            image = Image.open(io.BytesIO(image_bytes))
+            # Kiểm tra thẻ EXIF / PNG Info phát hiện phần mềm đồ họa chỉnh sửa
+            graphic_tools = ("canva", "photoshop", "illustrator", "figma", "mspaint", "paint.net", "gimp", "coreldraw")
+            meta_strings: list[str] = []
+            for k, v in (image.info or {}).items():
+                if isinstance(v, (str, bytes)):
+                    meta_strings.append(f"{k}:{v!s}".lower())
+            try:
+                exif = image.getexif()
+                for tag_id in (305, 11, 270, 315):  # Software, ProcessingSoftware, ImageDescription, Artist
+                    val = exif.get(tag_id)
+                    if val:
+                        meta_strings.append(str(val).lower())
+            except Exception:
+                pass
+            combined_meta = " ".join(meta_strings)
+            for tool in graphic_tools:
+                if tool in combined_meta:
+                    return True, f"Phát hiện metadata tệp được xuất từ phần mềm thiết kế đồ họa ({tool.upper()}); không phải ảnh chụp/scan gốc."
+
+            rgb = np.array(image.convert("RGB"))
+            height, width = rgb.shape[:2]
+            if width < 800 or height < 550:
+                return False, None
+
+            gray = np.mean(rgb, axis=2)
+            h_trim = (height // 8) * 8
+            w_trim = (width // 8) * 8
+            blocks = gray[:h_trim, :w_trim].reshape(h_trim // 8, 8, w_trim // 8, 8)
+            block_stds = blocks.std(axis=(1, 3))
+            flat_block_ratio = float(np.mean(block_stds < 0.35))
+
+            if flat_block_ratio < 0.78:
+                return False, None
+
+            # Kiểm tra vùng mực đỏ của con dấu (seal) xem có phải nét vẽ vector đơn sắc không
+            vector_seal = False
+            if cv2 is not None:
+                hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
+                lower_red = cv2.inRange(hsv, np.array([0, 70, 40]), np.array([12, 255, 255]))
+                upper_red = cv2.inRange(hsv, np.array([165, 70, 40]), np.array([180, 255, 255]))
+                red_mask = cv2.bitwise_or(lower_red, upper_red)
+                red_pixels = hsv[red_mask > 0]
+                if len(red_pixels) > 150:
+                    sat_std = float(np.std(red_pixels[:, 1]))
+                    val_std = float(np.std(red_pixels[:, 2]))
+                    if sat_std < 10.0 and val_std < 10.0:
+                        vector_seal = True
+
+            # Hoặc toàn bộ ảnh có nhiễu nền bằng 0 trên các ô phẳng
+            zero_noise_ratio = float(np.mean(block_stds == 0.0))
+            if vector_seal or zero_noise_ratio >= 0.72:
+                reason = (
+                    f"Phát hiện ảnh đồ họa phẳng tự tạo (tỷ lệ nền phẳng không nhiễu cảm biến {round(flat_block_ratio * 100)}%"
+                    + (", con dấu là nét vẽ vector đơn sắc" if vector_seal else "")
+                    + "); không phải ảnh chụp hoặc bản scan chứng nhận gốc."
+                )
+                return True, reason
+            return False, None
+        except Exception:
+            return False, None

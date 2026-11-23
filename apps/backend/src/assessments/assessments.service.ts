@@ -10,6 +10,25 @@ import { aggregateStudentActivitySources } from '../activities/activity-aggregat
 import { assertF15Open } from '../grounding-import/f15-policy';
 import { unresolvedEvidenceStatuses } from '../evaluation-workflow/evaluation-policy';
 
+const EVIDENCE_REQUIRED_SCORING_KINDS = new Set([
+  'activity_threshold',
+  'community_activity_tier',
+  'verified_boolean',
+  'award_tier',
+  'leadership_duty',
+]);
+
+const EVIDENCE_REQUIRED_FALLBACK_CODES = new Set([
+  '4', '5', '8', '9', '10', '12', '13', '14', '15', '16',
+]);
+
+export function isEvidenceRequiredCriterion(criterion: { code?: string | null; scoringConfig?: unknown }): boolean {
+  const config = criterion.scoringConfig as Record<string, unknown> | null | undefined;
+  const kind = typeof config?.kind === 'string' ? config.kind : '';
+  if (kind) return EVIDENCE_REQUIRED_SCORING_KINDS.has(kind);
+  return criterion.code ? EVIDENCE_REQUIRED_FALLBACK_CODES.has(String(criterion.code).trim()) : false;
+}
+
 export function validateVerifiedData(config: Record<string, unknown> | null, data: Record<string, unknown>, maxScore: number): void {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     throw new BadRequestException({
@@ -352,14 +371,15 @@ export class AssessmentsService {
     const term = await db.term.findUnique({ where: { id: termId }, select: { evidenceBasisWorkflowEnabled: true } });
     const isNewWorkflow = term?.evidenceBasisWorkflowEnabled ?? false;
 
-    const [assessments, drafts, effective, attendances, academicGroundings, clubGroundings] = await Promise.all([
+    const [assessments, allEvidences, effective, attendances, academicGroundings, clubGroundings] = await Promise.all([
       db.criterionAssessment.findMany({ where: { studentId, termId, criterion: { rubricVersionId: version.id } } }),
-      db.evidence.findMany({ where: { studentId, termId, status: EvidenceStatus.DRAFT }, include: { files: true } }),
+      db.evidence.findMany({ where: { studentId, termId }, include: { files: true } }),
       this.deadlines.resolve(termId, studentId, DeadlineExtensionType.SUBMISSION, db),
       db.activityParticipant.findMany({ where: { studentId, status: 'CONFIRMED', activity: { termId } }, include: { activity: true } }),
       isNewWorkflow ? db.academicGrounding.findMany({ where: { studentId, termId, status: 'ACTIVE' } }) : [],
       isNewWorkflow ? db.clubLeadershipGrounding.findMany({ where: { studentId, termId, status: 'ACTIVE' } }) : [],
     ]);
+    const drafts = allEvidences.filter(evidence => evidence.status === EvidenceStatus.DRAFT);
     const byCriterion = new Map(assessments.map(row => [row.criterionId, row]));
     const blockers: string[] = [];
     const warnings: string[] = [];
@@ -379,25 +399,48 @@ export class AssessmentsService {
       blockers.push(`Có ${incompleteDrafts.length} minh chứng nháp chưa có tệp hoặc thiếu mô tả chi tiết (tối thiểu 10 ký tự)`);
     }
 
-    const evidenceCriterionIds = new Set(drafts.filter(evidence => evidence.files.length || (isNewWorkflow && evidence.description?.trim().length >= 10)).flatMap(evidence => evidence.criterionAssessmentId ? [evidence.criterionAssessmentId] : []));
+    const inactiveEvidenceStatuses = new Set<EvidenceStatus>([
+      EvidenceStatus.DRAFT,
+      EvidenceStatus.WITHDRAWN,
+      EvidenceStatus.REJECTED,
+      EvidenceStatus.INVALID,
+    ]);
+    const evidenceCriterionIds = new Set(
+      allEvidences
+        .filter(evidence => {
+          if (evidence.status === EvidenceStatus.DRAFT) {
+            return evidence.files.length > 0 || (isNewWorkflow && (evidence.description?.trim().length ?? 0) >= 10);
+          }
+          return !inactiveEvidenceStatuses.has(evidence.status);
+        })
+        .flatMap(evidence => evidence.criterionAssessmentId ? [evidence.criterionAssessmentId] : []),
+    );
     const confirmedActivityCriterionIds = new Set(attendances.map(a => a.activity?.criterionId).filter(Boolean) as string[]);
     const academicGroundingCodes = new Set(academicGroundings.map(g => g.criterionCode));
     const clubGroundingCodes = new Set(clubGroundings.map(g => g.criterionCode));
 
-    const activityWithoutEvidence = version.categories.flatMap(category => category.criteria).filter(criterion => {
-      const config = criterion.scoringConfig as Record<string, unknown> | null;
-      const score = byCriterion.get(criterion.id)?.selfScore ?? 0;
-      const assessmentId = byCriterion.get(criterion.id)?.id;
-      if (score <= 0) return false;
+    const missingEvidenceCriteria = version.categories
+      .flatMap(category => category.criteria)
+      .filter(criterion => {
+        const score = byCriterion.get(criterion.id)?.selfScore ?? 0;
+        const assessmentId = byCriterion.get(criterion.id)?.id;
+        if (score <= 0) return false;
 
-      // Nếu đã có điểm danh xác nhận hoặc căn cứ học vụ / CLB tương ứng -> không cảnh báo thiếu minh chứng
-      if (confirmedActivityCriterionIds.has(criterion.id)) return false;
-      if (academicGroundingCodes.has(criterion.code)) return false;
-      if (clubGroundingCodes.has(criterion.code)) return false;
+        // Nếu đã có điểm danh xác nhận hoặc căn cứ học vụ / CLB tương ứng -> không cảnh báo thiếu minh chứng
+        if (confirmedActivityCriterionIds.has(criterion.id)) return false;
+        if (academicGroundingCodes.has(criterion.code)) return false;
+        if (clubGroundingCodes.has(criterion.code)) return false;
 
-      return ['activity_threshold', 'community_activity_tier', 'verified_boolean', 'award_tier'].includes(String(config?.kind)) && (!assessmentId || !evidenceCriterionIds.has(assessmentId));
-    });
-    if (activityWithoutEvidence.length) warnings.push(`${activityWithoutEvidence.length} tiêu chí có điểm nhưng chưa gắn minh chứng nháp`);
+        return isEvidenceRequiredCriterion(criterion) && (!assessmentId || !evidenceCriterionIds.has(assessmentId));
+      })
+      .sort((left, right) => left.code.localeCompare(right.code, 'vi', { numeric: true }));
+
+    if (missingEvidenceCriteria.length) {
+      const codes = missingEvidenceCriteria.map(criterion => `TC${criterion.code}`).join(', ');
+      warnings.push(
+        `${codes}: Tiêu chí này bắt buộc phải nộp minh chứng hoặc có xác nhận hoạt động để được xét duyệt (${missingEvidenceCriteria.length} tiêu chí chưa có minh chứng).`,
+      );
+    }
     const totalCriteria = version.categories.reduce((total, category) => total + category.criteria.length, 0);
     return {
       version, drafts, isNewWorkflow,

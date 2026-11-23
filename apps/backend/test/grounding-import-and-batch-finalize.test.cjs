@@ -907,6 +907,51 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
     assert.equal(preflight.warnings.length, 0, 'Không được phát sinh cảnh báo thiếu minh chứng khi đã có điểm danh CONFIRMED');
   });
 
+  test('Ca 13b: Preflight miễn minh chứng cho TC1,2,3,6,7,11 và cảnh báo rõ cho Nhóm 3 & 4 (kể cả TC14 leadership_duty)', async () => {
+    const { prisma, data } = createMockPrisma();
+
+    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true, evidenceBasisWorkflowEnabled: true });
+    const criteria = [
+      { id: 'c1', code: '1', maxScore: 6, scoringConfig: { kind: 'attendance_penalty' } },
+      { id: 'c2', code: '2', maxScore: 3, scoringConfig: { kind: 'group_penalty' } },
+      { id: 'c3', code: '3', maxScore: 5, scoringConfig: { kind: 'academic_effort' } },
+      { id: 'c6', code: '6', maxScore: 5, scoringConfig: { kind: 'manual_verified' } },
+      { id: 'c7', code: '7', maxScore: 15, scoringConfig: { kind: 'conduct_penalty' } },
+      { id: 'c11', code: '11', maxScore: 10, scoringConfig: { kind: 'all_conditions' } },
+      { id: 'c4', code: '4', maxScore: 3, scoringConfig: { kind: 'verified_boolean' } },
+      { id: 'c5', code: '5', maxScore: 3, scoringConfig: { kind: 'award_tier' } },
+      { id: 'c14', code: '14', maxScore: 4, scoringConfig: { kind: 'leadership_duty' } },
+      { id: 'c15', code: '15', maxScore: 3, scoringConfig: { kind: 'verified_boolean' } },
+    ];
+    data.rubricVersions.set('ver-1', {
+      id: 'ver-1', termId: 'term-1', status: 'PUBLISHED',
+      categories: [{ id: 'cat-all', name: 'Tổng hợp', maxScore: 100, criteria }],
+      criteria,
+    });
+    data.users.set('sv-1', { id: 'sv-1', studentCode: '102210001', role: 'STUDENT' });
+    for (const c of criteria) {
+      data.criterionAssessments.set(`sv-1:term-1:${c.id}`, {
+        id: `ca-${c.code}`, studentId: 'sv-1', termId: 'term-1', criterionId: c.id, selfScore: c.maxScore,
+      });
+    }
+    // TC15 đã có minh chứng APPROVED từ lần nộp trước -> không được cảnh báo lại
+    data.evidences.set('ev-15', {
+      id: 'ev-15', studentId: 'sv-1', termId: 'term-1', criterionAssessmentId: 'ca-15', status: 'APPROVED', files: [{ id: 'f-1' }],
+    });
+
+    const mockWorkflow = { assertStudentEditable: async () => {}, studentEdit: async (_s, _t, action) => action(prisma) };
+    const mockDeadlines = { resolve: async () => ({ deadline: new Date(Date.now() + 86400000), source: 'TERM' }) };
+    const assessmentsService = new AssessmentsService(prisma, mockWorkflow, mockDeadlines);
+
+    const preflight = await assessmentsService.preflight('sv-1', 'term-1');
+
+    assert.equal(preflight.canSubmit, true);
+    assert.equal(preflight.warnings.length, 1);
+    assert.match(preflight.warnings[0], /TC4, TC5, TC14/);
+    assert.match(preflight.warnings[0], /bắt buộc phải nộp minh chứng hoặc có xác nhận hoạt động/i);
+    assert.doesNotMatch(preflight.warnings[0], /TC1\b|TC2\b|TC3\b|TC6\b|TC7\b|TC11\b|TC15\b/);
+  });
+
   // ==========================================================================
   // NHÓM 4: THU HỒI LÔ (BATCH REVOKE)
   // ==========================================================================

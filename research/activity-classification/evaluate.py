@@ -39,9 +39,26 @@ def wilson_ci(successes: int, total: int, z: float = 1.96) -> list[float]:
     return [round(max(0.0, center - half), 4), round(min(1.0, center + half), 4)]
 
 
+def resolve_best_model_name() -> str:
+    """Lấy tên mô hình thắng CV từ metadata để đánh giá đúng mô hình được xuất production."""
+    meta_path = MODEL_PATH.with_name("rubric_classifier_meta.json")
+    if meta_path.exists():
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        name = meta.get("bestCvModel") or meta.get("modelName")
+        if name:
+            return str(name)
+    return "tfidf_logreg"
+
+
 def keyword_baseline_predict(text: str) -> str:
     """Mô phỏng bộ từ khóa cứng hiện có để làm đối chứng công bằng trên cùng tập Test."""
     t = _norm(text)
+    if any(k in t for k in ("hieu truong", "giam doc dai hoc da nang", "thanh doan", "trung uong doan", "trung uong hoi", "cap truong", "cap dhdn", "sao thang gieng")) and any(k in t for k in ("can bo", "lop truong", "bi thu", "chi hoi", "chu nhiem clb", "ban can su")):
+        return "MUC_16"
+    if any(k in t for k in ("hoan thanh xuat sac nhiem vu",)) and any(k in t for k in ("giay khen", "khen thuong")):
+        return "MUC_15"
+    if any(k in t for k in ("hoan thanh tot nhiem vu", "tin nhiem", "binh chon", "90%")) and any(k in t for k in ("lop truong", "lop pho", "bi thu", "chi hoi", "ban can su", "chu nhiem clb", "uy vien bch")):
+        return "MUC_14"
     if any(k in t for k in ("hien mau", "tinh nguyen", "mua he xanh", "xuan yeu thuong", "trung thu", "gay quy", "volunteer", "thien nguyen", "hien tang toc")):
         return "MUC_12"
     if any(k in t for k in ("ban to chuc", "cong tac vien", "doi tu van sinh vien", "ho tro chuong trinh", "tham gia to chuc")):
@@ -50,11 +67,11 @@ def keyword_baseline_predict(text: str) -> str:
         return "MUC_5"
     if any(k in t for k in ("van nghe", "the thao", "giai chay", "esports", "giao luu van hoa", "miss & mister", "cover show", "hoi thao")):
         return "MUC_9"
-    if any(k in t for k in ("tuyen truyen", "phong chong", "te nan xa hoi", "phap luat", "ung xu van minh", "hiv")):
+    if any(k in t for k in ("tuyen truyen", "phong chong", "te nan xa hoi", "phap luat", "ung xu van minh", "hiv", "an ninh mang", "pccc")):
         return "MUC_10"
-    if any(k in t for k in ("sinh hoat cong dan", "ky nang mem", "workshop", "talkshow", "tap huan", "khoa hoc online")):
+    if any(k in t for k in ("sinh hoat cong dan", "ky nang mem", "workshop", "talkshow", "tap huan", "khoa hoc online", "giao tiep", "thuyet trinh")):
         return "MUC_8"
-    if any(k in t for k in ("cau lac bo", "clb hoc thuat")):
+    if any(k in t for k in ("cau lac bo", "clb hoc thuat", "nhom nghien cuu", "gdsc", "ieee student branch", "khoi nghiep")):
         return "MUC_4"
     return "KHONG_HOP_LE"
 
@@ -73,7 +90,8 @@ def main() -> None:
     # Huấn luyện mô hình đánh giá CHỈ trên train+val (không chạm test.csv)
     from train_baseline import make_candidates
 
-    eval_model = make_candidates()["tfidf_logreg"]
+    model_name = resolve_best_model_name()
+    eval_model = make_candidates()[model_name]
     eval_model.fit(
         trainval_df["text"].map(_norm).tolist(),
         trainval_df["criterion_label"].astype(str).tolist(),
@@ -114,7 +132,8 @@ def main() -> None:
 
     report = {
         "test_set_path": str(DATA_DIR / "test.csv"),
-        "note": "Tập test giữ lại theo group_id (22 mẫu). Báo cáo kèm Wilson 95% CI do cỡ mẫu còn nhỏ.",
+        "evaluated_model": model_name,
+        "note": f"Mô hình chỉ học train+val; tập test giữ lại theo group_id ({len(test_df)} mẫu). Báo cáo kèm Wilson 95% CI do cỡ mẫu còn nhỏ.",
         "keyword_baseline": _summarize(kw_preds),
         "ml_model": _summarize(ml_preds),
     }

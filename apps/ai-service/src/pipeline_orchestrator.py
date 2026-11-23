@@ -126,8 +126,15 @@ class UnifiedPipelineOrchestrator:
         )
         term_match = cls._issued_date_matches_term(ocr.issuedDateExtracted, req)
         term_mismatch = term_match is False
+        synthetic_graphic, synthetic_reason = (False, None)
+        if not is_event_photo and ocr and ocr.available and len((ocr.rawText or "").strip()) >= 120:
+            synthetic_graphic, synthetic_reason = QualityAndForensicsService.detect_synthetic_graphic(image_bytes)
+            if synthetic_graphic and synthetic_reason:
+                forensics.isTampered = True
+                if synthetic_reason not in forensics.warnings:
+                    forensics.warnings.append(synthetic_reason)
         identity_mismatch = code_mismatch or name_mismatch or citizen_id_mismatch
-        skip_public_search = identity_mismatch or term_mismatch
+        skip_public_search = identity_mismatch or term_mismatch or is_duplicate or synthetic_graphic
 
         # Bước 1: Quét mã QR trên chứng nhận (nếu có) để mở đường dẫn xác minh công khai.
         qr = None
@@ -240,8 +247,8 @@ class UnifiedPipelineOrchestrator:
                 },
             )
 
-        score = 0.0 if identity_mismatch or term_mismatch or is_duplicate else settings.SCORE_WEIGHT_BASE
-        if not identity_mismatch and not term_mismatch and not is_duplicate:
+        score = 0.0 if identity_mismatch or term_mismatch or is_duplicate or synthetic_graphic else settings.SCORE_WEIGHT_BASE
+        if not identity_mismatch and not term_mismatch and not is_duplicate and not synthetic_graphic:
             if quality.passed:
                 score += settings.SCORE_WEIGHT_QUALITY
             if ocr.available and ocr.rawText:
@@ -285,10 +292,15 @@ class UnifiedPipelineOrchestrator:
         score, authenticity_review_required = cls._cap_unresolved_score(score, document_checks)
         tier = (
             TierClassification.RED
-            if identity_mismatch or term_mismatch or is_duplicate
+            if identity_mismatch or term_mismatch or is_duplicate or synthetic_graphic
             else cls._tier(score)
         )
-        if is_duplicate:
+        if synthetic_graphic:
+            recommendation = (
+                f"{synthetic_reason} Hệ thống phân loại ĐỎ (0 điểm) do tài liệu là ảnh đồ họa tự dựng, "
+                "cần cán bộ kiểm tra bản gốc."
+            )
+        elif is_duplicate:
             recommendation = (
                 f"Tệp trùng với minh chứng đã lưu trong cùng học kỳ (dạng {duplicate_match_type}); "
                 "phân loại ĐỎ và chuyển cán bộ kiểm tra để loại trừ gian lận nộp lại."
@@ -367,6 +379,8 @@ class UnifiedPipelineOrchestrator:
                 "qrMatched": qr.matchesDeclared if qr else None,
                 "qrBoost": qr.confidenceBoost if qr else 0,
                 "tampered": forensics.isTampered,
+                "syntheticGraphicMismatch": synthetic_graphic,
+                "syntheticGraphicReason": synthetic_reason,
                 "templateMatchStatus": template_match.status,
                 "templateMatchId": template_match.matchedTemplateId,
                 "authenticityReviewRequired": authenticity_review_required,

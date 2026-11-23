@@ -2,6 +2,72 @@
 
 Mỗi công việc trong dự án thêm mục mới ở đầu với ngày, phạm vi, feature/bug/quyết định liên quan, thay đổi thực tế, kiểm tra đã chạy và giới hạn. Không ghi test dự kiến như đã Passed, không ghi credential hoặc dữ liệu sinh viên.
 
+## 2026-11-23 — Train lại toàn bộ AI từ A đến Z và hiệu chỉnh tài liệu hướng dẫn
+
+- **Train thực tế:** Pipeline A (Rubric Classifier `tfidf_linear_svc` v2.0.0, 11 lớp) → `apps/ai-service/model/rubric_classifier.joblib`; Pipeline B (MobileNetV3-Small 7 lớp) → `apps/ai-service/model/event_scene_classifier.pt`; Pipeline C (5 phôi) → `apps/ai-service/templates/registry.json`. Khởi động lại FastAPI để nạp model.
+- **Sửa script đánh giá:** [evaluate.py](../research/activity-classification/evaluate.py) đánh giá đúng mô hình thắng CV (đọc `bestCvModel` trong metadata) thay vì cố định `tfidf_logreg`; [error_analysis.py](../research/activity-classification/error_analysis.py) fit trên train+val thay vì dùng model production đã học cả test.
+- **Tài liệu:** Viết lại [AI_TRAINING_AND_ARCHITECTURE_GUIDE.md](AI_TRAINING_AND_ARCHITECTURE_GUIDE.md) cho khớp mã nguồn: đúng tên module (`vietnamese_ocr_engine.py`, `ocr_extractor.py`, `web_search_verifier.py`), đúng nghĩa nhãn `MUC_x` theo `predictor.py`, đúng 7 lớp CV, đúng cơ chế Tầng 6 (pHash + aspectRatio), đúng đường dẫn đầu ra; thêm kết quả train thực chạy, cảnh báo dataset ảnh tổng hợp/phôi mô phỏng và lộ trình nâng cấp. Cập nhật [TEST_PLAN.md](TEST_PLAN.md).
+- **Kiểm chứng:** 23/23 test Python OK, 26/26 test worker pass, `/health` báo `rubricMlModelAvailable: true`. Chưa chạy lại seed đối chứng và browser E2E.
+
+## 2026-11-23 — Bổ sung tài liệu hướng dẫn Kiến trúc, Hoàn thiện Task AI và Huấn luyện Mô hình từ A đến Z
+
+- **Tài liệu mới ([AI_TRAINING_AND_ARCHITECTURE_GUIDE.md](AI_TRAINING_AND_ARCHITECTURE_GUIDE.md)):**
+  - Tổng hợp toàn diện kiến trúc pipeline xác thực AI 6 tầng (`apps/ai-service`) và luồng kết nối với `EvidenceProcessingWorker` (`AI_MODE=ASSIST`).
+  - Mô tả chi tiết cơ chế chống giả mạo đa tầng (`detect_synthetic_graphic`, kiểm tra thẻ EXIF/PNG `Software`, độ phẳng vi mô 8×8 block variance, dấu đỏ vector `red_luma_std`, chống trùng `pHash`, đối chiếu định danh cứng và siết nguồn xác thực web `officialWebVerified`).
+  - Hướng dẫn thực hành từng bước từ A đến Z để tái huấn luyện và xuất 2 mô hình ML/DL: **Pipeline A — Rubric Classifier v2.0.0** (11 lớp tại `research/activity-classification/`) và **Pipeline B — MobileNetV3-Small Event Scene Classifier** (7 lớp tại `research/image-classification/`), cùng **Pipeline C — Đăng ký Mẫu phôi chuẩn Layer 6** (`register_templates.py` → `registry.json`).
+  - Cung cấp quy trình kiểm thử End-to-End, cách sinh bộ minh chứng đối chứng Thật (Realistic Scan) / Giả (Đồ họa phẳng, Sai MSSV) kỳ `2026_1` và checklist mở rộng các task AI tiếp theo.
+- **Liên kết tài liệu:** Cập nhật chỉ mục trong [README.md](README.md) và đặc tả [14-audit-monitoring-and-ai-jobs.md](features/14-audit-monitoring-and-ai-jobs.md). Không ảnh hưởng `API_CONTRACT.md` hay `BUSINESS_RULES.md`.
+- **Kiểm chứng:** Kiểm tra liên kết nội bộ và `git diff --check` đạt.
+
+## 2026-11-23 — Huấn luyện Rubric Model v2.0.0 (11 lớp), MobileNetV3 CV (7 lớp), Kho phôi Lớp 6 & Bộ mẫu đối chứng Thật/Giả
+
+- **Huấn luyện Rubric Classifier v2.0.0 ([prepare_dataset.py](../research/activity-classification/prepare_dataset.py), [train_baseline.py](../research/activity-classification/train_baseline.py), [evaluate.py](../research/activity-classification/evaluate.py), [error_analysis.py](../research/activity-classification/error_analysis.py), [export_model.py](../research/activity-classification/export_model.py)):**
+  - Mở rộng tập dữ liệu có nhãn từ 123 mẫu (8 lớp) lên **259 mẫu trên 239 `group_id` độc lập** phủ đủ **11 lớp** (`MUC_4, 5, 8, 9, 10, 12, 13, 14, 15, 16 + KHONG_HOP_LE`), chia `train/val/test` bằng `StratifiedGroupKFold` (0% rò rỉ `group_id`).
+  - Huấn luyện `tfidf_linear_svc` (Calibrated) đạt **5-fold CV Accuracy `88.42%` / Macro-F1 `0.8851`** và **Holdout Test Accuracy `84.62%` / Macro-F1 `0.8241`**; xuất artifact `apps/ai-service/model/rubric_classifier.joblib` và cập nhật [predictor.py](../apps/ai-service/src/predictor.py), [criterion_evaluator.py](../apps/ai-service/src/criterion_evaluator.py) chặn gợi ý điểm khi model phân loại `KHONG_HOP_LE`.
+- **Huấn luyện MobileNetV3-Small CV & Kho phôi Lớp 6 ([build_cv_dataset.py](../research/image-classification/build_cv_dataset.py), [train_mobilenet_cv.py](../research/image-classification/train_mobilenet_cv.py), [face_verifier.py](../apps/ai-service/src/face_verifier.py), [register_templates.py](../apps/ai-service/tools/register_templates.py), [registry.json](../apps/ai-service/templates/registry.json)):**
+  - Huấn luyện MobileNetV3-Small 7 lớp bối cảnh ảnh, xuất TorchScript `apps/ai-service/model/event_scene_classifier.pt` và nối vào `FaceAndVisionService.analyze_scene_vision`.
+  - Đăng ký 5 phôi chuẩn của Trường/Bệnh viện Huyết học vào `apps/ai-service/templates/registry.json` kèm ảnh mẫu trong `templates/files/`.
+- **Forensics đa tầng & Bộ minh chứng đối chứng Thật/Giả kỳ `2026_1` ([quality_forensics.py](../apps/ai-service/src/quality_forensics.py), [render_certificate.py](../apps/backend/scripts/render_certificate.py), [seed-sample-evidences-2026-1.cjs](../apps/backend/scripts/seed-sample-evidences-2026-1.cjs)):**
+  - Bổ sung kiểm tra thẻ EXIF/PNG Software (`Canva`, `Photoshop`, `Illustrator`, `Figma`, `Paint`, `GIMP`) kết hợp phát hiện nền đồ họa phẳng và dấu vector đơn sắc.
+  - Cấu hình bộ 18 minh chứng mẫu kỳ `2026_1` gồm cả **bản scan giấy thật hợp lệ** (`realisticScan: true` → gợi ý điểm `3đ`, `5đ`, `NEEDS_HUMAN_REVIEW`) và **minh chứng giả mạo** (ảnh đồ họa phẳng tự vẽ của `102210002`, ảnh sai MSSV của `102240015` → AI bắt `0 điểm`, `RED`, `INVALID`).
+- **Kiểm chứng:** Python `test_m2_contract_quality.py` **11/11** đạt, `test_template_matcher.py` + `test_ml_and_flows.py` **12/12** đạt; Backend `evidence-processing-worker.test.cjs` **26/26** đạt; `git diff --check` đạt.
+
+## 2026-11-23 — Mở khóa DEC-014: Vá BL-008, BL-022 và kích hoạt AI chạy thật end-to-end
+
+- **Phạm vi & quyết định:** `DEC-014` (thay thế `DEC-007`), `BL-008`, `BL-022`, F07/F14.
+- **Backend:**
+  - `BL-008` ([evidence-processing.worker.ts](../apps/backend/src/evidence/evidence-processing.worker.ts)): Mở rộng `AbortController` + `Promise.race` timeout bao trùm cả `fetch()` lẫn `response.json()` để worker không treo khi response body không đóng.
+  - `BL-022` ([reviews.service.ts](../apps/backend/src/reviews/reviews.service.ts)): `addSource()` khi hủy job AI đang chạy đồng thời chuyển `Evidence.status` từ `PROCESSING` → `NEEDS_HUMAN_REVIEW`.
+  - Siết chặt chống giả mạo & chấm điểm gợi ý trong [evidence-processing.worker.ts](../apps/backend/src/evidence/evidence-processing.worker.ts), [quality_forensics.py](../apps/ai-service/src/quality_forensics.py), [pipeline_orchestrator.py](../apps/ai-service/src/pipeline_orchestrator.py) và [main.py](../apps/ai-service/src/main.py): bổ sung `detect_synthetic_graphic()` phát hiện ảnh chứng nhận đồ họa phẳng tự tạo (tỷ lệ ô 8x8 không có nhiễu cảm biến $\ge 78\%$ kèm con dấu vector đơn sắc); ép `suggestedScore = 0`, `tier = RED`, `Evidence.status = INVALID` khi phát hiện ảnh đồ họa tự dựng hoặc trùng lặp `isDuplicate`; chỉ bật `activityExistsVerified = true` khi nguồn web đạt mức chính thống (`confidenceBoost >= 20`, không tự xác nhận từ link mạng xã hội ngẫu nhiên).
+  - Bật `AI_MODE=ASSIST` và `AI_PIPELINE_URL=http://127.0.0.1:8000` trong môi trường chạy local.
+- **AI Service & Dữ liệu mẫu `2026_1`:**
+  - Khởi chạy FastAPI `apps/ai-service` tại `http://127.0.0.1:8000` (`rapidocr_vietocr` + `tesseract` + `rubricMlModelAvailable: true`).
+  - Nâng cấp [render_certificate.py](../apps/backend/scripts/render_certificate.py) và [seed-sample-evidences-2026-1.cjs](../apps/backend/scripts/seed-sample-evidences-2026-1.cjs) (5 giao diện riêng biệt chống trùng `pHash`, ngày cấp hợp lệ trong `2026_1`, nhãn định danh rõ) và chạy AI thật cho 18 minh chứng mẫu.
+- **Web ([roleNavigation.ts](../apps/web/src/lib/roleNavigation.ts)):** Mở lại mục "Chạy thử AI" (`/ai-test`) trên sidebar cho `STAFF` và `ADMIN` (giữ ẩn với `STUDENT`).
+- **Kiểm chứng:** Backend `tsc --noEmit` đạt, `evidence-processing-worker.test.cjs` **26/26** đạt; Web `tsc --noEmit` đạt, `node --test scripts/*.test.cjs` **31/31** đạt; `GET http://127.0.0.1:8000/health` đạt; worker đã chạy thật qua FastAPI lưu `OcrResult`, `VerificationResult`, `AiSuggestion`, `AiPipelineRun` vào PostgreSQL; `git diff --check` đạt. Chưa chạy browser E2E tự động.
+
+## 2026-11-23 — Tinh gọn & chuẩn hóa giao diện Frontend xuyên suốt 3 vai trò (4 gói)
+
+- **Phạm vi & tính năng liên quan:** F05 ([05-student-assessment.md](features/05-student-assessment.md)), F06 ([06-evidence-and-storage.md](features/06-evidence-and-storage.md)), F07 ([07-evidence-review-and-verification.md](features/07-evidence-review-and-verification.md)). Không thay đổi API contract, quy tắc nghiệp vụ backend hay schema DB.
+- **Gói 1 — Sửa lỗi thật trên [EvidenceDetail.tsx](../apps/web/src/pages/student/EvidenceDetail.tsx):** Gỡ nút chết "Báo sai / Sửa" (`showOcrEditModal` không có modal); sửa giới hạn tệp bổ sung từ 15 MB thành **8 MB** kèm kiểm tra kích thước trước upload cho khớp Backend; hiển thị thẻ "Thông tin hồ sơ đã khai báo" và ẩn khối OCR rỗng + dòng mã băm nội bộ khi chưa có dữ liệu OCR; thay `window.alert()` bằng banner inline và hỗ trợ mở tệp PDF trong khung xem.
+- **Gói 2 — Dọn menu & ngôn ngữ kỹ thuật thừa:** Ẩn mục "Chạy thử AI" / "Chạy thử AI minh chứng" khỏi sidebar của cả 3 vai trò ([AppLayout.tsx](../apps/web/src/layouts/AppLayout.tsx), [roleNavigation.ts](../apps/web/src/lib/roleNavigation.ts)), đổi nhãn "Hàng đợi minh chứng & AI" → "Hàng đợi duyệt minh chứng"; rút gọn hộp giải thích AI/ELA dài 6 dòng trong modal [ScoreReport.tsx](../apps/web/src/pages/student/ScoreReport.tsx); bỏ các từ kỹ thuật lộ ra UI (`VITE_API_URL`, `Backend`, `migration`, `blocker`, `workflow mới`) trên [ScoreReport.tsx](../apps/web/src/pages/student/ScoreReport.tsx), [RegulationRAG.tsx](../apps/web/src/pages/common/RegulationRAG.tsx), [CriteriaRulesView.tsx](../apps/web/src/pages/officer/CriteriaRulesView.tsx), [StudentsDirectory.tsx](../apps/web/src/pages/officer/StudentsDirectory.tsx), [Dashboard.tsx](../apps/web/src/pages/officer/Dashboard.tsx) và [CriteriaManager.tsx](../apps/web/src/pages/admin/CriteriaManager.tsx).
+- **Gói 3 — Đồng bộ Sinh viên ↔ Cán bộ Khoa:** Tách helper dùng chung [criterionEvidencePolicy.ts](../apps/web/src/lib/criterionEvidencePolicy.ts), hiển thị badge `[Học vụ tự động]` / `[Mặc định đạt]` / `[Bắt buộc minh chứng]` và chú thích chính xác trên [StudentAssessment.tsx](../apps/web/src/pages/officer/StudentAssessment.tsx); truyền `returnTo` sang [ReviewDetail.tsx](../apps/web/src/pages/officer/ReviewDetail.tsx) để quay lại đúng phiếu sinh viên đang chấm.
+- **Gói 4 — Bản in phiếu A4 & test Web:** Bổ sung `print:hidden` cho topbar/sidebar/breadcrumb/nút thao tác và bổ sung tiêu đề Quốc hiệu – Tiêu ngữ + khu vực chữ ký A4 chỉ hiện khi in trên [ScoreReport.tsx](../apps/web/src/pages/student/ScoreReport.tsx); vá mock `AiResultPanel` trong [evidence-inspection.test.cjs](../apps/web/scripts/evidence-inspection.test.cjs) và resolver helper trong [score-report-and-evidence-list.test.cjs](../apps/web/scripts/score-report-and-evidence-list.test.cjs).
+- **Kiểm chứng:** `npx tsc --noEmit` đạt; `node --test scripts/*.test.cjs` đạt **31/31**; `git diff --check` đạt. Chưa chạy browser E2E tự động.
+
+## 2026-11-23 — Chuẩn hóa quy tắc minh chứng 16 tiêu chí, cảnh báo nộp phiếu và nạp minh chứng mẫu kỳ 2026_1
+
+- **Phạm vi & tính năng liên quan:** F05 ([05-student-assessment.md](features/05-student-assessment.md)), R-11 ([BUSINESS_RULES.md](BUSINESS_RULES.md#r-11)).
+- **Backend ([assessments.service.ts](../apps/backend/src/assessments/assessments.service.ts)):**
+  - Bổ sung helper `isEvidenceRequiredCriterion` phân loại theo `scoringConfig.kind` (miễn nộp: `TC1, TC2, TC3, TC6, TC7, TC11`; bắt buộc minh chứng/xác nhận hoạt động: `TC4, TC5, TC8, TC9, TC10, TC12, TC13, TC14, TC15, TC16`).
+  - Vá `checkSubmission()` bổ sung `leadership_duty` (`TC14`), tính cả minh chứng hợp lệ đã nộp/đã duyệt (`APPROVED`, v.v.) khi nộp lại phiếu `RETURNED`, và chuẩn hóa thông điệp cảnh báo `preflight.warnings` liệt kê rõ từng mã tiêu chí thiếu minh chứng.
+- **Web ([ScoreReport.tsx](../apps/web/src/pages/student/ScoreReport.tsx)):**
+  - Bổ sung `getCriterionEvidencePolicy` và hiển thị badge `[Học vụ tự động]`, `[Mặc định đạt]` cho 6 tiêu chí miễn nộp, `[Bắt buộc minh chứng]` kèm nhắc nhở trực quan khi `selfScore > 0` chưa có minh chứng cho 10 tiêu chí bắt buộc.
+  - Cho phép bấm nút `Minh chứng (N)` để mở modal xem ảnh/tệp ngay cả khi phiếu đã `SUBMITTED`, và hiển thị ảnh xem trước ngay trong modal đối với tệp ảnh có signed URL.
+- **Dữ liệu minh chứng mẫu kỳ `2026_1` ([seed-sample-evidences-2026-1.cjs](../apps/backend/scripts/seed-sample-evidences-2026-1.cjs), [render_certificate.py](../apps/backend/scripts/render_certificate.py)):**
+  - Nạp 18 minh chứng mẫu (Hiến máu `TC12`, NCKH `TC5`, Thể thao DUT Cup `TC9`, Kỹ năng mềm `TC8`, Khen thưởng Ban Cán sự `TC15`) với 18 ảnh chứng nhận PNG tải lên Supabase Storage cho 8 sinh viên tiêu biểu Khoa CNTT kỳ `2026_1`; chuyển trạng thái minh chứng sang `NEEDS_HUMAN_REVIEW` và phiếu sang `SUBMITTED` để hiển thị trên `/officer/queue`.
+- **Kiểm chứng:** Backend `nest build` đạt, `Ca 13b` đạt; Web `tsc --noEmit` đạt, `score-report-and-evidence-list.test.cjs` **14/14** đạt; xác minh trực tiếp PostgreSQL đủ 18 minh chứng/18 tệp/8 phiếu `SUBMITTED` và ký signed URL Supabase Storage trả `HTTP 200`. Chưa chạy browser E2E; không thay đổi API contract hoặc schema DB.
+
 ## 2026-11-23 — Dọn dẹp dữ liệu DEMO và nạp 400 sinh viên thật Bách Khoa K22–K25
 
 - Dọn dẹp sạch 100 tài khoản sinh viên `[DEMO]` cũ và 5 lớp `[DEMO]` cùng toàn bộ liên kết (điểm, minh chứng, bàn giao, thông báo) khỏi cơ sở dữ liệu EduPoint.

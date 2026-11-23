@@ -255,7 +255,7 @@ export const OfficerDashboard: React.FC = () => {
 
               {legacy && (
                 <p className="rounded-lg border border-[#E8E8EC] bg-[#F4F4F6] p-3 text-xs text-[#0A0A0A]">
-                  Kỳ lịch sử: tra cứu kết quả và minh chứng hiện có; không áp dụng tiến độ bàn giao của workflow mới.
+                  Kỳ lịch sử: chỉ tra cứu kết quả và minh chứng hiện có; không áp dụng tiến độ bàn giao của quy trình hiện hành.
                 </p>
               )}
               {isClosed && !legacy && (

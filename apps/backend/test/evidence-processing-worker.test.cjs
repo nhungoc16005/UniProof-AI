@@ -302,3 +302,74 @@ test('a missing AI pipeline URL routes evidence to human review without auto-app
   assert.equal(writes.find(([kind]) => kind === 'run')[1].data.status, 'UNAVAILABLE');
   assert.equal(writes.find(([kind]) => kind === 'evidence')[1].data.status, 'NEEDS_HUMAN_REVIEW');
 });
+
+test('BL-008: timeout applies through response.json() body read so worker never hangs on stalled body', async () => {
+  const prevTimeout = process.env.AI_PIPELINE_TIMEOUT_MS;
+  process.env.AI_PIPELINE_TIMEOUT_MS = '40';
+  let aborted = false;
+  try {
+    const { writes } = await runClaimed({
+      attempts: 3,
+      fetchImpl: async (_url, init) => {
+        init?.signal?.addEventListener('abort', () => { aborted = true; });
+        return {
+          ok: true,
+          json: () => new Promise(() => {}), // headers returned immediately, body hangs forever
+        };
+      },
+    });
+    assert.equal(aborted, true, 'AbortController phải được abort khi body treo quá timeout');
+    assert.equal(writes.find(([kind]) => kind === 'job')[1].data.status, 'FAILED');
+    assert.equal(writes.find(([kind]) => kind === 'evidence')[1].data.status, 'NEEDS_HUMAN_REVIEW');
+  } finally {
+    if (prevTimeout === undefined) delete process.env.AI_PIPELINE_TIMEOUT_MS;
+    else process.env.AI_PIPELINE_TIMEOUT_MS = prevTimeout;
+  }
+});
+
+test('BL-022: ReviewsService.addSource cancels active AI job and moves PROCESSING evidence to NEEDS_HUMAN_REVIEW', async () => {
+  const { ReviewsService } = require('../src/reviews/reviews.service');
+  const updates = [];
+  const current = {
+    id: 'ev-1',
+    studentId: 'sv-1',
+    termId: 'term-1',
+    status: 'PROCESSING',
+    lockedById: null,
+    lockedAt: null,
+    version: 1,
+  };
+  const tx = {
+    evidence: {
+      findUniqueOrThrow: async () => current,
+      update: async (args) => { updates.push(['evidence', args]); return { ...current, version: 2, status: 'NEEDS_HUMAN_REVIEW' }; },
+    },
+    verificationResult: {
+      create: async (args) => { updates.push(['verification', args]); return { id: 'ver-1', ...args.data }; },
+    },
+    aiProcessingJob: {
+      updateMany: async (args) => { updates.push(['job', args]); return { count: 1 }; },
+    },
+    auditLog: {
+      create: async (args) => { updates.push(['audit', args]); },
+    },
+  };
+  const prisma = {
+    evidence: { findUniqueOrThrow: async () => current },
+  };
+  const workflow = {
+    edit: async (_officer, _sid, _tid, fn) => fn(tx),
+  };
+  const service = new ReviewsService(prisma, workflow);
+  await service.addSource('ev-1', { id: 'staff-1', role: 'STAFF' }, {
+    level: 2,
+    sourceName: 'Danh sách Khoa',
+    confirmedActivity: true,
+    confirmedStudent: true,
+    note: 'Đã đối chiếu danh sách gốc',
+  });
+  const evUpdate = updates.find(([kind]) => kind === 'evidence');
+  const jobUpdate = updates.find(([kind]) => kind === 'job');
+  assert.equal(evUpdate[1].data.status, 'NEEDS_HUMAN_REVIEW', 'Evidence PROCESSING phải chuyển sang NEEDS_HUMAN_REVIEW khi hủy job AI');
+  assert.equal(jobUpdate[1].data.status, 'CANCELLED');
+});

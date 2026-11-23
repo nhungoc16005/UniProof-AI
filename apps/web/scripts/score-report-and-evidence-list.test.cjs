@@ -160,6 +160,9 @@ function loadRealComponent(filePath, mockModules = {}, transformSource = value =
     for (const [key, val] of Object.entries(mockModules)) {
       if (request.endsWith(key) || request === key) return val;
     }
+    if (request.endsWith('criterionEvidencePolicy')) {
+      return loadRealComponent('../src/lib/criterionEvidencePolicy.ts', {});
+    }
     return require(request);
   };
 
@@ -891,5 +894,58 @@ describe('BL-019 (Web): EvidenceList — Đồng bộ URL ?termId=... và tự �
     assert.equal(lastRequest.termId, 'term-2');
     assert.equal(lastRequest.page, 1, 'Khi đổi sang kỳ 2, page phải tự động reset về 1');
     harness.unmount();
+  });
+});
+
+describe('Quy tắc hiển thị minh chứng theo 16 tiêu chí (ScoreReport)', () => {
+  test('Phân loại chính xác 6 tiêu chí miễn nộp và 10 tiêu chí bắt buộc minh chứng', () => {
+    const { getCriterionEvidencePolicy } = loadRealComponent('../src/pages/student/ScoreReport.tsx', {
+      'react-router-dom': { useSearchParams: () => [new URLSearchParams(), () => {}], useNavigate: () => () => {}, useLocation: () => ({ pathname: '/', search: '' }) },
+      useStudentAssessmentAccess: { useStudentAssessmentAccess: () => ({}) },
+      StudentAssessmentNotice: { StudentAssessmentNotice: () => null },
+      AuthContext: { useAuth: () => ({}) },
+      apiClient: { apiClient: {}, API_BASE_URL: '' },
+      'lucide-react': new Proxy({}, { get: () => () => null }),
+    });
+
+    const autoSync = [
+      { code: '1', scoringConfig: { kind: 'attendance_penalty' } },
+      { code: '3', scoringConfig: { kind: 'academic_effort' } },
+      { code: '7', scoringConfig: { kind: 'conduct_penalty' } },
+      { code: '11', scoringConfig: { kind: 'all_conditions' } },
+    ];
+    for (const c of autoSync) {
+      const policy = getCriterionEvidencePolicy(c);
+      assert.equal(policy.required, false, `TC${c.code} phải miễn nộp`);
+      assert.equal(policy.badgeLabel, 'Học vụ tự động');
+    }
+
+    const defaultPass = [
+      { code: '2', scoringConfig: { kind: 'group_penalty' } },
+      { code: '6', scoringConfig: { kind: 'manual_verified' } },
+    ];
+    for (const c of defaultPass) {
+      const policy = getCriterionEvidencePolicy(c);
+      assert.equal(policy.required, false, `TC${c.code} phải miễn nộp`);
+      assert.equal(policy.badgeLabel, 'Mặc định đạt');
+    }
+
+    const requiredCriteria = [
+      { code: '4', scoringConfig: { kind: 'verified_boolean' } },
+      { code: '5', scoringConfig: { kind: 'award_tier' } },
+      { code: '8', scoringConfig: { kind: 'activity_threshold' } },
+      { code: '9', scoringConfig: { kind: 'activity_threshold' } },
+      { code: '10', scoringConfig: { kind: 'activity_threshold' } },
+      { code: '12', scoringConfig: { kind: 'community_activity_tier' } },
+      { code: '13', scoringConfig: { kind: 'verified_boolean' } },
+      { code: '14', scoringConfig: { kind: 'leadership_duty' } },
+      { code: '15', scoringConfig: { kind: 'verified_boolean' } },
+      { code: '16', scoringConfig: { kind: 'verified_boolean' } },
+    ];
+    for (const c of requiredCriteria) {
+      const policy = getCriterionEvidencePolicy(c);
+      assert.equal(policy.required, true, `TC${c.code} phải bắt buộc minh chứng`);
+      assert.equal(policy.badgeLabel, 'Bắt buộc minh chứng');
+    }
   });
 });

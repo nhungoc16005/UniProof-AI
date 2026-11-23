@@ -17,7 +17,7 @@ export const RegulationRAG: React.FC = () => {
     setError('');
     apiClient.getRubric(activeTerm.id)
       .then(setRubric)
-      .catch(() => setError('Không tải được nội dung quy chế từ Backend.'))
+      .catch(() => setError('Không tải được nội dung quy chế từ hệ thống.'))
       .finally(() => setLoading(false));
   }, [activeTerm?.id]);
 
@@ -45,7 +45,7 @@ export const RegulationRAG: React.FC = () => {
       </label>
 
       {error && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
-      {loading ? <p className="rounded-xl border bg-white p-6 text-center text-sm text-slate-500">Đang tải quy chế từ Backend…</p> : !rubric?.rubricVersion ? (
+      {loading ? <p className="rounded-xl border bg-white p-6 text-center text-sm text-slate-500">Đang tải quy chế…</p> : !rubric?.rubricVersion ? (
         <p className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">Kỳ này chưa có rubric đã ban hành. Hệ thống chưa có nội dung để tra cứu.</p>
       ) : !question.trim() ? (
         <p className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">Nhập từ khóa để tìm trong {rubric.criteria.length} tiêu chí của phiên bản {rubric.rubricVersion.version}.</p>

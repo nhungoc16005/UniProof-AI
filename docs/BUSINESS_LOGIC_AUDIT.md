@@ -176,11 +176,11 @@ Ngày lập tài liệu: 2026-11-15. Cập nhật: 2026-11-16. Baseline nguồn:
 
 ### BL-008 — Timeout AI dừng trước lúc đọc response body
 
-1. **Bug ID:** BL-008. **Trạng thái:** Deferred (Hoãn theo quyết định người dùng - DEC-007). **Độ chắc chắn:** Confirmed; **ưu tiên:** P1.
+1. **Bug ID:** BL-008. **Trạng thái:** Resolved (2026-11-23, mở khóa theo DEC-014). **Độ chắc chắn:** Confirmed; **ưu tiên:** P1.
 2. **Severity:** High.
-3. **Vị trí:** [apps/backend/src/evidence/evidence-processing.worker.ts:133](../apps/backend/src/evidence/evidence-processing.worker.ts#L133); [apps/backend/src/evidence/evidence-processing.worker.ts:135](../apps/backend/src/evidence/evidence-processing.worker.ts#L135).
+3. **Vị trí:** [apps/backend/src/evidence/evidence-processing.worker.ts:141](../apps/backend/src/evidence/evidence-processing.worker.ts#L141).
 4. **Workflow:** Worker gọi pipeline. [F14](features/14-audit-monitoring-and-ai-jobs.md).
-5. **Hiện tại:** clearTimeout chạy sau fetch headers; response.json() chờ ngoài timeout.
+5. **Hiện tại (đã sửa):** Giữ `AbortController` và `Promise.race` timeout bao trùm cả `fetch(...)` lẫn `response.json()`, giải phóng timer trong `finally` sau khi đọc xong body. Đã kiểm chứng regression trong `apps/backend/test/evidence-processing-worker.test.cjs` (26/26 đạt).
 6. **Kỳ vọng có căn cứ:** Cửa sổ timeout phải giới hạn toàn bộ request và đọc body để worker tiếp tục recovery.
 7. **Logic và trace qua lớp:** fetch resolve khi có headers, không đợi toàn bộ JSON. Poller có thể giữ busy trong body promise không kết thúc.
 8. **Tình huống:** Pipeline trả HTTP200 và headers rồi không đóng body JSON.
@@ -420,11 +420,11 @@ Ngày lập tài liệu: 2026-11-15. Cập nhật: 2026-11-16. Baseline nguồn:
 
 ### BL-022 — Thêm nguồn xác minh hủy job nhưng Evidence còn PROCESSING
 
-1. **Bug ID:** BL-022. **Trạng thái:** Deferred (Hoãn theo quyết định người dùng - DEC-007). **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
+1. **Bug ID:** BL-022. **Trạng thái:** Resolved (2026-11-23, mở khóa theo DEC-014). **Độ chắc chắn:** Confirmed; **ưu tiên:** P2.
 2. **Severity:** Medium.
-3. **Vị trí:** [apps/backend/src/reviews/reviews.service.ts:269](../apps/backend/src/reviews/reviews.service.ts#L269); [apps/backend/src/evidence/evidence-processing.worker.ts:146](../apps/backend/src/evidence/evidence-processing.worker.ts#L146).
+3. **Vị trí:** [apps/backend/src/reviews/reviews.service.ts:294](../apps/backend/src/reviews/reviews.service.ts#L294).
 4. **Workflow:** Cán bộ thêm nguồn khi AI đang xử lý. [F07](features/07-evidence-review-and-verification.md), [F14](features/14-audit-monitoring-and-ai-jobs.md).
-5. **Hiện tại:** addSource tăng version, CANCELLED job nhưng không đổi Evidence.status. Hoãn theo quyết định không thay đổi worker/pipeline AI của người dùng (DEC-007).
+5. **Hiện tại (đã sửa):** `ReviewsService.addSource` tăng `version`, hủy `aiProcessingJob` đang `QUEUED`/`PROCESSING`, và tự động chuyển `Evidence.status` từ `PROCESSING` → `NEEDS_HUMAN_REVIEW`. Đã kiểm chứng regression trong `apps/backend/test/evidence-processing-worker.test.cjs` (26/26 đạt).
 
 <a id="bl-023"></a>
 

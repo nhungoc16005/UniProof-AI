@@ -299,7 +299,13 @@ export class ReviewsService {
       if (current.lockedById && current.lockedById !== officer.id && current.lockedAt && Date.now() - current.lockedAt.getTime() < 15 * 60 * 1000) throw new ConflictException('Hồ sơ đang được cán bộ khác xử lý');
       if (dto.level === 4 && dto.confirmedStudent) throw new BadRequestException('Nguồn cấp 4 chưa xác nhận cá nhân tham gia');
       const record = await tx.verificationResult.create({ data: { evidenceId, verificationLevel: dto.level, status: dto.confirmedActivity && dto.confirmedStudent ? 'VERIFIED' : 'PLAUSIBLE', activityExistsVerified: dto.confirmedActivity, studentParticipationVerified: dto.confirmedStudent, sourceDescription: [dto.sourceName.trim(), dto.sourceUrl?.trim(), dto.note.trim()].filter(Boolean).join('\n') } });
-      await tx.evidence.update({ where: { id: evidenceId }, data: { version: { increment: 1 } } });
+      await tx.evidence.update({
+        where: { id: evidenceId },
+        data: {
+          version: { increment: 1 },
+          ...(current.status === EvidenceStatus.PROCESSING ? { status: EvidenceStatus.NEEDS_HUMAN_REVIEW } : {}),
+        },
+      });
       await tx.aiProcessingJob.updateMany({ where: { evidenceId, status: { in: ['QUEUED', 'PROCESSING'] } }, data: { status: 'CANCELLED', error: 'Cán bộ đã bổ sung căn cứ xác minh', completedAt: new Date() } });
       await tx.auditLog.create({ data: { userId: officer.id, action: 'VERIFICATION_SOURCE_ADDED', entityType: 'Evidence', entityId: evidenceId, newValue: { sourceId: record.id, level: dto.level, sourceName: dto.sourceName, sourceUrl: dto.sourceUrl ?? null, note: dto.note } } });
       return record;

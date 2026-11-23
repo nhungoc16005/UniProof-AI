@@ -157,9 +157,17 @@ def evaluate_criterion(
         if ml_prediction is not None:
             payload["mlPrediction"] = ml_prediction
             target_code = str(criterion.get("code") or "")
+            pred_label = ml_prediction.get("predictedLabel")
             pred_code = ml_prediction.get("predictedCriterionCode")
             conf = float(ml_prediction.get("confidence") or 0.0)
-            if pred_code and target_code and pred_code != target_code and conf >= 0.65:
+            if pred_label == "KHONG_HOP_LE" and conf >= 0.65:
+                payload["status"] = "NOT_MATCHED"
+                payload["suggestedScore"] = 0
+                payload["reason"] = (
+                    f"Model ML ({ml_prediction['modelName']} v{ml_prediction.get('modelVersion', '2.0')}) phân loại tài liệu thuộc nhóm "
+                    f"'{ml_prediction['predictedLabelName']}' (độ tin cậy {round(conf * 100)}%); gợi ý 0 điểm, cần cán bộ kiểm tra."
+                )
+            elif pred_code and target_code and pred_code != target_code and conf >= 0.65:
                 payload["reason"] = (
                     f"{payload['reason']} [Model ML ({ml_prediction['modelName']}) dự đoán minh chứng phù hợp hơn với "
                     f"{ml_prediction['predictedLabelName']} — độ tin cậy {round(conf * 100)}%.]"

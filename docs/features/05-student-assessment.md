@@ -34,7 +34,7 @@ Các tiêu chí có gap audit là điều kiện cần đạt khi sửa, không 
 
 ## 4. UI/UX — Giao diện và tương tác
 
-Màn /student/scores là điểm vào chính; hiển thị tiến độ, lý do khóa, lỗi từng tiêu chí, trạng thái đang lưu/nộp và kết quả.
+Màn /student/scores là điểm vào chính; hiển thị tiến độ, lý do khóa, lỗi từng tiêu chí, trạng thái đang lưu/nộp và kết quả. Cột "Minh chứng & Căn cứ" phân loại rõ badge `[Học vụ tự động]` (`TC1, TC3, TC7, TC11`), `[Mặc định đạt]` (`TC2, TC6`) và `[Bắt buộc minh chứng]` (`TC4, TC5, TC8, TC9, TC10, TC12, TC13, TC14, TC15, TC16`); nút `Minh chứng (N)` vẫn mở modal ở chế độ xem khi phiếu đã nộp nếu đã có minh chứng đính kèm. Khi bấm nộp phiếu, modal preflight cảnh báo liệt kê từng mã tiêu chí thuộc nhóm bắt buộc đang có điểm tự chấm > 0 nhưng thiếu minh chứng hoặc xác nhận hoạt động.
 
 Giữ ngữ cảnh người dùng/kỳ và cung cấp thao tác thử lại. Chỉ hiển thị nút khi có quyền, đồng thời server phải kiểm tra lại quyền và trạng thái.
 

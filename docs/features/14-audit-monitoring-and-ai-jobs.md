@@ -4,12 +4,12 @@
 |---|---|
 | Phiên bản / đối chiếu | 1.0 / 2026-11-15, mã nguồn tại baseline `93fb66c` |
 | Vai trò | ADMIN giám sát; STAFF đọc lịch sử có phạm vi |
-| Trạng thái | Đã có implementation; còn gap trong audit, chưa nghiệm thu toàn bộ |
+| Trạng thái | Đã có implementation; BL-008 và BL-022 đã được xử lý và kiểm chứng regression theo DEC-014 |
 | Quy tắc liên quan | [R-26](../BUSINESS_RULES.md#r-26), [R-27](../BUSINESS_RULES.md#r-27), [R-28](../BUSINESS_RULES.md#r-28) |
 
-Nguồn: [evidence/evidence-processing.worker.ts](../../apps/backend/src/evidence/evidence-processing.worker.ts), [audit-log/audit-log.service.ts](../../apps/backend/src/audit-log/audit-log.service.ts); [routes Web](../../apps/web/src/routes.tsx), [API client](../../apps/web/src/lib/apiClient.ts).
+Nguồn: [evidence/evidence-processing.worker.ts](../../apps/backend/src/evidence/evidence-processing.worker.ts), [audit-log/audit-log.service.ts](../../apps/backend/src/audit-log/audit-log.service.ts); [routes Web](../../apps/web/src/routes.tsx), [API client](../../apps/web/src/lib/apiClient.ts). Tài liệu kiến trúc 6 tầng AI & quy trình huấn luyện model A-Z: [AI_TRAINING_AND_ARCHITECTURE_GUIDE.md](../AI_TRAINING_AND_ARCHITECTURE_GUIDE.md).
 
-Gap: [BL-008](../BUSINESS_LOGIC_AUDIT.md#bl-008), [BL-022](../BUSINESS_LOGIC_AUDIT.md#bl-022). Theo dõi trong [backlog](../BACKLOG.md); chưa áp dụng bản sửa.
+Gap: [BL-008](../BUSINESS_LOGIC_AUDIT.md#bl-008) (Resolved), [BL-022](../BUSINESS_LOGIC_AUDIT.md#bl-022) (Resolved). Theo dõi trong [backlog](../BACKLOG.md).
 
 ## 1. Objective — Mục tiêu
 

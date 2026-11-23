@@ -1,22 +1,26 @@
 {
   "test_set_path": "D:\\UniProof-AI\\research\\activity-classification\\datasets\\test.csv",
-  "note": "Tập test giữ lại theo group_id (22 mẫu). Báo cáo kèm Wilson 95% CI do cỡ mẫu còn nhỏ.",
+  "evaluated_model": "tfidf_linear_svc",
+  "note": "Mô hình chỉ học train+val; tập test giữ lại theo group_id (52 mẫu). Báo cáo kèm Wilson 95% CI do cỡ mẫu còn nhỏ.",
   "keyword_baseline": {
-    "test_samples": 22,
-    "correct": 15,
-    "accuracy": 0.6818,
+    "test_samples": 52,
+    "correct": 44,
+    "accuracy": 0.8462,
     "accuracy_wilson_95ci": [
-      0.4732,
-      0.8364
+      0.7248,
+      0.9199
     ],
-    "macro_f1": 0.5093,
-    "weighted_f1": 0.7699,
+    "macro_f1": 0.8497,
+    "weighted_f1": 0.8547,
     "confusion_matrix": {
       "labels": [
         "KHONG_HOP_LE",
         "MUC_10",
         "MUC_12",
         "MUC_13",
+        "MUC_14",
+        "MUC_15",
+        "MUC_16",
         "MUC_4",
         "MUC_5",
         "MUC_8",
@@ -24,6 +28,22 @@
       ],
       "matrix": [
         [
+          5,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          5,
+          0,
           0,
           0,
           0,
@@ -35,18 +55,11 @@
         ],
         [
           1,
-          1,
+          0,
+          9,
           0,
           0,
           0,
-          0,
-          0,
-          0
-        ],
-        [
-          1,
-          0,
-          8,
           0,
           0,
           0,
@@ -57,7 +70,23 @@
           0,
           0,
           0,
+          4,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
           1,
+          0,
+          0,
+          0,
+          3,
+          0,
+          0,
           0,
           0,
           0,
@@ -69,151 +98,22 @@
           0,
           0,
           0,
+          3,
           0,
-          1,
+          0,
+          0,
+          0,
           0
         ],
         [
-          2,
+          0,
+          0,
           0,
           0,
           0,
           0,
           4,
           0,
-          0
-        ],
-        [
-          1,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          1,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          1
-        ]
-      ]
-    },
-    "per_class": {
-      "KHONG_HOP_LE": {
-        "precision": 0.0,
-        "recall": 0.0,
-        "f1": 0.0,
-        "support": 0
-      },
-      "MUC_10": {
-        "precision": 1.0,
-        "recall": 0.5,
-        "f1": 0.6667,
-        "support": 2
-      },
-      "MUC_12": {
-        "precision": 1.0,
-        "recall": 0.8889,
-        "f1": 0.9412,
-        "support": 9
-      },
-      "MUC_13": {
-        "precision": 1.0,
-        "recall": 1.0,
-        "f1": 1.0,
-        "support": 1
-      },
-      "MUC_4": {
-        "precision": 0.0,
-        "recall": 0.0,
-        "f1": 0.0,
-        "support": 1
-      },
-      "MUC_5": {
-        "precision": 1.0,
-        "recall": 0.6667,
-        "f1": 0.8,
-        "support": 6
-      },
-      "MUC_8": {
-        "precision": 0.0,
-        "recall": 0.0,
-        "f1": 0.0,
-        "support": 1
-      },
-      "MUC_9": {
-        "precision": 1.0,
-        "recall": 0.5,
-        "f1": 0.6667,
-        "support": 2
-      }
-    }
-  },
-  "ml_model": {
-    "test_samples": 22,
-    "correct": 16,
-    "accuracy": 0.7273,
-    "accuracy_wilson_95ci": [
-      0.5185,
-      0.8685
-    ],
-    "macro_f1": 0.4464,
-    "weighted_f1": 0.6765,
-    "confusion_matrix": {
-      "labels": [
-        "KHONG_HOP_LE",
-        "MUC_10",
-        "MUC_12",
-        "MUC_13",
-        "MUC_4",
-        "MUC_5",
-        "MUC_8",
-        "MUC_9"
-      ],
-      "matrix": [
-        [
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          0,
-          0,
-          0,
-          1,
-          0,
-          1
-        ],
-        [
-          0,
-          0,
-          8,
-          1,
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          0,
-          1,
-          0,
           0,
           0,
           0
@@ -225,30 +125,42 @@
           0,
           0,
           0,
+          0,
+          3,
+          1,
           1,
           0
         ],
         [
-          0,
-          0,
           1,
           0,
           0,
-          5,
+          0,
+          0,
+          0,
+          0,
+          0,
+          3,
           0,
           0
         ],
         [
-          0,
-          0,
-          0,
-          0,
-          0,
           1,
           0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          3,
           0
         ],
         [
+          2,
+          0,
+          0,
           0,
           0,
           0,
@@ -261,47 +173,310 @@
       ]
     },
     "per_class": {
+      "KHONG_HOP_LE": {
+        "precision": 0.4545,
+        "recall": 1.0,
+        "f1": 0.625,
+        "support": 5
+      },
       "MUC_10": {
-        "precision": 0.0,
-        "recall": 0.0,
-        "f1": 0.0,
-        "support": 2
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 5
       },
       "MUC_12": {
-        "precision": 0.8889,
-        "recall": 0.8889,
-        "f1": 0.8889,
-        "support": 9
+        "precision": 1.0,
+        "recall": 0.9,
+        "f1": 0.9474,
+        "support": 10
       },
       "MUC_13": {
-        "precision": 0.5,
+        "precision": 1.0,
         "recall": 1.0,
-        "f1": 0.6667,
-        "support": 1
+        "f1": 1.0,
+        "support": 4
+      },
+      "MUC_14": {
+        "precision": 1.0,
+        "recall": 0.75,
+        "f1": 0.8571,
+        "support": 4
+      },
+      "MUC_15": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 3
+      },
+      "MUC_16": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 4
       },
       "MUC_4": {
-        "precision": 0.0,
-        "recall": 0.0,
-        "f1": 0.0,
-        "support": 1
+        "precision": 1.0,
+        "recall": 0.6,
+        "f1": 0.75,
+        "support": 5
       },
       "MUC_5": {
-        "precision": 0.7143,
-        "recall": 0.8333,
-        "f1": 0.7692,
-        "support": 6
+        "precision": 0.75,
+        "recall": 0.75,
+        "f1": 0.75,
+        "support": 4
       },
       "MUC_8": {
-        "precision": 0.0,
-        "recall": 0.0,
-        "f1": 0.0,
-        "support": 1
+        "precision": 0.75,
+        "recall": 0.75,
+        "f1": 0.75,
+        "support": 4
       },
       "MUC_9": {
-        "precision": 0.6667,
+        "precision": 1.0,
+        "recall": 0.5,
+        "f1": 0.6667,
+        "support": 4
+      }
+    }
+  },
+  "ml_model": {
+    "test_samples": 52,
+    "correct": 45,
+    "accuracy": 0.8654,
+    "accuracy_wilson_95ci": [
+      0.7473,
+      0.9332
+    ],
+    "macro_f1": 0.8417,
+    "weighted_f1": 0.8534,
+    "confusion_matrix": {
+      "labels": [
+        "KHONG_HOP_LE",
+        "MUC_10",
+        "MUC_12",
+        "MUC_13",
+        "MUC_14",
+        "MUC_15",
+        "MUC_16",
+        "MUC_4",
+        "MUC_5",
+        "MUC_8",
+        "MUC_9"
+      ],
+      "matrix": [
+        [
+          5,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          5,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          10,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          1,
+          2,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          4,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          3,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4,
+          0,
+          1,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          3,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          3,
+          0,
+          1
+        ]
+      ]
+    },
+    "per_class": {
+      "KHONG_HOP_LE": {
+        "precision": 1.0,
         "recall": 1.0,
-        "f1": 0.8,
-        "support": 2
+        "f1": 1.0,
+        "support": 5
+      },
+      "MUC_10": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 5
+      },
+      "MUC_12": {
+        "precision": 0.8333,
+        "recall": 1.0,
+        "f1": 0.9091,
+        "support": 10
+      },
+      "MUC_13": {
+        "precision": 1.0,
+        "recall": 0.5,
+        "f1": 0.6667,
+        "support": 4
+      },
+      "MUC_14": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 4
+      },
+      "MUC_15": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 3
+      },
+      "MUC_16": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 4
+      },
+      "MUC_4": {
+        "precision": 1.0,
+        "recall": 0.8,
+        "f1": 0.8889,
+        "support": 5
+      },
+      "MUC_5": {
+        "precision": 0.5714,
+        "recall": 1.0,
+        "f1": 0.7273,
+        "support": 4
+      },
+      "MUC_8": {
+        "precision": 0.6,
+        "recall": 0.75,
+        "f1": 0.6667,
+        "support": 4
+      },
+      "MUC_9": {
+        "precision": 1.0,
+        "recall": 0.25,
+        "f1": 0.4,
+        "support": 4
       }
     }
   }
