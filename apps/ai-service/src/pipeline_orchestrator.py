@@ -11,6 +11,7 @@ from PIL import Image
 from .config import settings
 from .face_verifier import FaceAndVisionService
 from .ocr_extractor import OcrExtractorService
+from .predictor import predict_rubric_criterion
 from .qr_verifier import QrVerifierService
 from .quality_forensics import QualityAndForensicsService
 from .template_matcher import TemplateMatcher
@@ -93,6 +94,7 @@ class UnifiedPipelineOrchestrator:
                 req.declaredStudent.studentCode,
                 activity_name,
                 req.declaredStudent.citizenId,
+                ocr_engine=req.ocrEngine,
             )
         else:
             ocr = OcrExtractorService.extract_and_parse_many(
@@ -102,6 +104,7 @@ class UnifiedPipelineOrchestrator:
                 req.declaredStudent.studentCode,
                 activity_name,
                 req.declaredStudent.citizenId,
+                ocr_engine=req.ocrEngine,
             )
         recognition_ambiguous = not is_event_photo and ocr.recognitionAmbiguous
         code_mismatch = not is_event_photo and not recognition_ambiguous and ocr.codeMismatch
@@ -152,6 +155,10 @@ class UnifiedPipelineOrchestrator:
         else:
             web = WebVerificationResult(searched=False)
 
+        rubric_pred = predict_rubric_criterion(
+            ocr.rawText if ocr and ocr.available else "",
+            activity_name or (ocr.activityNameExtracted if ocr else "") or "",
+        )
         common = {
             "success": True,
             "evidenceId": req.evidenceId,
@@ -163,6 +170,7 @@ class UnifiedPipelineOrchestrator:
             "isDuplicate": is_duplicate,
             "duplicateMatchType": duplicate_match_type,
             "matchedHash": duplicate_matched_hash,
+            "rubricPrediction": rubric_pred,
         }
 
         if is_event_photo:
@@ -191,8 +199,22 @@ class UnifiedPipelineOrchestrator:
                 score += 10
             if forensics.isTampered:
                 score -= 20
-            score = max(0.0, min(100.0, score))
-            tier = TierClassification.RED if is_duplicate else cls._tier(score)
+            # D2/D3/D7 (P1-M5-03): Ảnh sự kiện luôn HITL (trần 89, không bao giờ GREEN).
+            # Khi tắt xử lý mặt: Hạng B (YELLOW_STRONG) chỉ khi đủ banner + bài viết đối chứng + EXIF khớp ngày;
+            # thiếu 1 tín hiệu trở lên -> Hạng C (YELLOW_WEAK).
+            score = max(0.0, min(89.0, score))
+            has_all_event_signals = bool(
+                scene.matchesActivity
+                and exif.matchesDeclaredDate
+                and (web.articleUrl or web.confidenceBoost)
+                and not forensics.isTampered
+            )
+            if is_duplicate:
+                tier = TierClassification.RED
+            elif has_all_event_signals and score >= 75:
+                tier = TierClassification.YELLOW_STRONG
+            else:
+                tier = TierClassification.YELLOW_WEAK if score >= 60 else TierClassification.RED
             return UnifiedInspectionResponse(
                 **common,
                 pipelineMode="EVENT_PHOTO_PIPELINE",
@@ -204,8 +226,8 @@ class UnifiedPipelineOrchestrator:
                 tier=tier,
                 classification=cls._classification(tier),
                 recommendation=(
-                    "Ảnh đã qua phân tích chất lượng, OCR và kiểm tra bối cảnh. "
-                    "AI không đối chiếu danh tính khuôn mặt; cán bộ cần xác minh người tham gia."
+                    "Ảnh đã qua phân tích chất lượng, OCR bối cảnh, EXIF và tra cứu nguồn công khai. "
+                    "AI không xử lý khuôn mặt theo cấu hình (D3); mọi ảnh sự kiện luôn chuyển cán bộ xác minh (HITL)."
                 ),
                 breakdown={
                     "qualityPassed": quality.passed,
@@ -214,6 +236,7 @@ class UnifiedPipelineOrchestrator:
                     "dateMatched": exif.matchesDeclaredDate,
                     "webBoost": web.confidenceBoost,
                     "tampered": forensics.isTampered,
+                    "eventRankRule": "HANG_B_ALL_SIGNALS" if has_all_event_signals else "HANG_C_PARTIAL_SIGNALS",
                 },
             )
 

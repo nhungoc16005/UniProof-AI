@@ -319,6 +319,9 @@ export class EvidenceProcessingWorker implements OnModuleInit, OnModuleDestroy {
                 codeMatched: ocr.codeMatched ?? false,
                 codeMismatch: ocr.codeMismatch ?? false,
                 bloodDonation: ocr.bloodDonation ?? null,
+                recognitionMethod: (ocr as any).recognitionMethod ?? null,
+                recognitionConfidence: (ocr as any).recognitionConfidence ?? null,
+                processingTimeMs: (ocr as any).processingTimeMs ?? null,
               } as Prisma.InputJsonValue,
               confidenceScore: (analysis?.aiConfidenceScore ?? 0) / 100,
             },
@@ -504,12 +507,16 @@ export class EvidenceProcessingWorker implements OnModuleInit, OnModuleDestroy {
     const currentJob = await tx.aiProcessingJob.findUnique({ where: { id: job.id }, select: { status: true, attempts: true } });
     const submission = run.rubricVersionId ? await tx.assessmentSubmission.findUnique({ where: { studentId_termId_rubricVersionId: { studentId: job.evidence.studentId, termId: job.evidence.termId, rubricVersionId: run.rubricVersionId } } }) : null;
     const handoff = await tx.assessmentHandoff.findUnique({ where: { studentId_termId: { studentId: job.evidence.studentId, termId: job.evidence.termId } } });
-    if (currentJob?.status === 'PROCESSING' && (run.attempt === undefined || currentJob.attempts === run.attempt) && submission?.status === 'SUBMITTED'
+    const allowDraft = process.env.AI_ALLOW_DRAFT_PROCESSING === 'true';
+    const submissionOk = submission?.status === 'SUBMITTED' || (allowDraft && evidence.status === 'DRAFT');
+    const statusOk = ['PROCESSING', 'PLAUSIBLE', 'VERIFIED', 'NEEDS_HUMAN_REVIEW'].includes(evidence.status)
+      || (allowDraft && evidence.status === 'DRAFT');
+    if (currentJob?.status === 'PROCESSING' && (run.attempt === undefined || currentJob.attempts === run.attempt) && submissionOk
       && evidence.version === run.inputVersion
       && evidence.criterionAssessment?.criterion.rubricVersionId === run.rubricVersionId
       && ['ACTIVE', 'REVIEWING'].includes(evidence.term.status)
       && !['SENT', 'EXCLUDED'].includes(handoff?.status ?? '')
-      && ['PROCESSING', 'PLAUSIBLE', 'VERIFIED', 'NEEDS_HUMAN_REVIEW'].includes(evidence.status)) return true;
+      && statusOk) return true;
     const error = 'Hồ sơ đã thay đổi, đã có quyết định hoặc đã khóa; không áp dụng kết quả AI.';
     await tx.aiProcessingJob.updateMany({ where: { id: job.id, status: 'PROCESSING', ...(run.attempt === undefined ? {} : { attempts: run.attempt }) }, data: { status: 'CANCELLED', error, completedAt: new Date() } });
     await tx.aiPipelineRun.update({ where: { id: run.id }, data: { status: 'CANCELLED', error, completedAt: new Date() } });
@@ -523,10 +530,11 @@ export class EvidenceProcessingWorker implements OnModuleInit, OnModuleDestroy {
       return false;
     }
     const [currentJob, submission] = await Promise.all([
-      this.prisma.aiProcessingJob.findUnique({ where: { id: jobId }, select: { status: true } }),
+      this.prisma.aiProcessingJob.findUnique({ where: { id: jobId }, select: { status: true, evidence: { select: { status: true } } } }),
       this.prisma.assessmentSubmission.findUnique({ where: { studentId_termId_rubricVersionId: { studentId, termId, rubricVersionId } }, select: { status: true } }),
     ]);
-    const valid = currentJob?.status === AiProcessingJobStatus.PROCESSING && submission?.status === 'SUBMITTED';
+    const allowDraft = process.env.AI_ALLOW_DRAFT_PROCESSING === 'true' && currentJob?.evidence?.status === 'DRAFT';
+    const valid = currentJob?.status === AiProcessingJobStatus.PROCESSING && (submission?.status === 'SUBMITTED' || allowDraft);
     if (!valid) await this.prisma.aiProcessingJob.updateMany({ where: { id: jobId, status: 'PROCESSING' }, data: { status: 'CANCELLED', error: 'Phiếu chưa nộp hoặc đã được trả lại', completedAt: new Date() } });
     return valid;
   }

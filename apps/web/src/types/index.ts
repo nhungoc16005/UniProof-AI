@@ -347,6 +347,9 @@ export interface EvidenceInspectionResult {
     activityNameMismatch?: boolean;
     citizenIdMatched?: boolean | null;
     citizenIdExtracted?: string | null;
+    recognitionMethod?: string | null;
+    recognitionConfidence?: number | null;
+    processingTimeMs?: number | null;
   } | null;
   faceVerification?: {
     status?: 'PASS' | 'REVIEW' | 'FAIL' | 'NOT_CHECKED';
@@ -412,6 +415,33 @@ export interface EvidenceInspectionResult {
   matchedHash?: string | null;
   filesProcessed: number;
   auditSampled: boolean;
+  criterionAssessment?: {
+    status: string;
+    matchScore?: number | null;
+    threshold?: number;
+    suggestedScore?: number | null;
+    matchedRequirements?: string[];
+    missingRequirements?: string[];
+    reason?: string;
+    mlPrediction?: {
+      predictedLabel: string;
+      predictedCriterionCode?: string | null;
+      predictedLabelName: string;
+      confidence: number;
+      modelName: string;
+      modelVersion: string;
+      topCandidates?: Array<{ label: string; criterionCode?: string | null; labelName: string; probability: number }>;
+    } | null;
+  } | null;
+  rubricPrediction?: {
+    predictedLabel: string;
+    predictedCriterionCode?: string | null;
+    predictedLabelName: string;
+    confidence: number;
+    modelName: string;
+    modelVersion: string;
+    topCandidates?: Array<{ label: string; criterionCode?: string | null; labelName: string; probability: number }>;
+  } | null;
 }
 
 export interface EvidenceInspectRequest {
@@ -427,6 +457,8 @@ export interface EvidenceInspectRequest {
   fileName?: string;
   fileType?: string;
   previousHashes?: Array<{ sha256: string; pHash: string }>;
+  criterionId?: string;
+  ocrEngine?: 'auto' | 'rapidocr_vietocr' | 'rapidocr' | 'tesseract';
 }
 
 export interface OcrResult {

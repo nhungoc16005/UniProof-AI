@@ -153,4 +153,14 @@ export class InspectAiDto {
   @IsOptional()
   @IsArray()
   previousHashes?: Array<{ sha256: string; pHash: string }>;
+
+  @ApiPropertyOptional({ description: 'ID tiêu chí Rubric của kỳ để gợi ý điểm tiêu chí (tùy chọn)' })
+  @IsOptional()
+  @IsString()
+  criterionId?: string;
+
+  @ApiPropertyOptional({ description: 'Engine OCR: auto | rapidocr_vietocr | rapidocr | tesseract' })
+  @IsOptional()
+  @IsString()
+  ocrEngine?: string;
 }

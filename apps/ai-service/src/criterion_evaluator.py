@@ -2,6 +2,8 @@ import re
 import unicodedata
 from typing import Any
 
+from .predictor import predict_rubric_criterion
+
 
 MATCH_THRESHOLD = 60
 
@@ -149,6 +151,21 @@ def evaluate_criterion(
             "reason": f"{mismatch_reason}; phân loại ĐỎ, gợi ý 0 điểm. Cán bộ cần đối chiếu ảnh gốc trước khi chốt.",
         }
 
+    ml_prediction = predict_rubric_criterion(ocr_text, activity_name)
+
+    def _with_ml(payload: dict[str, Any]) -> dict[str, Any]:
+        if ml_prediction is not None:
+            payload["mlPrediction"] = ml_prediction
+            target_code = str(criterion.get("code") or "")
+            pred_code = ml_prediction.get("predictedCriterionCode")
+            conf = float(ml_prediction.get("confidence") or 0.0)
+            if pred_code and target_code and pred_code != target_code and conf >= 0.65:
+                payload["reason"] = (
+                    f"{payload['reason']} [Model ML ({ml_prediction['modelName']}) dự đoán minh chứng phù hợp hơn với "
+                    f"{ml_prediction['predictedLabelName']} — độ tin cậy {round(conf * 100)}%.]"
+                )
+        return payload
+
     text = _normalize(ocr_text)
     activity = _normalize(activity_name)
     evaluated = [(key, _matches_requirement(key, text, activity, criterion)) for key in required]
@@ -156,7 +173,7 @@ def evaluate_criterion(
     matched = [REQUIREMENT_LABELS.get(key, key) for key, value in known if value]
     missing = [REQUIREMENT_LABELS.get(key, key) for key, value in evaluated if value is not True]
     if not known:
-        return {
+        return _with_ml({
             "status": "UNVERIFIABLE",
             "matchScore": None,
             "threshold": MATCH_THRESHOLD,
@@ -164,11 +181,11 @@ def evaluate_criterion(
             "matchedRequirements": [],
             "missingRequirements": [REQUIREMENT_LABELS.get(key, key) for key in required],
             "reason": "Tiêu chí cần dữ liệu học vụ/xác minh tổng hợp; một tệp minh chứng không đủ để tính điểm.",
-        }
+        })
 
     match_score = round(sum(value is True for _, value in known) / len(required) * 100, 1)
     if len(known) < len(required):
-        return {
+        return _with_ml({
             "status": "UNVERIFIABLE",
             "matchScore": match_score,
             "threshold": MATCH_THRESHOLD,
@@ -176,9 +193,9 @@ def evaluate_criterion(
             "matchedRequirements": matched,
             "missingRequirements": missing,
             "reason": "Một phần điều kiện không thể kiểm tra chỉ từ OCR; cần cán bộ đối chiếu rubric và hồ sơ gốc.",
-        }
+        })
     if match_score < MATCH_THRESHOLD:
-        return {
+        return _with_ml({
             "status": "NOT_MATCHED",
             "matchScore": match_score,
             "threshold": MATCH_THRESHOLD,
@@ -186,9 +203,9 @@ def evaluate_criterion(
             "matchedRequirements": matched,
             "missingRequirements": missing,
             "reason": f"Tỷ lệ điều kiện rubric tìm thấy {match_score}% thấp hơn ngưỡng {MATCH_THRESHOLD}%; gợi ý 0 điểm. Cán bộ vẫn cần xác nhận.",
-        }
+        })
     if not all(value is True for _, value in known):
-        return {
+        return _with_ml({
             "status": "NEEDS_HUMAN_REVIEW",
             "matchScore": match_score,
             "threshold": MATCH_THRESHOLD,
@@ -196,11 +213,11 @@ def evaluate_criterion(
             "matchedRequirements": matched,
             "missingRequirements": missing,
             "reason": "Chưa đủ tất cả điều kiện bắt buộc để gợi ý điểm khác 0; cần cán bộ xác minh.",
-        }
+        })
 
     scoring_key = required[0] if required else ""
     score = _score_for_full_match(config, max_score, scoring_key, text)
-    return {
+    return _with_ml({
         "status": "MATCHED",
         "matchScore": match_score,
         "threshold": MATCH_THRESHOLD,
@@ -208,4 +225,4 @@ def evaluate_criterion(
         "matchedRequirements": matched,
         "missingRequirements": missing,
         "reason": "OCR có dấu hiệu đáp ứng các điều kiện được kiểm tra; điểm chỉ là gợi ý và cần cán bộ xác nhận với hồ sơ gốc.",
-    }
+    })

@@ -47,6 +47,14 @@ class UnifiedInspectionRequest(BaseModel):
     enableWebSearch: bool = Field(default=True, description="Kích hoạt Luồng 2 tra cứu Cổng tin DUT (+20 điểm)")
     previousHashes: Optional[List[Dict[str, str]]] = Field(default=None, description="List of {sha256, pHash} từ kho đã lưu để kiểm tra trùng lặp")
     fileUrls: Optional[List[str]] = Field(default=None, description="Tất cả URL tệp đính kèm cần xử lý (OCR mọi tệp, không chỉ tệp đầu)")
+    ocrEngine: Literal["auto", "rapidocr_vietocr", "rapidocr", "tesseract"] = Field(
+        default="auto",
+        description="Engine OCR sử dụng: auto (ưu tiên RapidOCR+VietOCR, fallback Tesseract) | rapidocr_vietocr | rapidocr | tesseract",
+    )
+    criterion: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Tiêu chí Rubric DUT (tùy chọn) để gợi ý điểm tiêu chí cùng kết quả phân tích",
+    )
 
 
 # --- Components ---
@@ -105,6 +113,12 @@ class BloodDonationData(BaseModel):
     donationDate: Optional[str] = None
 
 
+class OcrBoxItem(BaseModel):
+    text: str
+    confidence: float
+    bbox: List[int]  # [x1, y1, x2, y2]
+
+
 class OcrExtractionResult(BaseModel):
     rawText: str
     available: bool = True
@@ -113,10 +127,12 @@ class OcrExtractionResult(BaseModel):
         default=None,
         ge=0,
         le=100,
-        description="Mean Tesseract word confidence; diagnostic only, not an authenticity probability.",
+        description="Mean OCR confidence; diagnostic only, not an authenticity probability.",
     )
     recognitionMethod: Optional[str] = None
     recognitionAmbiguous: bool = False
+    processingTimeMs: Optional[int] = None
+    ocrBoxes: Optional[List[OcrBoxItem]] = None
     studentNameExtracted: Optional[str] = None
     studentCodeExtracted: Optional[str] = None
     activityNameExtracted: Optional[str] = None
@@ -224,3 +240,29 @@ class UnifiedInspectionResponse(BaseModel):
     matchedHash: Optional[str] = None
     filesProcessed: int = 1
     auditSampled: bool = False
+    criterionAssessment: Optional[Dict[str, Any]] = None
+    rubricPrediction: Optional[Dict[str, Any]] = None
+
+
+class OcrCompareRequest(BaseModel):
+    fileBytesBase64: str = Field(..., description="Ảnh/PDF mã hóa Base64 hoặc Data URL")
+    evidenceType: str = Field(default="GIAY_KHEN")
+    declaredStudent: Optional[DeclaredStudent] = None
+    activityName: Optional[str] = None
+    engines: List[Literal["tesseract", "rapidocr", "rapidocr_vietocr"]] = Field(
+        default_factory=lambda: ["tesseract", "rapidocr_vietocr"]
+    )
+
+
+class OcrCompareEngineResult(BaseModel):
+    engine: str
+    elapsedMs: int
+    boxCount: int = 0
+    extraction: OcrExtractionResult
+
+
+class OcrCompareResponse(BaseModel):
+    success: bool = True
+    imageWidth: Optional[int] = None
+    imageHeight: Optional[int] = None
+    results: List[OcrCompareEngineResult] = Field(default_factory=list)

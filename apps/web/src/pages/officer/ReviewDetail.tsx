@@ -71,13 +71,30 @@ export const ReviewDetail: React.FC = () => {
       apiClient.getEvidenceById(id).then((data) => {
         setEvidence(data);
         setSavedSources((data?.verificationResults || []).map(v => ({ id:v.id, name:v.sourceDescription, level:v.verificationLevel, confirmedActivity:v.activityExistsVerified, confirmedStudent:v.studentParticipationVerified })));
-        if (data?.aiSuggestions?.[0]?.suggestedScore) {
+        if (data?.aiSuggestions?.[0]?.suggestedScore != null) {
           setFinalScoreInput(data.aiSuggestions[0].suggestedScore);
         }
         setIsLoading(false);
       }).catch(() => { setLoadError('Không tải được minh chứng.'); setIsLoading(false); });
     }
   }, [id]);
+
+  // Tự động cập nhật mỗi 3 giây khi hồ sơ vừa nộp đang chờ AI chạy xong
+  useEffect(() => {
+    if (!id) return;
+    const status = evidence?.aiProcessingJobs?.[0]?.status;
+    if (status !== 'QUEUED' && status !== 'PROCESSING') return;
+    const timer = window.setInterval(() => {
+      apiClient.getEvidenceById(id).then((data) => {
+        if (!data) return;
+        setEvidence(data);
+        if (data.aiSuggestions?.[0]?.suggestedScore != null) {
+          setFinalScoreInput((prev) => prev ?? data.aiSuggestions![0].suggestedScore);
+        }
+      }).catch(() => {});
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [id, evidence?.aiProcessingJobs?.[0]?.status]);
 
   const canReview = evidence?.permissions?.canReview ?? false;
 

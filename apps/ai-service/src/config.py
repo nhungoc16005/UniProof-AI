@@ -41,25 +41,49 @@ class Settings(BaseSettings):
     SERP_API_KEY: str = os.getenv("SERP_API_KEY", "")
     DUT_DOMAIN: str = "dut.udn.vn"
 
-    # Luồng 2 — nguồn ngoài allow-list chính thống chỉ bật theo opt-in.
-    ALLOW_ALL_PUBLIC_SOURCES: bool = False
-    # Nguồn chính thống (đại học/đoàn - hội): cộng điểm cao hơn.
+    # Luồng 2 — Bật tìm kiếm mọi nguồn công khai (báo chí, mạng xã hội, trang sự kiện).
+    # Sinh viên DUT đi hoạt động ngoài trường là phổ biến; giới hạn chỉ dut.udn.vn sẽ bỏ
+    # sót phần lớn minh chứng hợp lệ. Phân tầng độ tin cậy vẫn được áp dụng.
+    ALLOW_ALL_PUBLIC_SOURCES: bool = True
+    # Nguồn chính thống (đại học/đoàn - hội trong và ngoài DUT): cộng điểm cao nhất.
     OFFICIAL_SOURCE_DOMAINS: str = os.getenv(
         "OFFICIAL_SOURCE_DOMAINS",
-        "dut.udn.vn,udn.vn",
+        # Trường & hệ thống ĐHĐN
+        "dut.udn.vn,udn.vn,udn.edu.vn,"
+        # Các trường ĐH lớn tại Đà Nẵng và VN (hay tổ chức cuộc thi liên trường)
+        "due.udn.vn,ued.udn.vn,dlu.edu.vn,hust.edu.vn,hcmut.edu.vn,uit.edu.vn,"
+        # Cơ quan nhà nước / đoàn thể
+        "doanthanhnien.vn,hoinongdan.org.vn,tuoitre.hcm.gov.vn,"
+        "danang.gov.vn,moet.gov.vn,molisa.gov.vn,"
+        # Nền tảng học thuật / cuộc thi lập trình có uy tín
+        "icpc.global,icpc.asia,codeforces.com,hackerrank.com,topcoder.com,"
+        "codelearn.io,devpost.com,kaggle.com,olympiavn.org,"
+        # Nền tảng chứng chỉ online (Coursera, edX, v.v.)
+        "coursera.org,edx.org,udemy.com,linkedin.com/learning,futurelearn.com,"
+        # Tổ chức kỹ thuật quốc tế
+        "ieee.org,acm.org,isoc.org",
     )
-    # Mạng xã hội phổ biến (Facebook, Threads, Google/Blogspot, ...).
+    # Mạng xã hội & blog: trang fanpage sự kiện, kết quả đăng Facebook, v.v.
     SOCIAL_SOURCE_DOMAINS: str = os.getenv(
         "SOCIAL_SOURCE_DOMAINS",
         "facebook.com,fb.com,m.facebook.com,threads.net,threads.com,instagram.com,"
         "x.com,twitter.com,tiktok.com,youtube.com,youtu.be,linkedin.com,zalo.me,"
-        "google.com,blogspot.com,wordpress.com,medium.com",
+        "google.com,blogspot.com,wordpress.com,medium.com,"
+        # Nền tảng VN
+        "kenh14.vn,cafef.vn,cafebiz.vn,genk.vn,techz.vn",
     )
-    # Báo chí / trang tin.
+    # Báo chí / trang tin chính thống trong và ngoài nước.
     NEWS_SOURCE_DOMAINS: str = os.getenv(
         "NEWS_SOURCE_DOMAINS",
+        # Báo lớn toàn quốc
         "vnexpress.net,dantri.com.vn,tuoitre.vn,thanhnien.vn,nhandan.vn,vietnamnet.vn,"
-        "tienphong.vn,laodong.vn,zingnews.vn,vtv.vn,baodanang.vn,danang.gov.vn",
+        "tienphong.vn,laodong.vn,zingnews.vn,vtv.vn,vov.vn,baochinhphu.vn,"
+        # Báo Đà Nẵng & miền Trung
+        "baodanang.vn,baoquangnam.vn,baothuathienhue.vn,kontum.gov.vn,"
+        # Trang tin công nghệ / IT / startup VN
+        "ictnews.vn,techsignin.com,topdev.vn,itviec.com,toidicodedao.com,"
+        # Báo quốc tế (khi cuộc thi quốc tế)
+        "techcrunch.com,theverge.com,wired.com,bbc.com,reuters.com",
     )
     
     # Download timeout

@@ -1,0 +1,311 @@
+﻿sample_id,group_id,raw_label,criterion_label,label_source,text
+DOC-0002,REAL-G-DOC-0002,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Hiến tặng tóc
+Vai trò trong minh chứng: Người hiến tóc
+Nội dung minh chứng: Cảm ơn bạn vì đã trao tặng mái tóc cho các bệnh nhân ung thư"
+DOC-0003,REAL-G-DOC-0003,TUYEN_TRUYEN_PHAP_LUAT,MUC_10,HUMAN_EXCEL,"Hoạt động: Truyền thông dự phòng trước phơi nhiễm HIV (PrEP)
+Đơn vị tổ chức: BCH Đoàn Thanh niên Cơ quan ĐH Đà Nẵng
+Vai trò trong minh chứng: Người tham dự chương trình tuyên truyền pháp luật và sức khỏe
+Cấp hoạt động: Cấp đại học vùng (ĐHĐN)
+Nội dung minh chứng: Chứng nhận tham gia chương trình Truyền thông dự phòng trước phơi nhiễm HIV và phòng chống tệ nạn xã hội do Đoàn Cơ quan Đại học Đà Nẵng tổ chức."
+DOC-0004,REAL-G-DOC-0004,HACKATHON_CAP_THANH_PHO,MUC_5,HUMAN_EXCEL,"Hoạt động: Design Thinking for Human Challenge
+Đơn vị tổ chức: Thành đoàn Đà Nẵng & Viện VN-UK
+Vai trò trong minh chứng: Thí sinh tham gia cuộc thi
+Cấp hoạt động: Cấp thành phố
+Nội dung minh chứng: CERTIFICATE OF PARTICIPATION awarded for participating in the Design Thinking for Human Challenge organized by Thành đoàn Đà Nẵng and VNUK Institute."
+DOC-0006,REAL-G-DOC-0004,MUC_5,MUC_5,CURATED_FROM_UNLABELED,"Hoạt động: Design Thinking for Human Challenges Competition 2026
+Vai trò trong minh chứng: PARTICIPANT
+Nội dung minh chứng: For outstanding effort demonstrated as PARTICIPANT in the Design Thinking for Human Challenges Competition 2026 under the VNUK Innovation Challenge 2026 series."
+DOC-0007,REAL-G-DOC-0007,MUC_8,MUC_8,CURATED_FROM_UNLABELED,"Hoạt động: K25 FRESHMEN - DISCOVER UED
+Vai trò trong minh chứng: Người tham gia
+Nội dung minh chứng: Đã tham gia chương trình ""K25 FRESHMEN - DISCOVER UED"""
+DOC-0008,REAL-G-DOC-0008,MUC_12,MUC_12,CURATED_FROM_UNLABELED,"Hoạt động: Tết Gắn Kết 12 - Hơi ấm Axanh Gỗ
+Vai trò trong minh chứng: Người tham gia
+Nội dung minh chứng: CHIẾN DỊCH TÌNH NGUYỆN ĐÔNG XUÂN. ĐÃ THAM GIA CHƯƠNG TRÌNH ""TẾT GẮN KẾT 12 - HƠI ẤM AXANH GỖ"""
+DOC-0009,REAL-G-DOC-0008,MUC_12,MUC_12,CURATED_FROM_UNLABELED,"Hoạt động: Tết Gắn Kết 12 - Hơi ấm Axanh Gỗ
+Vai trò trong minh chứng: Gây quỹ
+Nội dung minh chứng: ĐÃ THAM GIA GÂY QUỸ VÀ ĐÓNG GÓP TÍCH CỰC CHO CHƯƠNG TRÌNH TÌNH NGUYỆN TẾT gắn kết 12 Hơi ấm Axanh Gỗ"
+DOC-0010,REAL-G-DOC-0010,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Hướng về Vùng Cao — Xây Nhà Vệ Sinh số 10, số 11
+Vai trò trong minh chứng: Tình nguyện viên
+Nội dung minh chứng: Là tình nguyện viên đồng hành cùng Dự án Hướng về Vùng Cao với Chiến dịch Xây Nhà Vệ Sinh Số 10, Số 11 tại Mèo Vạc, Hà Giang"
+DOC-0011,REAL-G-DOC-0011,MUC_13,MUC_13,CURATED_FROM_UNLABELED,"Hoạt động: Series Điều K24 có thể chưa biết
+Đơn vị tổ chức: Đội Tư vấn Sinh viên
+Nội dung minh chứng: Tham gia đóng góp tích cực hoạt động chương trình Series “Điều K24 có thể chưa biết” do Đội Tư vấn Sinh viên tổ chức năm học 2024 - 2025"
+DOC-0014,REAL-G-DOC-0014,MUC_9,MUC_9,CURATED_FROM_UNLABELED,"Hoạt động: Khoảnh Khắc Tri Ân
+Vai trò trong minh chứng: Người tham gia cuộc thi
+Nội dung minh chứng: Đã tham gia cuộc thi “Khoảnh Khắc Tri Ân”"
+DOC-0016,REAL-G-DOC-0011,MUC_13,MUC_13,CURATED_FROM_UNLABELED,"Hoạt động: Series Điều K24 có thể chưa biết
+Đơn vị tổ chức: Đội Tư vấn Sinh viên
+Nội dung minh chứng: Tham gia đóng góp tích cực hoạt động chương trình Series “Điều K24 có thể chưa biết” do Đội Tư vấn Sinh viên tổ chức năm học 2024 - 2025"
+DOC-0017,REAL-G-DOC-0017,MUC_9,MUC_9,CURATED_FROM_UNLABELED,"Hoạt động: Giải chạy Sinh viên khỏe — Unitour Đà Nẵng
+Nội dung minh chứng: Đã tham gia giải chạy “Sinh viên khỏe” nằm trong khuôn khổ chương trình Unitour tại Thành phố Đà Nẵng ngày 22/3/2025"
+DOC-0018,REAL-G-DOC-0018,MUC_13,MUC_13,CURATED_FROM_UNLABELED,"Hoạt động: Vinh danh tân khoa và chào đón tân sinh viên khóa 2025 — BKSTART
+Vai trò trong minh chứng: Hỗ trợ chương trình
+Nội dung minh chứng: ĐÃ TÍCH CỰC THAM GIA HỖ TRỢ CHƯƠNG TRÌNH VINH DANH TÂN KHOA VÀ CHÀO ĐÓN TÂN SINH VIÊN KHÓA 2025 - “BKSTART”"
+DOC-0021,REAL-G-DOC-0021,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Góp Chút Yêu Thương
+Vai trò trong minh chứng: Tình nguyện viên
+Nội dung minh chứng: Tình nguyện viên có đóng góp cho dự án cộng đồng và truyền thông chương trình “Góp Chút Yêu Thương” tổ chức ngày 09/05/2026 tại xã Hòa Thuận, tỉnh An Giang"
+DOC-0022,REAL-G-DOC-0022,MUC_13,MUC_13,CURATED_FROM_UNLABELED,"Hoạt động: Workshop Level up yourself - Nâng tầm bản thân
+Đơn vị tổ chức: Đội Tư vấn Sinh viên
+Vai trò trong minh chứng: Thành viên Ban tổ chức
+Nội dung minh chứng: Chức vụ: Thành viên Ban tổ chức. Đã tích cực tham gia hoạt động Workshop “Level up yourself - Nâng tầm bản thân” do Đội Tư vấn Sinh viên tổ chức"
+DOC-0024,REAL-G-DOC-0024,MUC_12,MUC_12,CURATED_FROM_UNLABELED,"Hoạt động: Kà Đâu Ngày Nắng Về 2026
+Đơn vị tổ chức: LCĐ khoa Môi trường và LCĐ khoa Xây dựng Dân dụng và Công nghiệp
+Vai trò trong minh chứng: Gây quỹ online
+Nội dung minh chứng: Đã tham gia gây quỹ ONLINE chương trình tình nguyện xuân “Kà Đâu Ngày Nắng Về 2026”"
+DOC-0025,REAL-G-DOC-0025,MUC_12,MUC_12,CURATED_FROM_UNLABELED,"Hoạt động: Xuân Yêu Thương 2026
+Vai trò trong minh chứng: Cộng tác viên online
+Nội dung minh chứng: CỘNG TÁC VIÊN ONLINE XUÂN YÊU THƯƠNG 2026. Đã đồng hành cùng Chương trình Xuân Yêu Thương 2026 của dự án Ngòi Tình Nguyện - Viết Cho Em tại Gia Lai, Hưng Yên."
+DOC-0026,REAL-G-DOC-0026,MUC_8,MUC_8,CURATED_FROM_UNLABELED,"Hoạt động: Unitour — AI thực chiến
+Đơn vị tổ chức: Đài Truyền hình Việt Nam và Trường Đại học Bách khoa
+Nội dung minh chứng: ĐÃ THAM GIA CHƯƠNG TRÌNH UNITOUR - CUỘC THI “AI THỰC CHIẾN” DO ĐÀI TRUYỀN HÌNH VIỆT NAM VÀ TRƯỜNG ĐẠI HỌC BÁCH KHOA PHỐI HỢP TỔ CHỨC VÀO NGÀY 08/9/2025"
+DOC-0028,REAL-G-DOC-0028,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Vui Tết Thiếu Nhi - 9
+Vai trò trong minh chứng: Người tham gia
+Nội dung minh chứng: Đã tham gia chương trình thiện nguyện “VUI TẾT THIẾU NHI - 9” Participated and completed the tasks of ""VUI TẾT THIẾU NHI - 9"""
+DOC-0029,REAL-G-DOC-0029,MUC_5,MUC_5,CURATED_FROM_UNLABELED,"Hoạt động: Chung kết BK English 2025
+Vai trò trong minh chứng: Cổ vũ
+Nội dung minh chứng: ĐÃ THAM GIA CỔ VŨ CHUNG KẾT CUỘC THI TIẾNG ANH SINH VIÊN BÁCH KHOA BK ENGLISH 2025"
+DOC-0030,REAL-G-DOC-0030,MUC_5,MUC_5,CURATED_FROM_UNLABELED,"Hoạt động: BK Smart Campus
+Đơn vị tổ chức: Đoàn Thanh niên Trường Đại học Bách khoa
+Nội dung minh chứng: ĐÃ TÍCH CỰC THAM GIA CUỘC THI CHUYỂN ĐỔI SỐ VÀ QUẢN LÝ THÔNG MINH “BK SMART CAMPUS” DO ĐOÀN THANH NIÊN TRƯỜNG ĐẠI HỌC BÁCH KHOA TỔ CHỨC"
+DOC-0033,REAL-G-DOC-0033,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Xuân Biên Phòng - Ấm Lòng Dân Bản 2026
+Vai trò trong minh chứng: Tình nguyện viên online; đóng góp kinh phí
+Nội dung minh chứng: Đã gửi gắm tấm lòng và đóng góp kinh phí nhằm chung tay mang đến một mùa xuân ấm áp cho bà con vùng biên giới thông qua chương trình “XUÂN BIÊN PHÒNG - ẤM LÒNG DÂN BẢN”"
+DOC-0034,REAL-G-DOC-0034,MUC_8,MUC_8,CURATED_FROM_UNLABELED,"Hoạt động: Yamaha Riding Station
+Đơn vị tổ chức: Đoàn Thanh niên Trường Đại học Bách khoa (phối hợp tổ chức)
+Nội dung minh chứng: ĐÃ TÍCH CỰC THAM GIA CHUỖI CHƯƠNG TRÌNH “YAMAHA RIDING STATION” DO ĐOÀN THANH NIÊN TRƯỜNG ĐẠI HỌC BÁCH KHOA PHỐI HỢP TỔ CHỨC"
+DOC-0035,REAL-G-DOC-0035,HACKATHON_CAP_THANH_PHO,MUC_5,HUMAN_EXCEL,"Hoạt động: GDG Build with AI Mientrung 2026
+Đơn vị tổ chức: Sở Khoa học & Công nghệ Đà Nẵng & Google for Developers (GDG MienTrung)
+Vai trò trong minh chứng: Thí sinh hoàn thành Codelab challenge
+Cấp hoạt động: Cấp thành phố / khu vực
+Nội dung minh chứng: Chứng nhận hoàn thành CODELAB challenge trong khuôn khổ sự kiện GDG Build with AI Mientrung 2026 do Sở KH&CN Đà Nẵng và Google for Developers bảo trợ tổ chức."
+DOC-0038,REAL-G-DOC-0026,MUC_8,MUC_8,CURATED_FROM_UNLABELED,"Hoạt động: Unitour — AI thực chiến
+Đơn vị tổ chức: Đài Truyền hình Việt Nam và Trường Đại học Bách khoa
+Nội dung minh chứng: ĐÃ THAM GIA CHƯƠNG TRÌNH UNITOUR - CUỘC THI “AI THỰC CHIẾN” DO ĐÀI TRUYỀN HÌNH VIỆT NAM VÀ TRƯỜNG ĐẠI HỌC BÁCH KHOA PHỐI HỢP TỔ CHỨC VÀO NGÀY 08/9/2025"
+DOC-0040,REAL-G-DOC-0040,MUC_9,MUC_9,CURATED_FROM_UNLABELED,"Hoạt động: The Cover Show — Hội trại Truyền thống 2026
+Đơn vị tổ chức: Liên chi Đoàn Khoa Công nghệ Thông Tin
+Nội dung minh chứng: Trân trọng ghi nhận sự tham gia tích cực của bạn tại cuộc thi The Cover Show trong khuôn khổ Hội trại Truyền thống 2026 do Liên chi Đoàn Khoa Công nghệ Thông Tin tổ chức"
+DOC-0042,REAL-G-DOC-0042,MUC_5,MUC_5,CURATED_FROM_UNLABELED,"Hoạt động: Giải thưởng ""Sinh viên nghiên cứu khoa học"" năm 2019
+Vai trò trong minh chứng: Hướng dẫn sinh viên có đề tài đạt Giải Nhất
+Cấp hoạt động: Cấp Bộ
+Nội dung minh chứng: Đơn vị: Trường Đại học Sư phạm Kỹ thuật thành phố Hồ Chí Minh. Đã hướng dẫn sinh viên có đề tài đạt Giải Nhất, Giải thưởng ""Sinh viên nghiên cứu khoa học"" năm 2019. Ban hành kèm theo Quyết định số 4603/QĐ-BGDĐT"
+DOC-0043,REAL-G-DOC-0043,MUC_5,MUC_5,CURATED_FROM_UNLABELED,"Hoạt động: Giải thưởng ""Sinh viên nghiên cứu khoa học"" năm 2018
+Vai trò trong minh chứng: Đoạt giải Nhì
+Cấp hoạt động: Cấp Bộ
+Nội dung minh chứng: Đơn vị: Trường Đại học Cần Thơ. Đoạt giải: Nhì Giải thưởng ""Sinh viên nghiên cứu khoa học"" năm 2018. Ban hành kèm theo Quyết định số 4897/QĐ-BGDĐT"
+DOC-0044,REAL-G-DOC-0044,MUC_5,MUC_5,CURATED_FROM_UNLABELED,"Hoạt động: Giải thưởng ""Sinh viên nghiên cứu khoa học"" năm 2020
+Vai trò trong minh chứng: Đạt giải Khuyến khích
+Cấp hoạt động: Ngoài cấp khoa/trường — giải thưởng VIFOTEC
+Nội dung minh chứng: Trường Đại học Lạc Hồng. Đạt giải Khuyến khích Giải thưởng ""Sinh viên nghiên cứu khoa học"" năm 2020. Quyết định số: 131/QĐKT"
+DOC-0046,REAL-G-DOC-0046,MUC_5,MUC_5,CURATED_FROM_UNLABELED,"Hoạt động: Hội nghị Sinh viên NCKH toàn quốc lần thứ IV các trường Đại học khối ngành Kinh tế và QTKD – năm 2016
+Vai trò trong minh chứng: Báo cáo tại Hội nghị
+Cấp hoạt động: Toàn quốc
+Nội dung minh chứng: Đơn vị: Trường Đại học Ngoại thương. Đã báo cáo tại Hội nghị Sinh viên NCKH toàn quốc lần thứ IV các trường Đại học khối ngành Kinh tế và QTKD – năm 2016. Đề tài: ""Ứng Dụng Spectral Risk Measures Đo Lường Rủi Ro Danh Mục Đầu Tư"""
+DOC-0049,REAL-G-DOC-0049,HIEN_MAU_NHAN_DAO,MUC_12,HUMAN_EXCEL,"Hoạt động: Hiến máu tình nguyện
+Vai trò trong minh chứng: Người hiến máu
+Nội dung minh chứng: Đã hiến máu tình nguyện Tại cơ sở tiếp nhận máu: Bệnh viện Trung Ương Huế. Số lượng: 250 ml. Người bệnh luôn ghi ơn tấm lòng nhân ái của Ông/Bà. Ngày 14 tháng 1 năm 2024"
+DOC-0052,REAL-G-DOC-0052,MUC_13,MUC_13,CURATED_FROM_UNLABELED,"Hoạt động: Hội ngộ 2025 - “TẮT ĐÈN”
+Đơn vị tổ chức: CLB Kỹ năng mềm Đà Nẵng - ANTS HOUSE
+Vai trò trong minh chứng: Tham gia tổ chức
+Nội dung minh chứng: Đã tham gia tổ chức thành công chương trình HỘI NGỘ 2025 - “TẮT ĐÈN”. CLB KỸ NĂNG MỀM ĐÀ NẴNG ANTS HOUSE"
+DOC-0054,REAL-G-DOC-0054,MUC_9,MUC_9,CURATED_FROM_UNLABELED,"Hoạt động: Ngày hội giao lưu văn hóa quốc tế DUE 2025
+Vai trò trong minh chứng: Người tham gia
+Nội dung minh chứng: ĐÃ THAM GIA NGÀY HỘI GIAO LƯU VĂN HÓA QUỐC TẾ DUE 2025. Đà Nẵng, ngày 27 tháng 4 năm 2025"
+DOC-0057,REAL-G-DOC-0057,MUC_8,MUC_8,CURATED_FROM_UNLABELED,"Hoạt động: Khóa học online ""Kiến thức cơ bản về giảm thiểu định kiến giới, thúc đẩy bình đẳng giới trong thanh niên""
+Vai trò trong minh chứng: Học viên hoàn thành khóa học
+Nội dung minh chứng: ĐÃ HOÀN THÀNH KHÓA HỌC ONLINE ""KIẾN THỨC CƠ BẢN VỀ GIẢM THIỂU ĐỊNH KIẾN GIỚI, THÚC ĐẨY BÌNH ĐẲNG GIỚI TRONG THANH NIÊN"""
+DOC-0060,REAL-G-DOC-0060,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Chương trình Triển khai mô hình ""Sinh viên với vật dụng thân thiện môi trường""
+Vai trò trong minh chứng: Người tham gia đóng góp
+Nội dung minh chứng: Đã tham gia và có những đóng góp tích cực cho Chương trình Triển khai mô hình ""Sinh viên với vật dụng thân thiện môi trường"". Đà Nẵng, ngày 16 tháng 11 năm 2024"
+DOC-0061,REAL-G-DOC-0061,MUC_12,MUC_12,CURATED_FROM_UNLABELED,"Hoạt động: VnExpress Marathon Da Nang 2025
+Vai trò trong minh chứng: Tình nguyện viên
+Nội dung minh chứng: GIẤY CHỨNG NHẬN TÌNH NGUYỆN VIÊN / VOLUNTEER CERTIFICATE: đã hoàn thành xuất sắc nhiệm vụ tại VnExpress Marathon Da Nang 2025. Da Nang, 20/7/2025"
+DOC-0062,REAL-G-DOC-0010,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Chiến dịch Mùa Hè Xanh 2024 - Xây Nhà vệ sinh tại Hà Giang
+Vai trò trong minh chứng: Tình nguyện viên Online
+Nội dung minh chứng: Chứng nhận Tình nguyện viên Online Mùa Hè Xanh. Đã đồng hành cùng chiến dịch Mùa Hè Xanh 2024 cùng Quỹ Thiện Nguyện Sinh Viên và ủng hộ xây Nhà vệ sinh tại Hà Giang"
+DOC-0063,REAL-G-DOC-0063,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Chương trình ""TIẾP SỨC MÙA THI 2024""
+Đơn vị tổ chức: Hội Sinh viên Việt Nam TP.HCM / Trung tâm Hỗ trợ Học sinh, Sinh viên TP.HCM
+Vai trò trong minh chứng: Tình nguyện viên
+Nội dung minh chứng: Đã tham gia 02 ngày tình nguyện Chương trình ""TIẾP SỨC MÙA THI 2024"" do Hội Sinh viên Việt Nam TP.HCM - Trung tâm Hỗ trợ học sinh, sinh viên TP.HCM tổ chức"
+DOC-0064,REAL-G-DOC-0063,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Chương trình ""Tiếp sức mùa thi năm 2024""
+Đơn vị tổ chức: Đoàn Thanh niên phường Hải Châu II
+Vai trò trong minh chứng: Người tham gia
+Nội dung minh chứng: Tích cực tham gia chương trình ""Tiếp sức mùa thi năm 2024"" do Đoàn Thanh niên phường Hải Châu II tổ chức"
+DOC-0065,REAL-G-DOC-0065,MUC_8,MUC_8,CURATED_FROM_UNLABELED,"Hoạt động: Talkshow ""Sinh viên 5 Tốt - Hành trình hơn cả một danh hiệu""
+Vai trò trong minh chứng: Người tham gia
+Nội dung minh chứng: Đã tham gia Talkshow ""Sinh viên 5 Tốt - Hành trình hơn cả một danh hiệu"". ĐÀ NẴNG, ngày 31 tháng 03 năm 2024"
+DOC-0066,REAL-G-DOC-0066,TUYEN_TRUYEN_PHAP_LUAT,MUC_10,HUMAN_EXCEL,"Hoạt động: Cuộc thi sáng tác tranh ""Tuổi trẻ Đại học Đà Nẵng chung tay phòng, chống các loại tội phạm, tệ nạn xã hội"" năm 2023
+Vai trò trong minh chứng: Thí sinh tham gia sáng tác tranh
+Nội dung minh chứng: Đã tham gia cuộc thi sáng tác tranh ""Tuổi trẻ Đại học Đà Nẵng chung tay phòng, chống các loại tội phạm, tệ nạn xã hội"" năm 2023"
+DOC-0068,REAL-G-DOC-0068,MUC_12,MUC_12,CURATED_FROM_UNLABELED,"Hoạt động: 2024 VinFast IRONMAN 70.3 Viet Nam
+Vai trò trong minh chứng: Người được ghi nhận đóng góp
+Nội dung minh chứng: In grateful recognition of your time and dedication. We could not have done it without you! For the outstanding enthusiasm and the commitment to 2024 VinFast IRONMAN 70.3 Viet Nam."
+DOC-0069,REAL-G-DOC-0069,VAN_HOA_VAN_NGHE_THE_THAO,MUC_9,HUMAN_EXCEL,"Hoạt động: Giải chạy xanh - Chương trình ""Chạy nhanh - Trái Đất xanh""
+Đơn vị tổ chức: Đoàn Thanh niên - Hội Sinh viên Trường Đại học Kinh tế
+Vai trò trong minh chứng: Vận động viên hoàn thành giải chạy thể thao
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: Chứng nhận đã hoàn thành cự ly thi đấu trong Giải chạy xanh - Chương trình ""Chạy nhanh - Trái Đất xanh"" do Đoàn - Hội Trường ĐH Kinh tế tổ chức."
+DOC-0070,REAL-G-DOC-0070,NCKH_CAP_TRUONG,MUC_5,HUMAN_EXCEL,"Hoạt động: Hội thi sinh viên nghiên cứu khoa học, Khoa Quản trị Kinh doanh năm học 2024–2025
+Vai trò trong minh chứng: Nhóm sinh viên đạt giải Ba
+Cấp hoạt động: Cấp khoa
+Nội dung minh chứng: Đã đạt Giải Ba Hội thi sinh viên nghiên cứu khoa học, Khoa Quản trị Kinh doanh năm học 2024-2025. Awarded Third Prize in the Student Scientific Research Contest, Faculty of Business Administration, 2024–2025. Trường Đại học Kinh tế - Đại học Đà Nẵng."
+DOC-0071,REAL-G-DOC-0071,MUC_9,MUC_9,CURATED_FROM_UNLABELED,"Hoạt động: Cuộc thi Sinh viên Tài năng Thanh lịch ""Miss & Mister DUE 2025""
+Vai trò trong minh chứng: Người tham gia đóng góp tích cực
+Cấp hoạt động: Trường Đại học Kinh tế
+Nội dung minh chứng: Đã tham gia và có những đóng góp tích cực trong Cuộc thi Sinh viên Tài năng Thanh lịch Trường Đại học Kinh tế ""Miss & Mister DUE 2025"". Đà Nẵng, ngày 19 tháng 5 năm 2025"
+DOC-0072,REAL-G-DOC-0072,MUC_9,MUC_9,CURATED_FROM_UNLABELED,"Hoạt động: Cuộc thi Tìm kiếm tài năng DUE - SHINE YOUR VOICE
+Vai trò trong minh chứng: Người tham gia và đóng góp
+Nội dung minh chứng: Đã tham gia và có đóng góp tích cực trong Cuộc thi Tìm kiếm tài năng DUE - SHINE YOUR VOICE"
+DOC-0073,REAL-G-DOC-0049,HIEN_MAU_NHAN_DAO,MUC_12,HUMAN_EXCEL,"Hoạt động: Hiến máu tình nguyện
+Vai trò trong minh chứng: Người hiến máu
+Nội dung minh chứng: GIẤY CHỨNG NHẬN HIẾN MÁU TÌNH NGUYỆN BỆNH VIỆN TRUNG ƯƠNG HUẾ. Đã hiến máu tình nguyện. Tại cơ sở tiếp nhận máu: Bệnh viện Trung ương Huế. Số lượng: 350 ml. Ngày 23 tháng 3 năm 2025"
+DOC-0074,REAL-G-DOC-0074,NON_ELIGIBLE_ACTIVITY,KHONG_HOP_LE,HUMAN_EXCEL,"Hoạt động: Inbound Certified
+Đơn vị tổ chức: HubSpot Academy
+Vai trò trong minh chứng: Certificate recipient
+Cấp hoạt động: Khóa học trực tuyến thương mại
+Nội dung minh chứng: HubSpot Academy certification in Inbound Marketing, completed independently as commercial online course."
+DOC-0075,REAL-G-DOC-0075,SINH_HOAT_CONG_DAN,MUC_8,HUMAN_EXCEL,"Hoạt động: Lễ phát động cấp Quốc gia Cuộc vận động ""Tự hào một dải non sông""
+Vai trò trong minh chứng: Người tham gia
+Cấp hoạt động: Cấp quốc gia
+Nội dung minh chứng: ĐOÀN TNCS HỒ CHÍ MINH ĐẠI HỌC ĐÀ NẴNG. Đã tham gia Lễ phát động cấp Quốc gia Cuộc vận động ""Tự hào một dải non sông"" vào ngày 24/12/2023. Đà Nẵng, ngày 25 tháng 12 năm 2023"
+DOC-0076,REAL-G-DOC-0076,MUC_12,MUC_12,CURATED_FROM_UNLABELED,"Hoạt động: 2025 IRONMAN 70.3 Đà Nẵng
+Đơn vị tổ chức: Ban Tổ chức Sự kiện 2025 IRONMAN 70.3 Đà Nẵng
+Vai trò trong minh chứng: Tình nguyện viên
+Nội dung minh chứng: Ban tổ chức sự kiện 2025 IRONMAN 70.3 Đà Nẵng trân trọng ghi nhận và cảm ơn sự đóng góp quý báu. Với vai trò là Tình nguyện viên, bạn đã thể hiện tinh thần trách nhiệm, nhiệt huyết và sự cống hiến trong việc hỗ trợ tổ chức sự kiện thành công."
+DOC-0078,REAL-G-DOC-0010,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Dự án Hướng về Vùng Cao - Chiến dịch Xây Nhà Vệ Sinh Số 10, Số 11 tại Mèo Vạc, Hà Giang
+Vai trò trong minh chứng: Tình nguyện viên đồng hành
+Nội dung minh chứng: Là tình nguyện viên đồng hành cùng Dự án Hướng về Vùng Cao với Chiến dịch Xây Nhà Vệ Sinh Số 10, Số 11 tại Mèo Vạc, Hà Giang. TP.HCM, ngày 10 tháng 10 năm 2024"
+DOC-0079,REAL-G-DOC-0079,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Phiên chợ Tết ""HƯỚNG VỀ ĐỒNG BÀO TÂY GIANG""
+Vai trò trong minh chứng: Tình nguyện viên
+Nội dung minh chứng: Đã nhiệt tình tham gia hỗ trợ sự kiện ""Phiên chợ Tết HƯỚNG VỀ ĐỒNG BÀO TÂY GIANG"" từ ngày 10/01/2025 đến ngày 12/01/2025 với vai trò Tình nguyện viên. Đà Nẵng, ngày 12 tháng 01 năm 2025"
+DOC-0080,REAL-G-DOC-0080,MUC_5,MUC_5,CURATED_FROM_UNLABELED,"Hoạt động: Cuộc thi MARKETING BATTLEGROUND: THE FIERY GEN
+Vai trò trong minh chứng: Đội thi tham gia
+Nội dung minh chứng: Đội thi đã tích cực tham gia Cuộc thi MARKETING BATTLEGROUND: THE FIERY GEN. Đà Nẵng, ngày 11 tháng 05 năm 2025"
+DOC-0081,REAL-G-DOC-0061,MUC_12,MUC_12,CURATED_FROM_UNLABELED,"Hoạt động: VnExpress Marathon Da Nang Midnight 2024
+Vai trò trong minh chứng: Tình nguyện viên
+Nội dung minh chứng: VOLUNTEER CERTIFICATE: đã hoàn thành xuất sắc nhiệm vụ tại VnExpress Marathon Da Nang Midnight 2024. Da Nang, 14/07/2024"
+DOC-0082,REAL-G-DOC-0082,MUC_12,MUC_12,CURATED_FROM_UNLABELED,"Hoạt động: Đại lễ cung đón và chiêm bái Xá Lợi Đức Phật - báu vật quốc gia Ấn Độ
+Đơn vị tổ chức: Ban Trị sự Giáo hội Phật giáo Việt Nam TP. Đà Nẵng
+Vai trò trong minh chứng: Tình nguyện viên
+Nội dung minh chứng: TÁN DƯƠNG CÔNG ĐỨC: Đã tích cực phát tâm tham gia Tình Nguyện viên trong Đại lễ cung đón và chiêm bái Xá Lợi Đức Phật do Ban Trị sự GHPGVN TP. Đà Nẵng tổ chức tại chùa Quán Thế Âm. Ngày 30 tháng 6 năm 2025"
+DOC-0083,REAL-G-DOC-0069,VAN_HOA_VAN_NGHE_THE_THAO,MUC_9,HUMAN_EXCEL,"Hoạt động: Giải chạy xanh ""Chạy nhanh - Trái Đất xanh""
+Đơn vị tổ chức: Đoàn Thanh niên - Hội Sinh viên Trường Đại học Kinh tế
+Vai trò trong minh chứng: Vận động viên hoàn thành giải chạy thể thao
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: Chứng nhận đã hoàn thành cự ly thi đấu trong Giải chạy xanh - Chương trình ""Chạy nhanh - Trái Đất xanh"" do Đoàn - Hội Trường ĐH Kinh tế tổ chức."
+DOC-0084,REAL-G-DOC-0084,KHONG_HOP_LE,KHONG_HOP_LE,CURATED_FROM_UNLABELED,"Hoạt động: Khen thưởng Đạt thành tích học tập loại Giỏi năm học 2024-2025
+Vai trò trong minh chứng: Sinh viên đạt danh hiệu
+Nội dung minh chứng: GIẤY KHEN: Đã đạt thành tích học tập loại Giỏi năm học 2024-2025. Đà Nẵng, ngày 26 tháng 11 năm 2025. QĐ số: 4746/QĐ-ĐHKT"
+DOC-0087,REAL-G-DOC-0087,MUC_5,MUC_5,CURATED_FROM_UNLABELED,"Hoạt động: Cuộc thi học thuật DYNAMIC DUE: “Digital transformation - Unlocking success”
+Vai trò trong minh chứng: Người tham gia đóng góp
+Nội dung minh chứng: Đã tham gia và có những đóng góp tích cực trong Cuộc thi học thuật DYNAMIC DUE với chủ đề ""Digital transformation - Unlocking success"". Đà Nẵng, ngày 14 tháng 4 năm 2025"
+DOC-0088,REAL-G-DOC-0088,MUC_5,MUC_5,CURATED_FROM_UNLABELED,"Hoạt động: Cuộc thi ""Greenovation - Ý tưởng Đại học Xanh""
+Vai trò trong minh chứng: Thí sinh Vòng Chung kết
+Nội dung minh chứng: Đã tham gia Vòng Chung kết Cuộc thi ""Greenovation - Ý tưởng Đại học Xanh"". Đà Nẵng, ngày 9 tháng 4 năm 2024"
+DOC-0089,REAL-G-DOC-0089,MUC_5,MUC_5,CURATED_FROM_UNLABELED,"Hoạt động: Cuộc thi học thuật Economic Arena: ""DIGITAL ECONOMY - THE NEW GENERATION RACE""
+Vai trò trong minh chứng: Cổ động viên
+Nội dung minh chứng: Đã tham gia cổ vũ Vòng Chung kết Cuộc thi học thuật Economic Arena với chủ đề ""DIGITAL ECONOMY - THE NEW GENERATION RACE"". Đà Nẵng, ngày 01 tháng 5 năm 2026"
+DOC-0090,REAL-G-DOC-0090,NON_ELIGIBLE_ACTIVITY,KHONG_HOP_LE,HUMAN_EXCEL,"Hoạt động: Thẻ cử tri
+Nội dung minh chứng: THẺ CỬ TRI. BẦU CỬ ĐẠI BIỂU QUỐC HỘI KHÓA XVI VÀ BẦU CỬ ĐẠI BIỂU HỘI ĐỒNG NHÂN DÂN CÁC CẤP. NHIỆM KỲ 2026–2031."
+DOC-0092,REAL-G-DOC-0092,VAN_HOA_VAN_NGHE_THE_THAO,MUC_9,HUMAN_EXCEL,"Hoạt động: Giải bóng đá sinh viên IT LEAGUE 2024
+Đơn vị tổ chức: Liên chi Đoàn Khoa Công nghệ Thông tin
+Vai trò trong minh chứng: Vận động viên thi đấu giải bóng đá
+Cấp hoạt động: Cấp khoa
+Nội dung minh chứng: Chứng nhận tham gia thi đấu giải bóng đá sinh viên thường niên IT LEAGUE 2024 do Liên chi Đoàn Khoa CNTT tổ chức."
+DOC-0093,REAL-G-DOC-0093,MUC_9,MUC_9,CURATED_FROM_UNLABELED,"Hoạt động: FACULTY ANNUAL ESPORTS LEAGUE - IT ESPORTS: ARENA OF VALOR 2024
+Vai trò trong minh chứng: Người đóng góp (outstanding contribution)
+Cấp hoạt động: IT Faculty
+Nội dung minh chứng: CERTIFICATE OF PARTICIPATION: FOR OUTSTANDING CONTRIBUTION TO IT FACULTY ANNUAL ESPORTS LEAGUE - IT ESPORTS - ARENA OF VALOR 2024! March 17, 2024"
+DOC-0095,REAL-G-DOC-0095,HACKATHON_CAP_THANH_PHO,MUC_5,HUMAN_EXCEL,"Hoạt động: Da Nang Code League 2024 — Code War
+Đơn vị tổ chức: Ban Tổ chức Da Nang Code League 2024
+Vai trò trong minh chứng: Thí sinh tham gia thi đấu lập trình Code War
+Cấp hoạt động: Cấp thành phố
+Nội dung minh chứng: Chứng nhận tham gia thi đấu hạng mục Code War tại giải đấu lập trình sinh viên Da Nang Code League 2024 cấp Thành phố Đà Nẵng."
+DOC-0097,REAL-G-DOC-0097,MUC_8,MUC_8,CURATED_FROM_UNLABELED,"Hoạt động: Chương trình ""Phổ Cập AI"" - Khóa Tập huấn Kỹ Năng AI dành cho Cán bộ Đoàn-Hội
+Vai trò trong minh chứng: Học viên hoàn thành tập huấn kỹ năng AI
+Nội dung minh chứng: TRUNG ƯƠNG ĐOÀN TNCS HỒ CHÍ MINH: CHỨNG NHẬN HOÀN THÀNH Chương trình ""Phổ Cập AI"". Đã hoàn thành Khóa Tập huấn Kỹ Năng AI dành cho Cán bộ Đoàn-Hội. Ngày cấp: 21 thg 6 năm 2025"
+DOC-0098,REAL-G-DOC-0090,NON_ELIGIBLE_ACTIVITY,KHONG_HOP_LE,HUMAN_EXCEL,"Hoạt động: Thẻ cử tri
+Nội dung minh chứng: THẺ CỬ TRI. BẦU CỬ ĐẠI BIỂU QUỐC HỘI KHÓA XVI VÀ BẦU CỬ ĐẠI BIỂU HỘI ĐỒNG NHÂN DÂN CÁC CẤP. NHIỆM KỲ 2026–2031."
+DOC-0100,REAL-G-DOC-0100,MUC_12,MUC_12,CURATED_FROM_UNLABELED,"Hoạt động: 2025 IRONMAN 70.3 DA NANG
+Đơn vị tổ chức: Ban tổ chức sự kiện 2025 IRONMAN 70.3 Da Nang
+Vai trò trong minh chứng: Tình nguyện viên hỗ trợ tổ chức sự kiện
+Nội dung minh chứng: Với vai trò là tình nguyện viên, bạn đã thể hiện tinh thần trách nhiệm, nhiệt huyết và sự cống hiến trong việc hỗ trợ tổ chức sự kiện thành công."
+DOC-0101,REAL-G-DOC-0101,VAN_HOA_VAN_NGHE_THE_THAO,MUC_9,HUMAN_EXCEL,"Hoạt động: Hội thao sinh viên DBA CHAMPION 2025
+Đơn vị tổ chức: Liên chi đoàn Khoa Quản trị kinh doanh - Trường Đại học Kinh tế
+Vai trò trong minh chứng: Vận động viên
+Cấp hoạt động: Cấp khoa
+Nội dung minh chứng: Vận động viên đã tham gia hội thao sinh viên DBA CHAMPION 2025. Đà Nẵng, ngày 10 tháng 05 năm 2025. TM. BAN CHẤP HÀNH LCĐ KHOA - BÍ THƯ."
+DOC-0102,REAL-G-DOC-0102,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Chiến dịch Tình nguyện Đông 2024 tại xã Trà Nu, Bắc Trà My
+Đơn vị tổ chức: Ban Chấp hành Đoàn Trường Đại học Kinh tế - ĐHĐN
+Vai trò trong minh chứng: Tình nguyện viên tham gia chiến dịch thực địa
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: GIẤY CHỨNG NHẬN Đã tham gia và có đóng góp tích cực trong Chiến dịch Tình nguyện Đông 2024 tại xã Trà Nu, huyện Bắc Trà My do Ban Chấp hành Đoàn Trường ĐH Kinh tế - ĐHĐN tổ chức ngày 28/12/2024."
+DOC-0103,REAL-G-DOC-0103,VAN_HOA_VAN_NGHE_THE_THAO,MUC_9,HUMAN_EXCEL,"Hoạt động: Phong trào Sinh viên Khỏe năm 2023
+Đơn vị tổ chức: Đoàn Thanh niên - Hội Sinh viên Trường Đại học Kinh tế
+Vai trò trong minh chứng: Đạt danh hiệu Sinh viên Khỏe (hoàn thành tiêu chuẩn thể lực)
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: GIẤY CHỨNG NHẬN Đạt danh hiệu ""Sinh viên Khỏe"" cấp Trường năm 2023 do Ban Chấp hành Đoàn Trường và Ban Thư ký Hội Sinh viên Trường ĐH Kinh tế cấp ngày 28/11/2023."
+DOC-0106,REAL-G-DOC-0106,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Trung thu thiện nguyện 2023 ""Ánh trăng trao em""
+Đơn vị tổ chức: CLB C-RES - Đoàn Thanh niên Trường ĐHKT
+Vai trò trong minh chứng: Tình nguyện viên tổ chức Trung thu thiện nguyện
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: GIẤY CHỨNG NHẬN Đã tham gia và có đóng góp tích cực với tư cách Tình nguyện viên trong chương trình Trung thu thiện nguyện 2023 ""Ánh trăng trao em"" do CLB C-RES và Đoàn Thanh niên Trường ĐH Kinh tế tổ chức."
+DOC-0107,REAL-G-DOC-0107,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Dự án Tình nguyện ""Chuyến bay 71"" năm 2024
+Đơn vị tổ chức: Ban Chấp hành Đoàn Trường Đại học Kinh tế - ĐHĐN
+Vai trò trong minh chứng: Tình nguyện viên tham gia dự án thiện nguyện
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: GIẤY CHỨNG NHẬN Đã có đóng góp tích cực trong Dự án Tình nguyện ""Chuyến bay 71"" năm 2024 do Ban Chấp hành Đoàn Trường ĐH Kinh tế - ĐHĐN tổ chức."
+DOC-0108,REAL-G-DOC-0108,VAN_HOA_VAN_NGHE_THE_THAO,MUC_9,HUMAN_EXCEL,"Hoạt động: Giải chạy xanh - Chương trình Chạy nhanh - Trái Đất thêm xanh
+Đơn vị tổ chức: Ban Chấp hành Đoàn Trường Đại học Kinh tế
+Vai trò trong minh chứng: Người hoàn thành giải chạy
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: Đã hoàn thành Giải chạy xanh Chương trình Chạy nhanh - Trái Đất thêm xanh. Quyết định số 89/QĐ/ĐTN-VP của Đoàn trường ĐH Kinh tế. Đà Nẵng, ngày 04 tháng 12 năm 2023."
+DOC-0109,REAL-G-DOC-0109,MUC_5,MUC_5,CURATED_FROM_UNLABELED,"Hoạt động: Cuộc thi học thuật DYNAMIC DUE: Digital transformation - Unlocking success
+Đơn vị tổ chức: Đoàn Thanh niên - Hội Sinh viên Trường Đại học Kinh tế
+Vai trò trong minh chứng: Người tham gia cuộc thi
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: Đã tham gia Cuộc thi học thuật DYNAMIC DUE với chủ đề Digital transformation - Unlocking success. Quyết định số 45-QĐ."
+DOC-0111,REAL-G-DOC-0111,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Chương trình Xuân Tình Nguyện 2026
+Đơn vị tổ chức: Ban Thư ký Hội Sinh viên Trường Đại học Bách khoa
+Vai trò trong minh chứng: Cá nhân tham gia tích cực (theo danh sách kèm theo)
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: QUYẾT ĐỊNH Về việc xác nhận danh sách cho cá nhân tham gia tích cực chương trình Xuân Tình Nguyện 2026. Số: 04-QĐ/ĐHBK-HSV của Hội Sinh viên Trường ĐH Bách khoa ngày 05/05/2026 xác nhận cho 111 cá nhân của Đội Công tác Xã hội."
+DOC-0112,REAL-G-DOC-0112,MUC_13,MUC_13,CURATED_FROM_UNLABELED,"Hoạt động: Ngày hội việc làm Bách Khoa - DUT Job Fair 2025 (Đợt 2)
+Đơn vị tổ chức: Trường Đại học Bách khoa
+Vai trò trong minh chứng: Cộng tác viên hỗ trợ công tác truyền thông
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: DANH SÁCH CỘNG TÁC VIÊN HỖ TRỢ CÔNG TÁC TRUYỀN THÔNG NGÀY HỘI VIỆC LÀM BÁCH KHOA - DUT JOB FAIR 2025 (ĐỢT 2) tổ chức ngày 01/11/2025 tại Trường Đại học Bách khoa (Danh sách có 27 sinh viên). Ký ngày 03/11/2025."
+DOC-0113,REAL-G-DOC-0113,MUC_5,MUC_5,CURATED_FROM_UNLABELED,"Hoạt động: Vòng chung kết Cuộc thi Chuyển đổi số và Quản lý thông minh BK Smart Campus
+Đơn vị tổ chức: Đoàn TNCS Hồ Chí Minh Trường Đại học Bách khoa
+Vai trò trong minh chứng: Cá nhân tham gia cổ vũ (theo danh sách kèm theo)
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: QUYẾT ĐỊNH Về việc cấp giấy chứng nhận online cho 406 cá nhân đã tích cực tham gia cổ vũ Vòng chung kết Cuộc thi Chuyển đổi số và Quản lý thông minh BK Smart Campus do Đoàn Thanh niên Trường Đại học Bách khoa tổ chức ngày 18 tháng 4 năm 2026. Số: 434-QĐ/ĐHBK-ĐTN ký ngày 20/04/2026."
+DOC-0114,REAL-G-DOC-0114,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Chương trình Xây dựng bản đồ phòng trọ - BK's Map
+Đơn vị tổ chức: Ban Thư ký Hội Sinh viên Trường Đại học Bách khoa
+Vai trò trong minh chứng: Cá nhân tham gia tích cực (theo danh sách kèm theo)
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: QUYẾT ĐỊNH Về việc cấp Giấy chứng nhận, xác nhận danh sách cho cá nhân tham gia tích cực chương trình Xây dựng bản đồ phòng trọ - BK's Map của Đội Tư vấn Sinh viên. Số: 110-QĐ/ĐHBK-HSV ký ngày 13/10/2025 cấp GCN cho 15 cá nhân và xác nhận danh sách cho 05 cá nhân."
+DOC-0115,REAL-G-DOC-0115,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Chương trình Lớp học tình thương 2026
+Đơn vị tổ chức: Ban Thư ký Hội Sinh viên Trường Đại học Bách khoa
+Vai trò trong minh chứng: Cá nhân tham gia tích cực (theo danh sách kèm theo)
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: QUYẾT ĐỊNH Về việc xác nhận danh sách cho cá nhân tham gia tích cực chương trình Lớp học tình thương 2026 của Đội Công tác Xã hội. Số: 243-QĐ/ĐHBK-HSV ký ngày 14/05/2026 xác nhận cho 197 cá nhân."
+DOC-0116,REAL-G-DOC-0116,MUC_13,MUC_13,CURATED_FROM_UNLABELED,"Hoạt động: Chương trình ""Trạm xuân"" của Đội Tư vấn Sinh viên
+Đơn vị tổ chức: Ban Thư ký Hội Sinh viên Trường Đại học Bách khoa
+Vai trò trong minh chứng: Cá nhân tham gia tích cực (theo danh sách kèm theo)
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: QUYẾT ĐỊNH Về việc xác nhận danh sách cho cá nhân tham gia tích cực Chương trình ""Trạm xuân"" của Đội Tư vấn Sinh viên. Số: 213-QĐ/ĐHBK-HSV ký ngày 05/05/2026 xác nhận cho 64 cá nhân."
+DOC-0119,REAL-G-DOC-0119,MUC_13,MUC_13,CURATED_FROM_UNLABELED,"Hoạt động: Chương trình Sinh nhật Đội ""16 năm đồng hành – Rạng ngời tiếp nối""
+Đơn vị tổ chức: Ban Thư ký Hội Sinh viên Trường Đại học Bách khoa
+Vai trò trong minh chứng: Cá nhân tham gia tích cực (theo danh sách kèm theo)
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: QUYẾT ĐỊNH Về việc xác nhận danh sách cho cá nhân tham gia tích cực Chương trình Sinh nhật Đội ""16 năm đồng hành – Rạng ngời tiếp nối"" của Đội Tư vấn Sinh viên. Số: 211-QĐ/ĐHBK-HSV ký ngày 05/05/2026 xác nhận cho 67 cá nhân."
+DOC-0121,REAL-G-DOC-0121,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Chương trình Tình nguyện Xuân 2026 “Băng ấm — Xuân an”
+Đơn vị tổ chức: Ban Thư ký Hội Sinh viên Trường Đại học Bách khoa
+Vai trò trong minh chứng: Cá nhân tham gia tích cực (theo danh sách kèm theo)
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: QUYẾT ĐỊNH Về việc xác nhận danh sách cho cá nhân tham gia tích cực Chương trình Tình nguyện Xuân 2026 “Băng ấm — Xuân an” của Đội Tư vấn Sinh viên. Số: 209-QĐ/ĐHBK-HSV ký ngày 05/05/2026 xác nhận cho 41 cá nhân."
+DOC-0122,REAL-G-DOC-0122,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Chương trình Ngày Hạnh Phúc 2025
+Đơn vị tổ chức: Ban Thư ký Hội Sinh viên Trường Đại học Bách khoa
+Vai trò trong minh chứng: Cá nhân tham gia tích cực (theo danh sách kèm theo)
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: QUYẾT ĐỊNH Về việc xác nhận danh sách cho cá nhân tham gia tích cực chương trình Ngày Hạnh Phúc 2025 của Đội Công tác Xã hội. Số: 207-QĐ/ĐHBK-HSV ký ngày 05/05/2026 xác nhận cho 119 cá nhân."

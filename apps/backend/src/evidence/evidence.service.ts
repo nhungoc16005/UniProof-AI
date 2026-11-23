@@ -323,6 +323,13 @@ export class EvidenceService {
       throw new BadRequestException('Cần cung cấp tệp minh chứng (fileData hoặc fileUrl) để chạy AI.');
     }
 
+    const targetCriterion = dto.criterionId
+      ? await this.prisma.criterion.findUnique({
+          where: { id: dto.criterionId },
+          select: { id: true, code: true, name: true, maxScore: true, scoringConfig: true },
+        })
+      : null;
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), Number(process.env.AI_PIPELINE_TIMEOUT_MS || 60000));
     let response: Response;
@@ -342,10 +349,12 @@ export class EvidenceService {
           participationDate: dto.participationDate || null,
           termStartDate: dto.termStartDate || null,
           termEndDate: dto.termEndDate || null,
-          enableWebSearch: dto.enableWebSearch ?? false,
+          enableWebSearch: dto.enableWebSearch ?? true,
           fileUrl: dto.fileUrl || null,
           fileBytesBase64: fileBytesBase64 || null,
           previousHashes: dto.previousHashes || null,
+          ocrEngine: dto.ocrEngine || 'auto',
+          criterion: targetCriterion || null,
         }),
       });
     } catch (error) {
@@ -568,7 +577,15 @@ export class EvidenceService {
     });
     if (!response.ok) throw new ServiceUnavailableException(`Supabase Storage từ chối tải tệp (HTTP ${response.status}). Kiểm tra bucket "${bucket}", khóa service role và định dạng tệp.`);
     try {
-      const file = await this.workflow.studentEdit(studentId, evidence.termId, tx => tx.evidenceFile.create({ data: { evidenceId: id, fileUrl: `evidence/${objectKey}`, fileType: dto.fileType, fileName: dto.fileName, fileSize: buffer.length } }));
+      const file = await this.workflow.studentEdit(studentId, evidence.termId, async (tx) => {
+        const created = await tx.evidenceFile.create({ data: { evidenceId: id, fileUrl: `evidence/${objectKey}`, fileType: dto.fileType, fileName: dto.fileName, fileSize: buffer.length } });
+        // TEMP TEST MODE (AI_ALLOW_DRAFT_PROCESSING=true): tự kích hoạt AI ngay khi tải file lên hồ sơ nháp
+        if (process.env.AI_ALLOW_DRAFT_PROCESSING === 'true' && getAiMode() !== 'OFF') {
+          const pending = await tx.aiProcessingJob.count({ where: { evidenceId: id, status: { in: ['QUEUED', 'PROCESSING'] } } });
+          if (!pending) await tx.aiProcessingJob.create({ data: { evidenceId: id } });
+        }
+        return created;
+      });
       return { ...file, fileUrl: await this.getFileUrl(file.fileUrl) };
     } catch (error) {
       await fetch(`${baseUrl}/storage/v1/object/${encodeURIComponent(bucket)}/${objectKey.split('/').map(encodeURIComponent).join('/')}`, { method: 'DELETE', headers: { apikey: key, Authorization: `Bearer ${key}` } }).catch(() => undefined);

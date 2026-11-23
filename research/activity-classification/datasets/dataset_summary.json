@@ -1,0 +1,29 @@
+{
+  "source": "D:\\UniProof-AI\\docs\\dataset-final-20261102\\data_tracker.xlsx",
+  "total_rows": 124,
+  "labeled_count": 123,
+  "excluded_unreadable_count": 1,
+  "excluded_ids": [
+    "DOC-0020-B"
+  ],
+  "by_label_source": {
+    "CURATED_FROM_UNLABELED": 72,
+    "HUMAN_EXCEL": 51
+  },
+  "unique_groups_labeled": 103,
+  "splits": {
+    "train": 83,
+    "val": 18,
+    "test": 22
+  },
+  "criterion_distribution": {
+    "MUC_12": 47,
+    "MUC_5": 23,
+    "MUC_9": 20,
+    "MUC_13": 13,
+    "MUC_8": 11,
+    "MUC_10": 4,
+    "KHONG_HOP_LE": 4,
+    "MUC_4": 1
+  }
+}

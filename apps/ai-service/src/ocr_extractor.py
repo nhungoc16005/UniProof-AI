@@ -3,15 +3,20 @@ import os
 import re
 import shutil
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from pathlib import Path
+import time
 from typing import Any, Optional
 
 from PIL import Image, ImageEnhance, ImageOps
 
 from .config import settings
-from .schemas import BloodDonationData, EvidenceType, OcrExtractionResult
+from .schemas import BloodDonationData, EvidenceType, OcrBoxItem, OcrExtractionResult
+from .vietnamese_ocr_engine import (
+    is_rapidocr_installed,
+    recognize_pil_image,
+)
 
 
 @dataclass(frozen=True)
@@ -23,6 +28,8 @@ class _RecognitionResult:
     method: Optional[str] = None
     ambiguous: bool = False
     word_count: int = 0
+    elapsed_ms: Optional[int] = None
+    boxes: list[OcrBoxItem] = field(default_factory=list)
 
 
 _TESSERACT_CANDIDATES = (
@@ -126,8 +133,9 @@ class OcrExtractorService:
         declared_student_code: Optional[str] = None,
         declared_activity_name: Optional[str] = None,
         declared_citizen_id: Optional[str] = None,
+        ocr_engine: str = "auto",
     ) -> OcrExtractionResult:
-        recognition = OcrExtractorService._extract_text_detailed(file_bytes)
+        recognition = OcrExtractorService._extract_text_detailed(file_bytes, ocr_engine=ocr_engine)
         return OcrExtractorService.parse_text(
             recognition.text,
             recognition.available,
@@ -140,6 +148,8 @@ class OcrExtractorService:
             recognition_confidence=recognition.confidence,
             recognition_method=recognition.method,
             recognition_ambiguous=recognition.ambiguous,
+            processing_time_ms=recognition.elapsed_ms,
+            ocr_boxes=recognition.boxes or None,
         )
 
     @staticmethod
@@ -150,6 +160,7 @@ class OcrExtractorService:
         declared_student_code: Optional[str] = None,
         declared_activity_name: Optional[str] = None,
         declared_citizen_id: Optional[str] = None,
+        ocr_engine: str = "auto",
     ) -> OcrExtractionResult:
         """OCR mọi tệp đính kèm, gộp văn bản rồi trích xuất một lần.
 
@@ -157,7 +168,9 @@ class OcrExtractorService:
         """
         recognitions: list[_RecognitionResult] = []
         for file_bytes in files:
-            recognitions.append(OcrExtractorService._extract_text_detailed(file_bytes))
+            recognitions.append(
+                OcrExtractorService._extract_text_detailed(file_bytes, ocr_engine=ocr_engine)
+            )
         texts = [result.text for result in recognitions if result.available and result.text]
         merged = "\n".join(texts).strip()
         if not texts:
@@ -186,6 +199,8 @@ class OcrExtractorService:
             else None
         )
         methods = [result.method for result in recognitions if result.method]
+        total_elapsed = sum(result.elapsed_ms for result in recognitions if result.elapsed_ms is not None)
+        first_boxes = recognitions[0].boxes if recognitions else []
         ambiguous = (
             any(result.ambiguous for result in recognitions)
             or OcrExtractorService._fields_disagree(texts)
@@ -202,6 +217,8 @@ class OcrExtractorService:
             recognition_confidence=confidence,
             recognition_method=";".join(dict.fromkeys(methods)) or None,
             recognition_ambiguous=ambiguous,
+            processing_time_ms=total_elapsed or None,
+            ocr_boxes=first_boxes or None,
         )
 
     @staticmethod
@@ -217,6 +234,8 @@ class OcrExtractorService:
         recognition_confidence: Optional[float] = None,
         recognition_method: Optional[str] = None,
         recognition_ambiguous: bool = False,
+        processing_time_ms: Optional[int] = None,
+        ocr_boxes: Optional[list[OcrBoxItem]] = None,
     ) -> OcrExtractionResult:
         student_name = OcrExtractorService._extract_name(raw_text, declared_name)
         student_code = OcrExtractorService._extract_student_code(raw_text)
@@ -292,6 +311,8 @@ class OcrExtractorService:
             recognitionConfidence=recognition_confidence,
             recognitionMethod=recognition_method,
             recognitionAmbiguous=recognition_ambiguous,
+            processingTimeMs=processing_time_ms,
+            ocrBoxes=ocr_boxes,
         )
 
     @staticmethod
@@ -300,7 +321,8 @@ class OcrExtractorService:
         return result.text, result.available, result.error
 
     @staticmethod
-    def _extract_text_detailed(file_bytes: bytes) -> _RecognitionResult:
+    def _extract_text_detailed(file_bytes: bytes, ocr_engine: str = "auto") -> _RecognitionResult:
+        started = time.perf_counter()
         images: list[Image.Image] = []
         if file_bytes.startswith(b"%PDF"):
             try:
@@ -318,6 +340,7 @@ class OcrExtractorService:
                         True,
                         method="pdf_text_layer",
                         word_count=len(pdf_text.split()),
+                        elapsed_ms=int((time.perf_counter() - started) * 1000),
                     )
                 images = []
                 for page in pages:
@@ -334,6 +357,51 @@ class OcrExtractorService:
             except Exception as error:
                 return _RecognitionResult("", False, f"Không đọc được ảnh: {error}")
 
+        resolved_engine = (
+            os.getenv("OCR_ENGINE", "rapidocr_vietocr")
+            if ocr_engine == "auto"
+            else ocr_engine
+        ).strip().lower()
+
+        if resolved_engine in {"rapidocr_vietocr", "rapidocr"} and is_rapidocr_installed():
+            engine_outputs = [
+                recognize_pil_image(image, mode=resolved_engine)
+                for image in images
+            ]
+            valid_outputs = [out for out in engine_outputs if out.available and out.text]
+            if valid_outputs:
+                merged_text = "\n".join(out.text for out in valid_outputs).strip()
+                confs = [out.confidence for out in valid_outputs if out.confidence is not None]
+                mean_conf = round(sum(confs) / len(confs), 1) if confs else None
+                first_boxes = [
+                    OcrBoxItem(
+                        text=box.text,
+                        confidence=box.confidence,
+                        bbox=[box.bbox[0], box.bbox[1], box.bbox[2], box.bbox[3]],
+                    )
+                    for box in engine_outputs[0].boxes
+                ]
+                return _RecognitionResult(
+                    text=merged_text,
+                    available=True,
+                    confidence=mean_conf,
+                    method=valid_outputs[0].engine,
+                    ambiguous=False,
+                    word_count=len(merged_text.split()),
+                    elapsed_ms=int((time.perf_counter() - started) * 1000),
+                    boxes=first_boxes,
+                )
+            if ocr_engine in {"rapidocr_vietocr", "rapidocr"}:
+                first_err = next((out.error for out in engine_outputs if out.error), None)
+                any_avail = any(out.available for out in engine_outputs)
+                return _RecognitionResult(
+                    "",
+                    any_avail,
+                    first_err or "OCR không tìm thấy văn bản đọc được.",
+                    method=resolved_engine,
+                    elapsed_ms=int((time.perf_counter() - started) * 1000),
+                )
+
         try:
             import pytesseract  # noqa: F401
         except ImportError:
@@ -341,6 +409,7 @@ class OcrExtractorService:
                 "",
                 False,
                 "Chưa cài pytesseract và Tesseract OCR; không thể trích xuất văn bản.",
+                elapsed_ms=int((time.perf_counter() - started) * 1000),
             )
 
         configure_tesseract_environment()
@@ -356,12 +425,13 @@ class OcrExtractorService:
                     "",
                     True,
                     "OCR đã chạy nhưng không tìm thấy văn bản đọc được.",
+                    elapsed_ms=int((time.perf_counter() - started) * 1000),
                 )
             error = next(
                 (result.error for result in results if result.error),
                 "Không tìm thấy chương trình Tesseract OCR trên máy chủ.",
             )
-            return _RecognitionResult("", False, error)
+            return _RecognitionResult("", False, error, elapsed_ms=int((time.perf_counter() - started) * 1000))
 
         word_count = sum(result.word_count for result in text_results)
         confidence_results = [
@@ -389,6 +459,7 @@ class OcrExtractorService:
                 or OcrExtractorService._fields_disagree(texts)
             ),
             word_count=word_count,
+            elapsed_ms=int((time.perf_counter() - started) * 1000),
         )
 
     @staticmethod
@@ -524,17 +595,40 @@ class OcrExtractorService:
 
     @staticmethod
     def _extract_name(text: str, declared_name: Optional[str] = None) -> Optional[str]:
+        non_name_prefixes = (
+            "tinh nguyen vien", "thanh vien", "ban to chuc", "tham gia",
+            "hoan thanh", "dat giai", "cuoc thi", "chien dich", "chuong trinh",
+            "da tham gia", "da hoan thanh", "giay chung nhan", "giay khen",
+        )
+
+        def _is_plausible_name(candidate: str) -> bool:
+            words = candidate.split()
+            if not (2 <= len(words) <= 6):
+                return False
+            if any(char.isdigit() for char in candidate):
+                return False
+            norm_spaces = re.sub(
+                r"\s+",
+                " ",
+                "".join(
+                    c for c in unicodedata.normalize("NFD", candidate.casefold())
+                    if unicodedata.category(c) != "Mn"
+                ).replace("đ", "d"),
+            ).strip()
+            return not any(norm_spaces.startswith(prefix) for prefix in non_name_prefixes)
+
         patterns = (
             r"(?:họ\s*và\s*tên|họ\s*tên|sinh\s*viên|người\s*hiến|"
             r"ho\s*va\s*ten|ho\s*ten|sinh\s*vien|nguoi\s*hien)"
             r"\s*[:\-]\s*(.+?)(?=\s+(?:mssv|mã\s*sinh\s*viên|ma\s*sinh\s*vien|cccd|cmnd)\s*[:\-]|\n|$)",
+            r"(?:this\s+is\s+to\s+certify\s+that|awarded\s+to|presented\s+to)\s*[:\-]?\s*\n?\s*([^\n,;]{4,60})",
             r"(?:chứng nhận|tặng)[ \t]+(?:sinh viên[ \t]+)?([^\n,;]{5,60})",
         )
         for pattern in patterns:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
                 candidate = re.sub(r"\s+", " ", match.group(1)).strip(" :-")
-                if len(candidate.split()) >= 2:
+                if _is_plausible_name(candidate):
                     return candidate
         if declared_name:
             expected = OcrExtractorService._normalize(declared_name)
@@ -551,6 +645,30 @@ class OcrExtractorService:
                 ratio, candidate = max(matches, key=lambda match: match[0])
                 if ratio >= 0.75:
                     return candidate
+        # Fallback: tìm dòng in hoa 2-5 từ tiếng Việt đứng riêng (phổ biến trên giấy khen/GCN).
+        org_keywords = (
+            "truong", "dai hoc", "khoa", "doan", "hoi", "mang luoi", "quy",
+            "cong hoa", "doc lap", "giay chung nhan", "giay khen", "ban chap hanh",
+            "uy ban", "certificate", "participation", "da nang", "viet nam", "chi doan",
+        )
+        for raw_line in text.splitlines():
+            line = re.sub(r"\s+", " ", raw_line).strip(" :-—•*")
+            if not _is_plausible_name(line):
+                continue
+            words = line.split()
+            if not (2 <= len(words) <= 5):
+                continue
+            if line == line.upper() and any(ch.isalpha() for ch in line):
+                norm_line = re.sub(
+                    r"\s+",
+                    " ",
+                    "".join(
+                        c for c in unicodedata.normalize("NFD", line.casefold())
+                        if unicodedata.category(c) != "Mn"
+                    ).replace("đ", "d"),
+                )
+                if not any(kw in norm_line for kw in org_keywords):
+                    return line
         return None
 
     @staticmethod
@@ -596,6 +714,8 @@ class OcrExtractorService:
 
     @staticmethod
     def _extract_date(text: str) -> Optional[str]:
+        from datetime import date
+
         decomposed = unicodedata.normalize("NFD", text.casefold())
         normalized = "".join(
             character
@@ -607,14 +727,32 @@ class OcrExtractorService:
             normalized,
             re.IGNORECASE,
         )
-        if not match:
-            return None
-        day, month, year = (int(value) for value in match.groups())
-        try:
-            from datetime import date
-            return date(year, month, day).isoformat()
-        except ValueError:
-            return None
+        if match:
+            day, month, year = (int(value) for value in match.groups())
+            try:
+                return date(year, month, day).isoformat()
+            except ValueError:
+                pass
+        month_map = {
+            "jan": 1, "january": 1, "feb": 2, "february": 2, "mar": 3, "march": 3,
+            "apr": 4, "april": 4, "may": 5, "jun": 6, "june": 6, "jul": 7, "july": 7,
+            "aug": 8, "august": 8, "sep": 9, "sept": 9, "september": 9,
+            "oct": 10, "october": 10, "nov": 11, "november": 11, "dec": 12, "december": 12,
+        }
+        en_match = re.search(
+            r"\b(\d{1,2})[\s,./?-]+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)[\s,./?-]+(\d{4})\b",
+            normalized,
+            re.IGNORECASE,
+        )
+        if en_match:
+            day = int(en_match.group(1))
+            month = month_map.get(en_match.group(2).lower(), 0)
+            year = int(en_match.group(3))
+            try:
+                return date(year, month, day).isoformat()
+            except ValueError:
+                pass
+        return None
 
     @staticmethod
     def _extract_cert_number(text: str) -> Optional[str]:

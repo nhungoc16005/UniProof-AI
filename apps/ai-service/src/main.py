@@ -1,14 +1,26 @@
+import io
 import logging
 import os
+import time
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from PIL import Image, ImageOps
 
-from .schemas import DeclaredStudent, UnifiedInspectionRequest, UnifiedInspectionResponse
-from .ocr_extractor import configure_tesseract_environment
+from .schemas import (
+    DeclaredStudent,
+    OcrCompareEngineResult,
+    OcrCompareRequest,
+    OcrCompareResponse,
+    UnifiedInspectionRequest,
+    UnifiedInspectionResponse,
+)
+from .ocr_extractor import OcrExtractorService, configure_tesseract_environment
 from .pipeline_orchestrator import UnifiedPipelineOrchestrator
 from .criterion_evaluator import evaluate_criterion
+from .predictor import is_rubric_model_available
+from .vietnamese_ocr_engine import is_rapidocr_installed, is_vietocr_installed
 
 logger = logging.getLogger(__name__)
 
@@ -72,15 +84,76 @@ def health_check() -> dict[str, Any]:
         )
     except ImportError:
         face_detection_available = False
+    rapid_ok = is_rapidocr_installed()
+    viet_ok = is_vietocr_installed()
+    default_engine = os.getenv("OCR_ENGINE", "rapidocr_vietocr" if rapid_ok else "tesseract")
     return {
         "status": "healthy",
-        "ocrAvailable": ocr_available,
-        "ocrMessage": ocr_message,
+        "ocrAvailable": ocr_available or rapid_ok,
+        "tesseractAvailable": ocr_available,
+        "rapidOcrAvailable": rapid_ok,
+        "vietOcrAvailable": viet_ok,
+        "rubricMlModelAvailable": is_rubric_model_available(),
+        "defaultOcrEngine": default_engine,
+        "ocrMessage": ocr_message if not (ocr_available or rapid_ok) else None,
         "eventFaceDetectionAvailable": face_detection_available,
         "eventIdentityMatching": False,
         "eventIdentityMessage": "Hiện chỉ phát hiện khuôn mặt; chưa có mô hình đối chiếu danh tính.",
         "supportedSources": ["GIAY_KHEN", "GIAY_XAC_NHAN", "GIAY_HIEN_MAU", "VE_CHECKIN", "ANH_SU_KIEN"],
     }
+
+
+@app.post(
+    "/api/v1/evidence/compare-ocr",
+    response_model=OcrCompareResponse,
+    tags=["OCR Lab"],
+    summary="So sánh A/B trực tiếp các engine OCR trên cùng một tệp minh chứng",
+)
+async def compare_ocr_engines(request: OcrCompareRequest) -> OcrCompareResponse:
+    try:
+        file_bytes = await UnifiedPipelineOrchestrator._extract_bytes(request.fileBytesBase64, None)
+    except ValueError as error:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error
+
+    img_w: int | None = None
+    img_h: int | None = None
+    try:
+        preview_bytes = UnifiedPipelineOrchestrator._image_for_inspection(file_bytes)
+        with Image.open(io.BytesIO(preview_bytes)) as img:
+            normalized = ImageOps.exif_transpose(img)
+            img_w, img_h = normalized.size
+    except Exception:
+        pass
+
+    student = request.declaredStudent
+    results: list[OcrCompareEngineResult] = []
+    for engine in request.engines:
+        started = time.perf_counter()
+        extraction = OcrExtractorService.extract_and_parse(
+            file_bytes,
+            evidence_type=request.evidenceType,
+            declared_name=student.fullName if student else None,
+            declared_student_code=student.studentCode if student else None,
+            declared_activity_name=request.activityName,
+            declared_citizen_id=student.citizenId if student else None,
+            ocr_engine=engine,
+        )
+        elapsed_ms = extraction.processingTimeMs or int((time.perf_counter() - started) * 1000)
+        results.append(
+            OcrCompareEngineResult(
+                engine=engine,
+                elapsedMs=elapsed_ms,
+                boxCount=len(extraction.ocrBoxes or []),
+                extraction=extraction,
+            )
+        )
+
+    return OcrCompareResponse(
+        success=True,
+        imageWidth=img_w,
+        imageHeight=img_h,
+        results=results,
+    )
 
 
 @app.post(
@@ -90,7 +163,30 @@ def health_check() -> dict[str, Any]:
 )
 async def inspect_evidence(request: UnifiedInspectionRequest) -> UnifiedInspectionResponse:
     try:
-        return await UnifiedPipelineOrchestrator.process(request)
+        result = await UnifiedPipelineOrchestrator.process(request)
+        if request.criterion:
+            result.criterionAssessment = evaluate_criterion(
+                request.criterion,
+                result.ocrExtraction.rawText if result.ocrExtraction else "",
+                result.ocrExtraction.available if result.ocrExtraction else False,
+                request.activityName or (result.ocrExtraction.activityNameExtracted if result.ocrExtraction else "") or "",
+                quality_passed=result.qualityCheck.passed,
+                student_code_mismatch=bool(
+                    result.pipelineMode == "DOCUMENT_PIPELINE"
+                    and result.ocrExtraction
+                    and result.ocrExtraction.codeMismatch
+                ),
+                evidence_mismatch_reason=(
+                    "Tên trên giấy không khớp hồ sơ sinh viên"
+                    if result.breakdown.get("studentNameMismatch") is True
+                    else "Ngày cấp trên giấy nằm ngoài khoảng ngày học kỳ"
+                    if result.breakdown.get("termDateMismatch") is True
+                    else "Số CCCD trên giấy hiến máu không khớp hồ sơ sinh viên"
+                    if result.breakdown.get("citizenIdMismatch") is True
+                    else None
+                ),
+            )
+        return result
     except ValueError as error:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error
     except Exception as error:

@@ -12,6 +12,7 @@ import { NotFound } from './pages/NotFound';
 import { RegulationRAG } from './pages/common/RegulationRAG';
 import { NotificationsCenter } from './pages/common/NotificationsCenter';
 import { AiTestConsole } from './pages/common/AiTestConsole';
+import { AiOcrLab } from './pages/common/AiOcrLab';
 
 // Student pages (S01 - S09)
 import { StudentDashboard } from './pages/student/Dashboard';
@@ -70,6 +71,7 @@ export const AppRoutes: React.FC = () => {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<Navigate to="/forgot-password" replace />} />
       <Route path="/organizer-confirm/:token" element={<Navigate to="/login" replace />} />
+      <Route path="/ai-lab" element={<AiOcrLab />} />
 
       {/* 2. Hệ thống chính (Cần đăng nhập qua ProtectedRoute) */}
       <Route

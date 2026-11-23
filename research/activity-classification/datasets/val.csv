@@ -1,0 +1,63 @@
+﻿sample_id,group_id,raw_label,criterion_label,label_source,text
+DOC-0005,REAL-G-DOC-0005,MUC_8,MUC_8,CURATED_FROM_UNLABELED,"Hoạt động: VNUK Career Discovery Workshop Series 2025
+Vai trò trong minh chứng: Người tham dự
+Nội dung minh chứng: has successfully participated the VNUK Career Discovery Workshop Series 2025 held from February 22nd 2025 to March 08th 2025"
+DOC-0012,REAL-G-DOC-0012,MUC_12,MUC_12,CURATED_FROM_UNLABELED,"Hoạt động: Tình nguyện Đông 2024 — Đêm Giáng Sinh Ấm Áp
+Đơn vị tổ chức: Cộng đồng Nữ sinh Bách khoa
+Vai trò trong minh chứng: Gây quỹ
+Nội dung minh chứng: Đã tham gia gây quỹ tích cực trong chương trình Tình nguyện Đông 2024 “Đêm Giáng Sinh Ấm Áp” do Cộng đồng Nữ sinh Bách khoa tổ chức"
+DOC-0013,REAL-G-DOC-0013,MUC_9,MUC_9,CURATED_FROM_UNLABELED,"Hoạt động: Văn nghệ kỷ niệm 50 năm thành lập Trường Đại học Bách khoa, ĐHĐN
+Nội dung minh chứng: Trân trọng ghi nhận sự tham gia nhiệt tình và tinh thần trách nhiệm của bạn, đã đóng góp vào thành công chung của chương trình văn nghệ “Kỷ niệm 50 năm thành lập Trường Đại học Bách khoa, ĐHĐN (1975–2025)”"
+DOC-0023,REAL-G-DOC-0023,MUC_9,MUC_9,CURATED_FROM_UNLABELED,"Hoạt động: Korean in Da Nang 2026
+Đơn vị tổ chức: Hiệp hội Giao lưu văn hóa nghệ thuật Hàn Quốc thế giới
+Nội dung minh chứng: Đã tham gia Chương trình liên hoan nghệ thuật truyền thống Hàn Quốc “Korean in Da Nang 2026” lần thứ nhất do Hiệp hội Giao lưu văn hóa nghệ thuật Hàn Quốc thế giới (World Korean Culture and Arts Exchange Association) tổ chức."
+DOC-0027,REAL-G-DOC-0027,MUC_12,MUC_12,CURATED_FROM_UNLABELED,"Hoạt động: Trung Thu Nhân Ái
+Đơn vị tổ chức: CLB Môi trường
+Vai trò trong minh chứng: Gây quỹ online
+Nội dung minh chứng: Đã tích cực tham gia gây quỹ online chương trình “Trung Thu Nhân Ái” do CLB Môi Trường tổ chức"
+DOC-0031,REAL-G-DOC-0023,MUC_9,MUC_9,CURATED_FROM_UNLABELED,"Hoạt động: Korean in Da Nang 2026
+Đơn vị tổ chức: Hiệp hội Giao lưu văn hóa nghệ thuật Hàn Quốc thế giới
+Nội dung minh chứng: Đã tham gia Chương trình liên hoan nghệ thuật truyền thống Hàn Quốc “Korean in Da Nang 2026” lần thứ nhất do Hiệp hội Giao lưu văn hóa nghệ thuật Hàn Quốc thế giới (World Korean Culture and Arts Exchange Association) tổ chức."
+DOC-0037,REAL-G-DOC-0013,MUC_9,MUC_9,CURATED_FROM_UNLABELED,"Hoạt động: Văn nghệ kỷ niệm 50 năm thành lập Trường Đại học Bách khoa, ĐHĐN
+Nội dung minh chứng: Trân trọng ghi nhận sự tham gia nhiệt tình và tinh thần trách nhiệm của bạn, đã đóng góp vào thành công chung của chương trình văn nghệ “Kỷ niệm 50 năm thành lập Trường Đại học Bách khoa, ĐHĐN (1975–2025)”"
+DOC-0039,REAL-G-DOC-0039,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Mùa hè Xanh 2025
+Vai trò trong minh chứng: Tình nguyện viên online
+Nội dung minh chứng: Tình nguyện viên Online - Đồng hành cùng Chiến dịch sinh viên tình nguyện hè “Mùa hè Xanh 2025” Đoàn Thanh niên Trường Đại học Bách Khoa - ĐHĐN"
+DOC-0048,REAL-G-DOC-0039,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Chiến dịch sinh viên tình nguyện hè - “Mùa hè Xanh” Đoàn Trường Đại học Bách Khoa - ĐHĐN năm 2024
+Đơn vị tổ chức: Đoàn Thanh niên - Hội Sinh viên Trường Đại học Bách Khoa - ĐHĐN
+Vai trò trong minh chứng: Tình nguyện viên Online
+Nội dung minh chứng: Tình nguyện viên Online - Đồng hành cùng Chiến dịch sinh viên tình nguyện hè - “Mùa hè Xanh” Đoàn Trường Đại học Bách Khoa - ĐHĐN năm 2024. Đà Nẵng, ngày 03 tháng 08 năm 2024"
+DOC-0053,REAL-G-DOC-0053,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Hoạt động ""Monday No Plastic - Thứ Hai không rác thải nhựa""
+Vai trò trong minh chứng: Người tham gia đóng góp
+Nội dung minh chứng: Đã tham gia và có những đóng góp tích cực trong Hoạt động ""Monday No Plastic - Thứ Hai không rác thải nhựa"". Đà Nẵng, ngày 30 tháng 4 năm 2026"
+DOC-0067,REAL-G-DOC-0067,MUC_13,MUC_13,CURATED_FROM_UNLABELED,"Hoạt động: Ngày hội Đa văn hóa DUE 2024
+Vai trò trong minh chứng: Cộng tác viên
+Nội dung minh chứng: CỘNG TÁC VIÊN NGÀY HỘI ĐA VĂN HÓA DUE 2024. Đà Nẵng, ngày 06 tháng 06 năm 2024"
+DOC-0077,REAL-G-DOC-0077,MUC_13,MUC_13,CURATED_FROM_UNLABELED,"Hoạt động: Công tác tổ chức Dự án Green University DUE năm học 2023 - 2024
+Vai trò trong minh chứng: Ban tổ chức / Đóng góp tích cực
+Nội dung minh chứng: Đã tham gia và có những đóng góp tích cực trong công tác tổ chức Dự án Green University DUE năm học 2023 - 2024. Đà Nẵng, ngày 12 tháng 7 năm 2024"
+DOC-0085,REAL-G-DOC-0085,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Dự án ""Cùng Em Tới Trường""
+Vai trò trong minh chứng: Tình nguyện viên
+Nội dung minh chứng: Là tình nguyện viên nhiệt huyết, đã tích cực và lan tỏa yêu thương đến các em nhỏ thông qua dự án ""Cùng Em Tới Trường"". Cần Thơ, Ngày 9 Tháng 7 Năm 2025"
+DOC-0086,REAL-G-DOC-0086,MUC_13,MUC_13,CURATED_FROM_UNLABELED,"Hoạt động: Chương trình NexTrade 2025: ĐẤU TRƯỜNG KINH DOANH
+Vai trò trong minh chứng: Ban tổ chức
+Nội dung minh chứng: Đã tham gia vào công tác tổ chức Chương trình NexTrade 2025 ĐẤU TRƯỜNG KINH DOANH. Đà Nẵng, ngày 25 tháng 04 năm 2025"
+DOC-0104,REAL-G-DOC-0104,MUC_8,MUC_8,CURATED_FROM_UNLABELED,"Hoạt động: Talkshow Truyền thông về giảm thiểu định kiến giới và thúc đẩy bình đẳng giới
+Đơn vị tổ chức: Trung tâm Nghiên cứu và Tư vấn việc làm / Nhóm Seesaw of Balance
+Vai trò trong minh chứng: Người tham dự
+Nội dung minh chứng: Đã tham dự TALKSHOW: TRUYỀN THÔNG VỀ GIẢM THIỂU ĐỊNH KIẾN GIỚI VÀ THÚC ĐẨY BÌNH ĐẲNG GIỚI đợt 3 do nhóm Seesaw of Balance tổ chức. Ngày 27 tháng 11 năm 2023."
+DOC-0105,REAL-G-DOC-0105,MUC_13,MUC_13,CURATED_FROM_UNLABELED,"Hoạt động: Chương trình Chào đón Tân sinh viên Khóa 49 Tháng Năm Rực Rỡ
+Đơn vị tổ chức: Đoàn Thanh niên - Hội Sinh viên Trường Đại học Kinh tế
+Vai trò trong minh chứng: Đóng góp tích cực trong công tác tổ chức
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: Đã tham gia và có đóng góp tích cực trong công tác tổ chức Chương trình Chào đón Tân sinh viên Khóa 49 Tháng Năm Rực Rỡ. Quyết định số: 03-QĐ/HSV-VP."
+DOC-0117,REAL-G-DOC-0117,VAN_HOA_VAN_NGHE_THE_THAO,MUC_9,HUMAN_EXCEL,"Hoạt động: Chương trình ""CUP TVSV LẦN III"" của Đội Tư vấn Sinh viên
+Đơn vị tổ chức: Ban Thư ký Hội Sinh viên Trường Đại học Bách khoa
+Vai trò trong minh chứng: Cá nhân tham gia tích cực (theo danh sách kèm theo)
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: QUYẾT ĐỊNH Về việc xác nhận danh sách cho cá nhân tham gia tích cực Chương trình ""CUP TVSV LẦN III"" của Đội Tư vấn Sinh viên. Số: 212-QĐ/ĐHBK-HSV ký ngày 05/05/2026 xác nhận cho 65 cá nhân."
+DOC-0120,REAL-G-DOC-0120,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Chương trình Trung Thu Cho Em 2025
+Đơn vị tổ chức: Ban Thư ký Hội Sinh viên Trường Đại học Bách khoa
+Vai trò trong minh chứng: Cá nhân tham gia tích cực (theo danh sách kèm theo)
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: QUYẾT ĐỊNH Về việc xác nhận danh sách cho cá nhân tham gia tích cực chương trình Trung Thu Cho Em 2025 của Đội Công tác Xã hội. Số: 208-QĐ/ĐHBK-HSV ký ngày 05/05/2026 xác nhận cho 124 cá nhân."

@@ -498,8 +498,9 @@ class Luong1DocumentPipelineTests(unittest.IsolatedAsyncioTestCase):
             result = await UnifiedPipelineOrchestrator.process(request)
 
         self.assertEqual(result.pipelineMode, "EVENT_PHOTO_PIPELINE")
-        self.assertEqual(result.aiConfidenceScore, 90.0)
-        self.assertEqual(result.tier, TierClassification.GREEN)
+        self.assertEqual(result.aiConfidenceScore, 89.0)
+        self.assertEqual(result.tier, TierClassification.YELLOW_STRONG)
+        self.assertEqual(result.classification, "HANG_B")
         self.assertEqual(result.faceVerification.status, "NOT_CHECKED")
         self.assertEqual(result.faceVerification.facesDetected, 0)
         self.assertEqual(result.breakdown["webBoost"], 10)

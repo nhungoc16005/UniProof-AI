@@ -30,22 +30,51 @@ class QrVerifierService:
 
     @staticmethod
     def decode(image_bytes: bytes) -> Optional[str]:
-        """Đọc nội dung mã QR trên ảnh. Trả về None nếu không có mã hoặc chưa cài OpenCV."""
+        """Đọc nội dung mã QR trên ảnh với các biến thể xoay và phóng to giới hạn."""
         if cv2 is None:
             return None
         try:
+            from PIL import ImageOps
             with Image.open(io.BytesIO(image_bytes)) as image:
-                rgb = np.array(image.convert("RGB"))
+                normalized = ImageOps.exif_transpose(image).convert("RGB")
+                rgb = np.array(normalized)
         except Exception:
             return None
         bgr = rgb[:, :, ::-1]
-        try:
-            data, _points, _ = cv2.QRCodeDetector().detectAndDecode(bgr)
-        except Exception:
+        detector = cv2.QRCodeDetector()
+
+        def _try_detect(mat: np.ndarray) -> Optional[str]:
+            try:
+                data, _points, _ = detector.detectAndDecode(mat)
+                if data and data.strip():
+                    return data.strip()
+            except Exception:
+                pass
+            try:
+                ok, decoded_info, _pts, _ = detector.detectAndDecodeMulti(mat)
+                if ok and decoded_info:
+                    for item in decoded_info:
+                        if item and item.strip():
+                            return item.strip()
+            except Exception:
+                pass
             return None
-        if not data:
-            return None
-        return data.strip() or None
+
+        # Thử ảnh gốc trước, sau đó phóng to (nếu ảnh nhỏ) và xoay 90/180/270 độ.
+        variants = [bgr]
+        h, w = bgr.shape[:2]
+        if max(h, w) < 1200:
+            variants.append(cv2.resize(bgr, (w * 2, h * 2), interpolation=cv2.INTER_CUBIC))
+        variants.extend([
+            cv2.rotate(bgr, cv2.ROTATE_90_CLOCKWISE),
+            cv2.rotate(bgr, cv2.ROTATE_180),
+            cv2.rotate(bgr, cv2.ROTATE_90_COUNTERCLOCKWISE),
+        ])
+        for mat in variants:
+            found = _try_detect(mat)
+            if found:
+                return found
+        return None
 
     @staticmethod
     async def verify(
