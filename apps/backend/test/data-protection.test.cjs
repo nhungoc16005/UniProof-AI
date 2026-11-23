@@ -424,7 +424,7 @@ describe('BL-026: Đối chứng kịch bản race condition giữa Xóa và N�
   function createWorkflowRaceFixture() {
     let submissionStatus = 'DRAFT'; // DRAFT hoặc SUBMITTED
     const term = { id: 'term-1', status: 'ACTIVE', workflowEnabled: true };
-    const rubricVersion = { id: 'rubric-1', termId: 'term-1', status: 'PUBLISHED', criteria: [] };
+    const rubricVersion = { id: 'rubric-1', termId: 'term-1', status: 'PUBLISHED', criteria: [], categories: [] };
 
     let dbFiles = [
       { id: 'f-1', evidenceId: 'ev-1', fileUrl: 'evidence/student-1/term-1/ev-1/f-1.pdf', fileType: 'application/pdf' },
@@ -544,6 +544,8 @@ describe('BL-026: Đối chứng kịch bản race condition giữa Xóa và N�
       },
       term: mockPrisma.term,
       rubricVersion: mockPrisma.rubricVersion,
+      criterionAssessment: { findMany: async () => [] },
+      activityParticipant: { findMany: async () => [] },
       evidence: mockPrisma.evidence,
       evidenceFile: mockPrisma.evidenceFile,
       assessmentSubmission: mockPrisma.assessmentSubmission,
@@ -562,19 +564,9 @@ describe('BL-026: Đối chứng kịch bản race condition giữa Xóa và N�
     const workflow = new WorkflowService(mockPrisma, mockDeadlines);
     const evidenceService = new EvidenceService(mockPrisma, workflow);
 
-    // Mock AssessmentsService
-    const assessmentsService = new AssessmentsService(
-      mockPrisma,
-      workflow,
-      null, // rubricScoring
-      null, // conductScores
-      mockDeadlines,
-    );
-
-    // Stub các bước preflight của assessmentsService để tập trung vào logic submit/race
-    assessmentsService.ensureStudentSubmissionOpen = async () => {};
-    assessmentsService.preflight = async () => ({ canSubmit: true, blockers: [], warnings: [] });
-    assessmentsService.ensureSubmissionEditable = async () => {};
+    const assessmentsService = new AssessmentsService(mockPrisma, workflow, mockDeadlines);
+    mockPrisma.criterionAssessment = mockTx.criterionAssessment;
+    mockPrisma.activityParticipant = mockTx.activityParticipant;
 
     return {
       workflow,
@@ -644,49 +636,15 @@ describe('BL-026: Đối chứng kịch bản race condition giữa Xóa và N�
 
     const fixture = createWorkflowRaceFixture();
 
-    // Tách riêng query trong lock để đảm bảo tx.evidence.findMany phản ánh đúng dữ liệu DB hiện thời
-    fixture.mockTx.evidence = {
-      ...fixture.mockPrisma.evidence,
-      findMany: async (args) => {
-        if (fixture.getEvidence() && fixture.getEvidence().studentId === args.where.studentId && fixture.getEvidence().termId === args.where.termId) {
-          return [{ ...fixture.getEvidence(), files: [...fixture.getFiles()] }];
-        }
-        return [];
-      },
-    };
+    const preflight = await fixture.assessmentsService.preflight('student-1', 'term-1');
+    assert.equal(preflight.canSubmit, true);
+    await fixture.evidenceService.deleteDraftFile('ev-1', 'f-1', 'student-1');
 
-    // Mô phỏng chính xác race condition xen kẽ:
-    // Hook vào lúc prisma.evidence.findMany (kiểm tra ngoài lock) được gọi bởi submitSelfAssessment:
-    let outsideLockCheckPassed = false;
-    let deleteInterleaved = false;
-    const originalPrismaFindMany = fixture.mockPrisma.evidence.findMany;
-    fixture.mockPrisma.evidence.findMany = async (args) => {
-      // 1. Lần gọi ngoài lock của submitSelfAssessment đọc thấy file còn nguyên
-      const res = await originalPrismaFindMany(args);
-      if (!deleteInterleaved) {
-        deleteInterleaved = true;
-        outsideLockCheckPassed = true;
-        // 2. Ngay sau khi kiểm tra ngoài lock này hoàn tất nhưng trước khi submit bước vào transaction,
-        // tiến trình xóa tệp (deleteDraftFile) xen vào và commit xóa tệp thành công!
-        await fixture.evidenceService.deleteDraftFile('ev-1', 'f-1', 'student-1');
-      }
-      return res;
-    };
-
-    // 3. Tiến trình submit bước vào workflow.studentEdit, đọc lại dữ liệu trong lock và bị chặn
     await assert.rejects(
-      async () => {
-        await fixture.assessmentsService.submitSelfAssessment('student-1', 'term-1');
-      },
-      (err) => {
-        assert.equal(err.status, 400);
-        // PHẢI LÀ LỖI BẮT TỪ NHÁNH ĐỌC LẠI BÊN TRONG TRANSACTION KHÓA TERM (dòng 190):
-        assert.equal(err.message, 'Có minh chứng nháp chưa có tệp');
-        return true;
-      },
+      fixture.assessmentsService.submitSelfAssessment('student-1', 'term-1'),
+      err => err.status === 400 && /minh chứng nháp chưa có tệp/.test(err.message),
     );
 
-    assert.equal(outsideLockCheckPassed, true, 'Kiểm tra ngoài lock phải chạy qua trước khi xen kẽ');
     assert.equal(fixture.getFiles().length, 0, 'Tệp đã bị xóa bởi thao tác xen kẽ');
     assert.equal(fixture.getSubmissionStatus(), 'DRAFT', 'Phiếu không bị nộp sai khi dữ liệu trong lock không hợp lệ');
   });

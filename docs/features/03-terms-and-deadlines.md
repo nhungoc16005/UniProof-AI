@@ -36,7 +36,7 @@ Các tiêu chí có gap audit là điều kiện cần đạt khi sửa, không 
 
 Tab Kỳ đánh giá có ba hạn riêng; dialog gia hạn cần tìm được đầy đủ sinh viên thuộc kỳ.
 
-Code hiện yêu cầu sao chép và ban hành bản nháp theo từng kỳ. Theo DEC-006, cần đối chiếu thao tác này với luồng dùng lại rubric hiện hành; không trình bày đổi kỳ như bắt buộc đổi nội dung tiêu chí. Theo dõi REQ-002 trong BACKLOG.
+Kỳ mới có bản PUBLISHED kế thừa và có thể kích hoạt trực tiếp. Khi còn bản sửa nháp, Admin xác nhận sử dụng bản đang ban hành. Thông báo gia hạn dẫn đến bảng điểm đúng kỳ.
 
 Giữ ngữ cảnh người dùng/kỳ và cung cấp thao tác thử lại. Chỉ hiển thị nút khi có quyền, đồng thời server phải kiểm tra lại quyền và trạng thái.
 
@@ -90,7 +90,7 @@ Lỗi validation/nghiệp vụ phải hiển thị lý do từ server; 401 yêu 
 | F03-TC-03 | Kiểm chứng: gia hạn lưu đối tượng, loại hạn, thời điểm và lý do; thu hồi giữ dấu vết; lọc đối tượng theo Roster kỳ (BL-020) | F03-AC-03; BL-020 | Partially verified (Unit/Component: BL-020 & revoke lock đạt 2 ca dialog thật gồm chuyển trang qua nút bấm đến trang 6 và chọn SV 105, 4 ca backend targets/DTO/100+ roster; chưa kiểm chứng DB/E2E tích hợp) |
 | F03-TC-04 | Kiểm chứng: quyền sửa/nộp/phúc khảo dùng hạn hiệu lực, web không bị hạn gốc phủ định quyền gia hạn (BL-010); chốt kỳ bị chặn khi còn gia hạn phúc khảo hiệu lực (BL-006) | F03-AC-04; BL-006; BL-010 | Partially verified (Unit/Hook: BL-006 đạt 12 ca backend gồm 3 ca lock concurrency có barrier 2 chiều, BL-010 đạt 4 ca hook thật gồm RETURNED/hết hạn khi pending refresh/lỗi 500; chưa kiểm chứng DB/E2E tích hợp) |
 | F03-TC-05 | Kiểm chứng: CLOSED chỉ xem; endpoint reopen hiện luôn từ chối | F03-AC-05 | Planned |
-| F03-TC-06 | Given rubric hiện hành không đổi, When tạo kỳ kế tiếp, Then vẫn áp dụng nguyên rubric và truy vết được lịch sử theo kỳ | F03-AC-06; DEC-006; REQ-002 | Planned |
+| F03-TC-06 | Mở kỳ với bản PUBLISHED kế thừa. Khi còn nháp, yêu cầu xác nhận đúng phiên bản và tạo roster theo bản đã chọn. | F03-AC-06; DEC-006; REQ-002 | Đạt trên PostgreSQL 17 |
 
 Bổ sung ca biên ở mục 7 và regression của từng BL liên quan; xem [TEST_PLAN](../TEST_PLAN.md) để chọn môi trường và bằng chứng. Không gán Passed nếu chưa chạy.
 

@@ -93,7 +93,8 @@ export const ImportGroundingData: React.FC = () => {
   const [params] = useSearchParams();
   const termId = params.get('termId') || activeTerm?.id || '';
   const currentTerm = terms.find((term) => term.id === termId) ?? (activeTerm?.id === termId ? activeTerm : undefined);
-  return <ImportGroundingWorkspace key={termId} termId={termId} currentTerm={currentTerm} />;
+  const canImport = Boolean(currentTerm?.evidenceBasisWorkflowEnabled && ['ACTIVE', 'REVIEWING'].includes(currentTerm.status));
+  return <ImportGroundingWorkspace key={`${termId}:${canImport}`} termId={termId} currentTerm={currentTerm} canImport={canImport} />;
 };
 
 type ImportContext = {
@@ -104,7 +105,7 @@ type ImportContext = {
   idempotencyKey: string;
 };
 
-function ImportGroundingWorkspace({ termId, currentTerm }: { termId: string; currentTerm?: Term }) {
+function ImportGroundingWorkspace({ termId, currentTerm, canImport }: { termId: string; currentTerm?: Term; canImport: boolean }) {
   // Tab: 'NEW_IMPORT' | 'BATCH_HISTORY'
   const [activeTab, setActiveTab] = useState<'NEW_IMPORT' | 'BATCH_HISTORY'>('NEW_IMPORT');
 
@@ -330,7 +331,7 @@ function ImportGroundingWorkspace({ termId, currentTerm }: { termId: string; cur
   // Xử lý khi người dùng chọn file Excel / CSV
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !termId) return;
+    if (!canImport || !file || !termId) return;
 
     const context = {
       termId,
@@ -457,7 +458,7 @@ function ImportGroundingWorkspace({ termId, currentTerm }: { termId: string; cur
     if (!previewSession || isConfirming) return;
     const { context, rows, result } = previewSession;
     const validCount = previewResult?.validCount ?? previewResult?.validRows ?? 0;
-    if (!validCount || currentImport.current !== context || context.termId !== termId
+    if (!canImport || !validCount || currentImport.current !== context || context.termId !== termId
       || context.category !== selectedCategory
       || (context.category === 'ACTIVITY' && context.activityId !== selectedActivityId)) return;
 
@@ -508,7 +509,7 @@ function ImportGroundingWorkspace({ termId, currentTerm }: { termId: string; cur
 
   // Thu hồi lô
   const handleConfirmRevoke = async () => {
-    if (!revokingBatch || revokeReason.trim().length < 5) return;
+    if (!canImport || !revokingBatch || revokeReason.trim().length < 5) return;
 
     setIsRevoking(true);
     setRevokeError('');
@@ -566,7 +567,7 @@ function ImportGroundingWorkspace({ termId, currentTerm }: { termId: string; cur
             )}
           </div>
           <p className="mt-1 text-xs sm:text-sm text-[#6B6B6B]">
-            Nhập kết quả học tập, vi phạm nội quy, danh sách hoạt động và ban cán sự để tự động xác minh tiêu chí và gợi ý điểm cho sinh viên.
+            Nhập căn cứ học vụ và điểm danh để tính điểm gợi ý. Nhập danh sách CLB/BTC để Khoa đối chiếu khi xác minh.
           </p>
         </div>
 
@@ -612,7 +613,12 @@ function ImportGroundingWorkspace({ termId, currentTerm }: { termId: string; cur
       )}
 
       {/* TAB 1: NHẬP CĂN CỨ MỚI */}
-      {activeTab === 'NEW_IMPORT' && (
+      {activeTab === 'NEW_IMPORT' && !canImport && (
+        <p role="status" className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+          {!currentTerm ? 'Chưa xác định được kỳ đánh giá.' : !workflowEnabled ? 'Kỳ này áp dụng quy trình truyền thống. Có thể tra cứu các lô đã nhập trong lịch sử.' : 'Chỉ nhập căn cứ khi kỳ đang mở hoặc đang thẩm định.'}
+        </p>
+      )}
+      {activeTab === 'NEW_IMPORT' && canImport && (
         <div className="space-y-6">
           {/* Card Bước 1: Chọn nguồn căn cứ */}
           <section className="rounded-xl border border-[#E8E8EC] bg-white p-5 shadow-2xs space-y-4">
@@ -968,7 +974,7 @@ function ImportGroundingWorkspace({ termId, currentTerm }: { termId: string; cur
                             >
                               <Eye className="h-3.5 w-3.5" /> Chi tiết
                             </button>
-                            {!isRevoked && (
+                            {!isRevoked && canImport && (
                               <button
                                 type="button"
                                 onClick={() => {

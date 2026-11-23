@@ -164,8 +164,12 @@ export class CriteriaController {
   @Roles(Role.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Mở kỳ sau khi rubric đã được ban hành' })
-  async activateTerm(@Param('id') id: string, @CurrentUser('id') actorId: string) {
-    return this.criteriaService.activateTerm(id, actorId);
+  async activateTerm(
+    @Param('id') id: string,
+    @CurrentUser('id') actorId: string,
+    @Body('confirmPublishedRubricVersionId') confirmPublishedRubricVersionId?: string,
+  ) {
+    return this.criteriaService.activateTerm(id, actorId, confirmPublishedRubricVersionId);
   }
 
   @Post('terms/:id/reopen')

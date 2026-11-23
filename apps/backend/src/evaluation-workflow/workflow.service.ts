@@ -440,7 +440,7 @@ export class WorkflowService {
         if (!row.snapshot) throw new BadRequestException('Thiếu bản kết quả Khoa');
         await tx.assessmentPublication.create({ data: { studentId: row.studentId, termId, rubricVersionId: row.rubricVersionId, revision: row.revision, snapshot: row.snapshot, publishedById: actor.id } });
         await tx.publicationCorrectionRequest.updateMany({ where: { handoffId: row.id, status: 'FACULTY_RESUBMITTED' }, data: { status: 'REPUBLISHED', resultingRevision: row.revision } });
-        await tx.notification.create({ data: { userId: row.studentId, type: 'RESULT_PUBLISHED', eventKey: 'RESULT_PUBLISHED', dedupeKey: `publication:${row.studentId}:${termId}:${row.revision}`, title: 'Đã công bố tạm kết quả rèn luyện', content: `${term.name}: xem kết quả và gửi phúc khảo trước ${term.appealDeadline.toLocaleString('vi-VN')}.`, targetPath: `/student/scores?termId=${termId}`, metadata: { termId, revision: row.revision } } });
+        await tx.notification.create({ data: { userId: row.studentId, type: 'RESULT_PUBLISHED', eventKey: 'RESULT_PUBLISHED', dedupeKey: `publication:${row.studentId}:${termId}:${row.revision}`, title: 'Đã công bố tạm kết quả rèn luyện', content: `${term.name}: mở bảng điểm để xem kết quả và hạn phúc khảo hiện hành.`, targetPath: `/student/scores?termId=${encodeURIComponent(termId)}`, metadata: { termId, revision: row.revision } } });
         published++;
       }
       await tx.term.update({ where: { id: termId }, data: { status: 'REVIEWING' } });

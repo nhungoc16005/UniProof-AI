@@ -219,6 +219,7 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
         },
       },
       importBatch: {
+        count: async ({ where }) => [...data.importBatches.values()].filter(b => b.termId === where.termId && b.status === where.status).length,
         findUnique: async ({ where }) => {
           if (where.idempotencyKey) {
             return [...data.importBatches.values()].find(b => b.idempotencyKey === where.idempotencyKey) || null;
@@ -409,7 +410,7 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
   test('Ca 2: Dữ liệu học vụ có trường thiếu / sai kiểu -> Validator phát hiện và Preview đánh dấu ERROR', async () => {
     const { prisma, data } = createMockPrisma();
 
-    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true });
+    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true, evidenceBasisWorkflowEnabled: true });
     data.rubricVersions.set('ver-1', {
       id: 'ver-1', termId: 'term-1', status: 'PUBLISHED',
       criteria: [
@@ -448,7 +449,7 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
   test('Ca 3: MSSV ngoài phạm vi Khoa của cán bộ -> Preview đánh dấu ERROR', async () => {
     const { prisma, data } = createMockPrisma();
 
-    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true });
+    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true, evidenceBasisWorkflowEnabled: true });
     data.rubricVersions.set('ver-1', {
       id: 'ver-1', termId: 'term-1', status: 'PUBLISHED',
       criteria: [{ id: 'crit-1', code: '1', maxScore: 6, scoringConfig: { kind: 'attendance_penalty', requiredData: ['examBans', 'classWarnings'] } }],
@@ -480,7 +481,7 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
   test('Ca 4: Trùng lặp sinh viên + tiêu chí trong cùng file -> Dòng thứ 2 đánh dấu ERROR', async () => {
     const { prisma, data } = createMockPrisma();
 
-    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true });
+    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true, evidenceBasisWorkflowEnabled: true });
     data.rubricVersions.set('ver-1', {
       id: 'ver-1', termId: 'term-1', status: 'PUBLISHED',
       criteria: [{ id: 'crit-1', code: '1', maxScore: 6, scoringConfig: { kind: 'attendance_penalty', requiredData: ['examBans', 'classWarnings'] } }],
@@ -513,7 +514,7 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
   test('Ca 5: Preview tuyệt đối KHÔNG ghi vào database (chỉ đọc)', async () => {
     const { prisma, data } = createMockPrisma();
 
-    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true });
+    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true, evidenceBasisWorkflowEnabled: true });
     data.rubricVersions.set('ver-1', {
       id: 'ver-1', termId: 'term-1', status: 'PUBLISHED',
       criteria: [{ id: 'crit-1', code: '1', maxScore: 6, scoringConfig: { kind: 'attendance_penalty', requiredData: ['examBans', 'classWarnings'] } }],
@@ -542,7 +543,7 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
   test('Ca 6: Confirm import ghi đúng dòng hợp lệ; hỗ trợ idempotencyReplay khi gửi trùng idempotencyKey', async () => {
     const { prisma, data } = createMockPrisma();
 
-    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true });
+    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true, evidenceBasisWorkflowEnabled: true });
     data.rubricVersions.set('ver-1', {
       id: 'ver-1', termId: 'term-1', status: 'PUBLISHED',
       criteria: [{ id: 'crit-1', code: '1', maxScore: 6, scoringConfig: { kind: 'attendance_penalty', requiredData: ['examBans', 'classWarnings'] } }],
@@ -591,7 +592,7 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
     const { prisma, data } = createMockPrisma();
     const { ActivitiesService } = require('../src/activities/activities.service');
 
-    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true });
+    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true, evidenceBasisWorkflowEnabled: true });
     data.activities.set('act-1', { id: 'act-1', termId: 'term-1', facultyId: 'fac-cntt', organizer: 'Đoàn Khoa CNTT' });
     data.users.set('sv-1', { id: 'sv-1', studentCode: '102210001', role: 'STUDENT' });
     data.users.set('sv-2', { id: 'sv-2', studentCode: '102210002', role: 'STUDENT' });
@@ -637,7 +638,7 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
   test('Ca 8: Sau khi import AcademicGrounding, tự động đồng bộ vào CriterionAssessment (verifiedData, suggestedScore, READY_FOR_REVIEW)', async () => {
     const { prisma, data } = createMockPrisma();
 
-    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true });
+    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true, evidenceBasisWorkflowEnabled: true });
     data.rubricVersions.set('ver-1', {
       id: 'ver-1', termId: 'term-1', status: 'PUBLISHED',
       criteria: [
@@ -680,7 +681,7 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
   test('Ca 9: Tiêu chí đã FINALIZED trước đó không bị ghi đè điểm chính thức khi đồng bộ grounding', async () => {
     const { prisma, data } = createMockPrisma();
 
-    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true });
+    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true, evidenceBasisWorkflowEnabled: true });
     data.rubricVersions.set('ver-1', {
       id: 'ver-1', termId: 'term-1', status: 'PUBLISHED',
       criteria: [{ id: 'crit-1', code: '1', maxScore: 6, scoringConfig: { kind: 'attendance_penalty', requiredData: ['examBans', 'classWarnings'], baseScore: 6, examBanPenalty: 3, warningPenalty: 1 } }],
@@ -859,7 +860,7 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
       description: 'Mô tả rất dài hơn mười ký tự nhưng kỳ cũ bắt buộc phải có tệp',
     });
 
-    const mockWorkflow = { assertStudentEditable: async () => {} };
+    const mockWorkflow = { assertStudentEditable: async () => {}, studentEdit: async (_s, _t, action) => action(prisma) };
     const mockDeadlines = { resolve: async () => ({ deadline: new Date(Date.now() + 86400000), source: 'TERM' }) };
 
     const assessmentsService = new AssessmentsService(prisma, mockWorkflow, mockDeadlines);
@@ -875,7 +876,7 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
   test('Ca 13: Preflight không cảnh báo thiếu minh chứng nếu đã có điểm danh CONFIRMED hoặc căn cứ học vụ / CLB', async () => {
     const { prisma, data } = createMockPrisma();
 
-    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true });
+    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true, evidenceBasisWorkflowEnabled: true });
     data.rubricVersions.set('ver-1', {
       id: 'ver-1', termId: 'term-1', status: 'PUBLISHED',
       categories: [{
@@ -896,7 +897,7 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
       activity: { id: 'act-1', termId: 'term-1', criterionId: 'crit-8' },
     });
 
-    const mockWorkflow = { assertStudentEditable: async () => {} };
+    const mockWorkflow = { assertStudentEditable: async () => {}, studentEdit: async (_s, _t, action) => action(prisma) };
     const mockDeadlines = { resolve: async () => ({ deadline: new Date(Date.now() + 86400000), source: 'TERM' }) };
     const assessmentsService = new AssessmentsService(prisma, mockWorkflow, mockDeadlines);
 
@@ -913,7 +914,7 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
   test('Ca 14: Lô chưa có sinh viên nào bị chốt điểm -> Thu hồi thành công, tự động reset điểm đề xuất liên quan', async () => {
     const { prisma, data } = createMockPrisma();
 
-    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true });
+    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true, evidenceBasisWorkflowEnabled: true });
     data.importBatches.set('batch-1', {
       id: 'batch-1', termId: 'term-1', facultyId: 'fac-cntt', type: ImportBatchType.ACADEMIC, status: ImportBatchStatus.ACTIVE,
     });
@@ -952,7 +953,7 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
   test('Ca 15: Có ít nhất một dòng trong lô đã được dùng để chốt điểm (FINALIZED) -> Chặn toàn bộ lô', async () => {
     const { prisma, data } = createMockPrisma();
 
-    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true });
+    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true, evidenceBasisWorkflowEnabled: true });
     data.importBatches.set('batch-1', {
       id: 'batch-1', termId: 'term-1', facultyId: 'fac-cntt', type: ImportBatchType.ACADEMIC, status: ImportBatchStatus.ACTIVE,
     });
@@ -997,7 +998,7 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
   test('Ca 16: Có ít nhất một sinh viên trong lô đã được gửi lên Admin (SENT) -> Chặn toàn bộ lô', async () => {
     const { prisma, data } = createMockPrisma();
 
-    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true });
+    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true, evidenceBasisWorkflowEnabled: true });
     data.importBatches.set('batch-1', {
       id: 'batch-1', termId: 'term-1', facultyId: 'fac-cntt', type: ImportBatchType.ACADEMIC, status: ImportBatchStatus.ACTIVE,
     });
@@ -1035,7 +1036,7 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
   test('Ca 17: Chốt một phiếu sinh viên: Chuyển toàn bộ tiêu chí READY_FOR_REVIEW thành FINALIZED với officialScore = suggestedScore', async () => {
     const { prisma, data } = createMockPrisma();
 
-    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true });
+    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true, evidenceBasisWorkflowEnabled: true });
     data.rubricVersions.set('ver-1', {
       id: 'ver-1', termId: 'term-1', status: 'PUBLISHED',
       criteria: [
@@ -1085,7 +1086,7 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
   test('Ca 18: Chặn chốt phiếu khi còn minh chứng ở trạng thái NEEDS_HUMAN_REVIEW hoặc NEEDS_SUPPLEMENT (Point 3)', async () => {
     const { prisma, data } = createMockPrisma();
 
-    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true });
+    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true, evidenceBasisWorkflowEnabled: true });
     data.rubricVersions.set('ver-1', {
       id: 'ver-1', termId: 'term-1', status: 'PUBLISHED',
       criteria: [{ id: 'c-1', code: '1', maxScore: 6 }],
@@ -1124,7 +1125,7 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
   test('Ca 19: Chốt hàng loạt tối đa 100 phiếu, transaction riêng từng phiếu: phiếu lỗi không ảnh hưởng phiếu hợp lệ', async () => {
     const { prisma, data } = createMockPrisma();
 
-    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true });
+    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: true, evidenceBasisWorkflowEnabled: true });
     data.rubricVersions.set('ver-1', {
       id: 'ver-1', termId: 'term-1', status: 'PUBLISHED',
       criteria: [{ id: 'c-1', code: '1', maxScore: 6 }, { id: 'c-2', code: '2', maxScore: 6 }],
@@ -1205,7 +1206,7 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
   test('Ca 21: Confirm import re-validation độc lập: loại bỏ sinh viên sai Khoa và dữ liệu vi phạm schema', async () => {
     const { prisma, data } = createMockPrisma();
 
-    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE' });
+    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', evidenceBasisWorkflowEnabled: true });
     data.rubricVersions.set('ver-1', {
       id: 'ver-1', termId: 'term-1', status: 'PUBLISHED',
       criteria: [{ id: 'crit-1', code: '1', maxScore: 6, scoringConfig: { kind: 'attendance_penalty', requiredData: ['examBans', 'classWarnings'], baseScore: 6, examBanPenalty: 3, warningPenalty: 1 } }],
@@ -1254,7 +1255,7 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
   test('Ca 22: batchAddParticipants với externalTx không tạo transaction lồng hay lock term lặp lại', async () => {
     const { prisma, data } = createMockPrisma();
 
-    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: false });
+    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', workflowEnabled: false, evidenceBasisWorkflowEnabled: true });
     data.activities.set('act-1', {
       id: 'act-1',
       termId: 'term-1',
@@ -1296,7 +1297,7 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
   test('Ca 23: Thu hồi lô hoạt động giữ lịch sử bản ghi CONFIRMED và tính lại điểm gợi ý', async () => {
     const { prisma, data } = createMockPrisma();
 
-    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE' });
+    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', evidenceBasisWorkflowEnabled: true });
     data.activities.set('act-1', {
       id: 'act-1',
       termId: 'term-1',
@@ -1340,7 +1341,7 @@ describe('Phase 1: Căn cứ chấm điểm, Import Excel & Chốt phiếu hàng
   test('Ca 24: Sửa tay qua verifyCriterion không bị syncStudentGrounding ghi đè (bảo vệ căn cứ thủ công của cán bộ)', async () => {
     const { prisma, data } = createMockPrisma();
 
-    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE' });
+    data.terms.set('term-1', { id: 'term-1', status: 'ACTIVE', evidenceBasisWorkflowEnabled: true });
     data.rubricVersions.set('ver-1', {
       id: 'ver-1', termId: 'term-1', status: 'PUBLISHED',
       criteria: [{ id: 'crit-1', code: '1', maxScore: 6, scoringConfig: { kind: 'attendance_penalty', requiredData: ['examBans', 'classWarnings'], baseScore: 6, examBanPenalty: 3, warningPenalty: 1 } }],

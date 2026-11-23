@@ -433,6 +433,7 @@ model CriterionAssessment {
   classEvaluator   User?                     @relation("ClassAssessmentRecorder", fields: [classEvaluatorId], references: [id])
   verifiedData     Json?
   academicGroundingId String?
+  clubGroundingIds String[]                  @default([])
   verificationNote String?
   suggestedScore   Float?
   suggestionReason String?

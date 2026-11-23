@@ -1,5 +1,35 @@
 # Kế hoạch kiểm chứng EduPoint
 
+<a id="p1-suite-results"></a>
+
+## 2026-11-23 — P1 và concurrency trên PostgreSQL 17
+
+- Backend unit **198/198**, Web **30/30**, PostgreSQL integration **26/26**. Không có lỗi hoặc ca bị bỏ qua trong lượt cuối. Typecheck Backend/Web và `git diff --check` đạt.
+- Docker PostgreSQL **17.12** với pgvector trên localhost. Áp dụng baseline nguyên văn theo quy trình bên dưới, Prisma báo đủ **15 migration**. Trên DB đã có schema cũ, fixture `CriterionAssessment` nhận `clubGroundingIds = []`, giữ điểm, trạng thái và dữ liệu xác minh. Bản ghi mới cũng nhận `[]`. Các migration đã có giữ nguyên.
+- Ca BL-026/027 xác nhận kết nối thứ hai chờ khóa qua `pg_blocking_pids`. Kiểm hai thứ tự xóa/nộp, lưu điểm null, vượt trần và tắt F15 trước khi submit. Storage dùng giả lập. Không kết nối Supabase production hoặc AI ngoài. Chưa chạy browser E2E.
+
+| Nhóm | Suite | Đạt / Tổng |
+|---|---|---:|
+| Backend | `accounts-and-permissions.test.cjs` | 22/22 |
+| Backend | `activity-and-roles-scoring.test.cjs` | 19/19 |
+| Backend | `data-protection.test.cjs` | 11/11 |
+| Backend | `deadline-and-closure.test.cjs` | 16/16 |
+| Backend | `evidence-and-term-selection.test.cjs` | 16/16 |
+| Backend | `evidence-processing-worker.test.cjs` | 15/15 |
+| Backend | `exclusion-and-restore.test.cjs` | 6/6 |
+| Backend | `grounding-import-and-batch-finalize.test.cjs` | 26/26 |
+| Backend | `grounding-import-values.test.cjs` | 2/2 |
+| Backend | `pagination-and-filter.test.cjs` | 10/10 |
+| Backend | `scoring-and-validation.test.cjs` | 39/39 |
+| Backend | `security-fixes.test.cjs` | 16/16 |
+| Web | `deadline-dialog-and-access.test.cjs` | 6/6 |
+| Web | `evidence-inspection.test.cjs` | 5/5 |
+| Web | `faculty-analytics.test.cjs` | 6/6 |
+| Web | `score-report-and-evidence-list.test.cjs` | 13/13 |
+| PostgreSQL | `grounding-db.integration.test.cjs` | 3/3 |
+| PostgreSQL | `submission-concurrency.integration.test.cjs` | 6/6 |
+| PostgreSQL | `workflow.integration.test.cjs` | 17/17 |
+
 ## 2026-11-23 — Regression BL-031, BL-033, BL-035, BL-037
 
 - Backend **75/75 ca đạt**, gồm `grounding-import-and-batch-finalize.test.cjs`, `pagination-and-filter.test.cjs` và `scoring-and-validation.test.cjs`. Dùng DB doubles và `ResponseInterceptor` thật để kiểm lô một phiếu thành công/một phiếu bị chặn, điểm đã chốt khác điểm gợi ý, publication, 21 hồ sơ có mục cần bổ sung ngoài trang đầu và 51 thông báo có mục chưa đọc duy nhất ở vị trí 51.
@@ -26,7 +56,7 @@ psql "$DIRECT_URL" -v ON_ERROR_STOP=1 --single-transaction -f prisma/migrations/
 ./node_modules/.bin/prisma migrate resolve --applied 20261018000000_baseline_existing_supabase
 ./node_modules/.bin/prisma migrate deploy
 ./node_modules/.bin/prisma migrate status
-AI_PIPELINE_URL= node --test --test-concurrency=1 test/workflow.integration.test.cjs test/grounding-db.integration.test.cjs
+AI_PIPELINE_URL= node --test --test-concurrency=1 test/*.integration.test.cjs
 ```
 
 Baseline đặt `search_path` thành rỗng trong session. Trên PG17 và Prisma 5.22, chạy `migrate deploy` trực tiếp từ DB rỗng đã gặp `P1014` ở `_prisma_migrations`. Áp dụng baseline trong session `psql` riêng rồi ghi nhận bằng Prisma cho phép chạy các migration còn lại và bảo toàn checksum. Chỉ áp dụng bước baseline cho DB local mới. Nếu lần chạy một bước đã thất bại, dùng DB test mới để làm lại quy trình.
@@ -228,7 +258,7 @@ Mỗi BL giữ kịch bản chi tiết trong [audit](BUSINESS_LOGIC_AUDIT.md). �
 | [BL-024](BUSINESS_LOGIC_AUDIT.md#bl-024) | Contract/form + browser cách ly | Deep link kỳ cũ, Back/Forward, reload, selector mobile390px; title/API/payload đều cùng kỳ. |
 | [BL-025](BUSINESS_LOGIC_AUDIT.md#bl-025) | Service/API + DB cách ly | Create STUDENT thiếu mã/lớp, STAFF thiếu Khoa bị từ chối; bản hợp lệ được nhận. |
 | [BL-026](BUSINESS_LOGIC_AUDIT.md#bl-026) | DB concurrency cách ly + barrier | **In Progress / Potential (unit đối chứng đạt 5/5 ca):** Đạt 5/5 ca trong data-protection.test.cjs (nộp trước chặn xóa và không gọi DELETE Storage; xóa tệp trước khiến nộp bị chặn; rollback giữ nguyên Storage; đọc file trong lock; cleanup lỗi không phá hỏng DB). Chờ môi trường PostgreSQL đa kết nối thật để kiểm chứng concurrency DB vật lý. |
-| [BL-027](BUSINESS_LOGIC_AUDIT.md#bl-027) | DB concurrency cách ly + barrier | Dùng barrier cho save-null trước khi submit lấy lock; submit phải trả blocker, không SUBMITTED. |
+| [BL-027](BUSINESS_LOGIC_AUDIT.md#bl-027) | DB concurrency cách ly + barrier | Đạt ở [PostgreSQL 17](#p1-suite-results) với barrier cho lưu null, vượt trần và đổi cờ F15 trước submit. |
 
 ## Feature acceptance
 
@@ -238,7 +268,7 @@ Bắt buộc kiểm tra các chiều liên quan đến thay đổi: happy path; 
 
 Không đánh dấu toàn feature Verified chỉ vì một test thuần hoặc build thành công. Khi không kiểm được, ghi “Not run” và lý do/môi trường còn thiếu.
 
-DEC-006 đã được người dùng xác nhận: rubric không thay đổi thì tiếp tục dùng nguyên nội dung qua kỳ mới. Bổ sung F03-TC-06 và F04-TC-06/07: mở hai kỳ dùng cùng nội dung; chỉ thay khi có thay đổi được xác nhận; thay đổi kỳ sau không làm đổi rubric/kết quả lịch sử. Các ca này **Planned**, theo REQ-002; chưa chọn cách tái sử dụng ID hay snapshot và chưa chạy ứng dụng/DB để kiểm chứng.
+DEC-006 đã được người dùng xác nhận: rubric không thay đổi thì tiếp tục dùng nguyên nội dung qua kỳ mới. Bổ sung F03-TC-06 và F04-TC-06/07: mở hai kỳ dùng cùng nội dung; chỉ thay khi có thay đổi được xác nhận; thay đổi kỳ sau không làm đổi rubric/kết quả lịch sử. Các ca này đã đạt trên [PostgreSQL 17](#p1-suite-results) với bản sao PUBLISHED riêng của kỳ và phiên bản mới khi chỉnh sửa.
 
 ## Browser scenarios được giữ từ tài liệu cũ
 

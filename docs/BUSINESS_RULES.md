@@ -104,10 +104,10 @@ Workflow UI có 8 state suy diễn từ submission, handoff, pending evidence/ap
 ### R-08 — Hiệu lực và phiên bản rubric
 
 - **Yêu cầu đã xác nhận:** Theo DEC-006 trong [DECISIONS](DECISIONS.md), rubric hiện hành giữ nguyên qua kỳ mới nếu không có thay đổi thực sự. Không yêu cầu chỉnh tiêu chí, mức điểm hoặc công thức vì đổi kỳ.
-- **Hiện trạng nguồn:** CriteriaService + RubricVersion schema; [tạo/copy draft](../apps/backend/src/criteria/criteria.service.ts#L138), [tạo kỳ](../apps/backend/src/criteria/criteria.service.ts#L297). Code tạo bản DRAFT riêng cho kỳ rồi yêu cầu DRAFT→PUBLISHED trước sử dụng; đây là hiện trạng, không phải yêu cầu thay nội dung mỗi kỳ.
+- **Triển khai:** Tạo kỳ sao chép bộ chuẩn hoặc rubric kỳ nguồn đã ban hành thành bản ghi `PUBLISHED` riêng của kỳ. Bản thay đổi ở kỳ chưa mở tạo phiên bản `DRAFT` kế tiếp. Khi ban hành bản sửa, lưu trữ bản trước.
 - **Tiền điều kiện/quyền:** ADMIN quản lý; có rubric hiện hành đã ban hành để tiếp tục áp dụng. Việc sửa nội dung cần có thay đổi thực sự được xác nhận.
 - **Hậu điều kiện/bất biến:** Không thay đổi→kỳ mới áp dụng nguyên nội dung rubric hiện hành. Có thay đổi→quản lý phiên bản/phạm vi áp dụng, giữ lịch sử; không chỉnh đè rubric/kết quả kỳ cũ đã dùng. Phiếu/handoff/publication cần truy vết được rubric áp dụng.
-- **Ca biên/gap:** Bản ghi/snapshot kỹ thuật theo kỳ không tự là phiên bản nghiệp vụ mới; cách tái sử dụng ID/chụp bản sao chưa được chọn. Theo dõi REQ-002. ScoringConfig vẫn cần đủ dữ liệu theo kind; gap baseScore BL-003 đã Resolved (đã bổ sung baseScore: 3 vào tiêu chí 2 dut-rubric, validateScoringConfig bảo vệ các kind penalty/duty/award); gap rolesScore BL-014 còn mở chờ Q-02.
+- **Ca biên:** Bản ghi theo kỳ dùng riêng ID để truy vết. Khi mở kỳ với bản nháp còn chờ, Admin xác nhận ID bản `PUBLISHED` và roster dùng bản đó. Bản nháp giữ ở chế độ chỉ đọc sau khi mở.
 
 <a id="r-09"></a>
 
@@ -134,7 +134,7 @@ Workflow UI có 8 state suy diễn từ submission, handoff, pending evidence/ap
 - **Căn cứ:** AssessmentsService; [nguồn](../apps/backend/src/assessments/assessments.service.ts#L177).
 - **Tiền điều kiện/quyền:** Preflight đủ điểm, minh chứng nháp đủ tệp, đúng kỳ và còn quyền.
 - **Hậu điều kiện và chuyển trạng thái:** DRAFT/RETURNED→SUBMITTED; chuyển draft evidence sang PROCESSING và tạo job; STAFF trả phiếu có lý do→RETURNED, hủy kết quả/job cần thiết.
-- **Bất biến/ca biên/gap:** Preflight chưa cùng transaction nộp: BL-027 Potential; trường hợp đã nộp không được ghi âm thầm.
+- **Bất biến:** Submit đọc lại rubric, điểm, trần nhóm, cờ F15 và minh chứng trong transaction giữ khóa Term. Preflight dùng cùng kiểm tra dữ liệu để báo trước cho sinh viên.
 
 <a id="r-12"></a>
 
@@ -295,12 +295,12 @@ Workflow UI có 8 state suy diễn từ submission, handoff, pending evidence/ap
 ### R-29 — Căn cứ chấm điểm, Import Excel và Chốt phiếu hàng loạt
 
 - **Căn cứ:** GroundingImportService + AssessmentsService + ActivitiesService; [F15](features/15-evidence-grounding-and-batch-finalize.md).
-- **Tiền điều kiện/quyền:** `STAFF` (Cán bộ Khoa) chỉ thao tác trên sinh viên thuộc Khoa của mình; kỳ học đang mở và chưa `CLOSED`. Bật quy trình mới qua cờ `evidenceBasisWorkflowEnabled`.
+- **Tiền điều kiện/quyền:** STAFF thao tác trong phạm vi Khoa theo snapshot. Import, thu hồi, đồng bộ và chốt phiếu F15 yêu cầu cờ bật, kỳ ACTIVE hoặc REVIEWING. Điểm ghi kiểm dưới khóa Term. Chỉ tắt cờ khi đã xử lý hết lô ACTIVE.
 - **Hậu điều kiện và chuyển trạng thái:**
-  1. **Import Căn cứ:** Lưu trữ độc lập trong `ImportBatch` và các bảng `AcademicGrounding`, `ActivityParticipant` (với `batchId`), `ClubLeadershipGrounding`. Sau khi lưu, tự động kích hoạt đồng bộ (`syncStudentGrounding`) cập nhật `verifiedData`, `suggestedScore` và trạng thái `READY_FOR_REVIEW` cho các tiêu chí tương ứng.
+  1. **Import căn cứ:** AcademicGrounding cập nhật dữ liệu xác minh và điểm gợi ý theo rubric. Điểm danh dùng luồng ActivitiesService. ClubLeadershipGrounding liên kết tiêu chí 4/13 qua clubGroundingIds và hiển thị nguồn cho Khoa đối chiếu. Tên tổ chức và chức vụ không tự xác nhận điều kiện boolean. Dữ liệu xác minh thủ công được giữ khi đồng bộ.
   2. **Minh chứng 0 file:** Ở kỳ `evidenceBasisWorkflowEnabled = true`, cho phép sinh viên nộp minh chứng 0 file khi có mô tả $\ge 10$ ký tự, chuyển trạng thái sang `NEEDS_HUMAN_REVIEW` và không tạo job AI. Kỳ `evidenceBasisWorkflowEnabled = false` giữ nguyên chặn thiếu file.
   3. **Chốt phiếu (Cá nhân & Hàng loạt):** Chỉ chốt các tiêu chí `READY_FOR_REVIEW` có `suggestedScore !== null` thành `FINALIZED` với `officialScore = suggestedScore`. Chặn chốt toàn bộ nếu sinh viên còn minh chứng `NEEDS_HUMAN_REVIEW` hoặc `NEEDS_SUPPLEMENT`, hoặc có khiếu nại đang chờ giải quyết. Chốt hàng loạt tối đa 100 phiếu/lần, transaction riêng từng phiếu, không tự động gửi CTSV.
-  4. **Thu hồi lô (Batch Revoke):** Chặn toàn bộ nếu có bất kỳ sinh viên nào trong lô đã bị chốt điểm (`FINALIZED`), phiếu đã gửi CTSV (`SENT`), đã có publication hoặc kỳ đã đóng (`CLOSED`). Khi thu hồi thành công, chuyển trạng thái lô sang `REVOKED` và tự động tính toán lại điểm gợi ý.
+  4. **Thu hồi lô:** Chặn cả lô khi tiêu chí bị ảnh hưởng đã FINALIZED, phiếu đã SENT, sinh viên đã có publication hoặc kỳ không đủ điều kiện F15. Nhánh CLB còn chặn EXCLUDED. Khi thu hồi hợp lệ, đồng bộ căn cứ còn hiệu lực và cập nhật điểm gợi ý phụ thuộc nguồn đã thu hồi. Nhánh CLB giữ điểm gợi ý có căn cứ xác minh thủ công.
 - **Bất biến/ca biên:**
   - MSSV dạng text luôn bảo toàn số 0 ở đầu (`"0102210001"`).
   - Xác nhận import phải dùng cùng kỳ với kết quả xem trước. Đổi ngữ cảnh yêu cầu xem trước lại.
@@ -311,7 +311,7 @@ Workflow UI có 8 state suy diễn từ submission, handoff, pending evidence/ap
 
 Mọi ghi điểm, căn cứ, submission, handoff và publication phải cùng studentId/termId/rubricVersionId phù hợp. Foreign key chỉ bảo đảm tồn tại; phải kiểm sự phù hợp nghiệp vụ trong service. Schema có unique CriterionAssessment(student,term,criterion), Submission(student,term,rubric), Handoff(student,term), Publication(student,term,revision) và Notification.dedupeKey.
 
-Khóa Term trong WorkflowService là cơ chế tuần tự hóa đang được nhiều service dùng. Đọc precheck ngoài transaction hoặc thao tác Storage không tự được khóa bảo vệ; BL-026/027 vẫn cần kiểm chứng DB. Không gọi một quy tắc là đạt chỉ vì có transaction ở một đoạn khác của luồng.
+Khóa Term tuần tự hóa nộp phiếu, lưu điểm và xóa nháp. BL-026/027 được kiểm bằng hai kết nối PostgreSQL. Dọn Storage vẫn diễn ra sau commit; kiểm thử sử dụng Storage giả lập.
 
 Mỗi thay đổi quy tắc phải cập nhật feature/API/test/backlog và CHANGELOG theo [hướng dẫn tài liệu](README.md). Không dùng tài liệu để che khác biệt giữa expected và current.
 

@@ -366,6 +366,17 @@ export const ScoreReport: React.FC = () => {
       {notice && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</div>}
       <StudentAssessmentNotice access={access} termId={effectiveTermId} onRetry={() => { if (!rubric) void load(); else void access.refresh().catch(() => undefined); }} />
 
+      {rubric?.term?.id === effectiveTermId && rubric?.publication && rubric.permissions?.effectiveDeadlines?.appeal?.deadline && (
+        <p className="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700">
+          Hạn phúc khảo hiện hành{' '}
+          <strong>
+            {new Date(rubric.permissions.effectiveDeadlines.appeal.deadline).toLocaleString('vi-VN', {
+              dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Ho_Chi_Minh',
+            })}
+          </strong>
+        </p>
+      )}
+
       <section className="rounded-xl border border-blue-200 bg-blue-50 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-semibold text-blue-950">Tiến độ tự đánh giá: {selfEnteredCount}/{categories.reduce((sum, category) => sum + category.criteria.length, 0)} tiêu chí</p><p className="mt-1 text-xs text-blue-800">{autosaving ? 'Đang tự động lưu…' : dirtyScores.current ? 'Có thay đổi chưa đồng bộ' : lastSavedAt ? `Đã lưu lúc ${lastSavedAt.toLocaleTimeString('vi-VN')}` : 'Hệ thống tự lưu sau 2 giây ngừng nhập'}</p></div><div className="h-2 w-full max-w-xs overflow-hidden rounded-full bg-blue-100"><div className="h-full bg-blue-700 transition-all" style={{ width: `${categories.length ? Math.round(selfEnteredCount / Math.max(1, categories.reduce((sum, category) => sum + category.criteria.length, 0)) * 100) : 0}%` }} /></div></div>
       </section>

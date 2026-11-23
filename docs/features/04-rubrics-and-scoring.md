@@ -39,7 +39,7 @@ Các tiêu chí có gap audit là điều kiện cần đạt khi sửa, không 
 
 CriteriaManager và CriteriaRulesView trình bày bản/nguồn, trần và căn cứ; trường boolean không gửi chuỗi.
 
-Luồng cần đạt theo DEC-006: “Tiếp tục dùng bộ tiêu chí hiện hành” là trường hợp không thay đổi; chỉ mở thao tác chỉnh nội dung khi có nhu cầu thay đổi thực sự. Thiết kế tái sử dụng/bản ghi kỹ thuật chưa được triển khai trong lượt tài liệu này.
+Kỳ mới dùng bản PUBLISHED với cùng nội dung nguồn. Lưu thay đổi trong kỳ UPCOMING tạo bản nháp có phiên bản kế tiếp. Sau khi ban hành, bản trước cùng kỳ được lưu trữ. Sau kích hoạt, rubric và bản nháp chỉ xem.
 
 Giữ ngữ cảnh người dùng/kỳ và cung cấp thao tác thử lại. Chỉ hiển thị nút khi có quyền, đồng thời server phải kiểm tra lại quyền và trạng thái.
 
@@ -95,8 +95,8 @@ Lỗi validation/nghiệp vụ phải hiển thị lý do từ server; 401 yêu 
 | F04-TC-03 | Kiểm chứng: điểm tiêu chí hữu hạn trong [0,maxScore], nhóm không vượt trần, tổng ≤100 | F04-AC-03 | Verified in `scoring-and-validation.test.cjs` |
 | F04-TC-04 | Kiểm chứng: thiếu dữ liệu chính thức trả NEEDS_VERIFICATION | F04-AC-04 | Verified in `scoring-and-validation.test.cjs` |
 | F04-TC-05 | Kiểm chứng: gợi ý và điểm chính thức là hai trường, hai thao tác khác nhau | F04-AC-05 | Planned |
-| F04-TC-06 | Given rubric hiện hành không thay đổi, When mở kỳ mới, Then kỳ mới áp dụng nguyên nội dung mà không bắt chỉnh/ban hành lại nội dung chỉ vì đổi kỳ | F04-AC-06; DEC-006; REQ-002 | Planned |
-| F04-TC-07 | Given kỳ trước đã có kết quả, When áp dụng một thay đổi rubric được xác nhận cho kỳ sau, Then nội dung/kết quả kỳ trước vẫn giữ nguyên và truy vết được rubric áp dụng | F04-AC-07; DEC-006 | Planned |
+| F04-TC-06 | Given rubric hiện hành không thay đổi, When mở kỳ mới, Then kỳ mới áp dụng nguyên nội dung mà không bắt chỉnh/ban hành lại nội dung chỉ vì đổi kỳ | F04-AC-06; DEC-006; REQ-002 | Đạt trên PostgreSQL 17 |
+| F04-TC-07 | Given kỳ trước đã có kết quả, When áp dụng một thay đổi rubric được xác nhận cho kỳ sau, Then nội dung/kết quả kỳ trước vẫn giữ nguyên và truy vết được rubric áp dụng | F04-AC-07; DEC-006 | Đạt trên PostgreSQL 17 |
 | F04-TC-08 | BL-003: Tiêu chí 2 mặc định có baseScore: 3, tính đúng điểm theo quy chế vắng/trễ hạn; config thiếu baseScore trả NEEDS_VERIFICATION rõ ràng; validateScoringConfig từ chối lưu rubric sai cấu hình | BL-003; F04-AC-03 | Verified in `scoring-and-validation.test.cjs` |
 | F04-TC-09 | BL-004: leadershipRole được đồng bộ boolean giữa Web và Backend, tiêu chí 14 (>90%) gợi ý 4 điểm, tiêu chí 16 gợi ý 3 điểm; chuỗi "true" bị từ chối với HTTP 400 | BL-004; F04-AC-03 | Verified in `scoring-and-validation.test.cjs` |
 | F04-TC-10 | BL-017: Dữ liệu xác minh bộ đếm không hợp lệ (âm, thập phân, chuỗi rác) bị từ chối trước transaction; evaluator không ép 0 nuốt lỗi | BL-017; F04-AC-04 | Verified in `scoring-and-validation.test.cjs` |

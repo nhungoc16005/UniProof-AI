@@ -6,6 +6,7 @@ import { WorkflowQueryDto } from '../evaluation-workflow/dto/workflow-query.dto'
 import { evaluateRubricCriterion } from '../criteria/rubric-scoring';
 import { DeadlineExtensionsService } from '../deadline-extensions/deadline-extensions.service';
 import { aggregateStudentActivitySources } from '../activities/activity-aggregator';
+import { assertF15Open } from '../grounding-import/f15-policy';
 import { unresolvedEvidenceStatuses } from '../evaluation-workflow/evaluation-policy';
 
 export function validateVerifiedData(config: Record<string, unknown> | null, data: Record<string, unknown>, maxScore: number): void {
@@ -93,6 +94,10 @@ export class AssessmentsService {
     termId: string,
     rubricVersionId?: string,
   ): Promise<void> {
+    // All callers hold the Term lock in this transaction.
+    const term = await tx.term.findUnique({ where: { id: termId } });
+    if (!term) throw new NotFoundException('Không tìm thấy kỳ đánh giá');
+    assertF15Open(term);
     const version = rubricVersionId
       ? await tx.rubricVersion.findUnique({ where: { id: rubricVersionId }, include: { criteria: true } })
       : await tx.rubricVersion.findFirst({ where: { termId, status: 'PUBLISHED' }, orderBy: { version: 'desc' }, include: { criteria: true } });
@@ -105,8 +110,15 @@ export class AssessmentsService {
 
     const activeByCode = new Map(activeGroundings.map((g) => [g.criterionCode, g]));
 
+    const clubGroundings = await tx.clubLeadershipGrounding.findMany({
+      where: { studentId, termId, status: 'ACTIVE' },
+      select: { id: true, criterionCode: true },
+      orderBy: { id: 'asc' },
+    });
+
     for (const criterion of version.criteria) {
-      if (!['1', '3', '7'].includes(criterion.code)) continue;
+      const isClubCriterion = ['4', '13'].includes(criterion.code);
+      if (!isClubCriterion && !['1', '3', '7'].includes(criterion.code)) continue;
 
       const existing = await tx.criterionAssessment.findUnique({
         where: { studentId_termId_criterionId: { studentId, termId, criterionId: criterion.id } },
@@ -114,6 +126,18 @@ export class AssessmentsService {
 
       // Nếu tiêu chí ĐÃ được chốt chính thức (FINALIZED) thì không ghi đè
       if (existing?.status === CriterionAssessmentStatus.FINALIZED) {
+        continue;
+      }
+
+      if (isClubCriterion) {
+        const ids = clubGroundings.filter(row => row.criterionCode === criterion.code).map(row => row.id);
+        const previous = existing?.clubGroundingIds ?? [];
+        if (ids.length === previous.length && ids.every((id, index) => id === previous[index])) continue;
+        await tx.criterionAssessment.upsert({
+          where: { studentId_termId_criterionId: { studentId, termId, criterionId: criterion.id } },
+          create: { studentId, termId, criterionId: criterion.id, clubGroundingIds: ids },
+          update: { clubGroundingIds: ids },
+        });
         continue;
       }
 
@@ -205,7 +229,7 @@ export class AssessmentsService {
     const version = await this.prisma.rubricVersion.findFirst({
       where: { termId, status: 'PUBLISHED' },
       include: {
-        term: { select: { id: true, name: true, status: true, workflowEnabled: true, appealDeadline: true, submissionDeadline: true, reviewDeadline: true } },
+        term: { select: { id: true, name: true, status: true, workflowEnabled: true, evidenceBasisWorkflowEnabled: true, appealDeadline: true, submissionDeadline: true, reviewDeadline: true } },
         categories: {
           orderBy: { position: 'asc' },
           include: { criteria: true },
@@ -214,7 +238,7 @@ export class AssessmentsService {
       orderBy: { version: 'desc' },
     });
     if (!version) {
-      const term = await this.prisma.term.findUnique({ where: { id: termId }, select: { id: true, name: true, status: true, workflowEnabled: true, appealDeadline: true, submissionDeadline: true, reviewDeadline: true } });
+      const term = await this.prisma.term.findUnique({ where: { id: termId }, select: { id: true, name: true, status: true, workflowEnabled: true, evidenceBasisWorkflowEnabled: true, appealDeadline: true, submissionDeadline: true, reviewDeadline: true } });
       if (!term) throw new NotFoundException('Không tìm thấy kỳ đánh giá');
       return { rubricVersion: null, term, categories: [], submission: null };
     }
@@ -247,9 +271,11 @@ export class AssessmentsService {
           ...criterion,
           assessment: (() => {
             const live = byCriterion.get(criterion.id) || null;
-            if (staffView || !version.term?.workflowEnabled || !live) return live;
+            if (staffView || !live) return live;
+            const { clubGroundingIds: _clubGroundingIds, ...studentAssessment } = live;
+            if (!version.term?.workflowEnabled) return studentAssessment;
             const published = publishedSnapshot?.categories?.flatMap((c: any) => c.criteria).find((c: any) => c.id === criterion.id)?.assessment;
-            return { ...live, verifiedData: null, verificationNote: null, suggestionReason: null, officialScore: published?.officialScore ?? null, officialReason: published?.officialReason ?? null, status: published ? 'FINALIZED' : 'NEEDS_VERIFICATION', finalizedAt: published?.finalizedAt ?? null, finalReviewerId: null };
+            return { ...studentAssessment, verifiedData: null, verificationNote: null, suggestionReason: null, officialScore: published?.officialScore ?? null, officialReason: published?.officialReason ?? null, status: published ? 'FINALIZED' : 'NEEDS_VERIFICATION', finalizedAt: published?.finalizedAt ?? null, finalReviewerId: null };
           })(),
         })),
       })),
@@ -308,23 +334,26 @@ export class AssessmentsService {
     return this.getMine(studentId, termId);
   }
 
-  async preflight(studentId: string, termId: string) {
-    const version = await this.prisma.rubricVersion.findFirst({ where: { termId, status: 'PUBLISHED' }, include: { categories: { include: { criteria: true } } } });
-    if (!version) return { canSubmit: false, blockers: ['Kỳ chưa có bộ tiêu chí được ban hành'], warnings: [], completedCriteria: 0, totalCriteria: 0 };
-
-    const term = await this.prisma.term.findUnique({
-      where: { id: termId },
-      select: { evidenceBasisWorkflowEnabled: true },
+  private async checkSubmission(db: Prisma.TransactionClient, studentId: string, termId: string) {
+    const version = await db.rubricVersion.findFirst({
+      where: { termId, status: 'PUBLISHED' },
+      include: { categories: { include: { criteria: true } } },
+      orderBy: { version: 'desc' },
     });
+    if (!version) {
+      return { version, drafts: [], isNewWorkflow: false, result: { canSubmit: false, blockers: ['Kỳ chưa có bộ tiêu chí được ban hành'], warnings: [], completedCriteria: 0, totalCriteria: 0 } };
+    }
+
+    const term = await db.term.findUnique({ where: { id: termId }, select: { evidenceBasisWorkflowEnabled: true } });
     const isNewWorkflow = term?.evidenceBasisWorkflowEnabled ?? false;
 
     const [assessments, drafts, effective, attendances, academicGroundings, clubGroundings] = await Promise.all([
-      this.prisma.criterionAssessment.findMany({ where: { studentId, termId, criterion: { rubricVersionId: version.id } } }),
-      this.prisma.evidence.findMany({ where: { studentId, termId, status: EvidenceStatus.DRAFT }, include: { files: true } }),
-      this.deadlines.resolve(termId, studentId, DeadlineExtensionType.SUBMISSION),
-      this.prisma.activityParticipant.findMany({ where: { studentId, status: 'CONFIRMED', activity: { termId } }, include: { activity: true } }),
-      this.prisma.academicGrounding.findMany({ where: { studentId, termId, status: 'ACTIVE' } }),
-      this.prisma.clubLeadershipGrounding.findMany({ where: { studentId, termId, status: 'ACTIVE' } }),
+      db.criterionAssessment.findMany({ where: { studentId, termId, criterion: { rubricVersionId: version.id } } }),
+      db.evidence.findMany({ where: { studentId, termId, status: EvidenceStatus.DRAFT }, include: { files: true } }),
+      this.deadlines.resolve(termId, studentId, DeadlineExtensionType.SUBMISSION, db),
+      db.activityParticipant.findMany({ where: { studentId, status: 'CONFIRMED', activity: { termId } }, include: { activity: true } }),
+      isNewWorkflow ? db.academicGrounding.findMany({ where: { studentId, termId, status: 'ACTIVE' } }) : [],
+      isNewWorkflow ? db.clubLeadershipGrounding.findMany({ where: { studentId, termId, status: 'ACTIVE' } }) : [],
     ]);
     const byCriterion = new Map(assessments.map(row => [row.criterionId, row]));
     const blockers: string[] = [];
@@ -364,42 +393,30 @@ export class AssessmentsService {
       return ['activity_threshold', 'community_activity_tier', 'verified_boolean', 'award_tier'].includes(String(config?.kind)) && (!assessmentId || !evidenceCriterionIds.has(assessmentId));
     });
     if (activityWithoutEvidence.length) warnings.push(`${activityWithoutEvidence.length} tiêu chí có điểm nhưng chưa gắn minh chứng nháp`);
-    try { await this.ensureStudentSubmissionOpen(studentId, termId); } catch (error: any) { blockers.push(error?.message || 'Không còn quyền nộp phiếu'); }
-    return { canSubmit: blockers.length === 0, blockers, warnings, completedCriteria: version.categories.flatMap(category => category.criteria).length - missing.length, totalCriteria: version.categories.flatMap(category => category.criteria).length, effectiveDeadline: effective.deadline, deadlineSource: effective.source };
+    const totalCriteria = version.categories.reduce((total, category) => total + category.criteria.length, 0);
+    return {
+      version, drafts, isNewWorkflow,
+      result: { canSubmit: blockers.length === 0, blockers, warnings, completedCriteria: totalCriteria - missing.length, totalCriteria, effectiveDeadline: effective.deadline, deadlineSource: effective.source },
+    };
+  }
+
+  async preflight(studentId: string, termId: string) {
+    const { version, result } = await this.checkSubmission(this.prisma, studentId, termId);
+    if (!version) return result;
+    try {
+      await this.ensureStudentSubmissionOpen(studentId, termId);
+    } catch (error: any) {
+      result.blockers.push(error?.message || 'Không còn quyền nộp phiếu');
+      result.canSubmit = false;
+    }
+    return result;
   }
 
   async submitSelfAssessment(studentId: string, termId: string) {
-    await this.ensureStudentSubmissionOpen(studentId, termId);
-    const preflight = await this.preflight(studentId, termId);
-    if (!preflight.canSubmit) throw new BadRequestException({ message: preflight.blockers.join('; '), blockers: preflight.blockers, warnings: preflight.warnings });
-    const version = await this.prisma.rubricVersion.findFirst({ where: { termId, status: 'PUBLISHED' }, include: { criteria: true } });
-    if (!version) throw new BadRequestException('Kỳ này chưa có rubric được ban hành');
-    await this.ensureSubmissionEditable(studentId, termId, version.id);
-
-    const term = await this.prisma.term.findUnique({
-      where: { id: termId },
-      select: { evidenceBasisWorkflowEnabled: true },
-    });
-    const isNewWorkflow = term?.evidenceBasisWorkflowEnabled ?? false;
-
-    const drafts = await this.prisma.evidence.findMany({ where: { studentId, termId, status: EvidenceStatus.DRAFT }, include: { files: true } });
-    const incomplete = drafts.find((evidence) => {
-      if (evidence.files.length > 0) return false;
-      if (isNewWorkflow && evidence.description && evidence.description.trim().length >= 10) return false;
-      return true;
-    });
-    if (incomplete) {
-      if (isNewWorkflow) {
-        throw new BadRequestException(`Minh chứng “${incomplete.declaredActivityName || 'Chưa đặt tên'}” chưa có tệp đính kèm và chưa có mô tả chi tiết (tối thiểu 10 ký tự); hãy bổ sung tệp hoặc mô tả trước khi nộp`);
-      } else {
-        throw new BadRequestException(`Minh chứng “${incomplete.declaredActivityName || 'Chưa đặt tên'}” chưa có tệp; hãy bổ sung tệp hoặc xóa hồ sơ nháp trước khi nộp phiếu`);
-      }
-    }
-
     return this.workflow.studentEdit(studentId, termId, async tx => {
-      const currentDrafts = await tx.evidence.findMany({ where: { studentId, termId, status: 'DRAFT' }, include: { files: true } });
-      if (currentDrafts.some(e => !e.files.length && (!isNewWorkflow || !e.description || e.description.trim().length < 10))) {
-        throw new BadRequestException('Có minh chứng nháp chưa có tệp hoặc chưa có mô tả hợp lệ');
+      const { version, drafts: currentDrafts, isNewWorkflow, result } = await this.checkSubmission(tx, studentId, termId);
+      if (!version || !result.canSubmit) {
+        throw new BadRequestException({ message: result.blockers.join('; '), blockers: result.blockers, warnings: result.warnings });
       }
 
       const submission = await tx.assessmentSubmission.upsert({
@@ -408,8 +425,7 @@ export class AssessmentsService {
         update: { status: 'SUBMITTED', submittedAt: new Date(), returnedAt: null, returnReason: null, returnedById: null },
       });
 
-      // Tự động đồng bộ căn cứ học vụ (nếu có) khi sinh viên nộp phiếu
-      await this.syncStudentGrounding(tx, studentId, termId, version.id);
+      if (isNewWorkflow) await this.syncStudentGrounding(tx, studentId, termId, version.id);
 
       for (const evidence of currentDrafts) {
         const hasFiles = evidence.files.length > 0;
@@ -481,6 +497,11 @@ export class AssessmentsService {
     const sentSnapshot = handoff?.status === 'SENT' ? handoff.snapshot as any : null;
     const readiness = result.term?.workflowEnabled && staff.role === Role.STAFF ? await this.workflow.list(staff, termId, new WorkflowQueryDto(), true) : null;
     const row = readiness?.items.find(r => r.studentId === studentId);
+    const clubGroundings = sentSnapshot ? [] : await this.prisma.clubLeadershipGrounding.findMany({
+      where: { studentId, termId, status: 'ACTIVE' },
+      select: { id: true, batchId: true, criterionCode: true, organizationName: true, roleTitle: true, source: true, note: true },
+      orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+    });
 
     return {
       ...result,
@@ -489,7 +510,11 @@ export class AssessmentsService {
       handoffRevision: handoff?.revision ?? null,
       categories: sentSnapshot ? sentSnapshot.categories.map((category: any) => ({ ...category, criteria: category.criteria.map((criterion: any) => ({ ...criterion, assessment: criterion.assessment ? { ...criterion.assessment, evidences: byCriterion.get(criterion.id)?.evidences ?? [] } : null })) })) : result.categories.map((category) => ({
         ...category,
-        criteria: category.criteria.map((criterion) => ({ ...criterion, assessment: byCriterion.get(criterion.id) || null })),
+        criteria: category.criteria.map((criterion) => ({
+          ...criterion,
+          assessment: byCriterion.get(criterion.id) || null,
+          clubGroundings: clubGroundings.filter(source => source.criterionCode === criterion.code),
+        })),
       })),
     };
   }
@@ -623,6 +648,9 @@ export class AssessmentsService {
     termId: string,
   ) {
     await this.workflow.scope(staff, studentId, termId);
+    const term = await this.prisma.term.findUnique({ where: { id: termId } });
+    if (!term) throw new NotFoundException('Không tìm thấy kỳ đánh giá');
+    assertF15Open(term);
     const version = await this.prisma.rubricVersion.findFirst({
       where: { termId, status: 'PUBLISHED' },
       include: { criteria: true },
@@ -871,13 +899,6 @@ export class AssessmentsService {
 
     await this.ensureWritable(termId);
 
-    const version = await this.prisma.rubricVersion.findFirst({
-      where: { termId, status: 'PUBLISHED' },
-      include: { criteria: true },
-      orderBy: { version: 'desc' },
-    });
-    if (!version) throw new NotFoundException('Kỳ này chưa có bộ tiêu chí được ban hành');
-
     const uniqueIds = [...new Set(studentIds)];
     const results: Array<{
       studentId: string;
@@ -902,6 +923,13 @@ export class AssessmentsService {
         const outcome = await this.prisma.$transaction(
           async (tx) => {
             await this.workflow.assertEditable(tx, staff, studentId, termId);
+
+            const version = await tx.rubricVersion.findFirst({
+              where: { termId, status: 'PUBLISHED' },
+              include: { criteria: true },
+              orderBy: { version: 'desc' },
+            });
+            if (!version) throw new NotFoundException('Kỳ này chưa có bộ tiêu chí được ban hành');
 
             const handoff = await tx.assessmentHandoff.findUnique({
               where: { studentId_termId: { studentId, termId } },

@@ -37,6 +37,8 @@ Tiếp nhận & Công bố có blockers mở rộng; nút chốt dựa trên con
 
 Giữ ngữ cảnh người dùng/kỳ và cung cấp thao tác thử lại. Chỉ hiển thị nút khi có quyền, đồng thời server phải kiểm tra lại quyền và trạng thái.
 
+Thông báo công bố dẫn sinh viên đến phiếu đúng kỳ để xem hạn phúc khảo hiệu lực. Hạn lấy từ nguồn cá nhân, lớp snapshot hoặc hạn kỳ theo resolver hiện hành.
+
 ## 5. API Contract — Hợp đồng API
 
 Các route sau đều có prefix `/api` (trừ pipeline ngoài hệ thống):

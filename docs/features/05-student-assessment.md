@@ -27,6 +27,7 @@ Luồng: ScoreReport / useStudentAssessmentAccess → AssessmentsController → 
 - **F05-AC-02:** Điểm tự đánh giá hợp lệ theo trần tiêu chí.
 - **F05-AC-03:** Preflight báo tiêu chí/tệp còn thiếu trước nộp.
 - **F05-AC-04:** Nộp thành công đổi phiếu SUBMITTED, chuyển minh chứng nháp sang xử lý và tạo job.
+- Submit đọc lại điều kiện đủ điểm, trần nhóm, cờ F15 và minh chứng nháp sau khi khóa Term. Ca lưu null, vượt trần hoặc tắt F15 trong lúc nộp đã đạt với hai kết nối PostgreSQL.
 - **F05-AC-05:** Phiếu SUBMITTED khóa sửa; RETURNED có thể nộp lại đến hạn chấm phù hợp.
 
 Các tiêu chí có gap audit là điều kiện cần đạt khi sửa, không phải tuyên bố hành vi hiện tại đã đúng. Chính sách chưa rõ theo [DECISIONS](../DECISIONS.md).
@@ -83,7 +84,7 @@ Lỗi validation/nghiệp vụ phải hiển thị lý do từ server; 401 yêu 
 |---|---|---|---|
 | F05-TC-01 | Kiểm chứng: chỉ chủ sở hữu thuộc roster được sửa trong cửa sổ hiệu lực | F05-AC-01 | Planned |
 | F05-TC-02 | Kiểm chứng: điểm tự đánh giá hợp lệ theo trần tiêu chí | F05-AC-02 | Planned |
-| F05-TC-03 | Kiểm chứng: preflight báo tiêu chí/tệp còn thiếu trước nộp | F05-AC-03 | Planned |
+| F05-TC-03 | Kiểm chứng: preflight báo tiêu chí/tệp còn thiếu trước nộp | F05-AC-03 | Đạt ở unit và PostgreSQL 17 |
 | F05-TC-04 | Kiểm chứng: nộp thành công đổi phiếu SUBMITTED, chuyển minh chứng nháp sang xử lý và tạo job | F05-AC-04 | Planned |
 | F05-TC-05 | Kiểm chứng: phiếu SUBMITTED khóa sửa; RETURNED có thể nộp lại đến hạn chấm phù hợp | F05-AC-05 | Planned |
 

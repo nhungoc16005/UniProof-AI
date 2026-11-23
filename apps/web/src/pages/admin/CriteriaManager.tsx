@@ -770,15 +770,17 @@ export const CriteriaManager: React.FC = () => {
                 <RubricEditor
                   key={termRubric.rubricVersion.id}
                   definition={termRubric.definition}
-                  disabled={termRubric.rubricVersion.status !== 'DRAFT' || selectedTerm?.status === 'CLOSED'}
+                  disabled={selectedTerm?.status !== 'UPCOMING' || termRubric.rubricVersion.status === 'ARCHIVED'}
                   showChangeNote
-                  onSave={(definition, changeNote) =>
-                    apiClient.saveTermRubricDraft(selectedTermId, definition, changeNote)
-                  }
+                  onSave={async (definition, changeNote) => {
+                    const updated = await apiClient.saveTermRubricDraft(selectedTermId, definition, changeNote);
+                    setTermRubric(updated);
+                    await reloadLists();
+                  }}
                 />
               )}
 
-              {termRubric.rubricVersion.status === 'DRAFT' && selectedTerm?.status !== 'CLOSED' && (
+              {termRubric.rubricVersion.status === 'DRAFT' && selectedTerm?.status === 'UPCOMING' && (
                 <div className="flex justify-end pt-2">
                   <button
                     disabled={busy}
@@ -788,6 +790,12 @@ export const CriteriaManager: React.FC = () => {
                     Ban hành bộ tiêu chí cho kỳ
                   </button>
                 </div>
+              )}
+
+              {termRubric.rubricVersion.status === 'DRAFT' && selectedTerm?.status !== 'UPCOMING' && (
+                <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                  Bản nháp chỉ để tra cứu. Kỳ đang áp dụng bộ tiêu chí đã ban hành.
+                </p>
               )}
 
               {selectedTerm?.status === 'CLOSED' && (

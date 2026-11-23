@@ -22,6 +22,7 @@ Dùng Observed / Supported / Proposed / Needs clarification như [README](README
 | DEC-010 | Mật khẩu tạm: tạo đơn hiển thị/copy một lần; import hiển thị bảng credential và nút tải file .xlsx do Admin chủ động bấm | Accepted — yêu cầu nghiệp vụ |
 | DEC-011 | Ban hành rubric tiêu chí cộng đồng & Xử lý an toàn tài khoản legacy (BL-014, BL-025): Cho phép bản nháp thiếu rolesScore nhưng khi ban hành tiêu chí cộng đồng phải yêu cầu đủ ba vai trò (Tham gia, Ban tổ chức, Cổ vũ), điểm không âm và không có alias mâu thuẫn, không tự đặt điểm mặc định. Cho phép sửa thông tin không liên quan của tài khoản legacy thiếu lớp/Khoa mà không query ID null; khi bổ sung định danh hoặc kích hoạt tài khoản thì bắt buộc kiểm tra dữ liệu đầy đủ | Accepted — yêu cầu nghiệp vụ |
 | DEC-012 | Căn cứ chấm điểm, import Excel và chốt phiếu hàng loạt: Bật qua cờ `evidenceBasisWorkflowEnabled`. Ô trống không suy diễn (= Chưa có dữ liệu). Kỳ mới cho phép minh chứng 0 file có mô tả $\ge 10$ ký tự chuyển NEEDS_HUMAN_REVIEW không tạo job AI. Chặn thu hồi lô nếu có sinh viên đã chốt điểm hoặc phiếu SENT. Chốt hàng loạt tối đa 100 phiếu/lần, transaction riêng, không tự gửi CTSV | Accepted — yêu cầu nghiệp vụ đã phê duyệt |
+| DEC-013 | Admin xử lý hết lô căn cứ ACTIVE trước khi tắt F15. Khi kích hoạt kỳ còn bản nháp, Admin xác nhận ID bản PUBLISHED; sau khi mở, bản nháp giữ để tra cứu. | Accepted — lựa chọn đã xác nhận khi xử lý BL-032 và REQ-002 |
 
 DEC-006 là yêu cầu nghiệp vụ được người dùng xác nhận trực tiếp; các quyết định tổ chức tài liệu không tự thay quy chế. Các Q sau vẫn Open trong phạm vi chưa được giải quyết; chưa được gán người cụ thể hoặc ngày cam kết.
 
@@ -29,11 +30,15 @@ DEC-006 là yêu cầu nghiệp vụ được người dùng xác nhận trực 
 
 - **Nội dung đã xác nhận:** Khi không thay đổi rubric, kỳ mới tiếp tục áp dụng nguyên bộ tiêu chí, mức điểm, công thức và điều kiện hiện hành. Không yêu cầu xây lại hoặc sửa/ban hành lại nội dung chỉ vì mở kỳ mới.
 - **Khi có thay đổi thực sự:** Ghi nhận nội dung thay đổi và phạm vi áp dụng; quản lý phiên bản để giữ lịch sử. Không tự cập nhật hồi tố kết quả kỳ cũ.
-- **Phân biệt kỹ thuật:** Bản ghi rubric/snapshot gắn kỳ có thể phục vụ truy vết mà không có thay đổi nội dung nghiệp vụ. Người dùng chưa yêu cầu chọn dùng chung ID hay sao chép bản ghi; không tự đổi schema.
-- **Code hiện tại:** CriteriaService.createTerm sao chép nguồn DEFAULT/TERM rồi persistTermRubricDraft tạo DRAFT; Web yêu cầu ban hành cho từng kỳ. Nội dung có thể giống nguồn, nhưng thao tác lặp này cần đối chiếu với yêu cầu giữ nguyên rubric. Theo dõi REQ-002 trong BACKLOG, chưa sửa code.
+- **Bản ghi kỹ thuật:** Mỗi kỳ có bản ghi và ID riêng để giữ quan hệ phiếu, roster và publication. Bản sao kế thừa giữ nguyên nội dung nghiệp vụ.
+- **Triển khai REQ-002:** Nguồn DEFAULT/TERM đã ban hành được sao chép thành PUBLISHED. Thay đổi ở kỳ chưa mở sinh DRAFT kế tiếp. DEC-013 quy định việc kích hoạt khi còn bản nháp.
 - **Ảnh hưởng:** R-08, F03/F04, workflow tạo kỳ, kế hoạch kiểm thử và lộ trình. Q-02 chỉ hỏi phần quy đổi còn thiếu/mâu thuẫn, không yêu cầu đặt lại mức điểm mỗi kỳ.
 
 ## Câu hỏi nghiệp vụ
+
+### Q-10 — Điều kiện xác nhận tự động cho căn cứ CLB/BTC
+
+Chưa có tiêu chuẩn xác định khi nào nguồn Excel đủ để xác nhận `eligibleMembership` hoặc `organizerConfirmation`. Đơn vị ban hành quy chế và CTSV cần xác định loại chứng từ, đơn vị có quyền xác nhận và cách xử lý các nguồn mâu thuẫn trước khi tự động tính điểm. Hiện F15 đưa nguồn nhập vào phiếu để Khoa xác minh.
 
 <a id="q-01"></a>
 

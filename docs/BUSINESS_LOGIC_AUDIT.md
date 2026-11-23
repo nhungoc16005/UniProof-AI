@@ -7,7 +7,7 @@ Ngày lập tài liệu: 2026-11-15. Cập nhật: 2026-11-16. Baseline nguồn:
 - **Confirmed:** luồng mã nguồn đủ chứng minh mâu thuẫn/hành vi; không đồng nghĩa đã tái hiện trên deployment.
 - **Potential:** thứ tự xen kẽ/concurrency có thể gây lỗi, cần kiểm tra DB thực cách ly.
 - Severity đánh giá tác động; priority đánh giá thứ tự xử lý. P0 kiểm chứng/xử lý trước bàn giao, P1 tiếp theo, P2 theo sprint được chọn.
-- Tổng cộng 27 mục: **23 mục Resolved**, **4 mục chưa đóng** gồm **2 mục hoãn xử lý AI** theo quyết định người dùng (BL-008, BL-022 - xem DEC-007) và **2 mục Potential** chờ kiểm chứng DB đa kết nối (BL-026, BL-027). Không có Critical.
+- Tại mốc audit gốc có 27 mục: **23 mục Resolved**, **4 mục chưa đóng** gồm **2 mục hoãn xử lý AI** theo quyết định người dùng (BL-008, BL-022 - xem DEC-007) và **2 mục Potential** chờ kiểm chứng DB đa kết nối (BL-026, BL-027). Không có Critical.
 - Expected chỉ dựa vào luồng/quy tắc hiện có; các quyết định kỹ thuật đã chốt tại DEC-001 đến DEC-010.
 
 ## Danh sách ưu tiên
@@ -19,12 +19,12 @@ Ngày lập tài liệu: 2026-11-15. Cập nhật: 2026-11-16. Baseline nguồn:
 | [BL-006](#bl-006) | High | Confirmed | P0 | Chốt kỳ bỏ qua gia hạn phúc khảo còn hiệu lực (Resolved) |
 | [BL-007](#bl-007) | High | Confirmed | P0 | Lỗi ký URL xóa tệp đã commit vào DB (Resolved) |
 | [BL-009](#bl-009) | High | Confirmed | P0 | JWT secret được đọc trước khi ConfigModule nạp .env (Resolved) |
-| [BL-026](#bl-026) | High | Potential | P0 | Xóa minh chứng/tệp có khoảng đua với nộp phiếu (In Progress / Potential) |
+| [BL-026](#bl-026) | High | Confirmed | P0 | Xóa minh chứng/tệp và nộp phiếu đã được kiểm chứng tuần tự trên PostgreSQL 17 (Done) |
 | [BL-003](#bl-003) | High | Confirmed | P1 | Tiêu chí nhóm mặc định thiếu baseScore (Resolved) |
 | [BL-004](#bl-004) | High | Confirmed | P1 | leadershipRole gửi chuỗi làm điểm chức vụ bằng 0 (Resolved) |
 | [BL-005](#bl-005) | High | Confirmed | P1 | Xác minh minh chứng ghi đè số hoạt động từ điểm danh (Resolved) |
 | [BL-008](#bl-008) | High | Confirmed | P1 | Timeout AI dừng trước lúc đọc response body (Hoãn AI - DEC-007) |
-| [BL-027](#bl-027) | Medium | Potential | P1 | Preflight nộp phiếu nằm ngoài transaction khóa (Open / Potential) |
+| [BL-027](#bl-027) | Medium | Confirmed | P1 | Kiểm lại điều kiện nộp phiếu dưới khóa Term (Done) |
 | [BL-010](#bl-010) | Medium | Confirmed | P2 | Web khóa sửa theo hạn gốc dù đã gia hạn (Resolved) |
 | [BL-011](#bl-011) | Medium | Confirmed | P2 | Mật khẩu tạm không được bàn giao đầy đủ (Resolved) |
 | [BL-012](#bl-012) | Medium | Confirmed | P2 | Thiếu classId/facultyId scalar làm bộ lọc tài khoản sai (Resolved) |
@@ -485,7 +485,7 @@ Ngày lập tài liệu: 2026-11-15. Cập nhật: 2026-11-16. Baseline nguồn:
 
 ### BL-026 — Xóa minh chứng/tệp có khoảng đua với nộp phiếu
 
-1. **Bug ID:** BL-026. **Trạng thái:** In Progress / Potential (Chờ kiểm chứng PostgreSQL đa kết nối). **Độ chắc chắn:** Potential; **ưu tiên:** P0.
+1. **Bug ID:** BL-026. **Trạng thái:** Done. **Độ chắc chắn:** Confirmed qua PostgreSQL đa kết nối. **Ưu tiên:** P0.
 2. **Severity:** High.
 3. **Vị trí:** [apps/backend/src/evidence/evidence.service.ts:429](../apps/backend/src/evidence/evidence.service.ts#L429); [apps/backend/src/evidence/evidence.service.ts:451](../apps/backend/src/evidence/evidence.service.ts#L451); [apps/backend/src/assessments/assessments.service.ts:188](../apps/backend/src/assessments/assessments.service.ts#L188).
 4. **Workflow:** Hai request xóa và nộp đồng thời. [F06](features/06-evidence-and-storage.md).
@@ -496,19 +496,19 @@ Ngày lập tài liệu: 2026-11-15. Cập nhật: 2026-11-16. Baseline nguồn:
 9. **Tác động:** Có thể mất tệp/hồ sơ đã nộp hoặc lỗi và trạng thái dở dang nếu không tuần tự hóa.
 10. **Gợi ý sửa:** Đặt kiểm tra hiện trạng và ghi DB trong cùng transaction khóa Term; thiết kế cleanup Storage sau commit có thể retry (đã thực hiện).
 11. **Regression test:** Barrier integration test hai kết nối DB cách ly, xen kẽ precheck→submit→delete; nộp thành công phải giữ tệp hoặc xóa buộc nộp bị chặn.
-12. **Tiến độ xử lý & Kiểm chứng:** Đã sửa mã nguồn: đưa toàn bộ kiểm tra và thao tác xóa DB trong `deleteDraftFile` và `deleteEvidence` vào transaction có khóa Term qua `workflow.studentEdit`; đọc lại danh sách tệp `files` bên trong lock và trả ra ngoài transaction để dọn Storage sau khi commit; helper `cleanupStorageObject` kiểm tra `res.ok`, log rõ ràng lỗi HTTP/mạng và bắt lỗi cấu hình an toàn. Đã kiểm chứng 5 kịch bản đối chứng trong [apps/backend/test/data-protection.test.cjs](../apps/backend/test/data-protection.test.cjs) (thứ tự nộp trước chặn xóa và không gọi DELETE Storage; thứ tự xóa tệp trước khiến nộp bị chặn do thiếu file; rollback giữ nguyên Storage; đọc file trong lock; cleanup lỗi không làm hỏng kết quả DB). **Vẫn giữ nhãn Potential** vì cần môi trường PostgreSQL đa kết nối thật để kiểm chứng concurrency DB vật lý.
+12. **Tiến độ xử lý & Kiểm chứng:** Đã sửa mã nguồn: đưa toàn bộ kiểm tra và thao tác xóa DB trong `deleteDraftFile` và `deleteEvidence` vào transaction có khóa Term qua `workflow.studentEdit`; đọc lại danh sách tệp `files` bên trong lock và trả ra ngoài transaction để dọn Storage sau khi commit; helper `cleanupStorageObject` kiểm tra `res.ok`, log rõ ràng lỗi HTTP/mạng và bắt lỗi cấu hình an toàn. Đã kiểm chứng 5 kịch bản đối chứng trong [apps/backend/test/data-protection.test.cjs](../apps/backend/test/data-protection.test.cjs) (thứ tự nộp trước chặn xóa và không gọi DELETE Storage; thứ tự xóa tệp trước khiến nộp bị chặn do thiếu file; rollback giữ nguyên Storage; đọc file trong lock; cleanup lỗi không làm hỏng kết quả DB). Cập nhật 2026-11-23: kiểm hai thứ tự trên PostgreSQL 17. `pg_blocking_pids` xác nhận kết nối thứ hai thật sự chờ khóa. [Suite](../apps/backend/test/submission-concurrency.integration.test.cjs).
 
-**Giới hạn bằng chứng:** Đã mô phỏng và kiểm chứng 5 kịch bản tầng application logic; chưa chạy trên hạ tầng PostgreSQL cách ly đa kết nối thực tế.
+**Giới hạn bằng chứng:** Khóa và trạng thái ghi đã được kiểm trên PostgreSQL cách ly. Storage dùng giả lập.
 
 <a id="bl-027"></a>
 
 ### BL-027 — Preflight nộp phiếu nằm ngoài transaction khóa
 
-1. **Bug ID:** BL-027. **Trạng thái:** Open. **Độ chắc chắn:** Potential; **ưu tiên:** P1.
+1. **Bug ID:** BL-027. **Trạng thái:** Done. **Độ chắc chắn:** Confirmed qua PostgreSQL đa kết nối. **Ưu tiên:** P1.
 2. **Severity:** Medium.
 3. **Vị trí:** [apps/backend/src/assessments/assessments.service.ts:179](../apps/backend/src/assessments/assessments.service.ts#L179); [apps/backend/src/assessments/assessments.service.ts:188](../apps/backend/src/assessments/assessments.service.ts#L188).
 4. **Workflow:** Hai tab lưu điểm và nộp đồng thời. [F05](features/05-student-assessment.md).
-5. **Hiện tại:** Kiểm đủ điểm preflight trước transaction; bên trong chỉ kiểm lại tệp nháp, không kiểm lại đầy đủ điểm.
+5. **Hiện trạng khi audit:** Kiểm đủ điểm preflight trước transaction. Sau sửa, submit dùng cùng kiểm tra dữ liệu dưới khóa Term với rubric và cờ F15 hiện hành.
 6. **Kỳ vọng có căn cứ:** Phiếu SUBMITTED phải thỏa điều kiện preflight trên dữ liệu được commit.
 7. **Logic và trace qua lớp:** Một request lưu null điểm có thể commit giữa preflight và acquire Term lock của nộp; nộp dùng kết quả kiểm cũ.
 8. **Tình huống:** TabA preflight đủ; tabB xóa một điểm tự đánh giá; tabA lấy lock rồi nộp.
@@ -516,7 +516,7 @@ Ngày lập tài liệu: 2026-11-15. Cập nhật: 2026-11-16. Baseline nguồn:
 10. **Gợi ý sửa:** Tái kiểm đầy đủ điều kiện nộp trong transaction đã khóa, dùng cùng rubric/dữ liệu current.
 11. **Regression test:** Dùng barrier cho save-null trước khi submit lấy lock; submit phải trả blocker, không SUBMITTED.
 
-**Giới hạn bằng chứng:** Mô hình xen kẽ cho thấy cửa sổ đua; chưa chạy hai kết nối DB hay xác nhận FK/deployment.
+**Kiểm chứng:** Hai kết nối PostgreSQL 17 và barrier xác nhận chờ khóa cho các thay đổi lưu null, vượt trần và tắt F15. Không tạo SUBMITTED, job hoặc audit trong ba ca bị từ chối. [Suite](../apps/backend/test/submission-concurrency.integration.test.cjs).
 
 ## Cập nhật P0 từ audit `eef49ca` — 2026-11-23
 
@@ -563,6 +563,26 @@ Ngày lập tài liệu: 2026-11-15. Cập nhật: 2026-11-16. Baseline nguồn:
 ### BL-037 — Tổng thông báo chưa đọc ngoài 50 mục
 
 **Low / Confirmed / Done.** API client từng bỏ `unreadCount` nên Web đếm riêng 50 mục gần nhất. Chuông và trung tâm hiện dùng chung tổng từ API. Regression kiểm thông báo chưa đọc ở vị trí 51, trạng thái tab Chưa đọc và đồng bộ badge khi đánh dấu tất cả. [API client](../apps/web/src/lib/apiClient.ts#L627), [trung tâm thông báo](../apps/web/src/pages/common/NotificationsCenter.tsx#L36).
+
+## Cập nhật P1 và concurrency — 2026-11-23
+
+<a id="bl-030"></a>
+
+### BL-030 — Căn cứ CLB/BTC và thu hồi
+
+**Confirmed / Done.** Import từng chỉ lưu nguồn để báo preflight, còn thu hồi chỉ chặn SENT. Hiện phiếu Khoa hiển thị nguồn CLB/BTC theo tiêu chí 4/13 và giữ liên kết ID sau đồng bộ. Thu hồi kiểm trạng thái tiêu chí, phiếu và publication trong transaction. Regression kiểm nhiều nguồn, giữ xác minh tay và rollback khi gặp blocker. [Service](../apps/backend/src/grounding-import/grounding-import.service.ts), [integration](../apps/backend/test/grounding-db.integration.test.cjs).
+
+<a id="bl-032"></a>
+
+### BL-032 — Cờ F15 và trạng thái kỳ
+
+**Confirmed / Done.** Preview và các điểm ghi F15 dùng cùng quy tắc. Confirm, thu hồi, đồng bộ và chốt dưới khóa Term. Web vô hiệu hóa phiên xem trước khi kỳ mất điều kiện. Đã kiểm các trạng thái UPCOMING/CLOSED, cờ tắt và quy tắc chặn tắt cờ khi còn lô ACTIVE. [Policy](../apps/backend/src/grounding-import/f15-policy.ts), [TEST_PLAN](TEST_PLAN.md#p1-suite-results).
+
+<a id="bl-034"></a>
+
+### BL-034 — Kỳ và hạn hiệu lực trong thông báo
+
+**Confirmed / Done.** Thông báo gia hạn từng mở dashboard chung, thông báo công bố hiển thị hạn kỳ. Hiện cả hai mở bảng điểm đúng kỳ; bảng điểm đã công bố hiển thị hạn phúc khảo hiệu lực. Regression kiểm ưu tiên cá nhân, lớp snapshot, hạn kỳ và thu hồi. [Gia hạn](../apps/backend/src/deadline-extensions/deadline-extensions.service.ts), [HTTP integration](../apps/backend/test/workflow.integration.test.cjs).
 
 ## Độ bao phủ và giới hạn kiểm chứng
 

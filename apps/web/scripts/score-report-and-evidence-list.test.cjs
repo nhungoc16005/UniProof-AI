@@ -211,7 +211,7 @@ test('BL-031: batch modal renders failureCount, finalizedCount and blocker from 
       items: rows, summary: { total: 2 }, filters: { faculties: [], classes: [] },
       total: 2, page: 1, pageSize: 25,
       facultyProgress: [], updatedAt: '2026-11-23',
-      term: { id: 'term-1', status: 'ACTIVE', workflowEnabled: true },
+      term: { id: 'term-1', status: 'ACTIVE', workflowEnabled: true, evidenceBasisWorkflowEnabled: true },
     }),
     post: async (url, body) => {
       assert.equal(url, '/assessments/batch-finalize');
@@ -258,7 +258,7 @@ test('BL-031: single preview renders the adjusted projected score of zero and th
           officialScore: 0, projectedScore: 0, status: 'ALREADY_FINALIZED', canFinalize: true }],
       });
       if (url.startsWith('/users/')) return envelope({ fullName: 'Sinh viên A', studentCode: 'SV1', class: { code: 'A' } });
-      if (url.startsWith('/assessments/')) return envelope({ categories: [], permissions: { canReview: true } });
+      if (url.startsWith('/assessments/')) return envelope({ term: { id: 'term-1', status: 'ACTIVE', evidenceBasisWorkflowEnabled: true }, categories: [], permissions: { canReview: true } });
       return envelope([]);
     },
   });
@@ -277,8 +277,9 @@ test('BL-031: single preview renders the adjusted projected score of zero and th
   harness.unmount();
 });
 
-test('BL-033: ScoreReport displays a zero suggestion separately from publication', async () => {
-  const term = { id: 'term-1', workflowEnabled: true };
+test('BL-033/034: ScoreReport separates suggestions and shows the effective appeal deadline', async () => {
+  const term = { id: 'term-1', workflowEnabled: true, appealDeadline: '2030-01-01T00:00:00.000Z' };
+  const deadline = '2030-01-15T03:00:00.000Z';
   const { ScoreReport } = loadRealComponent('../src/pages/student/ScoreReport.tsx', {
     AuthContext: { useAuth: () => ({ activeTerm: term, terms: [term], user: { id: 'sv-1' } }) },
     apiClient: { apiClient: { getConductDashboard: async () => ({}), getEvidences: async () => [] } },
@@ -286,6 +287,8 @@ test('BL-033: ScoreReport displays a zero suggestion separately from publication
       canEdit: false,
       refresh: async () => ({
         term, rubricVersion: { id: 'rubric' },
+        publication: { revision: 1 },
+        permissions: { effectiveDeadlines: { appeal: { deadline, source: 'STUDENT' } } },
         categories: [{ key: 'I', maxScore: 10, criteria: [{
           id: 'c-1', code: '1', name: 'Tiêu chí điểm danh', maxScore: 5,
           assessment: { suggestedScore: 0, officialScore: null, status: 'NEEDS_VERIFICATION' },
@@ -306,6 +309,11 @@ test('BL-033: ScoreReport displays a zero suggestion separately from publication
     node => node.type === 'tr' && textOf(node).includes(label)).props.children).map(textOf).slice(-2);
   assert.deepEqual(cells('Tiêu chí điểm danh'), ['0 / 5 đTheo căn cứ đã xác minh', 'Chưa công bố']);
   assert.deepEqual(cells('Tiêu chí đã công bố'), ['4 / 5 đTheo căn cứ đã xác minh', '2/5 điểm']);
+  const rendered = textOf(harness.getVdom());
+  assert.match(rendered, /Hạn phúc khảo hiện hành/);
+  assert.ok(rendered.includes(new Date(deadline).toLocaleString('vi-VN', {
+    dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Ho_Chi_Minh',
+  })));
   harness.unmount();
 });
 
@@ -524,7 +532,7 @@ describe('BL-029 (Web): Grounding import preview sessions', () => {
   }
 
   function setup(api) {
-    const terms = ['term-A', 'term-B'].map(id => ({ id, evidenceBasisWorkflowEnabled: true }));
+    const terms = ['term-A', 'term-B'].map(id => ({ id, status: 'ACTIVE', evidenceBasisWorkflowEnabled: true }));
     let termId = terms[0].id;
     const parser = loadRealComponent('../src/lib/groundingImportValues.ts');
     const { ImportGroundingData } = loadRealComponent('../src/pages/officer/ImportGroundingData.tsx', {
@@ -535,19 +543,30 @@ describe('BL-029 (Web): Grounding import preview sessions', () => {
     });
     let workspace;
     let key;
+    let view;
     function navigate(nextTermId) {
       termId = nextTermId;
-      const view = ImportGroundingData();
-      assert.equal(view.key, nextTermId);
-      if (view.key !== key) {
+      const nextView = ImportGroundingData();
+      assert.ok(nextView.key.startsWith(nextTermId + ':'));
+      if (nextView.key !== key) {
         workspace?.unmount();
+        view = nextView;
         workspace = createReactHarness();
         workspace.mount(() => view.type(view.props));
         key = view.key;
+      } else {
+        view = nextView;
+        workspace.rerender();
       }
       return workspace;
     }
-    return { navigate };
+    return {
+      navigate,
+      updateTerm: (nextTermId, patch) => {
+        Object.assign(terms.find(term => term.id === nextTermId), patch);
+        return navigate(nextTermId);
+      },
+    };
   }
 
   const preview = termId => ({ termId, totalRows: 1, validCount: 1, previewItems: [] });
@@ -555,6 +574,24 @@ describe('BL-029 (Web): Grounding import preview sessions', () => {
     .props.onChange({ target: { files: [file(name)] } });
   const confirmation = workspace => find(workspace.getVdom(), node =>
     node.type === 'button' && React.Children.toArray(node.props.children).some(child => typeof child === 'string' && child.includes('Xác nhận nhập')));
+
+  test('BL-032: moving to the traditional workflow invalidates a pending preview', async () => {
+    const late = createDeferred();
+    const { navigate, updateTerm } = setup({ previewGroundingImport: () => late.promise });
+    const before = navigate('term-A');
+    const pending = upload(before, 'before.xlsx');
+    await before.flush();
+    const traditional = updateTerm('term-A', { evidenceBasisWorkflowEnabled: false });
+    late.resolve(preview('term-A'));
+    await pending;
+    await traditional.flush();
+    assert.match(textOf(traditional.getVdom()), /quy trình truyền thống/);
+    assert.equal(find(traditional.getVdom(), node => node.type === 'input' && node.props.type === 'file'), undefined);
+    assert.equal(confirmation(traditional), undefined);
+    const upcoming = updateTerm('term-A', { status: 'UPCOMING', evidenceBasisWorkflowEnabled: true });
+    assert.match(textOf(upcoming.getVdom()), /Chỉ nhập căn cứ khi kỳ đang mở hoặc đang thẩm định/);
+    upcoming.unmount();
+  });
 
   test('previewed file is cleared on A → B, then retry confirms the new session with the same key', async () => {
     const calls = [];

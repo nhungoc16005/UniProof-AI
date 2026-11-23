@@ -51,7 +51,16 @@ export class DeadlineExtensionsService {
         userIds = (await tx.assessmentHandoff.findMany({ where: { termId: body.termId, classId: body.targetId }, select: { studentId: true } })).map(row => row.studentId);
       }
       const extension = await tx.assessmentDeadlineExtension.create({ data: { ...body, reason: body.reason.trim(), deadline, createdById: actorId } });
-      if (userIds.length) await tx.notification.createMany({ data: userIds.map(userId => ({ userId, type: 'DEADLINE_EXTENDED', eventKey: 'DEADLINE_EXTENDED', dedupeKey: `deadline:${extension.id}:${userId}`, title: 'Đã gia hạn thời gian xử lý', content: `${body.reason.trim()} · Hạn mới: ${deadline.toLocaleString('vi-VN')}`, targetPath: '/student', metadata: { extensionId: extension.id, type: body.type } })) });
+      if (userIds.length) await tx.notification.createMany({ data: userIds.map(userId => ({
+        userId,
+        type: 'DEADLINE_EXTENDED',
+        eventKey: 'DEADLINE_EXTENDED',
+        dedupeKey: `deadline:${extension.id}:${userId}`,
+        title: 'Đã gia hạn thời gian xử lý',
+        content: `${body.reason.trim()} · Hạn được cấp: ${deadline.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}`,
+        targetPath: `/student/scores?termId=${encodeURIComponent(body.termId)}`,
+        metadata: { extensionId: extension.id, type: body.type, termId: body.termId },
+      })) });
       await tx.auditLog.create({ data: { userId: actorId, action: 'DEADLINE_EXTENSION_CREATED', entityType: 'AssessmentDeadlineExtension', entityId: extension.id, newValue: { termId: body.termId, targetType: body.targetType, targetId: body.targetId, type: body.type, deadline: deadline.toISOString(), reason: body.reason.trim() } } });
       return extension;
     });

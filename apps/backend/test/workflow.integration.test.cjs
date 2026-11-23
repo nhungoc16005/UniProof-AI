@@ -192,6 +192,7 @@ if (!url) {
       assert.equal((await prisma.review.count({where:{evidenceId:evidenceA.id,decision:'APPROVED'}})),1);
     });
     await t.test('BL-028: all finalization routes share the locked faculty policy', async () => {
+      await prisma.term.update({ where: { id: term.id }, data: { evidenceBasisWorkflowEnabled: true } });
       const assessmentPath = '/assessments/students/' + studentA.id + '/' + term.id;
       const studentIds = [studentA.id, studentB.id];
       const handoffWhere = { studentId_termId: { studentId: studentA.id, termId: term.id } };
@@ -241,7 +242,15 @@ if (!url) {
         await prisma.term.update({ where: { id: term.id }, data: { status: 'ACTIVE' } });
       }
 
+      const before = await readState();
+      await prisma.term.update({ where: { id: term.id }, data: { evidenceBasisWorkflowEnabled: false } });
+      assert.equal((await request(staffA, 'GET', assessmentPath + '/preview-finalize')).status, 400);
+      assert.equal((await request(staffA, 'POST', assessmentPath + '/finalize')).status, 400);
+      const blockedBatch = await okay(staffA, 'POST', '/assessments/batch-finalize', { termId: term.id, studentIds: [studentA.id] });
+      assert.match(blockedBatch.results[0].blockers[0], /truyền thống/);
+      assert.deepEqual(await readState(), before);
       assert.equal((await okay(staffA, 'PUT', assessmentPath + '/' + criterion.id + '/final', {})).status, 'FINALIZED');
+      await prisma.term.update({ where: { id: term.id }, data: { evidenceBasisWorkflowEnabled: true } });
       await verify();
       assert.equal((await okay(staffA, 'POST', assessmentPath + '/finalize')).finalizedCount, 1);
       await verify();
@@ -281,6 +290,29 @@ if (!url) {
       assert.equal(report.items.length,1); assert.equal(report.totalEvaluated,1); assert.equal(report.pendingStudents,1); assert.equal(report.averageScore,85); assert.equal(report.distribution.YEU,0);
       assert.equal((await okay(studentA,'GET',`/scores/dashboard?termId=${term.id}`)).officialScore,85);
     });
+    await t.test('BL-034: notification opens the published term and uses current deadline precedence', async () => {
+      const link = `/student/scores?termId=${term.id}`;
+      const publication = await prisma.notification.findFirstOrThrow({ where: { userId: studentA.id, type: 'RESULT_PUBLISHED' } });
+      assert.equal(publication.targetPath, link);
+      assert.match(publication.content, /hạn phúc khảo hiện hành/);
+      assert.equal(publication.metadata.termId, term.id);
+
+      const create = (targetType, targetId, offset) => okay(admin, 'POST', '/deadline-extensions', {
+        termId: term.id, targetType, targetId, deadline: new Date(term.appealDeadline.getTime() + offset).toISOString(),
+        type: 'APPEAL', reason: 'Gia hạn kiểm thử',
+      });
+      const forClass = await create('CLASS', clsA.id, 200_000);
+      const forStudent = await create('STUDENT', studentA.id, 100_000);
+      const effective = async () => (await okay(studentA, 'GET', `/assessments/me?termId=${term.id}`)).permissions.effectiveDeadlines.appeal;
+      assert.deepEqual(await effective(), { source: 'STUDENT', deadline: forStudent.deadline, extensionId: forStudent.id });
+      const notices = await prisma.notification.findMany({ where: { userId: studentA.id, type: 'DEADLINE_EXTENDED' } });
+      assert.equal(notices.length, 2);
+      assert.ok(notices.every(row => row.targetPath === link && row.metadata.termId === term.id));
+      await okay(admin, 'DELETE', `/deadline-extensions/${forStudent.id}`);
+      assert.deepEqual(await effective(), { source: 'CLASS', deadline: forClass.deadline, extensionId: forClass.id });
+      await okay(admin, 'DELETE', `/deadline-extensions/${forClass.id}`);
+      assert.deepEqual(await effective(), { source: 'TERM', deadline: term.appealDeadline.toISOString(), extensionId: null });
+    });
     await t.test('appeal reopening preserves publication until new revision',async()=>{
       const assessment=await prisma.criterionAssessment.findFirst({where:{studentId:studentA.id,criterionId:criterion.id}});
       const appeal=await okay(studentA,'POST','/appeals',{criterionAssessmentId:assessment.id,content:'Đề nghị xem lại căn cứ điểm đã được công bố vì thông tin thành tích còn thiếu.'});
@@ -310,16 +342,60 @@ if (!url) {
       await okay(admin,'PATCH','/users/'+staffA2.id,{facultyId:facultyB.id});
       assert.equal((await request(staffA2,'GET',`/evidence/${evidenceA.id}`)).status,403);
     });
-    await t.test('new term can only open after rubric publication and records audit',async()=>{
-      const start=new Date();const later=n=>new Date(start.getTime()+n*86400000).toISOString();
-      const upcoming=await okay(admin,'POST','/terms',{code:'NEXT'+suffix,name:'Kỳ kế tiếp',startDate:start.toISOString(),endDate:later(30),submissionDeadline:later(31),reviewDeadline:later(32),appealDeadline:later(33),rubricSourceType:'TERM',sourceTermId:term.id});
-      assert.equal((await request(admin,'POST',`/terms/${upcoming.id}/activate`)).status,400);
-      await okay(admin,'POST',`/terms/${upcoming.id}/rubric/publish`);
-      await okay(admin,'POST',`/terms/${upcoming.id}/activate`);
-      assert.equal((await request(admin,'POST',`/terms/${upcoming.id}/activate`)).status,400);
-      assert.ok(await prisma.auditLog.count({where:{entityId:upcoming.id,action:'TERM_ACTIVATED'}}));
-      // Finish this isolated fixture so reruns can open their next test term.
-      await prisma.term.update({where:{id:upcoming.id},data:{status:'CLOSED'}});
+    await t.test('REQ-002: inherit PUBLISHED, version changes and confirm before opening with a draft', async () => {
+      const start = new Date();
+      const later = n => new Date(start.getTime() + n * 86400000).toISOString();
+      const create = code => okay(admin, 'POST', '/terms', {
+        code: code + suffix, name: 'Kỳ kế tiếp', startDate: start.toISOString(), endDate: later(30),
+        submissionDeadline: later(31), reviewDeadline: later(32), appealDeadline: later(33),
+        rubricSourceType: 'TERM', sourceTermId: term.id,
+      });
+      const termRubric = termId => okay(admin, 'GET', `/terms/${termId}/rubric`);
+      const activate = (termId, body) => okay(admin, 'POST', `/terms/${termId}/activate`, body);
+      const historical = await termRubric(term.id);
+
+      const direct = await create('DIRECT');
+      const inherited = await termRubric(direct.id);
+      assert.equal(inherited.rubricVersion.status, 'PUBLISHED');
+      assert.notEqual(inherited.rubricVersion.id, rubric.id);
+      assert.deepEqual(inherited.definition, historical.definition);
+      assert.equal((await activate(direct.id)).status, 'ACTIVE');
+      assert.equal((await prisma.assessmentHandoff.findFirstOrThrow({ where: { termId: direct.id } })).rubricVersionId, inherited.rubricVersion.id);
+      await prisma.term.update({ where: { id: direct.id }, data: { status: 'CLOSED' } });
+
+      const revised = await create('REVISED');
+      const inheritedRevised = await termRubric(revised.id);
+      const unchanged = await okay(admin, 'PUT', `/terms/${revised.id}/rubric`, { definition: inheritedRevised.definition });
+      assert.equal(unchanged.rubricVersion.id, inheritedRevised.rubricVersion.id);
+      const definition = structuredClone(inheritedRevised.definition);
+      definition.categories[0].criteria[0].name = 'Tiêu chí điều chỉnh';
+      const save = termId => okay(admin, 'PUT', `/terms/${termId}/rubric`, { definition, changeNote: 'Thay đổi đã xác nhận' });
+      const edited = await save(revised.id);
+      assert.equal(edited.rubricVersion.status, 'DRAFT');
+      assert.equal(edited.rubricVersion.version, 2);
+      assert.equal((await prisma.rubricVersion.findUniqueOrThrow({ where: { id: inheritedRevised.rubricVersion.id } })).status, 'PUBLISHED');
+      await okay(admin, 'POST', `/terms/${revised.id}/rubric/publish`);
+      assert.equal((await prisma.rubricVersion.findUniqueOrThrow({ where: { id: inheritedRevised.rubricVersion.id } })).status, 'ARCHIVED');
+      await activate(revised.id);
+      assert.equal((await prisma.assessmentHandoff.findFirstOrThrow({ where: { termId: revised.id } })).rubricVersionId, edited.rubricVersion.id);
+      assert.deepEqual((await termRubric(term.id)).definition, historical.definition);
+      assert.equal((await termRubric(term.id)).rubricVersion.id, rubric.id);
+      await prisma.term.update({ where: { id: revised.id }, data: { status: 'CLOSED' } });
+
+      const pending = await create('PENDING');
+      const current = await termRubric(pending.id);
+      const draft = await save(pending.id);
+      const activationPath = `/terms/${pending.id}/activate`;
+      const absentConfirmation = await request(admin, 'POST', activationPath);
+      assert.equal(absentConfirmation.status, 400);
+      assert.equal(absentConfirmation.body.error.code, 'TERM_RUBRIC_CONFIRMATION_REQUIRED');
+      assert.equal((await request(admin, 'POST', activationPath, { confirmPublishedRubricVersionId: draft.rubricVersion.id })).status, 400);
+      await activate(pending.id, { confirmPublishedRubricVersionId: current.rubricVersion.id });
+      assert.equal((await prisma.assessmentHandoff.findFirstOrThrow({ where: { termId: pending.id } })).rubricVersionId, current.rubricVersion.id);
+      assert.equal((await request(admin, 'POST', `/terms/${pending.id}/rubric/publish`)).status, 400);
+      assert.equal((await termRubric(pending.id)).rubricVersion.status, 'DRAFT');
+      assert.ok(await prisma.auditLog.count({ where: { entityId: pending.id, action: 'TERM_ACTIVATED' } }));
+      await prisma.term.update({ where: { id: pending.id }, data: { status: 'CLOSED' } });
     });
     await t.test('legacy period works without handoff and stays read-only',async()=>{
       const legacy=await prisma.term.create({data:{code:'LEGACY'+suffix,name:'Kỳ lịch sử',startDate:new Date(),endDate:new Date(),submissionDeadline:new Date(),reviewDeadline:new Date(),appealDeadline:new Date(),status:'CLOSED',workflowEnabled:false}});

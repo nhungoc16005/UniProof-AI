@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { GroundingStatus, ImportBatchStatus, ImportBatchType, Prisma, Role, TermStatus } from '@prisma/client';
+import { GroundingStatus, ImportBatchStatus, ImportBatchType, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { WorkflowActor, WorkflowService } from '../evaluation-workflow/workflow.service';
 import { lockTerm } from '../evaluation-workflow/workflow-lock.helper';
@@ -8,6 +8,7 @@ import { validateVerifiedData } from '../assessments/assessments.service';
 import { ActivitiesService } from '../activities/activities.service';
 import { AssessmentsService } from '../assessments/assessments.service';
 import { ConfirmGroundingImportDto, PreviewGroundingImportDto } from './dto/grounding-import.dto';
+import { assertF15Open } from './f15-policy';
 
 @Injectable()
 export class GroundingImportService {
@@ -18,24 +19,33 @@ export class GroundingImportService {
     private readonly assessmentsService: AssessmentsService,
   ) {}
 
-  private async assertStaffFacultyScope(actor: WorkflowActor, termId: string, tx: Prisma.TransactionClient = this.prisma) {
+  private assertStaffFacultyScope(actor: WorkflowActor) {
     if (actor.role === Role.ADMIN) return;
     if (actor.role !== Role.STAFF || !actor.facultyId) {
       throw new ForbiddenException('Chưa được phân công Khoa');
     }
-    const term = await tx.term.findUnique({ where: { id: termId } });
-    if (!term) throw new NotFoundException('Không tìm thấy kỳ đánh giá');
-    if (term.status === TermStatus.CLOSED) {
-      throw new BadRequestException('Kỳ đánh giá đã đóng, không thể nhập dữ liệu');
-    }
   }
 
+  private async clubImportLocks(db: Prisma.TransactionClient, termId: string, studentIds: string[]) {
+    const scoped = { termId, studentId: { in: studentIds } };
+    const [publications, finalized] = await Promise.all([
+      db.assessmentPublication.findMany({ where: scoped, select: { studentId: true } }),
+      db.criterionAssessment.findMany({
+        where: { ...scoped, status: 'FINALIZED', criterion: { code: { in: ['4', '13'] }, rubricVersion: { termId, status: 'PUBLISHED' } } },
+        select: { studentId: true, criterion: { select: { code: true } } },
+      }),
+    ]);
+    const publishedStudents = new Set(publications.map(publication => publication.studentId));
+    const finalizedCriteria = new Set(finalized.map(row => `${row.studentId}:${row.criterion.code}`));
+    return (studentId: string, criterionCode: string) =>
+      publishedStudents.has(studentId) || finalizedCriteria.has(`${studentId}:${criterionCode}`);
+  }
   /**
    * Bước 1 & 2: Preview kiểm tra dữ liệu trước khi import.
    * TUYỆT ĐỐI KHÔNG GHI VÀO DATABASE.
    */
   async preview(actor: WorkflowActor, dto: PreviewGroundingImportDto) {
-    await this.assertStaffFacultyScope(actor, dto.termId);
+    this.assertStaffFacultyScope(actor);
 
     const source = dto.source?.trim() || 'File tải lên';
 
@@ -43,6 +53,7 @@ export class GroundingImportService {
       where: { id: dto.termId },
     });
     if (!term) throw new NotFoundException('Không tìm thấy kỳ đánh giá');
+    assertF15Open(term);
 
     const rubric = await this.prisma.rubricVersion.findFirst({
       where: { termId: dto.termId, status: 'PUBLISHED' },
@@ -78,6 +89,8 @@ export class GroundingImportService {
       select: { studentId: true, facultyId: true, status: true },
     });
     const handoffMap = new Map(handoffs.map((h) => [h.studentId, h]));
+    const clubImportLocked = dto.type === ImportBatchType.CLUB_LEADERSHIP
+      ? await this.clubImportLocks(this.prisma, dto.termId, students.map(student => student.id)) : undefined;
 
     // Nếu là ACTIVITY: kiểm tra Activity có tồn tại và hợp lệ không
     let activityRecord: any = null;
@@ -290,19 +303,24 @@ export class GroundingImportService {
         validCount++;
       } else if (dto.type === ImportBatchType.CLUB_LEADERSHIP) {
         const criterionCode = String(row.criterionCode || '').trim();
-        if (!['4', '13'].includes(criterionCode)) {
+        if (!['4', '13'].includes(criterionCode) || !criteriaByCode.has(criterionCode)) {
           previewItems.push({
             rowIndex,
             studentCode: rawCode,
             fullName: student.fullName,
             criterionCode,
             status: 'ERROR',
-            reason: `Tiêu chí '${criterionCode}' không thuộc danh mục CLB/BTC (chỉ chấp nhận: 4, 13)`,
+            reason: `Tiêu chí '${criterionCode}' không có trong nhóm CLB/BTC của rubric kỳ này (4, 13)`,
           });
           errorCount++;
           continue;
         }
 
+        if (['SENT', 'EXCLUDED'].includes(handoffMap.get(student.id)?.status ?? '') || clubImportLocked?.(student.id, criterionCode)) {
+          previewItems.push({ rowIndex, studentCode: rawCode, fullName: student.fullName, criterionCode, status: 'ERROR', reason: 'Phiếu đã khóa, tiêu chí đã chốt hoặc đã có kết quả công bố' });
+          errorCount++;
+          continue;
+        }
         const orgName = String(row.organizationName || '').trim();
         const roleTitle = String(row.roleTitle || '').trim();
         if (!orgName || !roleTitle) {
@@ -369,7 +387,7 @@ export class GroundingImportService {
         message: 'Kỳ xác nhận khác kỳ đã xem trước. Hãy xem trước lại tệp cho kỳ này.',
       });
     }
-    await this.assertStaffFacultyScope(actor, dto.termId);
+    this.assertStaffFacultyScope(actor);
 
     const source = dto.source?.trim() || 'File tải lên';
     const inputRows = (dto.validRows && dto.validRows.length > 0 ? dto.validRows : dto.rows) || [];
@@ -380,9 +398,7 @@ export class GroundingImportService {
     return this.prisma.$transaction(
       async (tx) => {
         const term = await lockTerm(tx, dto.termId);
-        if (term.status === TermStatus.CLOSED) {
-          throw new BadRequestException('Kỳ đánh giá đã đóng, không thể nhập dữ liệu');
-        }
+        assertF15Open(term);
 
         // Kiểm tra IdempotencyKey
         if (dto.idempotencyKey) {
@@ -432,6 +448,8 @@ export class GroundingImportService {
           select: { studentId: true, facultyId: true, status: true },
         });
         const handoffMap = new Map(handoffs.map((h) => [h.studentId, h]));
+        const clubImportLocked = dto.type === ImportBatchType.CLUB_LEADERSHIP
+          ? await this.clubImportLocks(tx, dto.termId, students.map(student => student.id)) : undefined;
 
         let existingParticipantIds = new Set<string>();
         if (dto.type === ImportBatchType.ACTIVITY) {
@@ -525,7 +543,8 @@ export class GroundingImportService {
             affectedStudentIds.add(student.id);
           } else if (dto.type === ImportBatchType.CLUB_LEADERSHIP) {
             const criterionCode = String(row.criterionCode || '').trim();
-            if (!['4', '13'].includes(criterionCode)) continue;
+            if (!['4', '13'].includes(criterionCode) || !criteriaByCode.has(criterionCode)) continue;
+            if (['SENT', 'EXCLUDED'].includes(handoffMap.get(student.id)?.status ?? '') || clubImportLocked?.(student.id, criterionCode)) continue;
 
             const orgName = String((row.data as any)?.organizationName || row.organizationName || '').trim();
             const roleTitle = String((row.data as any)?.roleTitle || row.roleTitle || '').trim();
@@ -599,8 +618,10 @@ export class GroundingImportService {
         } else if (dto.type === ImportBatchType.CLUB_LEADERSHIP) {
           await tx.clubLeadershipGrounding.createMany({
             data: validClubItems.map((item) => ({ ...item, batchId: batch.id })),
-            skipDuplicates: true,
           });
+          for (const studentId of affectedStudentIds) {
+            await this.assessmentsService.syncStudentGrounding(tx, studentId, dto.termId, rubric.id);
+          }
         }
 
         // Ghi AuditLog
@@ -638,7 +659,7 @@ export class GroundingImportService {
    * Danh sách các lô đã nhập của Khoa
    */
   async listBatches(actor: WorkflowActor, termId: string, type?: ImportBatchType) {
-    await this.assertStaffFacultyScope(actor, termId);
+    this.assertStaffFacultyScope(actor);
 
     const facultyFilter = actor.role === Role.STAFF ? { facultyId: actor.facultyId! } : {};
     return this.prisma.importBatch.findMany({
@@ -693,6 +714,7 @@ export class GroundingImportService {
    * phiếu liên quan SENT, đã có publication hoặc kỳ đã đóng -> CHẶN TOÀN BỘ LÔ.
    */
   async revokeBatch(actor: WorkflowActor, batchId: string, reasonOrDto: string | { reason: string }) {
+    this.assertStaffFacultyScope(actor);
     const reason = typeof reasonOrDto === 'string' ? reasonOrDto : reasonOrDto?.reason;
     if (!reason || !reason.trim()) {
       throw new BadRequestException('Bắt buộc phải nhập lý do khi thu hồi lô');
@@ -714,9 +736,7 @@ export class GroundingImportService {
     return this.prisma.$transaction(
       async (tx) => {
         const term = await lockTerm(tx, batch.termId);
-        if (term.status === TermStatus.CLOSED) {
-          throw new BadRequestException('Kỳ đánh giá đã đóng; không thể thu hồi lô import');
-        }
+        assertF15Open(term);
 
         const currentBatch = await tx.importBatch.findUniqueOrThrow({ where: { id: batch.id } });
         if (currentBatch.status !== ImportBatchStatus.ACTIVE) throw new BadRequestException('Lô import này đã được thu hồi trước đó');
@@ -888,16 +908,35 @@ export class GroundingImportService {
 
           const studentIds = [...new Set(groundings.map((g) => g.studentId))];
 
-          const handoffs = await tx.assessmentHandoff.findMany({
-            where: { termId: batch.termId, studentId: { in: studentIds }, status: 'SENT' },
+          const handedOff = await tx.assessmentHandoff.count({
+            where: { termId: batch.termId, studentId: { in: studentIds }, status: { in: ['SENT', 'EXCLUDED'] } },
           });
-          if (handoffs.length > 0) {
-            blockers.push(`Đã có ${handoffs.length} phiếu sinh viên trong danh sách CLB này được gửi lên CTSV (SENT)`);
+          if (handedOff) blockers.push('Có phiếu sinh viên trong lô đã gửi CTSV hoặc đã bị loại trừ');
+
+          const published = await tx.assessmentPublication.count({
+            where: { termId: batch.termId, studentId: { in: studentIds } },
+          });
+          if (published) blockers.push('Có kết quả sinh viên trong lô đã được công bố');
+
+          const finalized = await tx.criterionAssessment.findMany({
+            where: {
+              termId: batch.termId,
+              status: 'FINALIZED',
+              studentId: { in: studentIds },
+              criterion: { code: { in: [...new Set(groundings.map(row => row.criterionCode))] }, rubricVersion: { termId: batch.termId, status: 'PUBLISHED' } },
+            },
+            select: { studentId: true, student: { select: { studentCode: true } }, criterion: { select: { code: true } } },
+          });
+          const affectedCriteria = new Set(groundings.map(row => `${row.studentId}:${row.criterionCode}`));
+          for (const row of finalized) {
+            if (affectedCriteria.has(`${row.studentId}:${row.criterion.code}`)) {
+              blockers.push(`Tiêu chí ${row.criterion.code} của sinh viên ${row.student.studentCode} đã được chốt chính thức (FINALIZED)`);
+            }
           }
 
           if (blockers.length > 0) {
             throw new BadRequestException({
-              message: 'Không thể thu hồi lô CLB/BTC do một số phiếu sinh viên đã gửi Admin',
+              message: 'Không thể thu hồi lô CLB/BTC vì có phiếu đã khóa, chốt điểm hoặc công bố',
               blockers,
             });
           }
@@ -916,6 +955,9 @@ export class GroundingImportService {
               revokeReason: reason.trim(),
             },
           });
+          for (const studentId of studentIds) {
+            await this.assessmentsService.syncStudentGrounding(tx, studentId, batch.termId);
+          }
         }
 
         // Ghi AuditLog

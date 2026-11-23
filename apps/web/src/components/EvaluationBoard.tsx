@@ -13,7 +13,7 @@ export const evaluationStateLabels: Record<string, string> = {
   FACULTY_RETURNED: 'CTSV trả lại', NOT_SUBMITTED_RECORDED: 'Đã ghi nhận không nộp',
 };
 export type EvaluationRow = { studentId: string; student?: { fullName: string; studentCode: string }; classId: string; class?: { id: string; code: string }; facultyId: string; faculty?: { id: string; name: string }; state: string; ready: boolean; blockers: string[]; finalizedCriteria: number; totalCriteria: number; pendingAppeals: number; pendingEvidence: number; returnReason?: string; notSubmittedReason?: string; exclusionReason?: string; revision: number; officialScore?: number | null; classification?: string; publicationRevision?: number | null };
-export type EvaluationData = { items: EvaluationRow[]; summary: Record<string, number>; updatedAt: string; total: number; page: number; pageSize: number; facultyProgress: { id: string; name: string; total: number; sent: number; published: number; pendingAppeals: number }[]; filters: { classes: { id: string; code: string }[]; faculties: { id: string; name: string }[] }; term: { id: string; name: string; status: string; workflowEnabled: boolean; submissionDeadline: string; appealDeadline: string; reviewDeadline?: string } };
+export type EvaluationData = { items: EvaluationRow[]; summary: Record<string, number>; updatedAt: string; total: number; page: number; pageSize: number; facultyProgress: { id: string; name: string; total: number; sent: number; published: number; pendingAppeals: number }[]; filters: { classes: { id: string; code: string }[]; faculties: { id: string; name: string }[] }; term: { id: string; name: string; status: string; workflowEnabled: boolean; evidenceBasisWorkflowEnabled?: boolean; submissionDeadline: string; appealDeadline: string; reviewDeadline?: string } };
 export type PublicationConditions = { canPublish: boolean; canClose: boolean; publishBlockers: string[]; closeBlockers: string[] };
 export const errorMessage = (err: any) => err.response?.data?.error?.message || err.response?.data?.message || err.message || 'Không thực hiện được thao tác';
 export function saveEvaluationExcel(items: EvaluationRow[], termId: string) {
@@ -108,6 +108,7 @@ export const EvaluationBoard: React.FC<{ admin?: boolean; compact?: boolean }> =
     finally { setBusy(false); }
   };
   const exportRows = () => void act(async () => { const result = await apiClient.exportEvaluationWorkflow(termId, filters); saveEvaluationExcel(result.items, termId); }, 'Đã xuất toàn bộ dữ liệu phù hợp bộ lọc.');
+  const canBatchFinalize = data?.term.evidenceBasisWorkflowEnabled && ['ACTIVE', 'REVIEWING'].includes(data.term.status);
   const closed = data?.term.status === 'CLOSED' || !data?.term.workflowEnabled;
   const base = admin ? '/admin/results' : '/officer/students';
   const cards = [['Chưa nộp','notSubmitted','NOT_SUBMITTED'], ['Đang chấm','reviewing','REVIEWING'], ['Cần chỉnh sửa','returned','RETURNED'], ['Hoàn tất chấm','ready','READY'], ['Đã gửi CTSV','sent','SENT'], ['Phúc khảo chờ','pendingAppeals','APPEALS']];
@@ -176,14 +177,14 @@ export const EvaluationBoard: React.FC<{ admin?: boolean; compact?: boolean }> =
             </button>
             {!admin && data && !closed && (
               <>
-                <button
+                {canBatchFinalize && <button
                   type="button"
                   disabled={loading || busy || !selected.length}
                   onClick={handleOpenBatchFinalize}
                   className="rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 px-3.5 py-2 text-xs sm:text-sm font-bold text-emerald-800 disabled:opacity-40 transition-colors shadow-2xs"
                 >
                   Chốt hàng loạt ({selected.length})
-                </button>
+                </button>}
                 <button
                   disabled={loading || busy || !selected.length}
                   onClick={() => {
@@ -407,7 +408,7 @@ export const EvaluationBoard: React.FC<{ admin?: boolean; compact?: boolean }> =
     {showPublish && data && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"><div role="dialog" aria-modal="true" className="w-full max-w-lg rounded-2xl bg-white p-5 space-y-4"><h2 className="font-bold text-slate-900">Xác nhận công bố kết quả</h2><p className="text-sm text-slate-600">Hệ thống sẽ tạo revision mới cho các kết quả chưa công bố và gửi thông báo đến sinh viên. Nhập <strong>CÔNG BỐ</strong> để tiếp tục.</p><input autoFocus value={publishConfirm} onChange={e => setPublishConfirm(e.target.value)} className="w-full rounded-lg border p-3 font-semibold" placeholder="CÔNG BỐ"/><div className="flex justify-end gap-2"><button onClick={() => setShowPublish(false)} className="px-3 py-2 text-sm">Hủy</button><button disabled={publishConfirm !== 'CÔNG BỐ' || busy} onClick={() => void act(() => apiClient.publishResults(termId), 'Đã công bố kết quả.').then(() => setShowPublish(false))} className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">Công bố</button></div></div></div>}
 
     {/* Modal Chốt Phiếu Hàng Loạt */}
-    {showBatchFinalize && (
+    {showBatchFinalize && canBatchFinalize && (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
         <div className="bg-white rounded-xl max-w-xl w-full p-5 shadow-xl border border-slate-200 space-y-4 max-h-[90vh] flex flex-col">
           <div className="flex items-center justify-between border-b border-slate-200 pb-3">

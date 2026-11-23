@@ -93,6 +93,8 @@ Lỗi validation/nghiệp vụ phải hiển thị lý do từ server; 401 yêu 
 
 Bổ sung ca biên ở mục 7 và regression của từng BL liên quan; xem [TEST_PLAN](../TEST_PLAN.md) để chọn môi trường và bằng chứng. Không gán Passed nếu chưa chạy.
 
+BL-026 kiểm trên PostgreSQL 17 với hai kết nối. Khi xóa tệp commit trước, submit chặn vì thiếu tệp. Khi submit commit trước, xóa nháp bị từ chối và giữ tệp cùng job. Tác động Storage được kiểm qua giả lập.
+
 ## 10. Definition of Done — Điều kiện hoàn thành
 
 - [ ] Tất cả AC liên quan được chứng minh bằng kiểm tra phù hợp.

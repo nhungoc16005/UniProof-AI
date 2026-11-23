@@ -301,8 +301,8 @@ export const apiClient = {
     return res.data.data;
   },
 
-  async activateTerm(id: string): Promise<Term> {
-    const res = await http.post(`/terms/${id}/activate`);
+  async activateTerm(id: string, confirmPublishedRubricVersionId?: string): Promise<Term> {
+    const res = await http.post(`/terms/${id}/activate`, confirmPublishedRubricVersionId ? { confirmPublishedRubricVersionId } : undefined);
     return res.data.data;
   },
 

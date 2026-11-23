@@ -184,7 +184,7 @@ export const TermsMasterData: React.FC = () => {
       });
       setShowCreateModal(false);
       await loadTerms();
-      alert('Đã tạo kỳ ở trạng thái Sắp diễn ra cùng bản nháp bộ tiêu chí. Hãy kiểm tra và ban hành trong mục Tiêu chí đánh giá.');
+      alert('Đã tạo kỳ ở trạng thái Sắp diễn ra với bộ tiêu chí đã ban hành. Có thể mở kỳ khi sẵn sàng.');
       navigate('/admin/criteria');
     } catch (err: any) {
       console.error('Lỗi tạo kỳ', err);
@@ -273,13 +273,17 @@ export const TermsMasterData: React.FC = () => {
     }
   };
 
-  const handleActivateTerm = async (term: Term) => {
+  const handleActivateTerm = async (term: Term & { rubricVersions?: Array<{ id: string; version: number; status: string }> }) => {
     try {
-      await apiClient.activateTerm(term.id);
+      const published = term.rubricVersions?.find(version => version.status === 'PUBLISHED');
+      const pending = term.rubricVersions?.some(version => version.status === 'DRAFT');
+      if (published && pending && !window.confirm(`Mở kỳ bằng bộ tiêu chí đã ban hành v${published.version}? Bản nháp sẽ được giữ để tra cứu.`)) return;
+      await apiClient.activateTerm(term.id, pending ? published?.id : undefined);
       await loadTerms();
       alert(`Đã mở kỳ ${term.name}.`);
     } catch (err: any) {
-      const message = err.response?.data?.message || 'Chưa thể mở kỳ.';
+      const message = err.response?.data?.error?.message || err.response?.data?.message || 'Chưa thể mở kỳ.';
+      if (err.response?.data?.error?.code === 'TERM_RUBRIC_CONFIRMATION_REQUIRED') await loadTerms();
       if (message.includes('ban hành bộ tiêu chí')) navigate('/admin/criteria');
       alert(message);
     }
@@ -472,7 +476,7 @@ export const TermsMasterData: React.FC = () => {
                     {(terms as Array<Term & { rubricVersions?: Array<{ status: string }> }>).filter((term) => term.rubricVersions?.some((version) => version.status === 'PUBLISHED')).map((term) => <option key={term.id} value={term.id}>{term.name} · {term.code}</option>)}
                   </select>
                 )}
-                <p className="mt-1 text-[11px] text-slate-500">Kỳ mới được tạo ở trạng thái Sắp diễn ra. Bộ tiêu chí sẽ là bản nháp đến khi quản trị viên ban hành.</p>
+                <p className="mt-1 text-[11px] text-slate-500">Kỳ mới kế thừa bộ tiêu chí đã ban hành và ở trạng thái Sắp diễn ra.</p>
               </div>
 
               <div className="grid grid-cols-2 gap-2.5 pt-1">

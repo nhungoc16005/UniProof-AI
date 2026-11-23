@@ -39,6 +39,8 @@ Tab Chưa đọc phân biệt đã đọc hết với trường hợp còn thôn
 
 Giữ ngữ cảnh người dùng/kỳ và cung cấp thao tác thử lại. Chỉ hiển thị nút khi có quyền, đồng thời server phải kiểm tra lại quyền và trạng thái.
 
+Thông báo cấp gia hạn và công bố dẫn đến phiếu đúng `termId`. Phiếu đã công bố hiển thị hạn phúc khảo hiệu lực khi mở thông báo.
+
 ## 5. API Contract — Hợp đồng API
 
 Các route sau đều có prefix `/api` (trừ pipeline ngoài hệ thống):
@@ -83,7 +85,7 @@ Lỗi validation/nghiệp vụ phải hiển thị lý do từ server; 401 yêu 
 | F13-TC-02 | BL-037: Trong 51 thông báo, mục chưa đọc duy nhất ở vị trí 51. Badge và tab báo 1, trạng thái rỗng giải thích giới hạn danh sách. Đánh dấu tất cả đưa tổng về 0. | F13-AC-02 | Đạt ở service và component Web với transport giả lập. [Kết quả](../TEST_PLAN.md). |
 | F13-TC-03 | Kiểm chứng: đánh dấu một/tất cả không đổi thông báo của người khác | F13-AC-03 | Planned |
 | F13-TC-04 | Kiểm chứng: dedupeKey không được chặn một sự kiện nghiệp vụ mới hợp lệ | F13-AC-04 | Planned |
-| F13-TC-05 | Kiểm chứng: targetPath/metadata giữ được ngữ cảnh kỳ và thực thể | F13-AC-05 | Planned |
+| F13-TC-05 | Gia hạn và công bố mở đúng kỳ. Hạn phúc khảo theo cá nhân, lớp snapshot hoặc kỳ và cập nhật sau thu hồi. | F13-AC-05 | Đạt ở HTTP/PostgreSQL và Web |
 | F13-TC-06 | BL-021: Loại trừ $\rightarrow$ Khôi phục $\rightarrow$ Loại trừ lại: Tăng revision và sinh eventId cho dedupeKey, giải quyết triệt để lỗi trùng khóa P2002 của Prisma | BL-021; F13-AC-04 | Verified in `exclusion-and-restore.test.cjs` |
 
 Bổ sung ca biên ở mục 7 và regression của từng BL liên quan; xem [TEST_PLAN](../TEST_PLAN.md) để chọn môi trường và bằng chứng. Không gán Passed nếu chưa chạy.

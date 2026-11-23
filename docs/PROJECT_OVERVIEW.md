@@ -84,7 +84,7 @@ Mỗi feature dưới đây ghi caller, API/DTO, service, bảng, response, AC v
 
 Một đường đi trọng tâm:
 
-1. Admin tạo kỳ UPCOMING và tiếp tục áp dụng rubric hiện hành nếu không có thay đổi thực sự, theo DEC-006 trong [DECISIONS](DECISIONS.md). Hiện code sao chép rubric DEFAULT/TERM thành DRAFT và yêu cầu ban hành theo từng kỳ; không bắt buộc sửa nội dung khi copy. Luồng tái sử dụng cần đối chiếu với yêu cầu đã xác nhận, theo REQ-002 trong BACKLOG; chưa sửa code.
+1. Admin tạo kỳ UPCOMING với bản sao kỹ thuật PUBLISHED từ bộ chuẩn hoặc kỳ nguồn theo DEC-006. Nếu sửa nội dung trước khi mở kỳ, hệ thống tạo phiên bản nháp kế tiếp. Khi còn bản nháp, Admin xác nhận bản đang ban hành để khởi tạo roster theo DEC-013.
 2. Kích hoạt tạo AssessmentHandoff cho sinh viên active có lớp: chụp classId/facultyId/rubricVersionId.
 3. Sinh viên vào /student/scores, lưu selfScore, tạo Evidence gắn CriterionAssessment, upload file; preflight báo thiếu dữ liệu/tệp.
 4. Submit với termId ở query: workflow.studentEdit khóa Term, kiểm quyền/cửa sổ, ghi SUBMITTED, chuyển nháp đủ tệp sang PROCESSING và tạo AiProcessingJob.

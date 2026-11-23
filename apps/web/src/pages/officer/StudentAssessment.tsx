@@ -232,6 +232,19 @@ export const CriterionCard: React.FC<CardProps> = ({ studentId, termId, criterio
       </div>
 
       {/* Verified Data Summary if exists */}
+      {!!criterion.clubGroundings?.length && (
+        <section className="space-y-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-slate-700">
+          <h3 className="font-semibold text-blue-900">Căn cứ CLB/BTC để đối chiếu</h3>
+          <ul className="space-y-2">
+            {criterion.clubGroundings.map(source => (
+              <li key={source.id}>
+                <strong>{source.organizationName}</strong> · {source.roleTitle}
+                <p>{source.source || 'Lô nhập của Khoa'}{source.note ? ` · ${source.note}` : ''}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {!!assessment?.verifiedData && Object.keys(assessment.verifiedData).length > 0 && (
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <div className="flex items-center gap-1.5 mb-2.5">
@@ -537,6 +550,8 @@ export const StudentAssessment: React.FC = () => {
 
   const isAdmin = user.role === 'ADMIN';
   const isReadOnly = isAdmin || !payload?.permissions?.canReview;
+  const canFinalizeSheet = Boolean(!isReadOnly && payload?.term?.id === termId &&
+    payload.term.evidenceBasisWorkflowEnabled && ['ACTIVE', 'REVIEWING'].includes(payload.term.status));
 
   const [showFinalizeModal, setShowFinalizeModal] = useState(false);
   const [previewFinalize, setPreviewFinalize] = useState<PreviewFinalizeResult | null>(null);
@@ -545,6 +560,7 @@ export const StudentAssessment: React.FC = () => {
   const [finalizeError, setFinalizeError] = useState('');
 
   const handleOpenFinalizeModal = async () => {
+    if (!canFinalizeSheet) return;
     setShowFinalizeModal(true);
     setLoadingPreviewFinalize(true);
     setFinalizeError('');
@@ -559,6 +575,7 @@ export const StudentAssessment: React.FC = () => {
   };
 
   const handleConfirmFinalize = async () => {
+    if (!canFinalizeSheet) return;
     setIsFinalizing(true);
     setFinalizeError('');
     try {
@@ -875,14 +892,14 @@ export const StudentAssessment: React.FC = () => {
             />
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button
+            {canFinalizeSheet && <button
               disabled={busy}
               onClick={handleOpenFinalizeModal}
               className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3.5 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 disabled:opacity-40 disabled:pointer-events-none transition-colors"
             >
               <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
               <span>Chốt phiếu sinh viên</span>
-            </button>
+            </button>}
             <button
               disabled={busy || !returnReason.trim()}
               onClick={() => void act(() => apiClient.returnSelfAssessment(studentId, termId, returnReason))}
@@ -1297,7 +1314,7 @@ export const StudentAssessment: React.FC = () => {
       )}
 
       {/* Modal Chốt Phiếu Sinh Viên */}
-      {showFinalizeModal && (
+      {showFinalizeModal && canFinalizeSheet && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
           <div className="bg-white rounded-xl max-w-2xl w-full p-5 shadow-xl border border-slate-200 space-y-4 max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between border-b border-slate-200 pb-3">

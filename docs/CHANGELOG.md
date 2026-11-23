@@ -2,6 +2,23 @@
 
 Mỗi công việc trong dự án thêm mục mới ở đầu với ngày, phạm vi, feature/bug/quyết định liên quan, thay đổi thực tế, kiểm tra đã chạy và giới hạn. Không ghi test dự kiến như đã Passed, không ghi credential hoặc dữ liệu sinh viên.
 
+## 2026-11-23 — Hoàn thiện P1 và khóa khi nộp phiếu
+
+- BL-032/030 áp dụng điều kiện F15 dưới khóa Term. Phiếu Khoa hiển thị nguồn CLB/BTC và giữ xác minh tay khi thu hồi. Migration mới thêm `clubGroundingIds` mặc định mảng rỗng.
+- REQ-002 lưu rubric kế thừa dưới dạng PUBLISHED. Thay đổi trước khi mở kỳ tạo phiên bản kế tiếp. Admin xác nhận bản đang áp dụng nếu còn bản nháp.
+- BL-034 mở thông báo đúng kỳ và hiển thị hạn phúc khảo hiệu lực. BL-027 kiểm lại công tắc F15, điểm và minh chứng dưới khóa Term. BL-026 được kiểm chứng ở cả hai thứ tự khóa trên PostgreSQL.
+- Backend unit **198/198**, Web **30/30**, PostgreSQL integration **26/26**, typecheck hai app và kiểm tra diff đạt. Migration tương thích với bản ghi tạo trước và sau deploy. Browser E2E chưa chạy. [Kết quả từng suite](TEST_PLAN.md#p1-suite-results).
+
+<a id="p1-files"></a>
+
+### Tệp thay đổi trong đợt P1
+
+- **Schema và migration** · [20261123000100_club_grounding_provenance/migration.sql](../apps/backend/prisma/migrations/20261123000100_club_grounding_provenance/migration.sql), [schema.prisma](../apps/backend/prisma/schema.prisma)
+- **Backend** · [assessments.service.ts](../apps/backend/src/assessments/assessments.service.ts), [criteria.controller.ts](../apps/backend/src/criteria/criteria.controller.ts), [criteria.service.ts](../apps/backend/src/criteria/criteria.service.ts), [deadline-extensions.service.ts](../apps/backend/src/deadline-extensions/deadline-extensions.service.ts), [workflow.service.ts](../apps/backend/src/evaluation-workflow/workflow.service.ts), [f15-policy.ts](../apps/backend/src/grounding-import/f15-policy.ts), [grounding-import.service.ts](../apps/backend/src/grounding-import/grounding-import.service.ts)
+- **Web** · [EvaluationBoard.tsx](../apps/web/src/components/EvaluationBoard.tsx), [apiClient.ts](../apps/web/src/lib/apiClient.ts), [CriteriaManager.tsx](../apps/web/src/pages/admin/CriteriaManager.tsx), [TermsMasterData.tsx](../apps/web/src/pages/admin/TermsMasterData.tsx), [ImportGroundingData.tsx](../apps/web/src/pages/officer/ImportGroundingData.tsx), [StudentAssessment.tsx](../apps/web/src/pages/officer/StudentAssessment.tsx), [ScoreReport.tsx](../apps/web/src/pages/student/ScoreReport.tsx), [index.ts](../apps/web/src/types/index.ts)
+- **Kiểm thử** · [activity-and-roles-scoring.test.cjs](../apps/backend/test/activity-and-roles-scoring.test.cjs), [data-protection.test.cjs](../apps/backend/test/data-protection.test.cjs), [grounding-db.integration.test.cjs](../apps/backend/test/grounding-db.integration.test.cjs), [grounding-import-and-batch-finalize.test.cjs](../apps/backend/test/grounding-import-and-batch-finalize.test.cjs), [submission-concurrency.integration.test.cjs](../apps/backend/test/submission-concurrency.integration.test.cjs), [workflow.integration.test.cjs](../apps/backend/test/workflow.integration.test.cjs), [score-report-and-evidence-list.test.cjs](../apps/web/scripts/score-report-and-evidence-list.test.cjs)
+- **Tài liệu** · [API_CONTRACT.md](API_CONTRACT.md), [BACKLOG.md](BACKLOG.md), [BUSINESS_LOGIC_AUDIT.md](BUSINESS_LOGIC_AUDIT.md), [BUSINESS_RULES.md](BUSINESS_RULES.md), [CHANGELOG.md](CHANGELOG.md), [DECISIONS.md](DECISIONS.md), [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md), [README.md](README.md), [TEST_PLAN.md](TEST_PLAN.md), [03-terms-and-deadlines.md](features/03-terms-and-deadlines.md), [04-rubrics-and-scoring.md](features/04-rubrics-and-scoring.md), [05-student-assessment.md](features/05-student-assessment.md), [06-evidence-and-storage.md](features/06-evidence-and-storage.md), [10-publication-and-term-closure.md](features/10-publication-and-term-closure.md), [13-notifications.md](features/13-notifications.md), [15-evidence-grounding-and-batch-finalize.md](features/15-evidence-grounding-and-batch-finalize.md)
+
 ## 2026-11-23 — Sửa hiển thị điểm, minh chứng và thông báo
 
 - BL-031/033 (F07/F15) đồng bộ `EvaluationBoard` và `StudentAssessment` với hợp đồng kết quả chốt. `AssessmentsService.getMine` giữ điểm gợi ý đã lưu, `ScoreReport` hiển thị riêng điểm công bố.

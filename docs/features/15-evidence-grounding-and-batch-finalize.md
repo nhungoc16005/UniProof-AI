@@ -6,7 +6,7 @@
 | Vai trò | `STAFF` (Cán bộ Khoa), `ADMIN` (Quản trị viên), `STUDENT` (Sinh viên) |
 | Trạng thái | Có implementation và regression cho quyền chốt, ngữ cảnh import, căn cứ học vụ và điểm danh. Chưa nghiệm thu toàn bộ F15. |
 | Nguồn | `apps/backend/src/grounding-import/*`, `apps/backend/src/assessments/*`, `apps/backend/src/activities/*`, `apps/web/src/pages/officer/ImportGroundingData.tsx`, `apps/web/src/pages/officer/StudentAssessment.tsx`, `apps/web/src/components/EvaluationBoard.tsx`, `apps/backend/test/grounding-import-and-batch-finalize.test.cjs` |
-| Quy tắc / gap | `DEC-006`, `DEC-008`, `DEC-009`, `DEC-011`, `DEC-012`, `R-29-GROUNDING` |
+| Quy tắc / gap | `DEC-006`, `DEC-008`, `DEC-009`, `DEC-011`, `DEC-012`, `DEC-013`, [R-29](../BUSINESS_RULES.md#r-29) |
 
 ## 1. Objective — Mục tiêu
 
@@ -43,6 +43,9 @@ Trace:
 - **F15-AC-08 (Thu hồi lô an toàn):** Cho phép thu hồi lô khi các sinh viên liên quan chưa bị chốt điểm. Chặn thu hồi toàn bộ lô nếu có ít nhất một dòng đã dùng để chốt điểm (`FINALIZED`), phiếu đã gửi CTSV (`SENT`), đã có publication hoặc kỳ đã đóng (`CLOSED`). Khi thu hồi thành công, điểm gợi ý liên quan được tự động tính toán lại.
 - **F15-AC-09 (Ngữ cảnh nhập):** Đổi kỳ, danh mục, hoạt động hoặc file làm mất hiệu lực phiên xem trước. Phản hồi về muộn chỉ cập nhật phiên hiện hành. Confirm dùng đúng kỳ đã xem trước. Retry cùng phiên giữ khóa idempotency.
 - **F15-AC-10 (Hiển thị điểm và kết quả chốt):** Modal từng phiếu hiển thị điểm dự kiến theo `projectedScore`. Kết quả hàng loạt hiển thị số phiếu thành công/bị chặn, số tiêu chí vừa chốt và lý do của từng phiếu bị chặn. Trong kỳ `workflowEnabled`, sinh viên xem điểm gợi ý đã lưu theo tiêu chí và điểm chính thức theo publication.
+
+- **F15-AC-11 (Điều kiện kỳ):** Các thao tác ghi F15 yêu cầu cờ bật và kỳ ACTIVE/REVIEWING dưới khóa Term. Web giữ lịch sử lô ở chế độ xem khi kỳ không đủ điều kiện.
+- **F15-AC-12 (Nguồn CLB/BTC):** Khoa thấy các nguồn liên kết tiêu chí 4/13. Kết luận boolean và điểm gợi ý dựa trên xác minh theo rubric. Thu hồi giữ xác minh tay và chỉ bỏ các liên kết nguồn đã hết hiệu lực.
 
 ## 4. UI/UX — Giao diện và tương tác
 
@@ -134,6 +137,8 @@ Bộ regression tại `apps/backend/test/grounding-import-and-batch-finalize.tes
 - Ca 24: Sửa tay qua verifyCriterion không bị syncStudentGrounding ghi đè (bảo vệ căn cứ thủ công của cán bộ).
 - Ca 25: CriteriaService.updateTerm chặn đổi evidenceBasisWorkflowEnabled khi kỳ đã có publication hoặc handoff SENT.
 - BL-033: `getMine` giữ điểm gợi ý đã lưu, gồm 0 và `null`, đồng thời giữ điểm chính thức từ publication.
+
+BL-030/032 đạt trong regression PostgreSQL và Web. Đã kiểm quyền ghi theo cờ và trạng thái, nhiều nguồn CLB, giữ dữ liệu thủ công, chặn thu hồi và mất hiệu lực preview khi đổi chế độ.
 
 ## 10. Definition of Done — Điều kiện hoàn thành
 

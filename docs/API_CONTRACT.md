@@ -65,8 +65,10 @@ Kết quả gồm nguồn HANDOFF_SNAPSHOT cho CTSV xem phiếu đã gửi; báo
 | Thao tác | Request và hậu điều kiện |
 |---|---|
 | Login | LoginDto email/password → access token và user an toàn; first-login hiện UI enforce, xem BL-016 |
-| Tự đánh giá | Lưu điểm theo criterionId và query termId; preflight trả canSubmit/blockers/warnings/effectiveDeadline; POST /assessments/me/submit?termId=... không có body, chuyển phiếu và nháp đủ tệp sang xử lý |
+| Tự đánh giá | Lưu điểm theo criterionId và termId. Preflight trả `canSubmit`, `blockers`, `warnings`, `effectiveDeadline`. Submit kiểm lại dưới khóa Term trước khi chuyển phiếu và xử lý nháp theo cờ F15 hiện hành. |
 | Xem phiếu của mình | `GET /api/assessments/me?termId=...`. Trong kỳ `workflowEnabled`, `assessment.suggestedScore` lấy từ giá trị đã lưu cho tiêu chí. `officialScore`, `officialReason` và `finalizedAt` lấy từ publication hiện hành, hoặc `null` khi chưa có giá trị công bố. |
+| Phiếu Khoa | `GET /api/assessments/students/:studentId?termId=...` có `criteria[].clubGroundings` với ID dòng/lô, tổ chức, vai trò, nguồn và ghi chú. Endpoint sinh viên giữ projection riêng. |
+| Rubric và mở kỳ | `POST /api/terms` tạo bản PUBLISHED từ nguồn đã ban hành. `PUT /api/terms/:id/rubric` sinh bản DRAFT kế tiếp khi thay đổi rubric PUBLISHED ở kỳ chưa mở. Kích hoạt với bản nháp cần `confirmPublishedRubricVersionId` khớp bản đang ban hành. |
 | Tạo minh chứng | CreateEvidenceDto cần declaredActivityName/evidenceType; term/criterion liên hệ rubric do service kiểm tra; draft=true giữ nháp |
 | Upload nháp | UploadEvidenceFileDto fileName/fileType/fileData (DataURL), tối đa 8 MB; chỉ nháp; bọc transaction khóa Term qua studentEdit. Phản hồi trả về `EvidenceFile`: `{ id, evidenceId, fileUrl, fileType, fileName, fileSize, signedUrlAvailable: boolean, message?: string }`. Nếu ký URL tạm thời lỗi: không xóa Storage, trả `signedUrlAvailable: false` và `message` hướng dẫn tải lại |
 | Xóa tệp nháp | `DELETE /api/evidence/:id/files/:fileId`: chỉ sinh viên sở hữu; bọc transaction khóa Term qua studentEdit. Dọn Storage sau khi DB commit; phản hồi: `{ deleted: true, storageCleaned: boolean }` |
@@ -101,6 +103,8 @@ Pipeline ngoài backend gọi `POST <AI_PIPELINE_URL>/evidence/process`, có th�
 ## Lỗi và route giới hạn
 
 - Ba đường chốt điểm dùng chung quyền ghi theo kỳ. Với `workflowEnabled=true`, chỉ `STAFF` đúng Khoa theo snapshot được chốt. Batch giữ kết quả theo từng phiếu, kể cả khi một phiếu bị từ chối.
+- Nhập, thu hồi và chốt phiếu F15 yêu cầu cờ bật và kỳ ACTIVE/REVIEWING. Danh sách và chi tiết lô vẫn truy cập theo quyền.
+- Kích hoạt kỳ khi có bản nháp yêu cầu xác nhận đúng rubric PUBLISHED. Thiếu hoặc lệch phiên bản trả 400 `TERM_RUBRIC_CONFIRMATION_REQUIRED`.
 - `POST /api/grounding-import/confirm` yêu cầu `previewTermId` lấy từ `data.termId` của response preview. Thiếu trường trả 400 validation, lệch kỳ trả 400 `GROUNDING_PREVIEW_TERM_MISMATCH`. Dùng lại khóa idempotency đã gắn với kỳ khác trả 409.
 
 [HttpExceptionFilter](../apps/backend/src/common/filters/http-exception.filter.ts) ánh xạ 400 validation/nghiệp vụ, 401 xác thực, 403 phạm vi/quyền, 404 không tìm thấy, 409 trùng/xung đột, 429 giới hạn theo endpoint, 503 dịch vụ chưa sẵn sàng, 500 nội bộ. Prisma P2002→409, P2025→404, P2003→400; không trả raw query.
@@ -181,7 +185,7 @@ Body/Query/Param là tên tham số decorator và kiểu TS trực tiếp, khôn
 | POST | `/api/terms` | ADMIN | *: CreateTermDto | — | — | [apps/backend/src/criteria/criteria.controller.ts:135](../apps/backend/src/criteria/criteria.controller.ts#L135) |
 | PATCH | `/api/terms/:id` | ADMIN | *: UpdateTermDto | — | id: string | [apps/backend/src/criteria/criteria.controller.ts:144](../apps/backend/src/criteria/criteria.controller.ts#L144) |
 | POST | `/api/terms/:id/close` | ADMIN | — | — | id: string | [apps/backend/src/criteria/criteria.controller.ts:153](../apps/backend/src/criteria/criteria.controller.ts#L153) |
-| POST | `/api/terms/:id/activate` | ADMIN | — | — | id: string | [apps/backend/src/criteria/criteria.controller.ts:162](../apps/backend/src/criteria/criteria.controller.ts#L162) |
+| POST | `/api/terms/:id/activate` | ADMIN | `confirmPublishedRubricVersionId?: string` | — | id: string | [apps/backend/src/criteria/criteria.controller.ts:162](../apps/backend/src/criteria/criteria.controller.ts#L162) |
 | POST | `/api/terms/:id/reopen` | ADMIN | reason: string | — | id: string | [apps/backend/src/criteria/criteria.controller.ts:171](../apps/backend/src/criteria/criteria.controller.ts#L171) |
 | GET | `/api/faculties` | Public | — | — | — | [apps/backend/src/criteria/criteria.controller.ts:181](../apps/backend/src/criteria/criteria.controller.ts#L181) |
 | POST | `/api/faculties` | ADMIN | *: FacultyDto | — | — | [apps/backend/src/criteria/criteria.controller.ts:187](../apps/backend/src/criteria/criteria.controller.ts#L187) |

@@ -456,6 +456,10 @@ describe('BL-014: Lưu và sử dụng rolesScore xuyên suốt Rubric & Round-t
     assert(res.evaluation.reason.includes('chưa cấu hình bảng điểm vai trò rolesScore'));
   });
 
+    const unusedRubricTables = Object.fromEntries(
+    ['criterionAssessment', 'evidence', 'assessmentSubmission', 'assessmentHandoff', 'assessmentPublication'].map(table => [table, { count: async () => 0 }]),
+  );
+
   test('Ca 7: Round-trip CriteriaService — Cập nhật draft -> Đọc getTermRubric -> Sao chép createTerm bảo toàn 100% rolesScore', async () => {
     const terms = [
       {
@@ -486,6 +490,7 @@ describe('BL-014: Lưu và sử dụng rolesScore xuyên suốt Rubric & Round-t
     const auditLogs = [];
 
     const mockTx = {
+      ...unusedRubricTables,
       term: {
         findUnique: async ({ where }) => terms.find((t) => (where.id ? t.id === where.id : t.code === where.code)),
         create: async ({ data }) => {
@@ -495,7 +500,14 @@ describe('BL-014: Lưu và sử dụng rolesScore xuyên suốt Rubric & Round-t
         },
       },
       rubricVersion: {
-        findFirst: async ({ where }) => rubricVersions.filter((v) => v.termId === where.termId).pop() || null,
+        findFirst: async ({ where }) => {
+          const version = rubricVersions.find(v => v.termId === where.termId);
+          return version ? {
+            ...version,
+            categories: rubricCategories.filter(c => c.rubricVersionId === version.id)
+              .map(c => ({ ...c, criteria: criteria.filter(cr => cr.categoryId === c.id) })),
+          } : null;
+        },
         findUniqueOrThrow: async ({ where }) => rubricVersions.find((v) => v.id === where.id),
         create: async ({ data }) => {
           const v = { id: `ver-${rubricVersions.length + 1}`, ...data };
@@ -674,9 +686,17 @@ describe('BL-014: Lưu và sử dụng rolesScore xuyên suốt Rubric & Round-t
     let criteria = [];
 
     const mockTx = {
+      ...unusedRubricTables,
       term: { findUnique: async () => terms[0] },
       rubricVersion: {
-        findFirst: async () => rubricVersions[0],
+        findFirst: async ({ where }) => {
+          const version = rubricVersions[0];
+          return version ? {
+            ...version,
+            categories: categories.filter(c => c.rubricVersionId === version.id)
+              .map(c => ({ ...c, criteria: criteria.filter(cr => cr.categoryId === c.id) })),
+          } : null;
+        },
         findUniqueOrThrow: async () => rubricVersions[0],
         update: async ({ data }) => Object.assign(rubricVersions[0], data),
       },
@@ -755,6 +775,7 @@ describe('BL-014: Lưu và sử dụng rolesScore xuyên suốt Rubric & Round-t
 
     // 2. Qua CriteriaService.publishTermRubric
     const mockPrisma = {
+      ...unusedRubricTables,
       rubricVersion: {
         findFirst: async () => ({
           id: 'ver-draft',
@@ -768,7 +789,8 @@ describe('BL-014: Lưu và sử dụng rolesScore xuyên suốt Rubric & Round-t
       term: { findUnique: async () => ({ id: 'term-1', status: 'UPCOMING' }) },
       auditLog: { create: async () => ({ id: 'audit-1' }) },
     };
-    const service = new CriteriaService(mockPrisma, null);
+    mockPrisma.$transaction = async fn => fn(mockPrisma);
+    const service = new CriteriaService(mockPrisma, { lock: async () => ({ status: 'UPCOMING' }) });
 
     await assert.rejects(
       async () => service.publishTermRubric('term-1', 'admin-1'),
@@ -846,6 +868,7 @@ describe('BL-014: Lưu và sử dụng rolesScore xuyên suốt Rubric & Round-t
 
     let published = false;
     const mockPrisma = {
+      ...unusedRubricTables,
       rubricVersion: {
         findFirst: async () => ({
           id: 'ver-draft',
@@ -866,7 +889,8 @@ describe('BL-014: Lưu và sử dụng rolesScore xuyên suốt Rubric & Round-t
       $transaction: async (fn) => fn(mockPrisma),
     };
 
-    const service = new CriteriaService(mockPrisma, null);
+    mockPrisma.rubricVersion.updateMany = async () => ({ count: 0 });
+    const service = new CriteriaService(mockPrisma, { lock: async () => ({ status: 'UPCOMING' }) });
     await service.publishTermRubric('term-1', 'admin-1');
     assert.equal(published, true, 'Ban hành thành công khi đủ 3 vai trò và alias hợp lệ');
   });

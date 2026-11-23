@@ -9,15 +9,15 @@ Bộ tài liệu tiếng Việt, đối chiếu mã nguồn ngày **2026-11-15**
 | [PROJECT_OVERVIEW](PROJECT_OVERVIEW.md) | Hiểu hệ thống, module, DB, migrations, navigation, workflow và scaffold |
 | [BUSINESS_RULES](BUSINESS_RULES.md) | Kiểm quyền, tiền/hậu điều kiện, state transition, trần điểm, tính nhất quán |
 | [API_CONTRACT](API_CONTRACT.md) | Đọc 121 route,45 lớp DTO, body/query/validation và các dạng envelope |
-| [BUSINESS_LOGIC_AUDIT](BUSINESS_LOGIC_AUDIT.md) | Đọc 27 finding có vị trí và regression; 23 Resolved (BL-001 đến BL-007, BL-009 đến BL-021, BL-023 đến BL-025), 4 chưa đóng (2 hoãn AI: BL-008, BL-022 theo DEC-007; 2 Potential: BL-026, BL-027) |
+| [BUSINESS_LOGIC_AUDIT](BUSINESS_LOGIC_AUDIT.md) | Đọc finding audit, vị trí mã và kết quả regression theo từng đợt. BL-026/027 đã có kết quả PostgreSQL đa kết nối. |
 | [BACKLOG](BACKLOG.md) | Chọn việc, ưu tiên, trạng thái, điều kiện đóng và phụ thuộc quyết định |
-| [DECISIONS](DECISIONS.md) | Quyết định đã xác nhận, chính sách chưa rõ Q-01…Q-09 và chuyển tài liệu cũ |
+| [DECISIONS](DECISIONS.md) | Quyết định đã xác nhận, câu hỏi nghiệp vụ Q-01…Q-10 và chuyển tài liệu cũ |
 | [TEST_PLAN](TEST_PLAN.md) | Chọn kiểm tra an toàn, regression, môi trường và bằng chứng |
 | [CHANGELOG](CHANGELOG.md) | Xem thay đổi đã thực hiện và kết quả kiểm chứng của từng công việc |
 | [FEATURE_TEMPLATE](features/FEATURE_TEMPLATE.md) | Tạo spec mới theo 10 mục trong ảnh + Out of Scope |
 | [AGENTS.md](../AGENTS.md) | Quy trình bắt buộc cho Codex trước/trong/sau công việc |
 
-## Danh mục14 đặc tả
+## Danh mục đặc tả
 
 | ID | Tính năng |
 |---|---|
@@ -35,6 +35,7 @@ Bộ tài liệu tiếng Việt, đối chiếu mã nguồn ngày **2026-11-15**
 | F12 | [Bảng điểm, báo cáo và xuất Excel](features/12-scores-reports-and-exports.md) |
 | F13 | [Thông báo và liên kết nghiệp vụ](features/13-notifications.md) |
 | F14 | [Nhật ký, giám sát và xử lý AI](features/14-audit-monitoring-and-ai-jobs.md) |
+| F15 | [Căn cứ chấm điểm, Import Excel và Chốt phiếu hàng loạt](features/15-evidence-grounding-and-batch-finalize.md) |
 
 Mỗi spec có metadata/nguồn, Objective, User Story, Acceptance Criteria, UI/UX, API Contract, Error Handling, Edge Cases, UI States, Test Cases, Definition of Done và Out of Scope. AC/TC là checklist kiểm chứng; chưa đánh dấu đạt chỉ vì code tồn tại.
 
@@ -51,8 +52,8 @@ Không nhân bản cùng hợp đồng vào nhiều tài liệu. API inventory �
 
 ## Nhãn và mã ổn định
 
-- F01…F14: feature; Fxx-AC-yy: tiêu chí nghiệm thu; Fxx-TC-yy: test dự kiến.
-- R-01…R-28: quy tắc; BL-001…BL-027: finding; Q-01…Q-09: câu hỏi; DEC-xxx: quyết định.
+- F01…F15: feature; Fxx-AC-yy: tiêu chí nghiệm thu; Fxx-TC-yy: test dự kiến.
+- R-01…R-29: quy tắc; BL-xxx: finding; Q-xx: câu hỏi; DEC-xxx: quyết định.
 - **Observed** là code đang làm; **Supported** có căn cứ yêu cầu/form/service; **Proposed** chưa được duyệt; **Needs clarification** chưa đủ chính sách.
 - **Planned** không là Passed; **Implemented** không là Verified; **Confirmed** theo nguồn không đồng nghĩa đã tái hiện trên production.
 
