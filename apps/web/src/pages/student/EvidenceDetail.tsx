@@ -51,6 +51,19 @@ export const EvidenceDetail: React.FC = () => {
     }
   }, [id]);
 
+  // Tự động cập nhật mỗi 3 giây khi AI đang xử lý nền (QUEUED / PROCESSING)
+  useEffect(() => {
+    if (!id) return;
+    const status = evidence?.aiProcessingJobs?.[0]?.status;
+    if (status !== 'QUEUED' && status !== 'PROCESSING') return;
+    const timer = window.setInterval(() => {
+      apiClient.getEvidenceById(id).then((data) => {
+        if (data) setEvidence(data);
+      }).catch(() => {});
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [id, evidence?.aiProcessingJobs?.[0]?.status]);
+
   if (isLoading) {
     return <div className="p-8 text-center text-xs text-slate-500">Đang tải chi tiết hồ sơ...</div>;
   }

@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EvidenceService } from './evidence.service';
-import { CreateEvidenceDto, UploadEvidenceFileDto, UploadFileDto, SubmitSupplementDto } from './dto/evidence.dto';
+import { CreateEvidenceDto, UploadEvidenceFileDto, UploadFileDto, SubmitSupplementDto, InspectAiDto } from './dto/evidence.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -93,6 +93,20 @@ export class EvidenceController {
   @ApiOperation({ summary: 'Tải tệp nháp lên kho Supabase Storage' })
   async uploadDraftFile(@Param('id') id: string, @CurrentUser('id') studentId: string, @Body() dto: UploadEvidenceFileDto) {
     return this.evidenceService.uploadDraftFile(id, studentId, dto);
+  }
+
+  @Post('ai/inspect')
+  @Roles(Role.STUDENT, Role.STAFF, Role.ADMIN)
+  @ApiOperation({ summary: 'Chạy thử AI trên một tệp minh chứng bất kỳ, không lưu kết quả (proxy AI Service)' })
+  async inspectAi(@Body() dto: InspectAiDto) {
+    return this.evidenceService.inspectAi(dto);
+  }
+
+  @Post(':id/test-ai')
+  @Roles(Role.STUDENT)
+  @ApiOperation({ summary: 'Chạy thử AI trên một minh chứng nháp, không lưu kết quả' })
+  async testAi(@Param('id') id: string, @CurrentUser('id') studentId: string) {
+    return this.evidenceService.testAi(id, studentId);
   }
 
   @Delete(':id/files/:fileId')

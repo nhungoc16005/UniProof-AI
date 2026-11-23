@@ -1,8 +1,10 @@
-// Uses installed Chrome through CDP; never connects to the project's Supabase.
+// Optional convenience smoke only; Chrome/CDP is not required for M2 acceptance.
+// Never connects to the project's Supabase.
 const assert = require('node:assert/strict');
 const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 const { spawn } = require('node:child_process');
-const { mkdtempSync, writeFileSync, readdirSync, rmSync } = require('node:fs');
+const { mkdtempSync, writeFileSync, readdirSync, readFileSync, rmSync } = require('node:fs');
 const os = require('node:os');
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error('Set TEST_DATABASE_URL to an isolated local *_test DB');
@@ -35,7 +37,7 @@ const wait = async fn => { for(let i=0;i<120;i++){const value=await fn();if(valu
     const api=(await app.getUrl())+'/api';
     process.env.VITE_API_URL=api;
     process.chdir(path.resolve(__dirname,'../../web'));
-    const {createServer}=await import(path.resolve(__dirname,'../../web/node_modules/vite/dist/node/index.js'));
+    const {createServer}=await import(pathToFileURL(path.resolve(__dirname,'../../web/node_modules/vite/dist/node/index.js')).href);
     vite=await createServer({root:path.resolve(__dirname,'../../web'),server:{host:'127.0.0.1',port:0}});await vite.listen();
     const origin=Object.values(vite.resolvedUrls)[0][0].replace(/\/$/,'');
     const prisma=app.get(PrismaService);
@@ -47,25 +49,30 @@ const wait = async fn => { for(let i=0;i<120;i++){const value=await fn();if(valu
     const evidence=await prisma.evidence.findFirst({where:{studentId:row.studentId,termId:term.id}});
     chrome=spawn(process.env.CHROME_BIN || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',['--headless=new','--disable-gpu','--no-first-run','--no-default-browser-check','--remote-debugging-port=0','--user-data-dir='+profile,'about:blank'],{stdio:['ignore','ignore','pipe']});
     let chromeLog='';chrome.stderr.on('data',chunk=>{chromeLog+=chunk;});
-    const browserUrl=await wait(()=>chromeLog.match(/DevTools listening on (ws:\/\/[^\s]+)/)?.[1]);
+    const browserUrl=await wait(()=>{
+      const logged=chromeLog.match(/DevTools listening on (ws:\/\/[^\s]+)/)?.[1];
+      if(logged)return logged;
+      try { const [port,endpoint]=readFileSync(path.join(profile,'DevToolsActivePort'),'utf8').trim().split(/\r?\n/); return `ws://127.0.0.1:${port}${endpoint}`; }
+      catch { return null; }
+    });
     const debugOrigin='http://'+new URL(browserUrl).host;
     const target=await fetch(debugOrigin+'/json/new?about:blank',{method:'PUT'}).then(r=>r.json());
     ws=new WebSocket(target.webSocketDebuggerUrl);await new Promise((resolve,reject)=>{ws.addEventListener('open',resolve,{once:true});ws.addEventListener('error',reject,{once:true});});
     let seq=0;const pending=new Map();const errors=[];const apiFailures=[];
-    ws.addEventListener('message',event=>{const data=JSON.parse(event.data);if(data.id){const p=pending.get(data.id);if(p){pending.delete(data.id);data.error?p.reject(data.error):p.resolve(data.result);}}if(data.method==='Runtime.exceptionThrown')errors.push(data.params.exceptionDetails.text+': '+(data.params.exceptionDetails.exception?.description||''));if(data.method==='Network.responseReceived'&&data.params.response.url.startsWith(api)&&data.params.response.status>=400)apiFailures.push(data.params.response.url+' '+data.params.response.status);});
-    const send=(method,params={})=>new Promise((resolve,reject)=>{const id=++seq;pending.set(id,{resolve,reject});ws.send(JSON.stringify({id,method,params}));});
+    ws.addEventListener('message',event=>{const raw=event.data;const consume=value=>{const data=JSON.parse(value);if(data.id){const p=pending.get(data.id);if(p){pending.delete(data.id);data.error?p.reject(data.error):p.resolve(data.result);}}if(data.method==='Runtime.exceptionThrown')errors.push(data.params.exceptionDetails.text+': '+(data.params.exceptionDetails.exception?.description||''));if(data.method==='Network.responseReceived'&&data.params.response.url.startsWith(api)&&data.params.response.status>=400)apiFailures.push(data.params.response.url+' '+data.params.response.status);};if(typeof raw==='string')consume(raw);else if(raw&&typeof raw.text==='function')raw.text().then(consume);else consume(String(raw));});
+    const send=(method,params={})=>new Promise((resolve,reject)=>{const id=++seq;const timer=setTimeout(()=>{pending.delete(id);reject(new Error(`Chrome CDP command timed out: ${method}`));},5000);pending.set(id,{resolve:value=>{clearTimeout(timer);resolve(value);},reject:error=>{clearTimeout(timer);reject(error);}});ws.send(JSON.stringify({id,method,params}));});
     await send('Runtime.enable');await send('Page.enable');await send('Network.enable');
     await send('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
     await send('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:profile});
     const evaluate=async expression=>{const value=await send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(value.exceptionDetails)throw new Error(value.exceptionDetails.exception?.description || value.exceptionDetails.text);return value.result?.value;};
     const jwt=new JwtService({secret:process.env.JWT_SECRET});let scriptId;
     const login=async (actor, chosenTerm = term)=>{if(scriptId)await send('Page.removeScriptToEvaluateOnNewDocument',{identifier:scriptId});const source=`localStorage.setItem('edupoint_auth_token',${JSON.stringify(jwt.sign({sub:actor.id}))});localStorage.setItem('edupoint_current_user',${JSON.stringify(JSON.stringify(actor))});localStorage.setItem('edupoint_active_term',${JSON.stringify(JSON.stringify(chosenTerm))});`;scriptId=(await send('Page.addScriptToEvaluateOnNewDocument',{source})).identifier;};
-    const visit=async(route,title)=>{await send('Page.navigate',{url:origin+route});await wait(async()=>await evaluate(`document.body?.innerText.includes(${JSON.stringify(title)}) && !document.body?.innerText.includes('Đang tải')`));await pause(300);assert.equal(errors.length,0,errors.join('\n'));console.log('PASS',route);};
+    const visit=async(route,title)=>{await send('Page.navigate',{url:origin+route});try{await wait(async()=>await evaluate(`document.body?.innerText.includes(${JSON.stringify(title)}) && !document.body?.innerText.includes('Đang tải')`));}catch(error){const pageState=await evaluate('JSON.stringify({url:location.href,text:document.body?.innerText?.slice(0,1200)})').catch(()=>'<page state unavailable>');throw new Error(`Browser smoke timed out on ${route}; expected title ${title}; page=${pageState}; ${error.message}`);}await pause(300);assert.equal(errors.length,0,errors.join('\n'));console.log('PASS',route);};
     await login(admin);
-    for(const [route,title] of [['/admin','Tổng quan đánh giá toàn trường'],['/admin/results','Tiếp nhận & công bố'],['/admin/reports','Báo cáo toàn trường'],['/admin/users','Tài khoản'],['/admin/terms','Kỳ đánh giá'],['/admin/criteria','Bộ tiêu chí'],['/admin/knowledge-base','quy chế'],['/admin/monitoring?tab=audit','Nhật ký hệ thống'],['/admin/monitoring?tab=health','Trạng thái dịch vụ'],['/admin/results/'+student.id+'?termId='+term.id,'Phiếu rèn luyện']]) await visit(route,title);
+    for(const [route,title] of [['/admin','Tổng quan toàn trường'],['/admin/results','Tiếp nhận & công bố'],['/admin/reports','Báo cáo điểm rèn luyện toàn trường'],['/admin/users','Tài khoản'],['/admin/terms','Kỳ đánh giá'],['/admin/criteria','Bộ tiêu chí'],['/admin/knowledge-base','quy chế'],['/admin/monitoring?tab=audit','Nhật ký hệ thống'],['/admin/monitoring?tab=health','Trạng thái dịch vụ'],['/admin/results/'+student.id+'?termId='+term.id,'Chi tiết hồ sơ']]) await visit(route,title);
     await visit('/admin/reports?termId='+term.id,'Báo cáo toàn trường');
     assert.ok((await evaluate('document.body.innerText')).includes('95'),'latest published score should render');
-    await evaluate(`Array.from(document.querySelectorAll('button')).find(b=>b.textContent.includes('Xuất Excel toàn bộ')).click()`);
+    await evaluate(`Array.from(document.querySelectorAll('button')).find(b=>b.textContent.includes('Xuất Excel kết quả')).click()`);
     const workbookPath = await wait(()=>{ const file=readdirSync(profile).find(f=>f.endsWith('.xlsx')); return file&&path.join(profile,file); });
     const XLSX = require('../../web/node_modules/xlsx');
     const workbook = XLSX.readFile(workbookPath);

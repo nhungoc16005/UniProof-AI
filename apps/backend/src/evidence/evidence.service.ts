@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
-import { CreateEvidenceDto, UploadEvidenceFileDto, UploadFileDto, SubmitSupplementDto } from './dto/evidence.dto';
+import { getAiMode } from './ai-mode';
+import { CreateEvidenceDto, UploadEvidenceFileDto, UploadFileDto, SubmitSupplementDto, InspectAiDto } from './dto/evidence.dto';
 import { EvidenceStatus, Role, TermStatus } from '@prisma/client';
 import { WorkflowService } from '../evaluation-workflow/workflow.service';
 import { randomUUID } from 'crypto';
@@ -84,7 +85,23 @@ export class EvidenceService {
             take: 1,
             orderBy: { createdAt: 'desc' },
           },
-          aiProcessingJobs: { take: 1, orderBy: { createdAt: 'desc' } },
+          aiProcessingJobs: {
+            take: 1,
+            orderBy: { createdAt: 'desc' },
+            include: {
+              pipelineRuns: {
+                take: 1,
+                orderBy: { startedAt: 'desc' },
+                select: {
+                  id: true,
+                  status: true,
+                  inputVersion: true,
+                  rubricVersionId: true,
+                  output: true,
+                },
+              },
+            },
+          },
           anomalyFlags: true,
           reviews: {
             include: {
@@ -125,8 +142,12 @@ export class EvidenceService {
       }),
     ]);
 
+    const aiMode = getAiMode();
     return {
-      items: await Promise.all(items.map((item) => this.withSignedFiles(item))),
+      items: await Promise.all(items.map(async (item) => {
+        const signed = await this.withSignedFiles(item);
+        return aiMode === 'ASSIST' ? { ...signed, aiMode } : { ...signed, aiMode, aiSuggestions: [], aiProcessingJobs: [] };
+      })),
       total,
       page,
       pageSize,
@@ -200,7 +221,9 @@ export class EvidenceService {
     const latestRun = evidence.aiProcessingJobs?.[0]?.pipelineRuns?.[0];
     const currentRubric = evidence.criterionAssessment?.criterion?.rubricVersionId;
     const aiIsCurrent = latestRun?.status === 'COMPLETED' && latestRun.inputVersion === evidence.version && latestRun.rubricVersionId === currentRubric;
-    return { ...signed, permissions: { canReview }, aiSuggestions: aiIsCurrent ? signed.aiSuggestions : [], aiAnalysisStatus: latestRun && !aiIsCurrent && latestRun.status === 'COMPLETED' ? 'STALE' : latestRun?.status ?? 'NOT_STARTED' };
+    const aiMode = getAiMode();
+    if (aiMode !== 'ASSIST') return { ...signed, permissions: { canReview }, aiMode, aiSuggestions: [], ocrResults: [], aiProcessingJobs: [], aiAnalysisStatus: 'NOT_STARTED' };
+    return { ...signed, permissions: { canReview }, aiMode, aiSuggestions: aiIsCurrent ? signed.aiSuggestions : [], aiAnalysisStatus: latestRun && !aiIsCurrent && latestRun.status === 'COMPLETED' ? 'STALE' : latestRun?.status ?? 'NOT_STARTED' };
   }
 
   private async withSignedFiles<T extends { files?: Array<{ fileUrl: string; signedUrlAvailable?: boolean }> }>(value: T): Promise<T> {
@@ -251,7 +274,7 @@ export class EvidenceService {
     const baseUrl = process.env.SUPABASE_URL?.replace(/\/$/, '');
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const bucket = process.env.SUPABASE_EVIDENCE_BUCKET || 'evidence';
-    if (!baseUrl || !key) throw new ServiceUnavailableException('Chưa cấu hình Supabase Storage (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)');
+    if (!baseUrl || !key) throw new ServiceUnavailableException('Chưa cấu hình Supabase Storage. Hãy thêm SUPABASE_URL và SUPABASE_SERVICE_ROLE_KEY vào .env của backend hoặc .env ở thư mục gốc, sau đó khởi động lại backend.');
     return { baseUrl, key, bucket };
   }
 
@@ -267,6 +290,176 @@ export class EvidenceService {
     const signedPath = result.signedURL || result.signedUrl;
     if (!signedPath) throw new ServiceUnavailableException('Supabase Storage không trả về liên kết xem tệp');
     return signedPath.startsWith('http') ? signedPath : `${baseUrl}/storage/v1${signedPath.startsWith('/') ? '' : '/'}${signedPath}`;
+  }
+
+  async testAi(id: string, studentId: string) {
+    if (getAiMode() !== 'ASSIST') throw new BadRequestException('AI đang tắt hoặc chạy nền; không có kết quả chạy thử để hiển thị.');
+    const evidence = await this.prisma.evidence.findUnique({
+      where: { id },
+      include: {
+        files: true,
+        term: { select: { startDate: true, endDate: true } },
+        student: { select: { fullName: true, studentCode: true } },
+        criterionAssessment: { include: { criterion: true } },
+      },
+    });
+    if (!evidence) throw new NotFoundException('Không tìm thấy hồ sơ minh chứng');
+    if (evidence.studentId !== studentId) throw new ForbiddenException('Không có quyền kiểm tra hồ sơ này');
+    if (evidence.status !== EvidenceStatus.DRAFT) throw new BadRequestException('Chỉ có thể chạy thử AI trên minh chứng nháp');
+    if (!evidence.criterionAssessment?.criterion) throw new BadRequestException('Minh chứng cần được gắn với một tiêu chí trước khi chạy thử AI');
+    if (!evidence.files.length) throw new BadRequestException('Hãy tải ít nhất một tệp minh chứng trước khi chạy thử AI');
+    await this.prisma.$transaction(tx => this.workflow.assertStudentEditable(tx, studentId, evidence.termId));
+
+    const pipelineUrl = process.env.AI_PIPELINE_URL;
+    if (!pipelineUrl) throw new ServiceUnavailableException('AI_PIPELINE_URL chưa được cấu hình cho Backend');
+
+    const criterion = evidence.criterionAssessment.criterion;
+    const publishedRubric = await this.prisma.rubricVersion.findFirst({
+      where: { id: criterion.rubricVersionId, termId: evidence.termId, status: 'PUBLISHED' },
+      select: { id: true },
+    });
+    if (!publishedRubric) throw new BadRequestException('Tiêu chí không còn thuộc rubric đang áp dụng của kỳ này');
+    const files = await Promise.all(evidence.files.map(async file => ({
+      url: await this.getFileUrl(file.fileUrl),
+      fileName: file.fileName,
+      fileType: file.fileType,
+    })));
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), Number(process.env.AI_PIPELINE_TIMEOUT_MS || 60000));
+    let response: Response;
+    try {
+      response = await fetch(`${pipelineUrl.replace(/\/$/, '')}/evidence/process`, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(process.env.AI_PIPELINE_TOKEN ? { Authorization: `Bearer ${process.env.AI_PIPELINE_TOKEN}` } : {}),
+        },
+        body: JSON.stringify({
+          evidenceId: evidence.id,
+          termId: evidence.termId,
+          activityName: evidence.declaredActivityName,
+          description: evidence.description,
+          declaredRole: evidence.declaredRole,
+          evidenceType: evidence.evidenceType,
+          participationDate: evidence.participationDate,
+          termStartDate: evidence.term.startDate,
+          termEndDate: evidence.term.endDate,
+          declaredStudent: evidence.student,
+          criterion: {
+            id: criterion.id,
+            code: criterion.code,
+            name: criterion.name,
+            maxScore: criterion.maxScore,
+            scoringConfig: criterion.scoringConfig,
+          },
+          files,
+          enableWebSearch: true,
+        }),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Lỗi mạng không xác định';
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new ServiceUnavailableException('AI chạy thử quá thời gian chờ. Hãy thử lại sau.');
+      }
+      throw new ServiceUnavailableException(`Không kết nối được AI để chạy thử: ${message}`);
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    if (!response.ok) {
+      const detail = (await response.text()).slice(0, 1000);
+      throw new ServiceUnavailableException(`AI chạy thử trả HTTP ${response.status}${detail ? `: ${detail}` : ''}`);
+    }
+
+    const output = await response.json() as {
+      suggestions?: Array<{
+        criterionId: string;
+        suggestedScore?: number | null;
+        reasoning: string;
+        confidenceScore?: number | null;
+      }>;
+      analysis?: Record<string, unknown>;
+    };
+    if (!Array.isArray(output.suggestions) || !output.analysis) {
+      throw new ServiceUnavailableException('AI chạy thử trả về kết quả không đầy đủ');
+    }
+    const suggestions = output.suggestions.filter(suggestion => suggestion.criterionId === criterion.id);
+    if (suggestions.some(suggestion =>
+      (suggestion.suggestedScore != null && (!Number.isFinite(suggestion.suggestedScore) || suggestion.suggestedScore < 0 || suggestion.suggestedScore > criterion.maxScore))
+      || (suggestion.confidenceScore != null && (!Number.isFinite(suggestion.confidenceScore) || suggestion.confidenceScore < 0 || suggestion.confidenceScore > 1))
+      || !suggestion.reasoning?.trim(),
+    )) {
+      throw new ServiceUnavailableException('AI chạy thử trả về điểm hoặc giải thích không hợp lệ');
+    }
+
+    return { suggestions, analysis: output.analysis, persisted: false };
+  }
+
+  // Chạy thử AI trên một tệp minh chứng bất kỳ (không lưu kết quả).
+  // Proxy sang AI Service để Web không phải gọi trực tiếp cổng 8000.
+  async inspectAi(dto: InspectAiDto) {
+    if (getAiMode() !== 'ASSIST') throw new BadRequestException('AI đang tắt hoặc chạy nền; không có kết quả kiểm tra để hiển thị.');
+    const pipelineUrl = process.env.AI_PIPELINE_URL;
+    if (!pipelineUrl) throw new ServiceUnavailableException('AI_PIPELINE_URL chưa được cấu hình cho Backend');
+
+    const fileBytesBase64 = dto.fileData
+      ? (dto.fileData.match(/^data:[^;]+;base64,(.+)$/)?.[1] || dto.fileData)
+      : undefined;
+    if (!fileBytesBase64 && !dto.fileUrl) {
+      throw new BadRequestException('Cần cung cấp tệp minh chứng (fileData hoặc fileUrl) để chạy AI.');
+    }
+
+    const targetCriterion = dto.criterionId
+      ? await this.prisma.criterion.findUnique({
+          where: { id: dto.criterionId },
+          select: { id: true, code: true, name: true, maxScore: true, scoringConfig: true },
+        })
+      : null;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), Number(process.env.AI_PIPELINE_TIMEOUT_MS || 60000));
+    let response: Response;
+    try {
+      response = await fetch(`${pipelineUrl.replace(/\/$/, '')}/api/v1/evidence/inspect`, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(process.env.AI_PIPELINE_TOKEN ? { Authorization: `Bearer ${process.env.AI_PIPELINE_TOKEN}` } : {}),
+        },
+        body: JSON.stringify({
+          evidenceId: `ai-test-${randomUUID()}`,
+          activityName: dto.activityName || null,
+          evidenceType: dto.evidenceType,
+          declaredStudent: dto.declaredStudent,
+          participationDate: dto.participationDate || null,
+          termStartDate: dto.termStartDate || null,
+          termEndDate: dto.termEndDate || null,
+          enableWebSearch: dto.enableWebSearch ?? true,
+          fileUrl: dto.fileUrl || null,
+          fileBytesBase64: fileBytesBase64 || null,
+          previousHashes: dto.previousHashes || null,
+          ocrEngine: dto.ocrEngine || 'auto',
+          criterion: targetCriterion || null,
+        }),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Lỗi mạng không xác định';
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new ServiceUnavailableException('AI chạy thử quá thời gian chờ. Hãy thử lại sau.');
+      }
+      throw new ServiceUnavailableException(`Không kết nối được AI để chạy thử: ${message}`);
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    if (!response.ok) {
+      const detail = (await response.text()).slice(0, 1000);
+      throw new ServiceUnavailableException(`AI chạy thử trả HTTP ${response.status}${detail ? `: ${detail}` : ''}`);
+    }
+
+    return await response.json();
   }
 
   async create(studentId: string, dto: CreateEvidenceDto) {
@@ -327,7 +520,7 @@ export class EvidenceService {
           termId,
           criterionAssessmentId,
           activityId: dto.activityId || null,
-          declaredActivityName: dto.declaredActivityName.trim(),
+          declaredActivityName: dto.declaredActivityName?.trim() || null,
           description: dto.description?.trim() || null,
           declaredRole: dto.declaredRole || 'THAM_GIA_CHINH',
           evidenceType: dto.evidenceType,
@@ -412,9 +605,10 @@ export class EvidenceService {
         if (storage) await tx.evidenceFile.create({ data: { evidenceId: id, ...storage } });
         await tx.supplementRequest.updateMany({ where: { evidenceId: id, resolvedAt: null }, data: { resolvedAt: new Date() } });
         await tx.aiProcessingJob.updateMany({ where: { evidenceId: id, status: { in: ['QUEUED', 'PROCESSING'] } }, data: { status: 'CANCELLED', error: 'Sinh viên đã bổ sung phiên bản mới', completedAt: new Date() } });
-        await tx.evidence.update({ where: { id }, data: { status: 'PROCESSING', version: { increment: 1 }, lockedById: null, lockedAt: null, description: [current.description, dto.explanation?.trim(), dto.verificationUrl?.trim()].filter(Boolean).join('\n') } });
+        const aiMode = getAiMode();
+        await tx.evidence.update({ where: { id }, data: { status: aiMode === 'ASSIST' ? 'PROCESSING' : 'NEEDS_HUMAN_REVIEW', version: { increment: 1 }, lockedById: null, lockedAt: null, description: [current.description, dto.explanation?.trim(), dto.verificationUrl?.trim()].filter(Boolean).join('\n') } });
         if (current.criterionAssessmentId) await tx.criterionAssessment.update({ where: { id: current.criterionAssessmentId }, data: { status: 'NEEDS_VERIFICATION', officialScore: null, officialReason: null, finalReviewerId: null, finalizedAt: null, suggestedScore: null, suggestionReason: null } });
-        await tx.aiProcessingJob.create({ data: { evidenceId: id } });
+        if (aiMode !== 'OFF') await tx.aiProcessingJob.create({ data: { evidenceId: id } });
         await tx.auditLog.create({ data: { userId: studentId, action: 'EVIDENCE_SUPPLEMENTED', entityType: 'Evidence', entityId: id, newValue: { studentId, termId: evidence.termId, version: current.version + 1, explanation: dto.explanation ?? null, verificationUrl: dto.verificationUrl ?? null } } });
         return { submitted: true, version: current.version + 1 };
       });
@@ -479,7 +673,7 @@ export class EvidenceService {
     const response = await fetch(`${baseUrl}/storage/v1/object/${encodeURIComponent(bucket)}/${objectKey.split('/').map(encodeURIComponent).join('/')}`, {
       method: 'POST', headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': dto.fileType, 'x-upsert': 'false' }, body: buffer,
     });
-    if (!response.ok) throw new ServiceUnavailableException('Tải tệp minh chứng lên Supabase Storage thất bại');
+    if (!response.ok) throw new ServiceUnavailableException(`Supabase Storage từ chối tải tệp (HTTP ${response.status}). Kiểm tra bucket "${bucket}", khóa service role và định dạng tệp.`);
 
     // 2. Lưu bản ghi vào cơ sở dữ liệu qua transaction khóa Term
     let file: any;
@@ -490,9 +684,15 @@ export class EvidenceService {
         if (currentEvidence.studentId !== studentId) throw new ForbiddenException('Không có quyền thao tác');
         if (currentEvidence.status !== EvidenceStatus.DRAFT) throw new BadRequestException('Chỉ có thể thêm tệp khi hồ sơ còn là bản nháp');
 
-        return tx.evidenceFile.create({
+        const created = await tx.evidenceFile.create({
           data: { evidenceId: id, fileUrl: storageUrl, fileType: dto.fileType, fileName: dto.fileName, fileSize: buffer.length },
         });
+        // TEMP TEST MODE (AI_ALLOW_DRAFT_PROCESSING=true): tự kích hoạt AI ngay khi tải file lên hồ sơ nháp
+        if (process.env.AI_ALLOW_DRAFT_PROCESSING === 'true' && getAiMode() !== 'OFF') {
+          const pending = await tx.aiProcessingJob.count({ where: { evidenceId: id, status: { in: ['QUEUED', 'PROCESSING'] } } });
+          if (!pending) await tx.aiProcessingJob.create({ data: { evidenceId: id } });
+        }
+        return created;
       });
     } catch (dbError) {
       // Kiểm tra xem liệu DB có thực sự tạo bản ghi hay chưa (phòng trường hợp commit xong nhưng kết nối bị ngắt)

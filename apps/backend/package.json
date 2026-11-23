@@ -20,6 +20,7 @@
     "prebuild": "prisma generate",
     "test": "node --test test/*.test.cjs",
     "test:integration": "node --test test/workflow.integration.test.cjs",
+    "test:e2e": "node --test test/workflow.integration.test.cjs",
     "test:browser": "node test/browser-smoke.cjs",
     "db:check-workflow": "node scripts/check-workflow-integrity.cjs"
   },

@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { apiClient } from '../../lib/apiClient';
 import { Evidence, ReviewDecision, RubricPayload } from '../../types';
 import { StatusBadge } from '../../components/ui/StatusBadge';
+import { AiResultPanel } from '../../components/AiResultPanel';
 import { TwoQuestionsVerification, VerificationBadge } from '../../components/ui/VerificationBadge';
 import { ConfidenceBar } from '../../components/ui/ConfidenceBar';
 import { BookOpen, Search, X, CheckCircle, HelpCircle, Sparkles, RefreshCw } from 'lucide-react';
@@ -72,7 +73,7 @@ export const ReviewDetail: React.FC = () => {
       apiClient.getEvidenceById(id).then((data) => {
         setEvidence(data);
         setSavedSources((data?.verificationResults || []).map(v => ({ id:v.id, name:v.sourceDescription, level:v.verificationLevel, confirmedActivity:v.activityExistsVerified, confirmedStudent:v.studentParticipationVerified })));
-        if (data?.aiSuggestions?.[0]?.suggestedScore) {
+        if (data?.aiSuggestions?.[0]?.suggestedScore != null) {
           setFinalScoreInput(data.aiSuggestions[0].suggestedScore);
         }
         setLoadError('');
@@ -84,6 +85,23 @@ export const ReviewDetail: React.FC = () => {
   useEffect(() => {
     fetchEvidence();
   }, [id]);
+
+  // Tự động cập nhật mỗi 3 giây khi hồ sơ vừa nộp đang chờ AI chạy xong
+  useEffect(() => {
+    if (!id) return;
+    const status = evidence?.aiProcessingJobs?.[0]?.status;
+    if (status !== 'QUEUED' && status !== 'PROCESSING') return;
+    const timer = window.setInterval(() => {
+      apiClient.getEvidenceById(id).then((data) => {
+        if (!data) return;
+        setEvidence(data);
+        if (data.aiSuggestions?.[0]?.suggestedScore != null) {
+          setFinalScoreInput((prev) => prev ?? data.aiSuggestions![0].suggestedScore);
+        }
+      }).catch(() => {});
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [id, evidence?.aiProcessingJobs?.[0]?.status]);
 
   const canReview = evidence?.permissions?.canReview ?? false;
 
@@ -390,6 +408,19 @@ export const ReviewDetail: React.FC = () => {
 
         {/* Right Panel: Analysis, Verification & Decision (Col 6) */}
         <div className="lg:col-span-6 space-y-4">
+
+          {evidence.aiMode === 'ASSIST' && (evidence.aiProcessingJobs?.[0]?.pipelineRuns?.[0]?.output || evidence.aiProcessingJobs?.[0]?.error) && (() => {
+            const latestJob = evidence.aiProcessingJobs?.[0];
+            const output = latestJob?.pipelineRuns?.[0]?.output;
+            return <AiResultPanel mode={evidence.aiMode} result={{
+              kind: 'pipeline',
+              score: output?.score ?? output?.confidenceScore ?? output?.aiConfidenceScore ?? null,
+              checkerResults: output?.checkerResults ?? [],
+              scoreBreakdown: output?.scoreBreakdown ?? [],
+              decisionReason: output?.decisionReason,
+              error: latestJob?.error,
+            }} />;
+          })()}
           
           {/* Section 1: OCR Cross-check */}
           <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
@@ -424,7 +455,7 @@ export const ReviewDetail: React.FC = () => {
                 }`}
               >
                 <span className="text-slate-400 text-[10px] block">MSSV trích xuất</span>
-                <span className="font-bold text-slate-900 block">{ocr?.studentCodeExtracted || evidence.student?.studentCode || 'Chưa trích xuất'}</span>
+                <span className={`font-bold block ${ocr?.extractedFieldsJson?.codeMismatch ? 'text-red-700' : 'text-slate-900'}`}>{ocr?.studentCodeExtracted || 'Chưa trích xuất'}{ocr?.extractedFieldsJson?.codeMismatch ? ' · KHÔNG KHỚP MSSV HỒ SƠ' : ''}</span>
               </div>
 
               <div 

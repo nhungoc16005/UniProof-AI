@@ -552,6 +552,7 @@ model AiProcessingJob {
 
 model AiPipelineRun {
   id                String          @id @default(uuid())
+  actorType         String          @default("AI")
   jobId             String
   job               AiProcessingJob @relation(fields: [jobId], references: [id])
   evidenceId        String

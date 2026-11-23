@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { CriterionAssessmentStatus, DeadlineExtensionType, EvidenceStatus, Prisma, Role, TermStatus } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { getAiMode } from '../evidence/ai-mode';
 import { WorkflowService } from '../evaluation-workflow/workflow.service';
 import { WorkflowQueryDto } from '../evaluation-workflow/dto/workflow-query.dto';
 import { evaluateRubricCriterion } from '../criteria/rubric-scoring';
@@ -250,7 +251,11 @@ export class AssessmentsService {
     const handoff = await this.prisma.assessmentHandoff.findUnique({ where: { studentId_termId: { studentId, termId } } });
     const publication = version.term?.workflowEnabled ? await this.workflow.publication(studentId, termId) : null;
     const publishedSnapshot = publication?.snapshot as any;
-    const byCriterion = new Map(assessments.map((assessment) => [assessment.criterionId, assessment]));
+    const aiMode = getAiMode();
+    const byCriterion = new Map(assessments.map((assessment) => [assessment.criterionId, aiMode === 'ASSIST' ? assessment : {
+      ...assessment,
+      evidences: assessment.evidences.map(evidence => ({ ...evidence, aiSuggestions: [] })),
+    }]));
     return {
       rubricVersion: { id: version.id, version: version.version, status: version.status, source: version.source },
       term: version.term,
@@ -429,9 +434,13 @@ export class AssessmentsService {
 
       for (const evidence of currentDrafts) {
         const hasFiles = evidence.files.length > 0;
+        const aiMode = getAiMode();
         if (hasFiles) {
-          await tx.evidence.update({ where: { id: evidence.id }, data: { status: EvidenceStatus.PROCESSING, submittedAt: new Date() } });
-          await tx.aiProcessingJob.create({ data: { evidenceId: evidence.id } });
+          await tx.evidence.update({
+            where: { id: evidence.id },
+            data: { status: aiMode === 'ASSIST' ? EvidenceStatus.PROCESSING : EvidenceStatus.NEEDS_HUMAN_REVIEW, submittedAt: new Date() },
+          });
+          if (aiMode !== 'OFF') await tx.aiProcessingJob.create({ data: { evidenceId: evidence.id } });
         } else {
           // Kỳ mới cho phép 0 file khi có mô tả: chuyển sang NEEDS_HUMAN_REVIEW, KHÔNG tạo AI job
           await tx.evidence.update({ where: { id: evidence.id }, data: { status: EvidenceStatus.NEEDS_HUMAN_REVIEW, submittedAt: new Date() } });

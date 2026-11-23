@@ -1,0 +1,82 @@
+﻿sample_id,group_id,raw_label,criterion_label,label_source,text
+DOC-0001,REAL-G-DOC-0001,MUC_12,MUC_12,CURATED_FROM_UNLABELED,"Hoạt động: AirAsia RedRun Danang
+Vai trò trong minh chứng: Volunteer
+Nội dung minh chứng: Successfully completed all operational tasks and was an active member of the AirAsia RedRun Danang - Champion21"
+DOC-0015,REAL-G-DOC-0015,MUC_12,MUC_12,CURATED_FROM_UNLABELED,"Hoạt động: Tình nguyện hè 2025 — Chạm Tre - Khắc Tuổi Trẻ
+Đơn vị tổ chức: Đội Tư vấn Sinh viên - ĐHBK
+Vai trò trong minh chứng: Thành viên Ban hậu cần
+Nội dung minh chứng: Đã có thành tích xuất sắc trong công tác tổ chức chương trình Tình nguyện hè 2025 “Chạm Tre - Khắc Tuổi Trẻ” tại thôn Tre, xã Tây Trà Bồng, tỉnh Quảng Ngãi do Đội Tư vấn Sinh viên - ĐHBK tổ chức từ ngày 20/07/2025 đến 27/07/2025."
+DOC-0019,REAL-G-DOC-0019,HIEN_MAU_NHAN_DAO,MUC_12,HUMAN_EXCEL,"Hoạt động: Hiến máu tình nguyện
+Vai trò trong minh chứng: Người hiến máu
+Nội dung minh chứng: Đã hiến máu tình nguyện"
+DOC-0020,REAL-G-DOC-0019,MUC_12,MUC_12,CURATED_FROM_UNLABELED,"Hoạt động: Hiến máu tình nguyện — ảnh chứa hai giấy
+Vai trò trong minh chứng: Người hiến máu
+Nội dung minh chứng: Đã hiến máu tình nguyện"
+DOC-0032,REAL-G-DOC-0032,MUC_8,MUC_8,CURATED_FROM_UNLABELED,"Hoạt động: Hành vi tài chính — cấp độ Sơ cấp
+Vai trò trong minh chứng: Hoàn thành cấp độ Sơ cấp
+Nội dung minh chứng: Đã hoàn thành cấp độ Sơ cấp - chủ đề Hành vi tài chính"
+DOC-0036,REAL-G-DOC-0036,MUC_5,MUC_5,CURATED_FROM_UNLABELED,"Hoạt động: Chung kết cuộc thi hùng biện tiếng Nhật 2025
+Vai trò trong minh chứng: Cổ vũ
+Nội dung minh chứng: ĐÃ THAM GIA CỔ VŨ VÒNG CHUNG KẾT CUỘC THI HÙNG BIỆN TIẾNG NHẬT 2025 DO LCĐ KHOA CÔNG NGHỆ THÔNG TIN TỔ CHỨC"
+DOC-0041,REAL-G-DOC-0041,MUC_5,MUC_5,CURATED_FROM_UNLABELED,"Hoạt động: Ảnh hưởng của việc học tập cá nhân hóa đến kết quả học tập của sinh viên trường ĐH KHXH&NV, ĐHQG-HCM trong bối cảnh CĐS
+Vai trò trong minh chứng: Hỗ trợ nghiên cứu khoa học
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: ĐÃ THAM GIA HỖ TRỢ NGHIÊN CỨU KHOA HỌC CẤP TRƯỜNG ĐỀ TÀI: ẢNH HƯỞNG CỦA VIỆC HỌC TẬP CÁ NHÂN HÓA ĐẾN KẾT QUẢ HỌC TẬP CỦA SINH VIÊN TRƯỜNG ĐẠI HỌC KHOA HỌC XÃ HỘI VÀ NHÂN VĂN, ĐHQG-HCM TRONG BỐI CẢNH CHUYỂN ĐỔI SỐ"
+DOC-0045,REAL-G-DOC-0041,MUC_5,MUC_5,CURATED_FROM_UNLABELED,"Hoạt động: Đề tài NCKH SV cấp Trường: Nhận thức về trang phục Unisex của sinh viên trường ĐH KHXH&NV, ĐHQG TP.HCM
+Vai trò trong minh chứng: Hỗ trợ Đề tài NCKH SV cấp Trường
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: Đã tham gia hỗ trợ Đề tài NCKH SV cấp Trường NHẬN THỨC VỀ TRANG PHỤC UNISEX CỦA SINH VIÊN TRƯỜNG ĐH KHXH&NV, ĐHQG TP.HCM. TPHCM, ngày 02 tháng 05 năm 2026"
+DOC-0047,REAL-G-DOC-0041,MUC_5,MUC_5,CURATED_FROM_UNLABELED,"Hoạt động: Đề tài ""Khảo sát và đánh giá kỹ năng xây dựng prompt của sinh viên trong ứng dụng AI tích hợp mô hình ngôn ngữ lớn (LLMS)""
+Vai trò trong minh chứng: Hỗ trợ nhóm nghiên cứu khoa học
+Nội dung minh chứng: Đã tham gia hỗ trợ nhóm nghiên cứu khoa học đề tài ""Khảo sát và đánh giá kỹ năng xây dựng prompt của sinh viên trong ứng dụng AI tích hợp mô hình ngôn ngữ lớn (LLMS)"". Thành phố Hồ Chí Minh, T4/2026"
+DOC-0050,REAL-G-DOC-0050,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Tổng vệ sinh môi trường biển sau mưa lớn kéo dài trên địa bàn quận Liên Chiểu
+Vai trò trong minh chứng: Người tham gia
+Nội dung minh chứng: Đã tham gia tổng vệ sinh môi trường biển sau mưa lớn kéo dài trên địa bàn quận Liên Chiểu, khu vực ngã ba Phan Văn Định, Nguyễn Tất Thành. Đà Nẵng, ngày 21 tháng 10 năm 2023"
+DOC-0051,REAL-G-DOC-0051,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Trạm dừng yêu thương - Hoạt động tình nguyện của ANTS HOUSE (SCLUB)
+Đơn vị tổ chức: ANTS HOUSE (SCLUB)
+Vai trò trong minh chứng: Người tham gia
+Nội dung minh chứng: Đã tham gia Trạm dừng yêu thương Hoạt động tình nguyện của ANTS HOUSE (SCLUB) Xóm trọ chạy thận - 144/10 Hải Phòng, Đà Nẵng"
+DOC-0055,REAL-G-DOC-0055,MUC_5,MUC_5,CURATED_FROM_UNLABELED,"Hoạt động: Vòng 1 Cuộc thi HR MASTERMIND
+Vai trò trong minh chứng: Thí sinh dự thi
+Nội dung minh chứng: Đã tham gia dự thi Vòng 1 cuộc thi HR MASTERMIND. Đà Nẵng, ngày 02 tháng 6 năm 2024"
+DOC-0056,REAL-G-DOC-0056,TUYEN_TRUYEN_PHAP_LUAT,MUC_10,HUMAN_EXCEL,"Hoạt động: Ngày hội an toàn giao thông năm 2023
+Vai trò trong minh chứng: Người tham gia
+Nội dung minh chứng: Đã tham gia ""Ngày hội an toàn giao thông"" năm 2023. Đà Nẵng, ngày 02 tháng 12 năm 2023"
+DOC-0058,REAL-G-DOC-0055,CLB_HOC_THUAT_SINH_HOAT,MUC_4,HUMAN_EXCEL,"Hoạt động: Talkshow ""ĐỘT PHÁ TRONG QUẢN TRỊ NHÂN SỰ: HÀNH TRÌNH VƯỢT QUA RANH GIỚI""
+Đơn vị tổ chức: CLB HRM - Khoa Quản trị Kinh doanh, ĐH Kinh tế - ĐHĐN
+Vai trò trong minh chứng: Người tham dự
+Nội dung minh chứng: Đã tham dự Talkshow ""ĐỘT PHÁ TRONG QUẢN TRỊ NHÂN SỰ: HÀNH TRÌNH VƯỢT QUA RANH GIỚI"" của Câu lạc bộ HRM, Trường Đại học Kinh tế - Đại học Đà Nẵng. Đà Nẵng, ngày 02 tháng 6 năm 2024"
+DOC-0059,REAL-G-DOC-0059,MUC_10,MUC_10,CURATED_FROM_UNLABELED,"Hoạt động: Cuộc thi ""Ứng xử văn minh trên không gian mạng""
+Vai trò trong minh chứng: Nhóm sinh viên tham gia cuộc thi
+Nội dung minh chứng: Đã tham gia tích cực cuộc thi ""Ứng xử văn minh trên không gian mạng"". Đà Nẵng, ngày 7 tháng 5 năm 2024"
+DOC-0091,REAL-G-DOC-0091,TINH_NGUYEN_CONG_DONG,MUC_12,HUMAN_EXCEL,"Hoạt động: Chiến dịch Đông tình nguyện - Tết yêu thương 2024
+Đơn vị tổ chức: Đoàn TNCS Hồ Chí Minh - Hội Sinh viên
+Vai trò trong minh chứng: Tình nguyện viên trực tiếp tham gia chiến dịch
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: Chứng nhận tình nguyện viên đã tham gia tích cực chiến dịch Đông tình nguyện - Tết yêu thương 2024 phục vụ đồng bào khó khăn."
+DOC-0094,REAL-G-DOC-0094,MUC_9,MUC_9,CURATED_FROM_UNLABELED,"Hoạt động: K23 - Bén lửa sinh ra
+Đơn vị tổ chức: Faculty of Information Technology - DUT
+Vai trò trong minh chứng: Người đóng góp (outstanding contribution)
+Cấp hoạt động: Faculty of Information and Technology
+Nội dung minh chứng: CERTIFICATE OF PARTICIPATION: Has outstanding contribution to ""K23 - Bén lửa sinh ra"" organized by Faculty of Information and Technology. October 29th, 2023"
+DOC-0096,REAL-G-DOC-0019,HIEN_MAU_NHAN_DAO,MUC_12,HUMAN_EXCEL,"Hoạt động: Hiến máu tình nguyện
+Vai trò trong minh chứng: Người hiến máu
+Nội dung minh chứng: GIẤY CHỨNG NHẬN HIẾN MÁU TÌNH NGUYỆN. Đã hiến máu tình nguyện."
+DOC-0020-A,REAL-G-DOC-0019,HIEN_MAU_NHAN_DAO,MUC_12,HUMAN_EXCEL,"Hoạt động: Hiến máu tình nguyện
+Vai trò trong minh chứng: Người hiến máu
+Nội dung minh chứng: GIẤY CHỨNG NHẬN HIẾN MÁU TÌNH NGUYỆN. Đã hiến máu tình nguyện."
+DOC-0099,REAL-G-DOC-0099,MUC_9,MUC_9,CURATED_FROM_UNLABELED,"Hoạt động: Ngày hội giao lưu văn hóa quốc tế DUE 2025
+Đơn vị tổ chức: Trường Đại học Kinh tế - Đại học Đà Nẵng
+Vai trò trong minh chứng: Người tham gia và đóng góp tích cực
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: ĐÃ THAM GIA VÀ ĐÓNG GÓP TÍCH CỰC NGÀY HỘI GIAO LƯU VĂN HÓA QUỐC TẾ DUE 2025. Đà Nẵng, ngày 27 tháng 4 năm 2025."
+DOC-0110,REAL-G-DOC-0110,MUC_5,MUC_5,CURATED_FROM_UNLABELED,"Hoạt động: Cuộc Thi Olympic các môn khoa học Mác - Lênin và Tư tưởng Hồ Chí Minh năm 2025
+Đơn vị tổ chức: Đoàn Thanh niên - Hội Sinh viên Trường Đại học Kinh tế
+Vai trò trong minh chứng: Thí sinh tham gia và có thành tích xuất sắc
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: Đã tham gia và có thành tích xuất sắc Cuộc Thi Olympic các môn khoa học Mác - Lênin và Tư tưởng Hồ Chí Minh năm 2025. Đà Nẵng, ngày 25 tháng 5 năm 2025."
+DOC-0118,REAL-G-DOC-0118,MUC_13,MUC_13,CURATED_FROM_UNLABELED,"Hoạt động: Chương trình Trại Đội ""Vũ Khúc Thiên Hà"" của Đội Tư vấn Sinh viên
+Đơn vị tổ chức: Ban Thư ký Hội Sinh viên Trường Đại học Bách khoa
+Vai trò trong minh chứng: Cá nhân tham gia tích cực (theo danh sách kèm theo)
+Cấp hoạt động: Cấp trường
+Nội dung minh chứng: QUYẾT ĐỊNH Về việc xác nhận danh sách cho cá nhân tham gia tích cực Chương trình Trại Đội ""Vũ Khúc Thiên Hà"" của Đội Tư vấn Sinh viên. Số: 210-QĐ/ĐHBK-HSV ký ngày 05/05/2026 xác nhận cho 87 cá nhân."

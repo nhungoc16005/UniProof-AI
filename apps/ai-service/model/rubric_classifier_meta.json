@@ -1,0 +1,419 @@
+{
+  "modelName": "tfidf_logreg",
+  "bestCvModel": "tfidf_logreg",
+  "modelVersion": "1.0.0",
+  "trainedAt": "2026-11-22T10:01:55.631240+00:00",
+  "trainSampleCount": 123,
+  "classes": [
+    "KHONG_HOP_LE",
+    "MUC_10",
+    "MUC_12",
+    "MUC_13",
+    "MUC_4",
+    "MUC_5",
+    "MUC_8",
+    "MUC_9"
+  ],
+  "cvBenchmark": {
+    "tfidf_logreg": {
+      "cv_folds": 4,
+      "evaluated_samples": 122,
+      "accuracy": 0.7541,
+      "accuracy_fold_mean": 0.7543,
+      "accuracy_fold_std": 0.0259,
+      "macro_f1": 0.5308,
+      "macro_f1_fold_mean": 0.5497,
+      "macro_f1_fold_std": 0.0391,
+      "weighted_f1": 0.7261,
+      "weighted_f1_fold_mean": 0.7213,
+      "weighted_f1_fold_std": 0.0398,
+      "confusion_matrix": {
+        "labels": [
+          "KHONG_HOP_LE",
+          "MUC_10",
+          "MUC_12",
+          "MUC_13",
+          "MUC_5",
+          "MUC_8",
+          "MUC_9"
+        ],
+        "matrix": [
+          [
+            0,
+            0,
+            3,
+            0,
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            2,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            43,
+            1,
+            0,
+            1,
+            2
+          ],
+          [
+            0,
+            0,
+            2,
+            11,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1,
+            0,
+            20,
+            0,
+            2
+          ],
+          [
+            0,
+            1,
+            2,
+            0,
+            3,
+            5,
+            0
+          ],
+          [
+            0,
+            0,
+            2,
+            1,
+            4,
+            0,
+            13
+          ]
+        ]
+      },
+      "per_class": {
+        "KHONG_HOP_LE": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 4
+        },
+        "MUC_10": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 4
+        },
+        "MUC_12": {
+          "precision": 0.8113,
+          "recall": 0.9149,
+          "f1": 0.86,
+          "support": 47
+        },
+        "MUC_13": {
+          "precision": 0.8462,
+          "recall": 0.8462,
+          "f1": 0.8462,
+          "support": 13
+        },
+        "MUC_5": {
+          "precision": 0.6667,
+          "recall": 0.8696,
+          "f1": 0.7547,
+          "support": 23
+        },
+        "MUC_8": {
+          "precision": 0.8333,
+          "recall": 0.4545,
+          "f1": 0.5882,
+          "support": 11
+        },
+        "MUC_9": {
+          "precision": 0.6842,
+          "recall": 0.65,
+          "f1": 0.6667,
+          "support": 20
+        }
+      }
+    },
+    "tfidf_linear_svc": {
+      "cv_folds": 4,
+      "evaluated_samples": 122,
+      "accuracy": 0.7541,
+      "accuracy_fold_mean": 0.7546,
+      "accuracy_fold_std": 0.0462,
+      "macro_f1": 0.5227,
+      "macro_f1_fold_mean": 0.5461,
+      "macro_f1_fold_std": 0.0566,
+      "weighted_f1": 0.7235,
+      "weighted_f1_fold_mean": 0.7195,
+      "weighted_f1_fold_std": 0.0578,
+      "confusion_matrix": {
+        "labels": [
+          "KHONG_HOP_LE",
+          "MUC_10",
+          "MUC_12",
+          "MUC_13",
+          "MUC_5",
+          "MUC_8",
+          "MUC_9"
+        ],
+        "matrix": [
+          [
+            0,
+            0,
+            3,
+            0,
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1,
+            0,
+            2,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            46,
+            1,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            4,
+            9,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1,
+            0,
+            19,
+            1,
+            2
+          ],
+          [
+            0,
+            1,
+            2,
+            0,
+            3,
+            5,
+            0
+          ],
+          [
+            0,
+            0,
+            2,
+            1,
+            4,
+            0,
+            13
+          ]
+        ]
+      },
+      "per_class": {
+        "KHONG_HOP_LE": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 4
+        },
+        "MUC_10": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 4
+        },
+        "MUC_12": {
+          "precision": 0.7797,
+          "recall": 0.9787,
+          "f1": 0.8679,
+          "support": 47
+        },
+        "MUC_13": {
+          "precision": 0.8182,
+          "recall": 0.6923,
+          "f1": 0.75,
+          "support": 13
+        },
+        "MUC_5": {
+          "precision": 0.6552,
+          "recall": 0.8261,
+          "f1": 0.7308,
+          "support": 23
+        },
+        "MUC_8": {
+          "precision": 0.8333,
+          "recall": 0.4545,
+          "f1": 0.5882,
+          "support": 11
+        },
+        "MUC_9": {
+          "precision": 0.8125,
+          "recall": 0.65,
+          "f1": 0.7222,
+          "support": 20
+        }
+      }
+    },
+    "tfidf_complement_nb": {
+      "cv_folds": 4,
+      "evaluated_samples": 122,
+      "accuracy": 0.6803,
+      "accuracy_fold_mean": 0.6806,
+      "accuracy_fold_std": 0.0647,
+      "macro_f1": 0.4104,
+      "macro_f1_fold_mean": 0.4057,
+      "macro_f1_fold_std": 0.055,
+      "weighted_f1": 0.62,
+      "weighted_f1_fold_mean": 0.6109,
+      "weighted_f1_fold_std": 0.072,
+      "confusion_matrix": {
+        "labels": [
+          "KHONG_HOP_LE",
+          "MUC_10",
+          "MUC_12",
+          "MUC_13",
+          "MUC_5",
+          "MUC_8",
+          "MUC_9"
+        ],
+        "matrix": [
+          [
+            0,
+            0,
+            3,
+            0,
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1,
+            0,
+            2,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            47,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            9,
+            3,
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            1,
+            0,
+            18,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            6,
+            0,
+            2,
+            2,
+            1
+          ],
+          [
+            0,
+            0,
+            5,
+            0,
+            2,
+            0,
+            13
+          ]
+        ]
+      },
+      "per_class": {
+        "KHONG_HOP_LE": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 4
+        },
+        "MUC_10": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 4
+        },
+        "MUC_12": {
+          "precision": 0.6528,
+          "recall": 1.0,
+          "f1": 0.7899,
+          "support": 47
+        },
+        "MUC_13": {
+          "precision": 1.0,
+          "recall": 0.2308,
+          "f1": 0.375,
+          "support": 13
+        },
+        "MUC_5": {
+          "precision": 0.72,
+          "recall": 0.7826,
+          "f1": 0.75,
+          "support": 23
+        },
+        "MUC_8": {
+          "precision": 1.0,
+          "recall": 0.1818,
+          "f1": 0.3077,
+          "support": 11
+        },
+        "MUC_9": {
+          "precision": 0.65,
+          "recall": 0.65,
+          "f1": 0.65,
+          "support": 20
+        }
+      }
+    }
+  },
+  "notes": "Baseline ML (TF-IDF word+char_wb) huấn luyện trên mẫu thật từ data_tracker.xlsx. Dùng hỗ trợ gợi ý tiêu chí Rubric, không tự động chốt điểm."
+}

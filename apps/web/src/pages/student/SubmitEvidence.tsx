@@ -38,6 +38,7 @@ export const SubmitEvidence: React.FC = () => {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [fileUrl, setFileUrl] = useState('');
   const [fileName, setFileName] = useState('');
+  const [fileType, setFileType] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [isDraft, setIsDraft] = useState(false);
@@ -62,11 +63,14 @@ export const SubmitEvidence: React.FC = () => {
     });
   }, [activityOrigin]);
 
-  const handleNext = () => {
-    if (step === 1 && !activityName.trim()) {
-      alert('Vui lòng chọn hoặc nhập tên hoạt động');
-      return;
+  // Tự động điền ngày từ kỳ đánh giá (DB) khi không gắn với hoạt động nội bộ
+  useEffect(() => {
+    if (activityOrigin !== 'INTERNAL' && activeTerm.startDate) {
+      setDate(activeTerm.startDate.split('T')[0]);
     }
+  }, [activityOrigin, activeTerm.startDate]);
+
+  const handleNext = () => {
     if (step === 2 && !fileUrl) {
       alert('Vui lòng tải lên tệp minh chứng (ảnh hoặc tài liệu)');
       return;
@@ -76,16 +80,40 @@ export const SubmitEvidence: React.FC = () => {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    if (f) {
-      setFileName(f.name);
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        if (evt.target?.result) {
-          setFileUrl(evt.target.result as string);
-        }
-      };
-      reader.readAsDataURL(f);
+    if (!f) return;
+
+    if (f.size > 8 * 1024 * 1024) {
+      alert('Tệp minh chứng phải nhỏ hơn hoặc bằng 8 MB.');
+      e.target.value = '';
+      return;
     }
+
+    const extension = f.name.split('.').pop()?.toLowerCase();
+    const typeByExtension: Record<string, string> = {
+      pdf: 'application/pdf',
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      png: 'image/png',
+      webp: 'image/webp',
+    };
+    const supportedTypes = Object.values(typeByExtension);
+    const selectedType = supportedTypes.includes(f.type) ? f.type : typeByExtension[extension ?? ''];
+    if (!selectedType) {
+      alert('Chỉ hỗ trợ tệp PDF, JPG, PNG hoặc WebP.');
+      e.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      if (typeof evt.target?.result === 'string') {
+        setFileName(f.name);
+        setFileType(selectedType);
+        setFileUrl(evt.target.result);
+      }
+    };
+    reader.onerror = () => alert(`Không đọc được tệp ${f.name}. Vui lòng thử lại.`);
+    reader.readAsDataURL(f);
   };
 
   const handleSubmit = async (asDraft: boolean = false) => {
@@ -103,20 +131,31 @@ export const SubmitEvidence: React.FC = () => {
         participationDate: date ? new Date(date).toISOString() : new Date().toISOString(),
         criterionId: selectedCriterionId || undefined,
         activityId: activityOrigin === 'INTERNAL' && selectedActivityId ? selectedActivityId : undefined,
-        status: asDraft ? 'DRAFT' : 'SUBMITTED',
-        fileUrls: [fileUrl],
-        files: [
-          {
-            id: `f-${Date.now()}`,
-            evidenceId: '',
-            fileUrl: fileUrl,
-            fileType: 'image/jpeg',
-            uploadedAt: new Date().toISOString(),
-          },
-        ],
+        draft: true,
       });
 
-      alert(asDraft ? 'Đã lưu bản nháp thành công!' : 'Đã nộp hồ sơ minh chứng thành công!');
+      try {
+        await apiClient.uploadEvidenceDraftFile(newEvd.id, fileUrl, fileName, fileType);
+      } catch (uploadError) {
+        try {
+          await apiClient.deleteEvidenceDraft(newEvd.id);
+        } catch {
+          const message = (uploadError as any).response?.data?.message || (uploadError as any).message || 'Tải tệp lên thất bại';
+          throw new Error(`${Array.isArray(message) ? message.join('\n') : message}. Hồ sơ nháp ${newEvd.id} chưa được xóa; vui lòng mở hồ sơ và thử tải lại tệp.`);
+        }
+        throw uploadError;
+      }
+
+      const shouldSubmitSeparately = !asDraft && !activeTerm.workflowEnabled;
+      if (shouldSubmitSeparately) {
+        await apiClient.submitEvidence(newEvd.id);
+      }
+
+      alert(asDraft
+        ? 'Đã lưu bản nháp minh chứng thành công!'
+        : shouldSubmitSeparately
+          ? 'Đã nộp hồ sơ minh chứng thành công!'
+          : 'Đã lưu minh chứng vào bản nháp. Với kỳ này, minh chứng được gửi cùng phiếu rèn luyện.');
       navigate(`/student/evidence/${newEvd.id}`);
     } catch (err: any) {
       const msg = err.response?.data?.message || err.message || 'Nộp hồ sơ thất bại, vui lòng thử lại';
@@ -275,7 +314,7 @@ export const SubmitEvidence: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Tên hoạt động <span className="text-rose-500">*</span>
+                Tên hoạt động
               </label>
               <input
                 type="text"
@@ -283,7 +322,6 @@ export const SubmitEvidence: React.FC = () => {
                 onChange={(e) => setActivityName(e.target.value)}
                 placeholder="VD: Hội thảo Công nghệ Sinh viên Danang 2026"
                 className="w-full px-3.5 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-900"
-                required
               />
             </div>
             <div>
@@ -324,7 +362,7 @@ export const SubmitEvidence: React.FC = () => {
           </div>
 
           {/* Vai trò & Loại minh chứng */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Vai trò tham gia</label>
               <select
@@ -349,15 +387,6 @@ export const SubmitEvidence: React.FC = () => {
                 <option value="VE_CHECKIN">Vé điện tử / Check-in QR</option>
                 <option value="DANH_SACH">Danh sách kết quả khen thưởng</option>
               </select>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Ngày diễn ra</label>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full px-3.5 py-2 text-xs border border-slate-300 rounded-xl font-medium"
-              />
             </div>
           </div>
 
@@ -408,7 +437,7 @@ export const SubmitEvidence: React.FC = () => {
               Kéo thả file ảnh hoặc PDF minh chứng vào đây
             </p>
             <p className="text-xs text-slate-500 mb-4 max-w-sm">
-              Định dạng hỗ trợ: JPG, PNG, PDF (tối đa 10MB). Hãy chụp đủ 4 góc, rõ chữ và thấy con dấu đỏ.
+              Định dạng hỗ trợ: JPG, PNG, WebP, PDF (tối đa 8MB). Hãy chụp đủ 4 góc, rõ chữ và thấy con dấu đỏ.
             </p>
 
             <label className="cursor-pointer px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm shadow-blue-500/20 transition">
@@ -416,7 +445,7 @@ export const SubmitEvidence: React.FC = () => {
               <input
                 type="file"
                 className="hidden"
-                accept="image/*,application/pdf"
+                accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf"
                 onChange={handleFileChange}
               />
             </label>
