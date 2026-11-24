@@ -91,14 +91,22 @@ def _normalize_vi_text(text: str) -> str:
     return f"{cleaned} {ascii_ver}".strip()
 
 
+def _resolve_onnx_model_file(directory: Path) -> Optional[Path]:
+    for fname in ("model.onnx", "phobert_fp32.onnx", "model_quantized.onnx"):
+        cand = directory / fname
+        if cand.exists():
+            return cand
+    return None
+
+
 def _resolve_onnx_dir() -> Optional[Path]:
     env_dir = os.environ.get("RUBRIC_ONNX_DIR", "").strip()
     if env_dir:
         p = Path(env_dir)
-        if (p / "model_quantized.onnx").exists():
+        if _resolve_onnx_model_file(p) is not None:
             return p
     for cand in ONNX_CANDIDATE_DIRS:
-        if (cand / "model_quantized.onnx").exists():
+        if _resolve_onnx_model_file(cand) is not None:
             return cand
     return None
 
@@ -128,8 +136,9 @@ def _ensure_loaded() -> tuple[Optional[str], dict[str, Any]]:
                 sess_opts = ort.SessionOptions()
                 sess_opts.intra_op_num_threads = max(1, min(4, os.cpu_count() or 2))
                 sess_opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+                onnx_file = _resolve_onnx_model_file(onnx_dir)
                 _ONNX_SESSION = ort.InferenceSession(
-                    str(onnx_dir / "model_quantized.onnx"),
+                    str(onnx_file),
                     sess_options=sess_opts,
                     providers=["CPUExecutionProvider"],
                 )
@@ -167,6 +176,41 @@ def is_rubric_model_available() -> bool:
     return backend is not None
 
 
+def _diacritic_ratio(text: str) -> float:
+    letters = [ch for ch in str(text or "") if ch.isalpha()]
+    if not letters:
+        return 0.0
+    accented = sum(1 for ch in letters if ord(ch) > 127)
+    return accented / len(letters)
+
+
+def _format_for_onnx(ocr_text: str, activity_name: str = "") -> str:
+    """Đồng bộ định dạng chuỗi lúc chạy thật với định dạng huấn luyện Dataset v3."""
+    raw = str(ocr_text or "").strip()
+    act = str(activity_name or "").strip()
+    if raw.startswith(("Hoạt động:", "Nội dung minh chứng:", "Quy chế", "Nội dung phản hồi", "Tin tức:")):
+        if act and not raw.startswith("Hoạt động:"):
+            return f"Hoạt động: {act}\n{raw}"
+        return raw
+
+    lines: list[str] = []
+    for line in raw.splitlines():
+        s = re.sub(r"\s+", " ", line).strip()
+        if len(s) < 2:
+            continue
+        # Bỏ dòng nhiễu OCR lặp ký tự rác (vd: GGGGGGGG...)
+        if len(s) >= 8 and len(set(s.replace(" ", ""))) <= 2:
+            continue
+        lines.append(s)
+
+    joined = " | ".join(lines) if lines else raw
+    if act and joined:
+        return f"Hoạt động: {act}\nNội dung minh chứng: {joined}"
+    if joined:
+        return f"Nội dung minh chứng: {joined}"
+    return act
+
+
 def _predict_onnx(combined: str, meta: dict[str, Any]) -> tuple[list[str], list[float]]:
     enc = _ONNX_TOKENIZER(
         combined,
@@ -194,14 +238,16 @@ def predict_rubric_criterion(ocr_text: str, activity_name: str = "") -> Optional
     backend, meta = _ensure_loaded()
     if backend is None:
         return None
-    combined = f"{activity_name or ''}\n{ocr_text or ''}".strip()
-    if not combined:
+    raw_combined = f"{activity_name or ''}\n{ocr_text or ''}".strip()
+    if not raw_combined:
         return None
+    low_diacritic = _diacritic_ratio(raw_combined) < 0.03
     try:
         if backend == "onnx":
-            classes, probs = _predict_onnx(combined, meta)
+            onnx_input = _format_for_onnx(ocr_text, activity_name)
+            classes, probs = _predict_onnx(onnx_input, meta)
         else:
-            normalized = _normalize_vi_text(combined)
+            normalized = _normalize_vi_text(raw_combined)
             probs = [float(p) for p in _MODEL.predict_proba([normalized])[0]]
             classes = [str(c) for c in _MODEL.classes_]
     except Exception as exc:
@@ -228,4 +274,5 @@ def predict_rubric_criterion(ocr_text: str, activity_name: str = "") -> Optional
         "modelName": meta.get("modelName", "tfidf_logreg"),
         "modelVersion": meta.get("modelVersion", "1.0.0"),
         "inferenceBackend": backend,
+        "lowDiacriticOcr": low_diacritic,
     }

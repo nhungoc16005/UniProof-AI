@@ -2,6 +2,31 @@
 
 Mỗi công việc trong dự án thêm mục mới ở đầu với ngày, phạm vi, feature/bug/quyết định liên quan, thay đổi thực tế, kiểm tra đã chạy và giới hạn. Không ghi test dự kiến như đã Passed, không ghi credential hoặc dữ liệu sinh viên.
 
+## 2026-11-25 — Xác minh artifact PhoBERT ONNX FP32 theo DEC-015
+
+- Predictor local nạp đúng `phobert_fp32.onnx` và đạt **59/70 (84,29%)**, macro-F1 **0,8200**, khớp báo cáo Kaggle. Nhóm 17 tệp gốc đạt **8/17** sau OCR/đọc PDF và phân loại, so với **9/17** ở lượt INT8 trước. Hai suite Python đạt **12/12**.
+- Cập nhật [TEST_PLAN](TEST_PLAN.md#phobert-fp32-local-20261125) và [hướng dẫn AI](AI_TRAINING_AND_ARCHITECTURE_GUIDE.md) với kết quả FP32. Lượt kiểm tra chỉ cập nhật tài liệu, chưa kiểm tải hoặc kiểm chứng trên Backend, Storage và UI.
+
+## 2026-11-25 — Đo lại độ chính xác Model 1 theo DEC-015
+
+- Chạy artifact PhoBERT ONNX INT8 qua predictor local. Tập văn bản cố định đạt **54/70 (77,14%)**, macro-F1 **0,7640**. Nhóm 17 tệp minh chứng có sẵn đạt **9/17 (52,94%)** sau OCR/đọc PDF và phân loại. Với ngưỡng mô phỏng `0,65`, nhóm tệp đạt ngưỡng đúng **7/12**.
+- Cập nhật [TEST_PLAN](TEST_PLAN.md#2026-11-25--kiểm-thử-lại-phobert-onnx-int8-và-luồng-đọc-tệp-local) và [hướng dẫn AI](AI_TRAINING_AND_ARCHITECTURE_GUIDE.md) để ghi riêng kết quả ONNX và số đo checkpoint trước khi xuất. Không train lại, không đổi model, code, spec, API hay quy tắc. Không gọi API ngoài hay chạy backend. Kết quả trên tệp gốc dùng tập test có sẵn và chưa chứng minh chất lượng trên minh chứng mới.
+
+## 2026-11-25 — Triển khai Giai đoạn 3 Hybrid AI: Groq LLM Assistant, Tường lửa PII 3 lớp, Event Cache 7 ngày & Chuẩn hóa ONNX FP32 (`DEC-015`)
+
+- **Phạm vi & quyết định:** `DEC-015`, Giai đoạn 3 Hybrid AI (`apps/ai-service`).
+- **Chuẩn hóa trọng số `PhoBERT-base-v2` ONNX không suy giảm độ chính xác:**
+  - Phát hiện `sdpa_attention` đóng cứng mask và nén `QUInt8` làm giảm 4 mẫu trên `test.csv` (`84,29% → 78,57%`); chuyển sang xuất ONNX với `attn_implementation="eager"` (`phobert_fp32.onnx`, `515 MB`) và cập nhật [predictor.py](../apps/ai-service/src/predictor.py) ưu tiên nạp `phobert_fp32.onnx` / `model.onnx`.
+  - Đo lại trực tiếp trên `datasets_v3/test.csv` (`N=70`): đạt chính xác **`59/70` (`84,29%`, Macro-F1 `0,8200`, Weighted-F1 `0,8391`)** — khớp 100% với PyTorch gốc; benchmark CPU 8GB ([benchmark_cpu_8gb.py](../apps/ai-service/tools/benchmark_cpu_8gb.py), 12 ảnh thật) đạt **Peak RSS `1424,3 MB` (`≤ 1536 MB`)**, ML P50 **`174,2 ms`**, Tổng P50 **`1,10s`** / P95 **`2,30s`**.
+- **Triển khai tầng hỗ trợ Groq LLM có kiểm soát ([llm_assistant.py](../apps/ai-service/src/llm_assistant.py), [config.py](../apps/ai-service/src/config.py), [.env.example](../apps/ai-service/.env.example), [criterion_evaluator.py](../apps/ai-service/src/criterion_evaluator.py), [main.py](../apps/ai-service/src/main.py)):**
+  - **Tường lửa PII 3 lớp (`sanitize_event_text_for_llm`):** (1) Xóa mờ tên/mã theo hồ sơ SV đã biết bằng cửa sổ trượt không dấu (bắt được cả tên sai dấu/dính chữ OCR), (2) Cắt bỏ nguyên dòng định danh và dòng tên riêng sau nhãn xưng hô (`Trao cho`, `Is awarded to`, `Đồng chí`, `MSSV`, `CCCD`, `Lượng máu`...), (3) Quét Regex khóa cuối cho Email/SĐT/số dài/cụm tên in hoa. Không gửi ảnh gốc ra ngoài.
+  - **Smart Gatekeeper (`should_escalate_to_llm`):** Giữ mặc định `EXTERNAL_LLM_EXTRACTION_ENABLED=false`; khi bật kèm `GROQ_API_KEY`, chỉ gọi API cho ca khó (`confidence < 0,65`, `margin < 0,15`, lệch tiêu chí, hoặc thiếu vai trò/cấp giải ở Mục `5, 9, 13, 14, 15, 16`).
+  - **Event-Level SQLite Cache (TTL 7 ngày) & Circuit Breaker (`6s timeout`):** Khử trùng lặp theo sự kiện xuyên suốt nhiều sinh viên; tự động chuyển từ `openai/gpt-oss-120b` sang `openai/gpt-oss-20b` khi gặp HTTP `429/404` và fallback 100% về `PhoBERT ONNX` khi lỗi mạng/server; thêm công cụ tự kiểm tra [verify_groq_connection.py](../apps/ai-service/tools/verify_groq_connection.py).
+- **Kiểm chứng & giới hạn:**
+  - Chạy `unittest -v test_llm_assistant test_ml_and_flows test_template_matcher`: **16/16 PASS**.
+  - Khắc phục lỗi khởi động `VietOCR` offline (lưu cấu hình `vietocr_vgg_seq2seq.yml` + trọng số nội bộ trong [vietnamese_ocr_engine.py](../apps/ai-service/src/vietnamese_ocr_engine.py), ghim `setuptools<81` trong [requirements.txt](../apps/ai-service/requirements.txt)) và đồng bộ tiền xử lý Train–Serve trong [predictor.py](../apps/ai-service/src/predictor.py).
+  - Đo thực tế trên 17 tệp ảnh/PDF gốc khó nhất trong tập Test độc lập (`14 NEWFIL + 3 BOSUNG`, không biết trước mục tiêu chí): riêng `PhoBERT ONNX` nội bộ đạt **`8/17` (`47,06%`, nhóm `conf >= 0,65` cải thiện từ `7/12` lên `8/13`)**, còn khi bật **Hybrid `PhoBERT + Groq Gatekeeper` (`7/17` lượt gọi API)** độ chính xác tăng lên **`11/17` (`64,71%`, `+17,65%`)** — giải cứu thành công toàn bộ các chứng nhận tiếng Anh (*Clean Up Son Tra*, *World Cleanup Day*) và giải chạy *BOSUNG-0011*; các ca tên chương trình ẩn dụ (*S-Film: Khung hình trắng*, *Tiệm tạp hóa ước mơ*) vẫn cần bước Cán bộ Khoa xác nhận cuối.
+
 ## 2026-11-24 — Hoàn thành Giai đoạn 1 AI: Dataset v3 (350 Core), Huấn luyện `PhoBERT-base-v2` ONNX INT8 (84,29%) & Chốt kiến trúc Hybrid (`DEC-015`)
 
 - **Phạm vi & quyết định:** `DEC-015`, Pipeline A v3.0.0 (`apps/ai-service`, `research/activity-classification/`).

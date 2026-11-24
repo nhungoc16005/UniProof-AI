@@ -184,12 +184,15 @@ python apps/ai-service/tools/register_templates.py
 | TF-IDF + LinearSVC | 0,8286 | `[0,7238 – 0,8991]` | 0,8186 | — | — |
 | Multilingual-MiniLM-L12 (Kaggle) | 0,7000 | `[0,5846 – 0,7946]` | 0,6994 | — | `0,1479 → 0,1547` |
 | XLM-RoBERTa-base (Kaggle) | 0,8000 | `[0,6918 – 0,8770]` | 0,7789 | — | `0,1244 → 0,0861` |
-| **`vinai/phobert-base-v2` (ONNX INT8 — Production)** | **0,8429** (59/70) | **`[0,7401 – 0,9099]`** | **0,8200** *(Weighted: **0,8391**)* | **Acc `0,8204 ± 0,0438`** / **Macro-F1 `0,8371 ± 0,0433`** | **`0,0832 → 0,0561`** (`T=1,1542`) |
+| **`vinai/phobert-base-v2` (checkpoint PyTorch trước khi xuất ONNX)** | **0,8429** (59/70) | **`[0,7401 – 0,9099]`** | **0,8200** *(Weighted: **0,8391**)* | **Acc `0,8204 ± 0,0438`** / **Macro-F1 `0,8371 ± 0,0433`** | **`0,0832 → 0,0561`** (`T=1,1542`) |
 
-- **Tích hợp & Benchmark CPU 8GB thực tế** (`apps/ai-service/model/rubric_phobert_quantized/model_quantized.onnx`, `130 MB`, nạp ưu tiên trong [predictor.py](../apps/ai-service/src/predictor.py), đo bằng [benchmark_cpu_8gb.py](../apps/ai-service/tools/benchmark_cpu_8gb.py) trên 12 ảnh thật):
-  - **Peak RSS:** **`943,8 MB`** (đạt ngân sách `≤ 1536 MB`, dư ~592 MB).
-  - **Latency:** OCR P50 `1,17s` / P95 `1,87s`; `PhoBERT ONNX INT8` P50 `74,6 ms` (cold-start `749 ms`); Tổng P50 **`1,32s`** / P95 **`2,36s`**.
-  - **Unit tests (`test_ml_and_flows`, `test_template_matcher`):** **11/12 PASS**; 1 ca fail là mẫu song ngữ/tiếng Anh `Da Nang Code League 2024` (`PhoBERT` trả `MUC_8` với độ tin cậy thấp `0,5514 < 0,65` thay vì `MUC_5`) — xác nhận đúng động lực tích hợp Smart Gatekeeper + LLM API Fallback cho ca `confidence < 0,65` theo `DEC-015`.
+- **Đo lại artifact ONNX INT8 ngày 2026-11-25:** Predictor local đạt **54/70 (77,14%)**, macro-F1 **0,7640**. Luồng đọc trực tiếp 16 ảnh và 1 PDF có nhãn đạt **9/17 (52,94%)**. Xem phương pháp, giới hạn và thử nghiệm ngưỡng trong [TEST_PLAN](TEST_PLAN.md#2026-11-25--kiểm-thử-lại-phobert-onnx-int8-và-luồng-đọc-tệp-local).
+- **Kiểm chứng artifact ONNX FP32 ngày 2026-11-25:** `phobert_fp32.onnx` đạt **59/70 (84,29%)**, macro-F1 **0,8200**, trùng 11 ca sai trong báo cáo Kaggle. Cùng nhóm 17 tệp gốc đạt **8/17 (47,06%)**. Xem [kết quả đối chiếu FP32](TEST_PLAN.md#phobert-fp32-local-20261125).
+
+- **Tích hợp & Benchmark CPU 8GB thực tế** (`apps/ai-service/model/rubric_phobert_quantized/phobert_fp32.onnx`, `515 MB`, xuất với `attn_implementation="eager"` giữ nguyên 100% độ chính xác `84,29%` (`59/70`, Macro-F1 `0,8200`) vì Dynamic `QUInt8` làm rớt 4 mẫu xuống `78,57%`; nạp ưu tiên trong [predictor.py](../apps/ai-service/src/predictor.py), đo bằng [benchmark_cpu_8gb.py](../apps/ai-service/tools/benchmark_cpu_8gb.py) trên 12 ảnh thật):
+  - **Peak RSS:** **`1424,3 MB`** (đạt ngân sách `≤ 1536 MB`).
+  - **Latency:** OCR P50 `952,4 ms` / P95 `1,40s`; `PhoBERT ONNX FP32` P50 `174,2 ms` (cold-start `1,01s`); Tổng P50 **`1,10s`** / P95 **`2,30s`**.
+  - **Tầng hỗ trợ Hybrid Groq LLM (Giai đoạn 3 — `DEC-015`):** Triển khai tại [llm_assistant.py](../apps/ai-service/src/llm_assistant.py) và nối vào [criterion_evaluator.py](../apps/ai-service/src/criterion_evaluator.py) + [main.py](../apps/ai-service/src/main.py). Mặc định tắt (`EXTERNAL_LLM_EXTRACTION_ENABLED=false` để bảo toàn Local-First); khi cấu hình `GROQ_API_KEY` (`openai/gpt-oss-120b`, fallback `openai/gpt-oss-20b`), **Smart Gatekeeper** chỉ gọi API cho các ca `confidence < 0,65`, `margin < 0,15`, lệch mục hoặc thiếu vai trò/cấp giải ở tiêu chí nhạy cảm, đi qua **Tường lửa PII 3 lớp** (xóa mờ tên theo hồ sơ SV + cắt bỏ nguyên dòng định danh + Regex, 0 gửi ảnh gốc) và **SQLite Event Cache 7 ngày**. Kiểm chứng qua [test_llm_assistant.py](../apps/ai-service/test_llm_assistant.py) (**4/4 PASS**) và kiểm tra kết nối Live Groq thật qua [verify_groq_connection.py](../apps/ai-service/tools/verify_groq_connection.py) (`Da Nang Code League 2024` → `MUC_5`, `cacheHit=True` ở lần gọi thứ 2).
 
 ### Pipeline B
 

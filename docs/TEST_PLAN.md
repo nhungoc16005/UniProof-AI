@@ -1,5 +1,29 @@
 # Kế hoạch kiểm chứng EduPoint
 
+<a id="hybrid-groq-vietocr-20261125"></a>
+
+## 2026-11-25 — Kiểm thử Giai đoạn 3 Hybrid Groq LLM, Tường lửa PII 3 lớp & VietOCR Offline
+
+- **Unit tests (`apps/ai-service`):** `python -m unittest test_llm_assistant test_ml_and_flows test_template_matcher` → **16/16 PASS** (`2,64s`). Xác nhận Tường lửa PII 3 lớp cắt sạch tên lỗi dấu OCR/dính chữ/MSSV/CCCD/lượng máu, Smart Gatekeeper bỏ qua API khi đủ tự tin, Event Cache SQLite 7 ngày khử trùng lặp liên sinh viên (`0` HTTP call ở lần 2), retry fallback model khi `429/404` và fallback về ONNX khi `500`.
+- **Kiểm thử Live Groq (`verify_groq_connection.py`):** `openai/gpt-oss-120b` phản hồi JSON hợp lệ trên văn bản đã lọc PII, phân loại đúng `Da Nang Code League 2024` → `MUC_5` (`confidence: 0,86`), lần gọi 2 trúng cache (`cacheHit=True`).
+- **Kiểm thử lại 17 tệp gốc (16 ảnh qua `RapidOCR + VietOCR` offline + 1 PDF):** Riêng `PhoBERT FP32` nội bộ đạt **8/17 (`47,06%`)**, nhóm `conf ≥ 0,65` đạt **8/13**; khi bật **Hybrid `PhoBERT + Groq Gatekeeper`** (`7/17` lượt gọi API) đạt **11/17 (`64,71%`)**. Giữ bước Cán bộ Khoa kiểm tra cuối; chưa chạy lại backend worker và UI E2E.
+
+<a id="phobert-fp32-local-20261125"></a>
+
+## 2026-11-25 — Kiểm thử PhoBERT ONNX FP32 mới
+
+- **Artifact và môi trường:** `phobert_fp32.onnx` (515,3 MiB), SHA-256 `ad78422a4dc6586b08752fc6127ab1fa4b376439680c0499938ea3bbb7d550aa`. Xác nhận phiên suy luận của predictor trong workspace nạp đúng file bằng ONNX Runtime 1.32.0, `CPUExecutionProvider`. Chạy offline với kết nối mạng Python bị chặn.
+- **Cùng 70 mẫu văn bản:** Top-1 **59/70 (84,29%)**, top-3 **63/70**, macro-F1 **0,8200**. Trùng cả 11 ca sai và nhãn dự đoán sai trong báo cáo Kaggle. Bản INT8 đã đo trước đó đạt **54/70**, top-3 **61/70**, macro-F1 **0,7640**. Hai file ONNX được kiểm thử ở hai lượt riêng.
+- **Cùng 17 tệp gốc:** 16 ảnh qua RapidOCR và 1 PDF đọc lớp văn bản. Dùng văn bản và tên hoạt động trích từ tệp, FP32 đạt top-1 **8/17 (47,06%)**, top-3 **10/17**. INT8 ở lượt trước đạt top-1 **9/17**, top-3 **12/17**. Trong nhóm tệp đạt confidence `≥ 0,65`, cả hai lượt đều có **7/12** dự đoán đúng. Bộ tệp nhỏ, tập trung vào Mục 12 (11/17), chưa đại diện minh chứng mới.
+- **Regression:** `test_ml_and_flows` và `test_template_matcher` đạt **12/12**, gồm ca `Da Nang Code League 2024` từng sai với INT8. Trên 16 ảnh, phép đo cục bộ RapidOCR + FP32 ghi P50 **1,30 giây**, P95 **2,01 giây**. Peak RSS tiến trình **1.134,1 MiB**. Chưa chạy backend, Storage, API ngoài, UI hay kiểm tải đồng thời.
+
+## 2026-11-25 — Kiểm thử lại PhoBERT ONNX INT8 và luồng đọc tệp local
+
+- **Môi trường:** Python 3.11.15, ONNX Runtime 1.32.0 với `CPUExecutionProvider`, dùng `src.predictor.predict_rubric_criterion` từ workspace `65342c8`. File `model_quantized.onnx` có SHA-256 `ffaf065c707cf5898515f20aa888ea26d9bb41ea3952219ef4fb752e2a218652`. Chạy offline, chặn kết nối socket Python trong phép đo.
+- **Văn bản:** Chạy lần lượt 70 dòng `datasets_v3/test.csv` qua predictor. Kết quả top-1 **54/70 (77,14%)**, top-3 **61/70**, macro-F1 **0,7640**. Không thấy `group_id` hoặc văn bản trùng sau chuẩn hóa chữ hoa/thường và khoảng trắng với train/val. Mốc **59/70** trong metadata là số đo từ logits PyTorch trước khi xuất ONNX. Kiểm thêm cách đệm token và kích thước lô trên ONNX vẫn đạt 54/70, một số nhãn dự đoán thay đổi. Chưa đối chiếu được logits theo mẫu với checkpoint PyTorch.
+- **Tệp minh chứng gốc:** Ghép 17 mẫu `REAL_OCR_*` của test với file và nhãn có sẵn theo `sample_id`, kiểm trùng SHA-256 với các tệp gốc tra được từ train/val. Đọc 16 ảnh bằng RapidOCR và 1 PDF bằng lớp văn bản. Đưa văn bản và tên hoạt động OCR trích được qua predictor, đạt top-1 **9/17 (52,94%)**, top-3 **12/17**. Nếu chỉ đưa văn bản thì top-1 **8/17**. Trong 17 tệp, Mục 12 chiếm 11 và cả 9 ca đúng đều thuộc mục này. Mẫu nhỏ và lệch lớp, chưa đại diện tập minh chứng mới.
+- **Mô phỏng ngưỡng `0,65`:** Văn bản có **51/61** dự đoán đúng trong nhóm đạt ngưỡng, **9/70** dưới ngưỡng. Tệp gốc có **7/12** dự đoán đúng trong nhóm đạt ngưỡng, **5/17** dưới ngưỡng. Đây là phép đo ngưỡng trên predictor. Chưa kiểm thử cổng gọi API, workflow duyệt hồ sơ, backend, Storage hoặc UI.
+
 ## 2026-11-23 — Train lại toàn bộ AI từ A đến Z (Pipeline A/B/C)
 
 - **Pipeline A** (`research/activity-classification`, chạy `prepare_dataset → train_baseline → evaluate → error_analysis → export_model`): 259 mẫu / 239 `group_id` / 11 lớp. CV 5-fold `tfidf_linear_svc` Accuracy `0.8842 ± 0.0439`, Macro-F1 `0.8849 ± 0.0470`. Test mù 52 mẫu (mô hình chỉ học train+val): ML `45/52`, Accuracy `0.8654` (Wilson `[0.7473, 0.9332]`), Macro-F1 `0.8417`; keyword baseline `44/52`, Accuracy `0.8462`, Macro-F1 `0.8497`. Chênh lệch nằm trong khoảng tin cậy, chưa chứng minh ML vượt baseline.

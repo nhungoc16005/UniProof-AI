@@ -2,6 +2,8 @@ import re
 import unicodedata
 from typing import Any
 
+from .config import settings
+from .llm_assistant import assist_rubric_evaluation, should_escalate_to_llm
 from .predictor import predict_rubric_criterion
 
 
@@ -115,6 +117,14 @@ def evaluate_criterion(
     quality_passed: bool = True,
     student_code_mismatch: bool = False,
     evidence_mismatch_reason: str | None = None,
+    *,
+    declared_student_name: str = "",
+    declared_student_code: str = "",
+    declared_citizen_id: str = "",
+    ocr_extracted_name: str = "",
+    ocr_extracted_code: str = "",
+    web_snippet: str = "",
+    llm_transport: Any = None,
 ) -> dict[str, Any]:
     config = criterion.get("scoringConfig") or {}
     required = config.get("requiredData") or []
@@ -154,24 +164,82 @@ def evaluate_criterion(
     ml_prediction = predict_rubric_criterion(ocr_text, activity_name)
 
     def _with_ml(payload: dict[str, Any]) -> dict[str, Any]:
-        if ml_prediction is not None:
-            payload["mlPrediction"] = ml_prediction
-            target_code = str(criterion.get("code") or "")
-            pred_label = ml_prediction.get("predictedLabel")
-            pred_code = ml_prediction.get("predictedCriterionCode")
-            conf = float(ml_prediction.get("confidence") or 0.0)
+        nonlocal ml_prediction
+        target_code = str(criterion.get("code") or "")
+        escalate, esc_reason = should_escalate_to_llm(
+            ml_prediction=ml_prediction,
+            target_code=target_code,
+            rule_status=str(payload.get("status") or ""),
+            web_snippet=web_snippet,
+        )
+        llm_result = None
+        if escalate and esc_reason:
+            llm_result = assist_rubric_evaluation(
+                raw_ocr_text=ocr_text,
+                activity_name=activity_name or "",
+                target_code=target_code,
+                local_ml_prediction=ml_prediction,
+                web_snippet=web_snippet,
+                declared_student_name=declared_student_name,
+                declared_student_code=declared_student_code,
+                declared_citizen_id=declared_citizen_id,
+                ocr_extracted_name=ocr_extracted_name,
+                ocr_extracted_code=ocr_extracted_code,
+                escalation_reason=esc_reason,
+                transport=llm_transport,
+            )
+
+        effective_prediction = ml_prediction
+        if llm_result is not None:
+            payload["llmAssistant"] = llm_result
+            local_conf = float((ml_prediction or {}).get("confidence") or 0.0)
+            llm_conf = float(llm_result.get("confidence") or 0.0)
+            if (
+                ml_prediction is None
+                or (local_conf < settings.LLM_GATEKEEPER_CONFIDENCE_THRESHOLD and llm_conf >= 0.70)
+                or (llm_conf >= 0.80 and llm_conf > local_conf)
+            ):
+                effective_prediction = {
+                    **(ml_prediction or {}),
+                    "predictedLabel": llm_result["predictedLabel"],
+                    "predictedCriterionCode": llm_result["predictedCriterionCode"],
+                    "predictedLabelName": llm_result["predictedLabelName"],
+                    "confidence": llm_conf,
+                    "modelName": f"{(ml_prediction or {}).get('modelName', 'phobert')}+{llm_result.get('llmModel', 'groq')}",
+                    "fusionSource": "HYBRID_LLM_TIEBREAKER",
+                }
+
+        if effective_prediction is not None:
+            payload["mlPrediction"] = effective_prediction
+            pred_label = effective_prediction.get("predictedLabel")
+            pred_code = effective_prediction.get("predictedCriterionCode")
+            conf = float(effective_prediction.get("confidence") or 0.0)
             if pred_label == "KHONG_HOP_LE" and conf >= 0.65:
                 payload["status"] = "NOT_MATCHED"
                 payload["suggestedScore"] = 0
                 payload["reason"] = (
-                    f"Model ML ({ml_prediction['modelName']} v{ml_prediction.get('modelVersion', '2.0')}) phân loại tài liệu thuộc nhóm "
-                    f"'{ml_prediction['predictedLabelName']}' (độ tin cậy {round(conf * 100)}%); gợi ý 0 điểm, cần cán bộ kiểm tra."
+                    f"Model ML ({effective_prediction['modelName']} v{effective_prediction.get('modelVersion', '3.0')}) phân loại tài liệu thuộc nhóm "
+                    f"'{effective_prediction['predictedLabelName']}' (độ tin cậy {round(conf * 100)}%); gợi ý 0 điểm, cần cán bộ kiểm tra."
                 )
             elif pred_code and target_code and pred_code != target_code and conf >= 0.65:
                 payload["reason"] = (
-                    f"{payload['reason']} [Model ML ({ml_prediction['modelName']}) dự đoán minh chứng phù hợp hơn với "
-                    f"{ml_prediction['predictedLabelName']} — độ tin cậy {round(conf * 100)}%.]"
+                    f"{payload['reason']} [Model ML ({effective_prediction['modelName']}) dự đoán minh chứng phù hợp hơn với "
+                    f"{effective_prediction['predictedLabelName']} — độ tin cậy {round(conf * 100)}%.]"
                 )
+            elif (
+                llm_result is not None
+                and pred_code
+                and target_code
+                and pred_code == target_code
+                and conf >= 0.75
+                and payload.get("status") == "NOT_MATCHED"
+            ):
+                # Chặn đánh 0 điểm oan cho GCN ngoại ngữ / bố cục tự do mà Regex bỏ sót từ khóa, đẩy về duyệt tay an toàn
+                payload["status"] = "NEEDS_HUMAN_REVIEW"
+                payload["suggestedScore"] = None
+
+        if llm_result is not None and llm_result.get("reviewerSummaryVi"):
+            payload["reason"] = f"{payload['reason']} [Trợ lý Hybrid: {llm_result['reviewerSummaryVi']}]"
         return payload
 
     text = _normalize(ocr_text)

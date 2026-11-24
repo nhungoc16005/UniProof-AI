@@ -18,7 +18,9 @@ from .schemas import (
 )
 from .ocr_extractor import OcrExtractorService, configure_tesseract_environment
 from .pipeline_orchestrator import UnifiedPipelineOrchestrator
+from .config import settings
 from .criterion_evaluator import evaluate_criterion
+from .llm_assistant import is_llm_assistant_enabled
 from .predictor import is_rubric_model_available
 from .vietnamese_ocr_engine import is_rapidocr_installed, is_vietocr_installed
 
@@ -94,6 +96,8 @@ def health_check() -> dict[str, Any]:
         "rapidOcrAvailable": rapid_ok,
         "vietOcrAvailable": viet_ok,
         "rubricMlModelAvailable": is_rubric_model_available(),
+        "llmAssistantEnabled": is_llm_assistant_enabled(),
+        "llmModel": settings.LLM_MODEL if is_llm_assistant_enabled() else None,
         "defaultOcrEngine": default_engine,
         "ocrMessage": ocr_message if not (ocr_available or rapid_ok) else None,
         "eventFaceDetectionAvailable": face_detection_available,
@@ -189,6 +193,16 @@ async def inspect_evidence(request: UnifiedInspectionRequest) -> UnifiedInspecti
                     if result.breakdown.get("citizenIdMismatch") is True
                     else None
                 ),
+                declared_student_name=request.declaredStudent.fullName,
+                declared_student_code=request.declaredStudent.studentCode or "",
+                declared_citizen_id=request.declaredStudent.citizenId or "",
+                ocr_extracted_name=(result.ocrExtraction.studentNameExtracted if result.ocrExtraction else "") or "",
+                ocr_extracted_code=(result.ocrExtraction.studentCodeExtracted if result.ocrExtraction else "") or "",
+                web_snippet=(
+                    f"{result.webVerification.articleTitle or ''} — {result.webVerification.snippet or ''}".strip(" —")
+                    if result.webVerification and result.webVerification.searched
+                    else ""
+                ),
             )
         return result
     except ValueError as error:
@@ -269,6 +283,16 @@ async def process_for_backend(payload: dict[str, Any]) -> dict[str, Any]:
             else "Số CCCD trên giấy hiến máu không khớp hồ sơ sinh viên"
             if result.breakdown.get("citizenIdMismatch") is True
             else None
+        ),
+        declared_student_name=full_name,
+        declared_student_code=student_data.get("studentCode") or "",
+        declared_citizen_id=student_data.get("citizenId") or "",
+        ocr_extracted_name=(result.ocrExtraction.studentNameExtracted if result.ocrExtraction else "") or "",
+        ocr_extracted_code=(result.ocrExtraction.studentCodeExtracted if result.ocrExtraction else "") or "",
+        web_snippet=(
+            f"{result.webVerification.articleTitle or ''} — {result.webVerification.snippet or ''}".strip(" —")
+            if result.webVerification and result.webVerification.searched
+            else ""
         ),
     )
     suggestions = [{

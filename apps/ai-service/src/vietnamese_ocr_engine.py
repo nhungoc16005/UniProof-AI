@@ -19,6 +19,7 @@ import os
 import threading
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Optional
 
 import numpy as np
@@ -101,7 +102,15 @@ def _get_vietocr() -> tuple[Any, Optional[str]]:
             from vietocr.tool.predictor import Predictor
 
             model_name = os.getenv("VIETOCR_MODEL", "vgg_seq2seq")
-            config = Cfg.load_config_from_name(model_name)
+            model_dir = Path(__file__).resolve().parents[1] / "model"
+            local_cfg = model_dir / f"vietocr_{model_name}.yml"
+            local_weights = model_dir / f"vietocr_{model_name}.pth"
+            if local_cfg.exists():
+                config = Cfg.load_config_from_file(str(local_cfg))
+            else:
+                config = Cfg.load_config_from_name(model_name)
+            if local_weights.exists():
+                config["weights"] = str(local_weights)
             config["device"] = "cpu"
             # Tắt beamsearch để nhanh gấp 3-4 lần trên CPU 8GB mà vẫn giữ độ chính xác cao.
             config["predictor"]["beamsearch"] = False

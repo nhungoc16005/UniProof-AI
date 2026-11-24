@@ -19,8 +19,20 @@ class Settings(BaseSettings):
     FACE_SIMILARITY_THRESHOLD: float = float(os.getenv("FACE_SIMILARITY_THRESHOLD", "0.75"))
     # Tắt toàn bộ xử lý khuôn mặt cho tới khi có phê duyệt của nhà trường.
     FACE_MATCHING_ENABLED: bool = False
-    # D9: OCR có thể chứa PII; không gửi nội dung sang LLM ngoài khi tắt.
-    EXTERNAL_LLM_EXTRACTION_ENABLED: bool = False
+    # DEC-015 (D8/D9): Mặc định false. Khi bật, CHỈ gửi văn bản sự kiện đã qua Tường lửa PII 3 lớp (0 gửi ảnh gốc, 0 gửi PII).
+    EXTERNAL_LLM_EXTRACTION_ENABLED: bool = os.getenv("EXTERNAL_LLM_EXTRACTION_ENABLED", "false").lower() == "true"
+
+    # Groq / OpenAI-compatible Smart LLM Assistant (Giai đoạn 3 — Selective API Escalation)
+    GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
+    LLM_API_KEY: str = os.getenv("LLM_API_KEY", "")
+    LLM_API_BASE_URL: str = os.getenv("LLM_API_BASE_URL", "https://api.groq.com/openai/v1")
+    LLM_MODEL: str = os.getenv("LLM_MODEL", "openai/gpt-oss-120b")
+    LLM_FALLBACK_MODEL: str = os.getenv("LLM_FALLBACK_MODEL", "openai/gpt-oss-20b")
+    LLM_GATEKEEPER_CONFIDENCE_THRESHOLD: float = float(os.getenv("LLM_GATEKEEPER_CONFIDENCE_THRESHOLD", "0.65"))
+    LLM_GATEKEEPER_MARGIN_THRESHOLD: float = float(os.getenv("LLM_GATEKEEPER_MARGIN_THRESHOLD", "0.15"))
+    LLM_TIMEOUT_SECONDS: float = float(os.getenv("LLM_TIMEOUT_SECONDS", "8.0"))
+    LLM_CACHE_TTL_SECONDS: int = int(os.getenv("LLM_CACHE_TTL_SECONDS", str(7 * 24 * 3600)))
+    LLM_CACHE_PATH: str = os.getenv("LLM_CACHE_PATH", "/tmp/edupoint_llm_event_cache.sqlite3")
 
     # Luồng 1 contributions; these are points, not probabilities.
     SCORE_WEIGHT_BASE: float = float(os.getenv("SCORE_WEIGHT_BASE", "35"))
