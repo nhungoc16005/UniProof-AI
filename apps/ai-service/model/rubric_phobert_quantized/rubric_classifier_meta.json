@@ -1,0 +1,332 @@
+{
+  "modelName": "vinai/phobert-base-v2",
+  "modelVersion": "3.0.0",
+  "trainedAt": "2026-11-24T13:56:34.932873+00:00",
+  "trainSamples": 996,
+  "valSamples": 71,
+  "testSamples": 70,
+  "temperature": 1.1542,
+  "eceBefore": 0.0832,
+  "eceAfter": 0.0561,
+  "cv5FoldCore": {
+    "cv_folds": 5,
+    "accuracy_fold_mean": 0.8204,
+    "accuracy_fold_std": 0.0438,
+    "macro_f1_fold_mean": 0.8371,
+    "macro_f1_fold_std": 0.0433,
+    "weighted_f1_fold_mean": 0.8227,
+    "weighted_f1_fold_std": 0.0501
+  },
+  "testMetrics": {
+    "correct": 59,
+    "accuracy": 0.8429,
+    "accuracy_wilson_95ci": [
+      0.7401,
+      0.9099
+    ],
+    "macro_f1": 0.82,
+    "weighted_f1": 0.8391,
+    "confusion_matrix": {
+      "labels": [
+        "KHONG_HOP_LE",
+        "MUC_4",
+        "MUC_5",
+        "MUC_8",
+        "MUC_9",
+        "MUC_10",
+        "MUC_12",
+        "MUC_13",
+        "MUC_14",
+        "MUC_15",
+        "MUC_16"
+      ],
+      "matrix": [
+        [
+          2,
+          1,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          5,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          5,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          5,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          1,
+          0,
+          1,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          1,
+          0,
+          0,
+          5,
+          1,
+          1,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          21,
+          1,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          4,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          3,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          5,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          3
+        ]
+      ]
+    },
+    "per_class": {
+      "KHONG_HOP_LE": {
+        "precision": 1.0,
+        "recall": 0.5,
+        "f1": 0.6667,
+        "support": 4
+      },
+      "MUC_4": {
+        "precision": 0.8333,
+        "recall": 1.0,
+        "f1": 0.9091,
+        "support": 5
+      },
+      "MUC_5": {
+        "precision": 0.625,
+        "recall": 0.8333,
+        "f1": 0.7143,
+        "support": 6
+      },
+      "MUC_8": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 5
+      },
+      "MUC_9": {
+        "precision": 0.5,
+        "recall": 0.3333,
+        "f1": 0.4,
+        "support": 3
+      },
+      "MUC_10": {
+        "precision": 1.0,
+        "recall": 0.625,
+        "f1": 0.7692,
+        "support": 8
+      },
+      "MUC_12": {
+        "precision": 0.875,
+        "recall": 0.913,
+        "f1": 0.8936,
+        "support": 23
+      },
+      "MUC_13": {
+        "precision": 0.5714,
+        "recall": 0.8,
+        "f1": 0.6667,
+        "support": 5
+      },
+      "MUC_14": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 3
+      },
+      "MUC_15": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 5
+      },
+      "MUC_16": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 3
+      }
+    }
+  },
+  "trainingHistory": [
+    {
+      "epoch": 1,
+      "train_loss": 2.1658,
+      "val_acc": 0.5915,
+      "val_macro_f1": 0.4428
+    },
+    {
+      "epoch": 2,
+      "train_loss": 1.1965,
+      "val_acc": 0.7887,
+      "val_macro_f1": 0.8037
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.5298,
+      "val_acc": 0.8169,
+      "val_macro_f1": 0.8325
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.3878,
+      "val_acc": 0.8451,
+      "val_macro_f1": 0.8279
+    },
+    {
+      "epoch": 5,
+      "train_loss": 0.379,
+      "val_acc": 0.831,
+      "val_macro_f1": 0.8573
+    },
+    {
+      "epoch": 6,
+      "train_loss": 0.379,
+      "val_acc": 0.8592,
+      "val_macro_f1": 0.8626
+    },
+    {
+      "epoch": 7,
+      "train_loss": 0.3767,
+      "val_acc": 0.8592,
+      "val_macro_f1": 0.8751
+    },
+    {
+      "epoch": 8,
+      "train_loss": 0.3774,
+      "val_acc": 0.8592,
+      "val_macro_f1": 0.8751
+    },
+    {
+      "epoch": 9,
+      "train_loss": 0.3774,
+      "val_acc": 0.8592,
+      "val_macro_f1": 0.8751
+    },
+    {
+      "epoch": 10,
+      "train_loss": 0.3782,
+      "val_acc": 0.8592,
+      "val_macro_f1": 0.8685
+    },
+    {
+      "epoch": 11,
+      "train_loss": 0.3766,
+      "val_acc": 0.8592,
+      "val_macro_f1": 0.8736
+    },
+    {
+      "epoch": 12,
+      "train_loss": 0.3776,
+      "val_acc": 0.8592,
+      "val_macro_f1": 0.8736
+    }
+  ]
+}

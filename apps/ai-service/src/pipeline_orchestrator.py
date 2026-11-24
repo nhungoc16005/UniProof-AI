@@ -194,6 +194,7 @@ class UnifiedPipelineOrchestrator:
                 ocr.rawText,
                 activity_name,
                 ocr.available,
+                image_bytes=image_bytes,
             )
             score = 35.0
             if quality.passed:

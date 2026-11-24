@@ -169,7 +169,27 @@ python apps/ai-service/tools/register_templates.py
 - 7 lỗi chủ yếu: `MUC_9 → MUC_5` (cuộc thi tài năng/văn nghệ bị hiểu là cuộc thi học thuật, 3 ca), `MUC_13 → MUC_8/MUC_12`, `MUC_8 → MUC_12`, `MUC_4 → MUC_8` (talkshow).
 
 > [!NOTE]
-> ML chỉ nhỉnh hơn keyword baseline 1 mẫu và khoảng tin cậy chồng nhau — **chưa đủ bằng chứng ML vượt trội**. Giá trị chính hiện nay là xác suất top-3 để giải thích, không phải độ chính xác cao hơn. Cần thêm dữ liệu thật, đặc biệt cho `MUC_9`, `MUC_13`.
+> ML `tfidf_linear_svc` v2.0.0 trên chỉ nhỉnh hơn keyword baseline 1 mẫu và khoảng tin cậy chồng nhau — là mốc lịch sử trước khi nâng cấp sang **Pipeline A v3.0.0 (Deep Learning Transformer ONNX INT8)** bên dưới.
+
+### Pipeline A v3.0.0 — Deep Learning Transformer ONNX INT8 (Cập nhật 2026-11-24)
+
+- **Dữ liệu Dataset v3 (`research/activity-classification/datasets_v3/`):** Xây dựng bằng [prepare_dataset_v3.py](../research/activity-classification/prepare_dataset_v3.py) và kiểm định qua [validate_dataset_v3.py](../research/activity-classification/validate_dataset_v3.py) (`PASSED`, `group_leakage: 0`, `pii_hits_count: 0`, đủ 11 lớp trên cả 3 tập).
+  - **Core gốc:** **350 mẫu / 313 `group_id` độc lập** (`136` quy chế DUT + `73` mẫu OCR thật mới từ `docs/Minh chứng Lọc/` + `72` mẫu curated + `51` mẫu human Excel + `18` mẫu OCR thật `bo sung/`).
+  - **Phân chia:** `train.csv` **996 dòng** (bổ sung `160` `UIT-VSFC`, `100` tiêu đề ngắn `VNTC`, và OCR noise augmentation chỉ trên tập Train), `val.csv` **71 dòng** (100% Core gốc), `test.csv` **70 dòng** (100% Core gốc).
+- **So sánh 5 mô hình trên cùng tập Test mù (`N = 70`)** ([model_comparison.csv](../research/activity-classification/report_plots/model_comparison.csv)):
+
+| Mô hình | Test Accuracy (`N=70`) | Wilson 95% CI | Test Macro-F1 | 5-Fold CV (`N=350`) | ECE (Trước → Sau) |
+|---|---|---|---|---|---|
+| Keyword Rule Baseline | 0,8000 | `[0,6918 – 0,8770]` | 0,8180 | — | — |
+| TF-IDF + LinearSVC | 0,8286 | `[0,7238 – 0,8991]` | 0,8186 | — | — |
+| Multilingual-MiniLM-L12 (Kaggle) | 0,7000 | `[0,5846 – 0,7946]` | 0,6994 | — | `0,1479 → 0,1547` |
+| XLM-RoBERTa-base (Kaggle) | 0,8000 | `[0,6918 – 0,8770]` | 0,7789 | — | `0,1244 → 0,0861` |
+| **`vinai/phobert-base-v2` (ONNX INT8 — Production)** | **0,8429** (59/70) | **`[0,7401 – 0,9099]`** | **0,8200** *(Weighted: **0,8391**)* | **Acc `0,8204 ± 0,0438`** / **Macro-F1 `0,8371 ± 0,0433`** | **`0,0832 → 0,0561`** (`T=1,1542`) |
+
+- **Tích hợp & Benchmark CPU 8GB thực tế** (`apps/ai-service/model/rubric_phobert_quantized/model_quantized.onnx`, `130 MB`, nạp ưu tiên trong [predictor.py](../apps/ai-service/src/predictor.py), đo bằng [benchmark_cpu_8gb.py](../apps/ai-service/tools/benchmark_cpu_8gb.py) trên 12 ảnh thật):
+  - **Peak RSS:** **`943,8 MB`** (đạt ngân sách `≤ 1536 MB`, dư ~592 MB).
+  - **Latency:** OCR P50 `1,17s` / P95 `1,87s`; `PhoBERT ONNX INT8` P50 `74,6 ms` (cold-start `749 ms`); Tổng P50 **`1,32s`** / P95 **`2,36s`**.
+  - **Unit tests (`test_ml_and_flows`, `test_template_matcher`):** **11/12 PASS**; 1 ca fail là mẫu song ngữ/tiếng Anh `Da Nang Code League 2024` (`PhoBERT` trả `MUC_8` với độ tin cậy thấp `0,5514 < 0,65` thay vì `MUC_5`) — xác nhận đúng động lực tích hợp Smart Gatekeeper + LLM API Fallback cho ca `confidence < 0,65` theo `DEC-015`.
 
 ### Pipeline B
 

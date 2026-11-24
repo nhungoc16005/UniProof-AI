@@ -2,6 +2,22 @@
 
 Mỗi công việc trong dự án thêm mục mới ở đầu với ngày, phạm vi, feature/bug/quyết định liên quan, thay đổi thực tế, kiểm tra đã chạy và giới hạn. Không ghi test dự kiến như đã Passed, không ghi credential hoặc dữ liệu sinh viên.
 
+## 2026-11-24 — Hoàn thành Giai đoạn 1 AI: Dataset v3 (350 Core), Huấn luyện `PhoBERT-base-v2` ONNX INT8 (84,29%) & Chốt kiến trúc Hybrid (`DEC-015`)
+
+- **Phạm vi & quyết định:** `DEC-015`, Pipeline A v3.0.0 (`apps/ai-service`, `research/activity-classification/`).
+- **Làm sạch nợ kỹ thuật & sửa lỗi pipeline:**
+  - Vá lỗi truyền thiếu `image_bytes=image_bytes` vào `FaceAndVisionService.analyze_scene_vision(...)` trong [pipeline_orchestrator.py](../apps/ai-service/src/pipeline_orchestrator.py); xóa các tệp placeholder 0-byte (`apps/ai-service/model/{config.json,model.safetensors,tokenizer_config.json}`, `apps/ai-service/src/tokenizer.py`, `research/activity-classification/{compare_llm_vs_baseline.py,notebooks/data_exploration.ipynb}`) và bỏ tập ảnh tổng hợp PIL cũ trong `research/image-classification/datasets/`.
+  - Bổ sung phụ thuộc ML/ONNX vào [requirements.txt](../apps/ai-service/requirements.txt).
+- **Dataset v3 & Huấn luyện Transformer trên Kaggle GPU:**
+  - Tạo [prepare_dataset_v3.py](../research/activity-classification/prepare_dataset_v3.py), [validate_dataset_v3.py](../research/activity-classification/validate_dataset_v3.py), [train_transformer_kaggle.py](../research/activity-classification/train_transformer_kaggle.py) và notebook [edupoint_kaggle_train.ipynb](../research/activity-classification/notebooks/edupoint_kaggle_train.ipynb).
+  - Tích hợp thêm 73 mẫu OCR thật mới từ `docs/Minh chứng Lọc/` (đã loại trùng `sha256`, nhóm `group_id` theo sự kiện và ẩn danh PII) nâng Core lên **350 mẫu / 313 `group_id`** (`996` Train / `71` Val / `70` Test; kiểm định `validate_dataset_v3.py` → `PASSED`, `group_leakage: 0`, `pii_hits_count: 0`).
+  - Đối chứng 5 mô hình trên cùng `test.csv` (`N=70`): **`vinai/phobert-base-v2`** đạt kết quả cao nhất với **Test Accuracy `84,29%`** (`59/70`, Wilson 95% CI `[74,01%, 90,99%]`), **Macro-F1 `0,8200`**, **Weighted-F1 `0,8391`**, **5-Fold CV Macro-F1 `0,8371 ± 0,0433`**, và **ECE giảm từ `0,0832` → `0,0561`** (`T=1,1542`); vượt Keyword Baseline (`80,00%`), `TF-IDF + LinearSVC` (`82,86%`), `XLM-RoBERTa-base` (`80,00%`), và `Multilingual-MiniLM-L12` (`70,00%`).
+  - Xuất mô hình lượng tử hóa `apps/ai-service/model/rubric_phobert_quantized/model_quantized.onnx` (`130 MB`), cập nhật [predictor.py](../apps/ai-service/src/predictor.py) ưu tiên suy luận ONNX INT8 (có Temperature Scaling và fallback về `joblib`), lưu đầy đủ biểu đồ tại `research/activity-classification/report_plots/` và `apps/ai-service/model/rubric_phobert_quantized/plots/`.
+- **Kiểm chứng & giới hạn:**
+  - Tạo và chạy [benchmark_cpu_8gb.py](../apps/ai-service/tools/benchmark_cpu_8gb.py) trên 12 ảnh minh chứng thật: `RapidOCR` + `PhoBERT-base-v2 ONNX INT8` đạt **Peak RSS `943,8 MB`** (`≤ 1536 MB`), ML P50 **`74,6 ms`**, Tổng P50 **`1,32s`** / P95 **`2,36s`**.
+  - Chạy `unittest test_ml_and_flows test_template_matcher` trong `apps/ai-service`: **11/12 PASS**, 1 ca FAIL (`Da Nang Code League 2024` nhiều tiếng Anh, `PhoBERT` trả `MUC_8` với `confidence=0,5514 < 0,65` thay vì `MUC_5`) — sẽ xử lý ở Giai đoạn 3 (Smart Gatekeeper + LLM API Fallback). Chưa triển khai lại Model CV #2 (GĐ 2) và `llm_assistant.py` (GĐ 3); chưa chạy lại backend worker/E2E browser.
+- **Tài liệu:** Cập nhật [DECISIONS.md](DECISIONS.md) (`DEC-015`), [AI_TRAINING_AND_ARCHITECTURE_GUIDE.md](AI_TRAINING_AND_ARCHITECTURE_GUIDE.md) và [CHANGELOG.md](CHANGELOG.md). Không thay đổi `API_CONTRACT.md` hay `BUSINESS_RULES.md`.
+
 ## 2026-11-23 — Train lại toàn bộ AI từ A đến Z và hiệu chỉnh tài liệu hướng dẫn
 
 - **Train thực tế:** Pipeline A (Rubric Classifier `tfidf_linear_svc` v2.0.0, 11 lớp) → `apps/ai-service/model/rubric_classifier.joblib`; Pipeline B (MobileNetV3-Small 7 lớp) → `apps/ai-service/model/event_scene_classifier.pt`; Pipeline C (5 phôi) → `apps/ai-service/templates/registry.json`. Khởi động lại FastAPI để nạp model.
